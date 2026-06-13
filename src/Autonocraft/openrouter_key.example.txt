@@ -1,0 +1,9 @@
+# Place your OpenRouter API Key below.
+# Alternatively, configure the OPENROUTER_API_KEY environment variable.
+# Copy this file to openrouter_key.txt and fill in your key.
+
+API_KEY=YOUR_OPENROUTER_API_KEY_HERE
+
+# You can configure any model available on OpenRouter.
+# Defaults: google/gemini-2.5-flash (fast/cheap), anthropic/claude-3.5-sonnet (smart), etc.
+MODEL=google/gemini-2.5-flash

@@ -1,0 +1,27 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local API keys (template is openrouter_key.example.txt)
+openrouter_key.txt
+
+# Test / generated artifacts
+screenshot_test.png
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
