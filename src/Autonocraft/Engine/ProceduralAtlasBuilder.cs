@@ -387,30 +387,31 @@ namespace Autonocraft.Engine
                     {
                         var palette = new[]
                         {
-                        ShiftColor(new Color(48, 112, 42), seedShift),
-                        ShiftColor(new Color(62, 138, 52), seedShift),
-                        ShiftColor(new Color(78, 158, 58), seedShift)
-                    };
-                        return FromSynth(ProceduralTextureSynth.FloraSprite(_tileSize, name, palette, 30));
+                            ShiftColor(new Color(48, 112, 42), seedShift),
+                            ShiftColor(new Color(62, 138, 52), seedShift),
+                            ShiftColor(new Color(78, 158, 58), seedShift)
+                        };
+                        return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                            ProceduralTextureSynth.TallGrassClump(half, $"tall_grass_v{variant}", palette)));
                     }
                 case "flower":
                     {
-                        var grassPalette = new[]
+                        var petalColors = new[]
                         {
-                        ShiftColor(new Color(58, 132, 48), seedShift),
-                        ShiftColor(new Color(74, 158, 56), seedShift),
-                        ShiftColor(new Color(88, 172, 64), seedShift)
-                    };
-                        return FromSynth(ProceduralTextureSynth.FlowerPatch(
-                            _tileSize,
-                            name,
-                            grassPalette,
-                            new[]
-                            {
-                            new Color(214, 76, 106),
-                            new Color(238, 208, 72),
-                            new Color(220, 120, 214)
-                            }));
+                            ShiftColor(new Color(214, 76, 106), seedShift),
+                            ShiftColor(new Color(238, 208, 72), seedShift),
+                            ShiftColor(new Color(220, 120, 214), seedShift),
+                            ShiftColor(new Color(120, 160, 230), seedShift)
+                        };
+                        var stem = ShiftColor(new Color(42, 98, 38), seedShift);
+                        var center = new Color(246, 236, 180);
+                        return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                            ProceduralTextureSynth.FlowerStemSprite(
+                                half,
+                                $"flower_v{variant}",
+                                stem,
+                                petalColors,
+                                center)));
                     }
                 case "station_bench":
                     {
@@ -622,19 +623,22 @@ namespace Autonocraft.Engine
                     {
                         var palette = new[]
                         {
-                        ShiftColor(new Color(38, 98, 48), seedShift),
-                        ShiftColor(new Color(48, 112, 52), seedShift),
-                        ShiftColor(new Color(62, 138, 58), seedShift)
-                    };
-                        return FromSynth(ProceduralTextureSynth.FloraSprite(_tileSize, name, palette, 32, addHeads: true));
+                            ShiftColor(new Color(88, 98, 48), seedShift),
+                            ShiftColor(new Color(98, 112, 52), seedShift),
+                            ShiftColor(new Color(112, 128, 58), seedShift)
+                        };
+                        var head = ShiftColor(new Color(148, 128, 62), seedShift);
+                        return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                            ProceduralTextureSynth.ReedSprite(half, $"reed_v{variant}", palette, head)));
                     }
                 case "sunflower":
-                    return FromSynth(ProceduralTextureSynth.SunflowerSprite(
-                        _tileSize,
-                        name,
-                        ShiftColor(new Color(42, 98, 38), seedShift),
-                        new Color(238, 198, 42),
-                        new Color(68, 48, 28)));
+                    {
+                        var stem = ShiftColor(new Color(42, 98, 38), seedShift);
+                        var petal = new Color(238, 198, 42);
+                        var center = new Color(68, 48, 28);
+                        return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                            ProceduralTextureSynth.SunflowerSprite(half, $"sunflower_v{variant}", stem, petal, center)));
+                    }
                 case "hay_bale":
                     {
                         var palette = new[]

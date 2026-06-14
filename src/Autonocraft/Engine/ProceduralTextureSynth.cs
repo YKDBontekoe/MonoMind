@@ -1,4 +1,5 @@
 using Microsoft.Xna.Framework;
+using System;
 using System.Linq;
 
 namespace Autonocraft.Engine
@@ -162,6 +163,28 @@ namespace Autonocraft.Engine
             return image.Pixels;
         }
 
+        /// <summary>Side-view flower sprite for vertical billboards (stem + petal cluster).</summary>
+        public static Color[] FlowerStemSprite(int tileSize, string name, Color stem, Color[] petalColors, Color center)
+        {
+            var image = new TileImage(FillSolid(tileSize, Color.Transparent), tileSize);
+            int cx = tileSize / 2 + (Noise(name, 0, 3, 5) % 7) - 3;
+            int bloomY = tileSize / 4 + Noise(name, 1, 7, 11) % (tileSize / 6);
+            DrawBlade(image, cx, tileSize - 2, cx + (Noise(name, 2, 13, 17) % 5) - 2, bloomY + 10, stem, 2);
+            Color petal = petalColors[Noise(name, 3, 19, 23) % petalColors.Length];
+            int petalCount = 5 + Noise(name, 4, 29, 31) % 2;
+            for (int i = 0; i < petalCount; i++)
+            {
+                double rad = i * (Math.PI * 2.0 / petalCount) + Noise(name, i, 37, 41) * 0.08;
+                int px = (int)(cx + Math.Cos(rad) * (tileSize / 7));
+                int py = (int)(bloomY + Math.Sin(rad) * (tileSize / 9));
+                FillEllipse(image, px - 4, py - 3, px + 4, py + 3, petal);
+            }
+
+            FillEllipse(image, cx - 4, bloomY - 3, cx + 4, bloomY + 3, center);
+            DrawBlade(image, cx - 6, tileSize / 2, cx - 10, tileSize / 2 + 6, Darken(stem, 8), 1);
+            return image.Pixels;
+        }
+
         public static Color[] FloraSprite(int tileSize, string name, Color[] palette, int bladeCount, bool addHeads = false)
         {
             var image = new TileImage(FillSolid(tileSize, Color.Transparent), tileSize);
@@ -182,22 +205,94 @@ namespace Autonocraft.Engine
             return image.Pixels;
         }
 
+        public static Color[] TallGrassClump(int tileSize, string name, Color[] palette)
+        {
+            return FloraSprite(tileSize, name, palette, 34);
+        }
+
+        public static Color[] ShortGrassSprite(int tileSize, string name, Color[] palette)
+        {
+            var image = new TileImage(FillSolid(tileSize, Color.Transparent), tileSize);
+            for (int i = 0; i < 22; i++)
+            {
+                int x = Noise(name, i, 11, 17) % tileSize;
+                int y1 = tileSize * 2 / 3 + Noise(name, i, 19, 21) % (tileSize / 4);
+                Color blade = palette[Noise(name, i, 23, 29) % palette.Length];
+                int tipX = Math.Clamp(x + (Noise(name, i, 31, 33) % 9) - 4, 0, tileSize - 1);
+                DrawBlade(image, x, tileSize - 2, tipX, y1, blade, 2);
+                SetPixel(image, tipX, y1, Lighten(blade, 18));
+            }
+
+            return image.Pixels;
+        }
+
+        public static Color[] ReedSprite(int tileSize, string name, Color[] palette, Color head)
+        {
+            var image = new TileImage(FillSolid(tileSize, Color.Transparent), tileSize);
+            for (int i = 0; i < 10; i++)
+            {
+                int x = tileSize / 4 + Noise(name, i, 11, 17) % (tileSize / 2);
+                int top = tileSize / 6 + Noise(name, i, 19, 21) % (tileSize / 3);
+                Color stalk = palette[Noise(name, i, 23, 29) % palette.Length];
+                DrawBlade(image, x, tileSize - 2, x + (Noise(name, i, 31, 33) % 5) - 2, top, stalk, 2);
+                for (int seg = top; seg < tileSize - 4; seg += 8)
+                {
+                    SetPixel(image, x, seg, Darken(stalk, 10));
+                }
+
+                if (i % 2 == 0)
+                {
+                    FillEllipse(image, x - 3, top - 4, x + 3, top + 2, head);
+                }
+            }
+
+            return image.Pixels;
+        }
+
         public static Color[] SunflowerSprite(int tileSize, string name, Color stem, Color petal, Color center)
         {
             var image = new TileImage(FillSolid(tileSize, Color.Transparent), tileSize);
             int cx = tileSize / 2;
             int cy = tileSize / 3;
             DrawBlade(image, cx, tileSize - 3, cx, cy + 18, stem, 3);
-            for (int angle = 0; angle < 360; angle += 30)
+            DrawBlade(image, cx - 5, tileSize / 2, cx - 9, tileSize / 2 + 8, Darken(stem, 10), 2);
+            for (int ring = 0; ring < 2; ring++)
             {
-                double rad = angle * Math.PI / 180.0;
-                int x2 = (int)(cx + Math.Cos(rad) * 22);
-                int y2 = (int)(cy + Math.Sin(rad) * 16);
-                FillEllipse(image, x2 - 6, y2 - 6, x2 + 6, y2 + 6, petal);
+                int radiusX = 20 - ring * 4;
+                int radiusY = 14 - ring * 3;
+                Color ringPetal = ring == 0 ? petal : Darken(petal, 12);
+                for (int angle = 0; angle < 360; angle += 30)
+                {
+                    double rad = angle * Math.PI / 180.0;
+                    int x2 = (int)(cx + Math.Cos(rad) * radiusX);
+                    int y2 = (int)(cy + Math.Sin(rad) * radiusY);
+                    FillEllipse(image, x2 - 6, y2 - 5, x2 + 6, y2 + 5, ringPetal);
+                }
             }
 
             FillEllipse(image, cx - 12, cy - 10, cx + 12, cy + 10, center);
+            FillEllipse(image, cx - 6, cy - 5, cx + 2, cy + 1, Lighten(center, 16));
             return image.Pixels;
+        }
+
+        /// <summary>Packs four variant sprites into the quadrants of a full atlas tile.</summary>
+        public static Color[] PackFloraVariants(int tileSize, Func<int, int, Color[]> generateVariant)
+        {
+            int half = tileSize / 2;
+            var result = new Color[tileSize * tileSize];
+            Array.Fill(result, Color.Transparent);
+            for (int variant = 0; variant < 4; variant++)
+            {
+                var pixels = generateVariant(half, variant);
+                int ox = (variant % 2) * half;
+                int oy = (variant / 2) * half;
+                for (int y = 0; y < half; y++)
+                {
+                    Array.Copy(pixels, y * half, result, (oy + y) * tileSize + ox, half);
+                }
+            }
+
+            return result;
         }
 
         public static Color[] PalmLeaves(int tileSize, string name, Color[] palette)

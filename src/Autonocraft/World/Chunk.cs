@@ -40,8 +40,8 @@ namespace Autonocraft.World
         private IndexBuffer? _shellIndexBuffer;
         private int _shellIndexCount;
 
-        private VertexBuffer? _floraVertexBuffer;
-        private IndexBuffer? _floraIndexBuffer;
+        private FloraVertex[]? _floraVertices;
+        private uint[]? _floraIndices;
         private int _floraIndexCount;
 
         private bool _fullMeshBuilt;
@@ -70,11 +70,11 @@ namespace Autonocraft.World
             public readonly uint[] Indices;
             public readonly ChunkMeshDetail Detail;
             public readonly bool BuildFlora;
-            public readonly Vertex[]? FloraVertices;
+            public readonly FloraVertex[]? FloraVertices;
             public readonly uint[]? FloraIndices;
 
             public PrebuiltMeshData(Vertex[] v, uint[] i, ChunkMeshDetail detail, bool buildFlora,
-                Vertex[]? fv = null, uint[]? fi = null)
+                FloraVertex[]? fv = null, uint[]? fi = null)
             {
                 Vertices = v; Indices = i; Detail = detail; BuildFlora = buildFlora;
                 FloraVertices = fv; FloraIndices = fi;
@@ -207,29 +207,27 @@ namespace Autonocraft.World
 
         public bool HasFloraMesh() => _floraMeshBuilt && _floraIndexCount > 0;
 
-        public (VertexBuffer? vertexBuffer, IndexBuffer? indexBuffer, int indexCount) GetFloraMesh()
+        public (FloraVertex[]? vertices, uint[]? indices, int indexCount) GetFloraMesh()
         {
-            return (_floraVertexBuffer, _floraIndexBuffer, _floraIndexCount);
+            return (_floraVertices, _floraIndices, _floraIndexCount);
         }
 
-        public void EnsureFloraMesh(GraphicsDevice device)
+        public void EnsureFloraMesh(int seed)
         {
             if (_floraMeshBuilt)
             {
                 return;
             }
 
-            var vertices = new List<Vertex>();
-            var indices = new List<uint>();
-            FloraMeshBuilder.Build(this, vertices, indices);
+            var vertices = new List<FloraVertex>(1024);
+            var indices = new List<uint>(1536);
+            FloraMeshBuilder.Build(this, seed, vertices, indices);
 
             _floraIndexCount = indices.Count;
             if (_floraIndexCount > 0)
             {
-                _floraVertexBuffer = new VertexBuffer(device, Vertex.VertexDeclaration, vertices.Count, BufferUsage.WriteOnly);
-                _floraVertexBuffer.SetData(vertices.ToArray());
-                _floraIndexBuffer = new IndexBuffer(device, IndexElementSize.ThirtyTwoBits, indices.Count, BufferUsage.WriteOnly);
-                _floraIndexBuffer.SetData(indices.ToArray());
+                _floraVertices = vertices.ToArray();
+                _floraIndices = indices.ToArray();
             }
 
             _floraMeshBuilt = true;
@@ -315,7 +313,7 @@ namespace Autonocraft.World
 
             if (buildFlora)
             {
-                EnsureFloraMesh(device);
+                EnsureFloraMesh(context.Seed);
             }
         }
 
@@ -335,13 +333,13 @@ namespace Autonocraft.World
             else
                 BuildFullMeshList(context, vertices, indices);
 
-            Vertex[]? fv = null;
+            FloraVertex[]? fv = null;
             uint[]? fi = null;
             if (buildFlora && !_floraMeshBuilt)
             {
-                var fvList = new List<Vertex>(1024);
+                var fvList = new List<FloraVertex>(1024);
                 var fiList = new List<uint>(1536);
-                FloraMeshBuilder.Build(this, fvList, fiList);
+                FloraMeshBuilder.Build(this, context.Seed, fvList, fiList);
                 if (fvList.Count > 0) { fv = fvList.ToArray(); fi = fiList.ToArray(); }
             }
 
@@ -437,8 +435,9 @@ namespace Autonocraft.World
             if (data.BuildFlora && data.FloraVertices != null && data.FloraIndices != null
                 && (!_floraMeshBuilt || wasStale))
             {
-                UploadMeshBuffers(device, data.FloraVertices, data.FloraIndices,
-                    ref _floraVertexBuffer, ref _floraIndexBuffer, ref _floraIndexCount);
+                _floraVertices = data.FloraVertices;
+                _floraIndices = data.FloraIndices;
+                _floraIndexCount = data.FloraIndices.Length;
                 _floraMeshBuilt = true;
             }
         }
@@ -521,10 +520,8 @@ namespace Autonocraft.World
 
         public void InvalidateFloraMesh()
         {
-            _floraVertexBuffer?.Dispose();
-            _floraIndexBuffer?.Dispose();
-            _floraVertexBuffer = null;
-            _floraIndexBuffer = null;
+            _floraVertices = null;
+            _floraIndices = null;
             _floraIndexCount = 0;
             _floraMeshBuilt = false;
         }
@@ -537,8 +534,6 @@ namespace Autonocraft.World
             _surfaceIndexBuffer?.Dispose();
             _shellVertexBuffer?.Dispose();
             _shellIndexBuffer?.Dispose();
-            _floraVertexBuffer?.Dispose();
-            _floraIndexBuffer?.Dispose();
 
             _fullVertexBuffer = null;
             _fullIndexBuffer = null;
@@ -549,8 +544,8 @@ namespace Autonocraft.World
             _shellVertexBuffer = null;
             _shellIndexBuffer = null;
             _shellIndexCount = 0;
-            _floraVertexBuffer = null;
-            _floraIndexBuffer = null;
+            _floraVertices = null;
+            _floraIndices = null;
             _floraIndexCount = 0;
         }
 

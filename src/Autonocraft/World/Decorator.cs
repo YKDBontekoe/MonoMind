@@ -5,6 +5,7 @@ namespace Autonocraft.World
     public sealed class Decorator
     {
         private readonly NoiseStack _treeNoise;
+        private readonly NoiseStack _floraNoise;
         private readonly int _seed;
         private readonly WorldGenParams _params;
 
@@ -13,6 +14,7 @@ namespace Autonocraft.World
             _seed = seed;
             _params = parameters;
             _treeNoise = new NoiseStack(seed + 9999);
+            _floraNoise = new NoiseStack(seed + 8888);
         }
 
         public void DecorateChunk(Chunk chunk, VoxelWorld? world, TerrainColumn[,] columns)
@@ -138,27 +140,46 @@ namespace Autonocraft.World
 
         private void TryPlaceFlora(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, TerrainColumn column)
         {
-            int hash = Hash(wx, wz, 17);
             int surfaceHeight = column.SurfaceHeight;
+            float floraSample = _floraNoise.Fbm(wx * 0.21f, wz * 0.21f, 3);
+            int hash = Hash(wx, wz, 17);
 
-            if (column.Profile.AllowCactus && hash % 97 == 0)
+            if (column.Profile.AllowCactus && floraSample > 0.88f && hash % 11 == 0)
             {
                 SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.Cactus);
                 return;
             }
 
-            if (column.Profile.AllowTallGrass && hash % 31 == 0)
+            if (column.Profile.AllowTallGrass)
             {
-                SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.TallGrass);
+                float grassThreshold = column.Biome.Primary switch
+                {
+                    BiomeType.Forest => 0.76f,
+                    BiomeType.Plains => 0.68f,
+                    BiomeType.Swamp => 0.74f,
+                    _ => 0.72f
+                };
+                if (floraSample > grassThreshold)
+                {
+                    SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.TallGrass);
+                }
             }
 
-            if (column.Profile.AllowFlowers && hash % 53 == 0)
+            if (column.Profile.AllowFlowers)
             {
-                BlockType flowerType = hash % 2 == 0 ? BlockType.Flower : BlockType.Sunflower;
-                SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, flowerType);
+                float flowerThreshold = 0.82f;
+                float sunflowerThreshold = 0.91f;
+                if (floraSample > sunflowerThreshold && hash % 3 == 0)
+                {
+                    SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.Sunflower);
+                }
+                else if (floraSample > flowerThreshold)
+                {
+                    SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.Flower);
+                }
             }
 
-            if (column.Biome.Primary == BiomeType.Swamp && hash % 71 == 0)
+            if (column.Biome.Primary == BiomeType.Swamp && floraSample > 0.70f && hash % 5 == 0)
             {
                 SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.Reed);
             }
