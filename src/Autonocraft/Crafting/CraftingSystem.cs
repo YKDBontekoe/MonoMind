@@ -132,7 +132,7 @@ namespace Autonocraft.Crafting
             journal.Unlock("recipe:gold_sword");
         }
 
-        public SigilActivationResult TryActivateSigil(VoxelWorld world, int cx, int cy, int cz, GraphicsDevice device)
+        public SigilActivationResult TryActivateSigil(VoxelWorld world, int cx, int cy, int cz, GraphicsDevice? device)
         {
             var preview = PreviewSigil(world, cx, cy, cz);
             if (preview.Success && preview.Pattern != null)
@@ -154,7 +154,7 @@ namespace Autonocraft.Crafting
             return new SigilActivationResult(false, partial, pattern);
         }
 
-        public void ApplySigilActivation(VoxelWorld world, int cx, int cy, int cz, SigilPattern pattern, GraphicsDevice device)
+        public void ApplySigilActivation(VoxelWorld world, int cx, int cy, int cz, SigilPattern pattern, GraphicsDevice? device)
         {
             foreach (var (x, y, z) in pattern.GetConsumedPositions(cx, cy, cz))
             {

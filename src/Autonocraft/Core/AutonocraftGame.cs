@@ -97,7 +97,6 @@ namespace Autonocraft.Core
         private bool _deferPrevMouseReset;
         private bool _deferAgentServerStart;
         private float _spawnWarmupRemaining;
-        private float _waterAnimUpdateTimer;
         private float _inactiveTimer;
         private float _claimHintTimer = 10f;
         private const float FocusLossReleaseDelay = 0.35f;
@@ -1648,7 +1647,7 @@ namespace Autonocraft.Core
 
             if (!_session.Player.IsAlive)
             {
-                if (!_deathScreen.IsOpen)
+                if (_deathScreen is not { IsOpen: true })
                 {
                     OpenDeathScreen();
                 }

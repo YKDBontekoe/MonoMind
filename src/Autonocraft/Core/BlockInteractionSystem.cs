@@ -251,7 +251,7 @@ namespace Autonocraft.Core
             bool shiftRightPressed,
             CraftingSystem? crafting,
             ParticleSystem particles,
-            GraphicsDevice device,
+            GraphicsDevice? device,
             BlockRaycastHit? solidRayHit = null)
         {
             _animTime += deltaTime;
@@ -344,7 +344,7 @@ namespace Autonocraft.Core
             UpdateCrosshairState();
         }
 
-        public void InstantMine(VoxelWorld world, Player player, Vector3 cameraPos, Vector3 cameraFront, ParticleSystem particles, GraphicsDevice device)
+        public void InstantMine(VoxelWorld world, Player player, Vector3 cameraPos, Vector3 cameraFront, ParticleSystem particles, GraphicsDevice? device)
         {
             var (hitBlockPos, _, blockType, _) = RaycastSolid(world, cameraPos, cameraFront, RaycastRange);
             if (!hitBlockPos.HasValue || blockType == BlockType.Air)
@@ -366,7 +366,7 @@ namespace Autonocraft.Core
             ResetMining();
         }
 
-        public void InstantPlace(VoxelWorld world, Player player, Vector3 cameraPos, Vector3 cameraFront, ParticleSystem particles, GraphicsDevice device)
+        public void InstantPlace(VoxelWorld world, Player player, Vector3 cameraPos, Vector3 cameraFront, ParticleSystem particles, GraphicsDevice? device)
         {
             var (hitBlockPos, normal, _, _) = RaycastSolid(world, cameraPos, cameraFront, RaycastRange);
             if (!hitBlockPos.HasValue || !normal.HasValue)
@@ -405,7 +405,7 @@ namespace Autonocraft.Core
             TriggerCrosshairFlash();
         }
 
-        private void CompleteBreak(VoxelWorld world, Player player, ParticleSystem particles, GraphicsDevice device)
+        private void CompleteBreak(VoxelWorld world, Player player, ParticleSystem particles, GraphicsDevice? device)
         {
             if (!_miningBlockPos.HasValue)
             {
@@ -448,7 +448,7 @@ namespace Autonocraft.Core
             Vector3 cameraPos,
             Vector3 cameraFront,
             ParticleSystem particles,
-            GraphicsDevice device)
+            GraphicsDevice? device)
         {
             var stack = player.GetSelectedStack();
             if (stack.IsEmptyBucket())
@@ -495,7 +495,7 @@ namespace Autonocraft.Core
             return false;
         }
 
-        private void TryPlaceBlock(VoxelWorld world, Player player, ParticleSystem particles, GraphicsDevice device)
+        private void TryPlaceBlock(VoxelWorld world, Player player, ParticleSystem particles, GraphicsDevice? device)
         {
             if (!GhostBlockPos.HasValue)
             {
@@ -736,7 +736,7 @@ namespace Autonocraft.Core
             VoxelWorld world,
             CraftingSystem? crafting,
             ParticleSystem particles,
-            GraphicsDevice device,
+            GraphicsDevice? device,
             Vector3? normal)
         {
             if (_sigilAnimTimer <= 0f || _pendingSigilPattern == null || !_pendingSigilCenter.HasValue)
