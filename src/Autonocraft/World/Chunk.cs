@@ -380,6 +380,8 @@ namespace Autonocraft.World
             }
         }
 
+        internal void ForceMarkMeshDetailComplete(ChunkMeshDetail detail) => MarkEmptyMeshDetail(detail);
+
         internal void ApplyPrebuiltMesh(GraphicsDevice device, PrebuiltMeshData data)
         {
             bool wasStale = MeshStale;

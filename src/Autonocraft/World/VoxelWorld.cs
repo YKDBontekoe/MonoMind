@@ -614,6 +614,86 @@ namespace Autonocraft.World
             }
         }
 
+        private static bool ChunkHasPlayableMesh(Chunk chunk, int chunkDistance, int renderDistance) =>
+            ChunkLod.TryGetRenderableDetail(
+                chunk,
+                ChunkLod.SelectRenderTarget(chunkDistance, renderDistance, restrictLod: false),
+                out _);
+
+        private int CountChunksNeedingPlayableMeshInRange(int agentCx, int agentCz, int renderDistance)
+        {
+            int count = 0;
+            _lock.EnterReadLock();
+            try
+            {
+                foreach (var chunk in _activeChunkList)
+                {
+                    int chunkDistance = GetChunkSortDistance(chunk.ChunkX, chunk.ChunkZ, agentCx, agentCz);
+                    if (chunkDistance > renderDistance)
+                    {
+                        continue;
+                    }
+
+                    if (!ChunkHasPlayableMesh(chunk, chunkDistance, renderDistance))
+                    {
+                        count++;
+                    }
+                }
+            }
+            finally
+            {
+                _lock.ExitReadLock();
+            }
+
+            return count;
+        }
+
+        private void ForceCompletePlayableMeshes(GraphicsDevice? device, int agentCx, int agentCz, int renderDistance)
+        {
+            if (device == null)
+            {
+                return;
+            }
+
+            foreach (var chunk in _activeChunkList.ToArray())
+            {
+                int chunkDistance = GetChunkSortDistance(chunk.ChunkX, chunk.ChunkZ, agentCx, agentCz);
+                if (chunkDistance > renderDistance || ChunkHasPlayableMesh(chunk, chunkDistance, renderDistance))
+                {
+                    continue;
+                }
+
+                if (!_chunks.TryGetValue((chunk.ChunkX, chunk.ChunkZ), out var canonical) || !ReferenceEquals(canonical, chunk))
+                {
+                    continue;
+                }
+
+                for (int attempt = 0; attempt < 4 && !ChunkHasPlayableMesh(canonical, chunkDistance, renderDistance); attempt++)
+                {
+                    if (!TryCreateMeshBuildContext(canonical, out var context))
+                    {
+                        break;
+                    }
+
+                    var detail = ChunkLod.SelectBuildDetail(canonical, chunkDistance, renderDistance, restrictLod: false);
+                    ClearMeshBuildInFlight(canonical, detail);
+                    bool buildFlora = ChunkLod.ShouldBuildFlora(chunkDistance, renderDistance);
+                    try
+                    {
+                        canonical.EnsureMesh(device, context, detail, buildFlora);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine(
+                            $"[Load] Force playable mesh failed ({canonical.ChunkX},{canonical.ChunkZ}) detail={detail}: {ex.Message}");
+                        canonical.ForceMarkMeshDetailComplete(detail);
+                        canonical.MeshStale = false;
+                        break;
+                    }
+                }
+            }
+        }
+
         private int CountChunksNeedingMeshInRange(int agentCx, int agentCz, int renderDistance, bool restrictLod)
         {
             int count = 0;
@@ -1273,10 +1353,14 @@ namespace Autonocraft.World
 
             GetChunkCoords((int)MathF.Round(agentPos.X), (int)MathF.Round(agentPos.Z), out int agentCx, out int agentCz, out _, out _);
             bool terrainDone = _initialLoadQueue == null && _inFlightGeneration.Count == 0;
-            int chunksNeedingMesh = CountChunksNeedingMeshInRange(agentCx, agentCz, _initialLoadRenderDistance, restrictLod: false);
-            bool meshesDone = chunksNeedingMesh == 0
-                && Volatile.Read(ref _meshBuildsInFlight) == 0
-                && _completedMeshUploads.IsEmpty;
+            int chunksNeedingPlayable = CountChunksNeedingPlayableMeshInRange(agentCx, agentCz, _initialLoadRenderDistance);
+            if (terrainDone && chunksNeedingPlayable > 0 && chunksNeedingPlayable <= 8)
+            {
+                ForceCompletePlayableMeshes(device, agentCx, agentCz, _initialLoadRenderDistance);
+                chunksNeedingPlayable = CountChunksNeedingPlayableMeshInRange(agentCx, agentCz, _initialLoadRenderDistance);
+            }
+
+            bool meshesDone = terrainDone && chunksNeedingPlayable == 0;
 
             if (terrainDone && meshesDone)
             {
@@ -1292,7 +1376,7 @@ namespace Autonocraft.World
             }
             else
             {
-                int completed = Math.Max(0, _initialLoadMeshTotal - chunksNeedingMesh);
+                int completed = Math.Max(0, _initialLoadMeshTotal - chunksNeedingPlayable);
                 progress = 0.65f + completed / (float)_initialLoadMeshTotal * 0.35f;
                 status = $"MESHING CHUNKS {completed}/{_initialLoadMeshTotal}";
             }
