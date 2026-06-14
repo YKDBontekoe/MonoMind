@@ -99,7 +99,7 @@ namespace Autonocraft.Core
         private float _spawnWarmupRemaining;
         private float _waterAnimUpdateTimer;
         private float _inactiveTimer;
-        private float _claimHintTimer = 3f;
+        private float _claimHintTimer = 10f;
         private const float FocusLossReleaseDelay = 0.35f;
         private const int MouseWarpRejectThreshold = 120;
         private const float MaxGameplayDeltaTime = 1f / 30f;
@@ -1683,10 +1683,9 @@ namespace Autonocraft.Core
             if (!inSpawnWarmup || warmup >= 0.6f)
             {
                 _session.UpdateVillages(deltaTime, _timeOfDay);
-                // TryFindClaimableStructure scans 625 positions × 289 block columns each call.
-                // Rate-limit to once every 3 s to avoid a multi-hundred-ms main-thread stall.
+                // TryFindClaimableStructure is expensive — poll at most every 10 s; GameSession skips if player barely moved.
                 _claimHintTimer += deltaTime;
-                if (_claimHintTimer >= 3f)
+                if (_claimHintTimer >= 10f)
                 {
                     _claimHintTimer = 0f;
                     _session.UpdateNearbyClaimHint();
@@ -1787,17 +1786,7 @@ namespace Autonocraft.Core
                     }
                     else
                     {
-                        _waterAnimUpdateTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
-                        // Only animate water after the heaviest chunk-streaming warmup phase (>70% warmup
-                        // complete). Using 0.5 s interval instead of 0.1 s reduces atlas.SetData GPU-stall
-                        // frequency by 5×. Frames are pre-baked so there is no per-call CPU overhead.
-                        bool warmupClear = _spawnWarmupRemaining <= 0f || SpawnWarmupProgress >= 0.7f;
-                        if (warmupClear && _waterAnimUpdateTimer >= 0.5f)
-                        {
-                            _waterAnimUpdateTimer = 0f;
-                            _renderer?.UpdateWaterAnimation(_waterAnimTime);
-                        }
-
+                        // Water animation via atlas.SetData causes GPU stalls on macOS — use static tile.
                         _renderer?.Draw(_session.PrepareRenderContext(_camera, _timeOfDay, _waterAnimTime, _settings.RenderDistance));
                     }
 

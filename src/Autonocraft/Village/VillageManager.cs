@@ -127,19 +127,28 @@ namespace Autonocraft.Village
             return true;
         }
 
-        public bool TryFindClaimableStructure(VoxelWorld world, Vector3 playerPos, float radius, out int anchorX, out int anchorZ, out StructureDefinition? matched)
+        public bool TryFindClaimableStructure(
+            VoxelWorld world,
+            Vector3 playerPos,
+            float radius,
+            out int anchorX,
+            out int anchorZ,
+            out StructureDefinition? matched,
+            bool quickScan = false)
         {
             anchorX = 0;
             anchorZ = 0;
             matched = null;
             int px = (int)MathF.Floor(playerPos.X);
             int pz = (int)MathF.Floor(playerPos.Z);
-            int scanRadius = (int)MathF.Ceiling(radius);
+            float effectiveRadius = quickScan ? Math.Min(radius, 16f) : radius;
+            int scanRadius = (int)MathF.Ceiling(effectiveRadius);
+            int step = quickScan ? 4 : 2;
             float bestDist = float.MaxValue;
 
-            for (int dx = -scanRadius; dx <= scanRadius; dx += 2)
+            for (int dx = -scanRadius; dx <= scanRadius; dx += step)
             {
-                for (int dz = -scanRadius; dz <= scanRadius; dz += 2)
+                for (int dz = -scanRadius; dz <= scanRadius; dz += step)
                 {
                     int ax = px + dx;
                     int az = pz + dz;
@@ -148,7 +157,7 @@ namespace Autonocraft.Village
                         continue;
                     }
 
-                    if (!TryResolveClaimableMatch(world, ax, az, out var definition, out _, out int anchorY))
+                    if (!TryResolveClaimableMatch(world, ax, az, out var definition, out _, out int anchorY, quickScan))
                     {
                         continue;
                     }
@@ -643,12 +652,14 @@ namespace Autonocraft.Village
             int anchorZ,
             out StructureDefinition matched,
             out float matchRatio,
-            out int anchorY)
+            out int anchorY,
+            bool quickScan = false)
         {
             matched = StructureRegistry.All[0];
             matchRatio = 0f;
             anchorY = 0;
-            int surfaceY = StructureFingerprint.FindSurfaceAnchorY(world, anchorX, anchorZ);
+            int surfaceSearch = quickScan ? 1 : 8;
+            int surfaceY = StructureFingerprint.FindSurfaceAnchorY(world, anchorX, anchorZ, surfaceSearch);
             float bestRatio = 0f;
             StructureDefinition? best = null;
             int bestY = surfaceY - 1;

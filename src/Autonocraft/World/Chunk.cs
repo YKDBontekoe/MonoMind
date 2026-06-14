@@ -274,7 +274,7 @@ namespace Autonocraft.World
 
         public void EnsureMesh(GraphicsDevice device, VoxelWorld world, ChunkMeshDetail detail)
         {
-            if (HasMesh(detail))
+            if (HasMesh(detail) && !MeshStale)
             {
                 return;
             }
@@ -292,21 +292,23 @@ namespace Autonocraft.World
             switch (detail)
             {
                 case ChunkMeshDetail.Surface:
-                    if (_surfaceMeshBuilt) return;
+                    if (_surfaceMeshBuilt && !MeshStale) return;
                     BuildMesh(device, context, ChunkMeshDetail.Surface, ref _surfaceVertexBuffer, ref _surfaceIndexBuffer, ref _surfaceIndexCount);
                     _surfaceMeshBuilt = true;
                     break;
                 case ChunkMeshDetail.Shell:
-                    if (_shellMeshBuilt) return;
+                    if (_shellMeshBuilt && !MeshStale) return;
                     BuildMesh(device, context, ChunkMeshDetail.Shell, ref _shellVertexBuffer, ref _shellIndexBuffer, ref _shellIndexCount);
                     _shellMeshBuilt = true;
                     break;
                 default:
-                    if (_fullMeshBuilt) return;
+                    if (_fullMeshBuilt && !MeshStale) return;
                     BuildMesh(device, context, ChunkMeshDetail.Full, ref _fullVertexBuffer, ref _fullIndexBuffer, ref _fullIndexCount);
                     _fullMeshBuilt = true;
                     break;
             }
+
+            MeshStale = false;
 
             if (buildFlora)
             {

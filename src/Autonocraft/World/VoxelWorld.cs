@@ -22,10 +22,6 @@ namespace Autonocraft.World
         public const float MeshBuildBudgetMs = 10f;
         public const float FastTravelMeshBuildBudgetMs = 7f;
         public const int MissingMeshScanIntervalFrames = 120;
-        public const int MaxMeshBuildsInFlight = 6;
-        public const int MaxMeshDispatchesPerFrame = 2;
-        public const int MaxMeshUploadsPerFrame = 1;
-        private const float MeshUploadBudgetMs = 2f;
         public const int FastTravelPrefetchIntervalFrames = 6;
         public const int NeighborRemeshDistanceFastTravel = 2;
 
@@ -59,16 +55,6 @@ namespace Autonocraft.World
         private readonly List<(int cx, int cz)> _pendingMeshSortScratch = new();
         private readonly List<(int cx, int cz)> _requeueScratch = new();
         private readonly List<(int cx, int cz)> _meshRescanScratch = new();
-
-        // Async mesh pipeline: CPU builds run on thread pool, GPU uploads drain on main thread.
-        private sealed class CompletedMeshUpload
-        {
-            public readonly Chunk Chunk;
-            public readonly Chunk.PrebuiltMeshData Data;
-            public CompletedMeshUpload(Chunk c, Chunk.PrebuiltMeshData d) { Chunk = c; Data = d; }
-        }
-        private readonly ConcurrentQueue<CompletedMeshUpload> _completedMeshUploads = new();
-        private int _meshBuildsInFlight;
 
         private int _lastAgentCx = int.MinValue;
         private int _lastAgentCz = int.MinValue;
@@ -861,118 +847,40 @@ namespace Autonocraft.World
                 EnqueueMissingDetailMeshes(agentCx, agentCz, renderDistance, restrictLod);
             }
 
-            // ── Phase A: GPU upload — drain pre-built mesh data from background tasks ──
+            // Synchronous mesh build with a per-frame time budget — reliable and handles stale meshes.
             if (device != null)
             {
-                var uploadSw = Stopwatch.StartNew();
-                int uploadsThisFrame = 0;
-                while (_completedMeshUploads.TryDequeue(out var pending) &&
-                       uploadsThisFrame < MaxMeshUploadsPerFrame &&
-                       uploadSw.Elapsed.TotalMilliseconds < MeshUploadBudgetMs)
+                var meshStopwatch = Stopwatch.StartNew();
+                foreach (var (chunk, context, detail, chunkDistance) in _meshJobsScratch)
                 {
-                    // Verify chunk is still loaded before touching its GPU resources.
-                    bool stillLoaded;
-                    _lock.EnterReadLock();
-                    try { stillLoaded = _chunks.ContainsKey((pending.Chunk.ChunkX, pending.Chunk.ChunkZ)); }
-                    finally { _lock.ExitReadLock(); }
-
-                    if (!stillLoaded)
+                    if (meshed > 0 && meshStopwatch.Elapsed.TotalMilliseconds >= meshBudgetMs)
                     {
-                        // Chunk was unloaded while the background task ran — clear flag and move on.
-                        switch (pending.Data.Detail)
-                        {
-                            case ChunkMeshDetail.Surface: pending.Chunk.SurfaceMeshBuildInFlight = false; break;
-                            case ChunkMeshDetail.Shell:   pending.Chunk.ShellMeshBuildInFlight   = false; break;
-                            default:                      pending.Chunk.FullMeshBuildInFlight     = false; break;
-                        }
+                        _requeueScratch.Add((chunk.ChunkX, chunk.ChunkZ));
                         continue;
                     }
 
-                    var uploadSw2 = Stopwatch.StartNew();
-                    try { pending.Chunk.ApplyPrebuiltMesh(device, pending.Data); }
-                    catch (Exception ex)
-                    {
-                        InputDebugTrace.LogChunkEvent($"mesh upload failed ({pending.Chunk.ChunkX},{pending.Chunk.ChunkZ}): {ex.Message}");
-                    }
-                    uploadSw2.Stop();
-                    PerfCounters.RecordMeshBuild((float)uploadSw2.Elapsed.TotalMilliseconds);
-                    meshed++;
-                    uploadsThisFrame++;
-
-                    // Re-queue if a higher-detail build is still needed.
-                    int chunkDist = GetChunkSortDistance(pending.Chunk.ChunkX, pending.Chunk.ChunkZ, agentCx, agentCz);
-                    if (ChunkLod.NeedsHigherDetailBuild(pending.Chunk, chunkDist, renderDistance, restrictLod))
-                    {
-                        _lock.EnterWriteLock();
-                        try { _pendingMesh.Add((pending.Chunk.ChunkX, pending.Chunk.ChunkZ)); }
-                        finally { _lock.ExitWriteLock(); }
-                    }
-                }
-            }
-
-            // ── Phase B: Dispatch background CPU builds — strictly capped per frame ──
-            int dispatchesThisFrame = 0;
-            foreach (var (chunk, context, detail, chunkDistance) in _meshJobsScratch)
-            {
-                if (dispatchesThisFrame >= MaxMeshDispatchesPerFrame)
-                {
-                    break;
-                }
-
-                if (Volatile.Read(ref _meshBuildsInFlight) >= MaxMeshBuildsInFlight)
-                {
-                    break;
-                }
-
-                bool inFlight = detail switch
-                {
-                    ChunkMeshDetail.Surface => chunk.SurfaceMeshBuildInFlight,
-                    ChunkMeshDetail.Shell   => chunk.ShellMeshBuildInFlight,
-                    _                       => chunk.FullMeshBuildInFlight,
-                };
-                if (inFlight)
-                {
-                    continue;
-                }
-
-                bool buildFlora = !restrictLod && ChunkLod.ShouldBuildFlora(chunkDistance, renderDistance);
-
-                switch (detail)
-                {
-                    case ChunkMeshDetail.Surface: chunk.SurfaceMeshBuildInFlight = true; break;
-                    case ChunkMeshDetail.Shell:   chunk.ShellMeshBuildInFlight   = true; break;
-                    default:                      chunk.FullMeshBuildInFlight     = true; break;
-                }
-
-                Interlocked.Increment(ref _meshBuildsInFlight);
-                dispatchesThisFrame++;
-
-                var capturedChunk   = chunk;
-                var capturedContext = context;
-                var capturedDetail  = detail;
-                var capturedFlora   = buildFlora;
-                Task.Run(() =>
-                {
+                    var buildStopwatch = Stopwatch.StartNew();
+                    bool buildFlora = !restrictLod && ChunkLod.ShouldBuildFlora(chunkDistance, renderDistance);
                     try
                     {
-                        var data = capturedChunk.BuildMeshCpuOnly(capturedContext, capturedDetail, capturedFlora);
-                        _completedMeshUploads.Enqueue(new CompletedMeshUpload(capturedChunk, data));
+                        chunk.EnsureMesh(device, context, detail, buildFlora);
                     }
                     catch (Exception ex)
                     {
-                        switch (capturedDetail)
-                        {
-                            case ChunkMeshDetail.Surface: capturedChunk.SurfaceMeshBuildInFlight = false; break;
-                            case ChunkMeshDetail.Shell:   capturedChunk.ShellMeshBuildInFlight   = false; break;
-                            default:                      capturedChunk.FullMeshBuildInFlight     = false; break;
-                        }
-                        InputDebugTrace.LogChunkEvent($"async mesh build failed ({capturedChunk.ChunkX},{capturedChunk.ChunkZ}): {ex.Message}");
+                        InputDebugTrace.LogChunkEvent($"mesh failed ({chunk.ChunkX},{chunk.ChunkZ}) detail={detail}: {ex.Message}");
+                        Console.WriteLine($"[Streaming] Mesh build failed for chunk ({chunk.ChunkX},{chunk.ChunkZ}) detail={detail}: {ex.Message}");
+                        continue;
                     }
-                    finally
+
+                    buildStopwatch.Stop();
+                    PerfCounters.RecordMeshBuild((float)buildStopwatch.Elapsed.TotalMilliseconds);
+                    meshed++;
+
+                    if (ChunkLod.NeedsHigherDetailBuild(chunk, chunkDistance, renderDistance, restrictLod))
                     {
-                        Interlocked.Decrement(ref _meshBuildsInFlight);
+                        _requeueScratch.Add((chunk.ChunkX, chunk.ChunkZ));
                     }
-                });
+                }
             }
 
             if (_requeueScratch.Count > 0)

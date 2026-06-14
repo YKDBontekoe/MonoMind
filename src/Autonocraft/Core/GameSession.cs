@@ -36,6 +36,7 @@ namespace Autonocraft.Core
         public bool ShowVillageOnboarding { get; set; }
         public bool ShowVillageHint { get; set; } = true;
         public string? NearbyClaimHint { get; set; }
+        private Vector3 _lastClaimHintScanPos = new(float.MinValue, 0f, float.MinValue);
         public BlockInteractionSystem BlockInteraction => _blockInteraction;
         public CombatSystem Combat => _combatSystem;
         public ParticleSystem Particles => _particles;
@@ -149,7 +150,24 @@ namespace Autonocraft.Core
 
         public void UpdateNearbyClaimHint()
         {
-            if (Villages.TryFindClaimableStructure(Grid, Player.Position, 24f, out _, out _, out _))
+            const float moveRescanSq = 24f * 24f;
+            const float idleRescanSq = 8f * 8f;
+            float movedSq = Vector3.DistanceSquared(Player.Position, _lastClaimHintScanPos);
+
+            // Skip expensive world scan unless the player moved meaningfully.
+            if (NearbyClaimHint != null && movedSq < moveRescanSq)
+            {
+                return;
+            }
+
+            if (NearbyClaimHint == null && movedSq < idleRescanSq)
+            {
+                return;
+            }
+
+            _lastClaimHintScanPos = Player.Position;
+
+            if (Villages.TryFindClaimableStructure(Grid, Player.Position, 16f, out _, out _, out _, quickScan: true))
             {
                 NearbyClaimHint = "Abandoned outpost nearby — press V to claim";
             }
