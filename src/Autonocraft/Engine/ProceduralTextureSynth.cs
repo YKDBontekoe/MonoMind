@@ -48,7 +48,7 @@ namespace Autonocraft.Engine
                 int cy = Noise(name, i, 27, 37) % tileSize;
                 Color petal = flowerColors[Noise(name, i, 41, 43) % flowerColors.Length];
                 Color center = new Color(250, 240, 160);
-                
+
                 SetPixelWrapped(image, cx, cy, center);
                 SetPixelWrapped(image, cx - 1, cy, petal);
                 SetPixelWrapped(image, cx + 1, cy, petal);
@@ -315,7 +315,7 @@ namespace Autonocraft.Engine
 
             // Black firebox
             FillRect(image, x, y, size, size, new Color(24, 24, 26));
-            
+
             // Stone arch/frame
             DrawRectOutline(image, x - 2, y - 2, x + size + 2, y + size + 2, frame, 3);
             DrawRectOutline(image, x - 1, y - 1, x + size + 1, y + size + 1, Lighten(frame, 16), 1);
@@ -326,7 +326,7 @@ namespace Autonocraft.Engine
                 int ex = x + 3 + Noise(name, i, 3, 11) % (size - 6);
                 int ey = y + size - 8 - Noise(name, i, 7, 13) % 10;
                 int r = 2 + Noise(name, i, 11, 17) % 3;
-                
+
                 Color col = i % 3 == 0 ? new Color(255, 230, 60) : (i % 2 == 0 ? new Color(255, 110, 30) : new Color(220, 40, 20));
                 FillEllipse(image, ex - r, ey - r, ex + r, ey + r, col);
             }
@@ -381,7 +381,7 @@ namespace Autonocraft.Engine
                 int r = 10 + Noise(name, i, 11, 13) % 8;
 
                 Color woolColor = i % 2 == 0 ? new Color(245, 245, 245) : new Color(230, 230, 230);
-                
+
                 FillEllipse(image, cx - r, cy - r, cx + r, cy + r, Darken(woolColor, 20));
                 FillEllipse(image, cx - r + 1, cy - r + 1, cx + r - 1, cy + r - 1, woolColor);
                 FillEllipse(image, cx - r + 2, cy - r + 2, cx + r / 4, cy + r / 4, new Color(255, 255, 255));
@@ -403,9 +403,9 @@ namespace Autonocraft.Engine
                     int cx = x + offset;
                     int cy = y;
                     int r = tileSize / 10;
-                    
+
                     Color featherColor = Lighten(baseColor, (y / rowSpacing) * 3 - 8);
-                    
+
                     FillEllipse(image, cx - r, cy - r, cx + r, cy + r, Darken(featherColor, 18));
                     FillEllipse(image, cx - r + 1, cy - r + 1, cx + r - 1, cy + r - 1, featherColor);
                     for (int tx = cx - r + 2; tx <= cx + r - 2; tx++)
@@ -430,7 +430,7 @@ namespace Autonocraft.Engine
                 int cx = Noise(name, i, 11, 13) % tileSize;
                 int cy = Noise(name, i, 17, 19) % tileSize;
                 int r = 6 + Noise(name, i, 23, 29) % 8;
-                
+
                 Color color = i % 2 == 0 ? spotColor : spotPink;
                 FillEllipse(image, cx - r, cy - r, cx + r, cy + r, color);
                 FillEllipse(image, cx - r + 2, cy - r + 1, cx + r - 1, cy + r - 1, Lighten(color, 8));
@@ -483,7 +483,7 @@ namespace Autonocraft.Engine
                 Color snoutColor = Darken(baseColor, 22);
                 FillRect(image, cx - snoutW / 2, cy + 2, snoutW, snoutH, snoutColor);
                 DrawRectOutline(image, cx - snoutW / 2, cy + 2, cx + snoutW / 2, cy + 2 + snoutH, Darken(snoutColor, 20), 1);
-                
+
                 FillRect(image, cx - snoutW / 4 - 1, cy + 2 + snoutH / 2 - 1, 3, 3, new Color(60, 20, 20));
                 FillRect(image, cx + snoutW / 4 - 2, cy + 2 + snoutH / 2 - 1, 3, 3, new Color(60, 20, 20));
             }
@@ -520,7 +520,7 @@ namespace Autonocraft.Engine
                 int len = 12 + Noise(name, i, 11, 23) % 16;
                 int dx = Noise(name, i, 13, 29) % 2 == 0 ? len : -len;
                 int dy = 4 + Noise(name, i, 17, 31) % 8;
-                
+
                 Color crackColor = Darken(grout, 36);
                 Color highlightColor = Lighten(palette[2], 24);
 
@@ -862,7 +862,7 @@ namespace Autonocraft.Engine
                     {
                         float shade = MathF.Min(1f, MathF.Sqrt(d1) / (tileSize * 0.42f));
                         Color c = Lerp(Lighten(nearest, 12), Darken(nearest, 16), shade);
-                        
+
                         float angleX = (x - seeds[nearestIdx].x);
                         float angleY = (y - seeds[nearestIdx].y);
                         if (angleX < -1f && angleY < -1f)
