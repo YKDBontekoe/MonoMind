@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Microsoft.Xna.Framework.Graphics;
+using Autonocraft.Domain.World;
 using Autonocraft.Engine;
 
 namespace Autonocraft.World
@@ -49,6 +50,7 @@ namespace Autonocraft.World
         private bool _floraMeshBuilt;
         // Written from background thread: volatile prevents stale reads.
         private volatile bool _hasWaterBlocks;
+        private volatile bool _hasAlphaCutoutBlocks;
 
         // Set on main thread before Task.Run, cleared on main thread in ApplyPrebuiltMesh.
         // Prevents queueing duplicate background builds for the same chunk+detail.
@@ -80,6 +82,7 @@ namespace Autonocraft.World
         }
 
         public bool HasWaterBlocks => _hasWaterBlocks;
+        public bool HasAlphaCutoutBlocks => _hasAlphaCutoutBlocks;
 
         public VertexBuffer? VertexBuffer => _fullVertexBuffer;
         public IndexBuffer? IndexBuffer => _fullIndexBuffer;
@@ -474,6 +477,7 @@ namespace Autonocraft.World
             _shellMeshBuilt = false;
             _floraMeshBuilt = false;
             _hasWaterBlocks = false;
+            _hasAlphaCutoutBlocks = false;
             // Reset in-flight flags so re-queuing works immediately.
             FullMeshBuildInFlight = false;
             SurfaceMeshBuildInFlight = false;
@@ -589,6 +593,11 @@ namespace Autonocraft.World
             if (type.IsWater())
             {
                 _hasWaterBlocks = true;
+            }
+
+            if (type.IsAlphaCutout())
+            {
+                _hasAlphaCutoutBlocks = true;
             }
         }
 
@@ -851,7 +860,7 @@ namespace Autonocraft.World
             int cy = cornerOffset.Y > 0.5f ? 1 : 0;
             int cz = cornerOffset.Z > 0.5f ? 1 : 0;
             float ao = includeAo
-                ? ComputeCornerAO(context, new Vector3(wx, wy, wz) + cornerOffset, normal)
+                ? ComputeCornerAO(context, wx, wy, wz, new Vector3(wx, wy, wz) + cornerOffset, normal)
                 : ComputeColumnAO(context, wx, wy, wz, normal);
             float variation = BlockAtlas.UseCpuBlockVariation ? smoothedVariation : 1f;
 
@@ -896,7 +905,13 @@ namespace Autonocraft.World
             return 1f - occ * 0.06f;
         }
 
-        private static float ComputeCornerAO(MeshBuildContext context, Vector3 vertexPos, Vector3 normal)
+        private static float ComputeCornerAO(
+            MeshBuildContext context,
+            int bx,
+            int by,
+            int bz,
+            Vector3 vertexPos,
+            Vector3 normal)
         {
             Vector3 up = Math.Abs(normal.Y) < 0.9f ? Vector3.UnitY : Vector3.UnitX;
             Vector3 tang1 = Vector3.Normalize(Vector3.Cross(normal, up));
@@ -906,19 +921,53 @@ namespace Autonocraft.World
             float t1 = Vector3.Dot(vertexPos - vpFloor, tang1) > 0 ? 1 : -1;
             float t2 = Vector3.Dot(vertexPos - vpFloor, tang2) > 0 ? 1 : -1;
 
-            Vector3 blockCenter = FloorVec3(vertexPos - normal * 0.5f) + new Vector3(0.5f);
+            Vector3 blockCenter = new Vector3(bx + 0.5f, by + 0.5f, bz + 0.5f);
 
             Vector3 s1pos = blockCenter + tang1 * t1;
             Vector3 s2pos = blockCenter + tang2 * t2;
             Vector3 copos = blockCenter + tang1 * t1 + tang2 * t2;
 
-            bool s1 = context.GetBlock((int)Math.Floor(s1pos.X), (int)Math.Floor(s1pos.Y), (int)Math.Floor(s1pos.Z)).IsSolidForSpawn();
-            bool s2 = context.GetBlock((int)Math.Floor(s2pos.X), (int)Math.Floor(s2pos.Y), (int)Math.Floor(s2pos.Z)).IsSolidForSpawn();
-            bool co = context.GetBlock((int)Math.Floor(copos.X), (int)Math.Floor(copos.Y), (int)Math.Floor(copos.Z)).IsSolidForSpawn();
+            bool s1 = SampleAoOcclusion(context, s1pos, normal, by);
+            bool s2 = SampleAoOcclusion(context, s2pos, normal, by);
+            bool co = SampleAoOcclusion(context, copos, normal, by);
+
+            if (normal.Y > 0.5f)
+            {
+                if (s1 && s2) return 0.82f;
+                int topOcc = (s1 ? 1 : 0) + (s2 ? 1 : 0) + (co ? 1 : 0);
+                return MathF.Max(0.86f, 1.0f - topOcc * 0.06f);
+            }
 
             if (s1 && s2) return 0.58f;
             int occ = (s1 ? 1 : 0) + (s2 ? 1 : 0) + (co ? 1 : 0);
             return 1.0f - occ * 0.14f;
+        }
+
+        private static bool SampleAoOcclusion(MeshBuildContext context, Vector3 pos, Vector3 normal, int blockY)
+        {
+            int x = (int)MathF.Floor(pos.X);
+            int y = (int)MathF.Floor(pos.Y);
+            int z = (int)MathF.Floor(pos.Z);
+
+            if (normal.Y > 0.5f)
+            {
+                // Top faces: only overhangs above the sampled column cast corner shade.
+                // Flush same-height neighbors must not darken coplanar terrain.
+                return context.GetBlock(x, blockY + 1, z).IsSolidForSpawn();
+            }
+
+            if (context.GetBlock(x, y, z).IsSolidForSpawn())
+            {
+                return true;
+            }
+
+            if (normal.Y < -0.5f)
+            {
+                return context.GetBlock(x, y - 1, z).IsSolidForSpawn();
+            }
+
+            return context.GetBlock(x, y - 1, z).IsSolidForSpawn()
+                || context.GetBlock(x, y + 1, z).IsSolidForSpawn();
         }
 
         private static void UploadMeshBuffers(GraphicsDevice device, Vertex[] vertices, uint[] indices,

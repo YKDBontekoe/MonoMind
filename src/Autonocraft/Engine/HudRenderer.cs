@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Autonocraft.Domain.Core;
 using Autonocraft.Core;
 using Autonocraft.Engine.Animation;
 using Autonocraft.Items;
@@ -455,7 +456,7 @@ namespace Autonocraft.Engine
             float badgeH = layout.S(34f);
             float badgeX = layout.Width - layout.Padding - badgeW;
             float badgeY = layout.Padding;
-            bool isDay = timeOfDay > 0.22f && timeOfDay < 0.78f;
+            bool isDay = DayNightCycle.IsBroadDaytime(timeOfDay);
             Color accent = isDay ? new Color(0.95f, 0.78f, 0.25f) : new Color(0.45f, 0.55f, 0.85f);
             DrawHudGlassPanel(_spriteBatch, badgeX, badgeY, badgeW, badgeH, accent, 0.78f);
 
@@ -467,7 +468,7 @@ namespace Autonocraft.Engine
                 new Rectangle((int)(iconCx - iconR), (int)(iconCy - iconR), (int)(iconR * 2f), (int)(iconR * 2f)),
                 accent * 0.95f);
 
-            string timeLabel = GetTimeLabel(timeOfDay);
+            string timeLabel = DayNightCycle.GetHudTimeLabel(timeOfDay);
             float textSize = layout.S(0.95f);
             PixelFont.DrawString(_spriteBatch, _whiteTexture, timeLabel, badgeX + layout.S(34f), badgeY + layout.S(10f), textSize, new Color(0.82f, 0.86f, 0.92f), 0.9f);
         }
@@ -613,19 +614,6 @@ namespace Autonocraft.Engine
             {
                 _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)barY, (int)(barW * ratio), (int)barH), new Color(0.3f, 0.62f, 0.92f));
             }
-        }
-
-        private static string GetTimeLabel(float timeOfDay)
-        {
-            float t = timeOfDay - MathF.Floor(timeOfDay);
-            if (t < 0f) t += 1f;
-            if (t < 0.20f) return "NIGHT";
-            if (t < 0.28f) return "DAWN";
-            if (t < 0.42f) return "MORNING";
-            if (t < 0.55f) return "NOON";
-            if (t < 0.68f) return "DAY";
-            if (t < 0.78f) return "DUSK";
-            return "NIGHT";
         }
 
         private void DrawToolIcon(float slotXMin, float hotbarYMin, float slotSize, ItemStack tool)

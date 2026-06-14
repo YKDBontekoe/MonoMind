@@ -25,13 +25,13 @@ namespace Autonocraft.World
                 BlockType.Stone => new Vector3(0.97f, 0.97f, 0.99f),
                 BlockType.Gravel => new Vector3(0.98f, 0.98f, 0.96f),
                 BlockType.Water => new Vector3(0.92f, 0.98f, 1.06f),
-                BlockType.OakLeaves => new Vector3(0.92f, 1.04f, 0.90f),
-                BlockType.BirchLeaves => new Vector3(0.94f, 1.05f, 0.92f),
-                BlockType.PineLeaves => new Vector3(0.90f, 1.03f, 0.92f),
+                BlockType.OakLeaves => new Vector3(0.86f, 0.96f, 0.82f),
+                BlockType.BirchLeaves => new Vector3(0.88f, 0.96f, 0.84f),
+                BlockType.PineLeaves => new Vector3(0.82f, 0.93f, 0.84f),
                 BlockType.OakLog or BlockType.BirchLog or BlockType.PineLog
                     or BlockType.WillowLog or BlockType.PalmLog => new Vector3(1.02f, 0.98f, 0.94f),
-                BlockType.WillowLeaves => new Vector3(0.90f, 1.02f, 0.94f),
-                BlockType.PalmLeaves => new Vector3(0.94f, 1.06f, 0.92f),
+                BlockType.WillowLeaves => new Vector3(0.84f, 0.95f, 0.86f),
+                BlockType.PalmLeaves => new Vector3(0.88f, 0.98f, 0.84f),
                 BlockType.BirchPlank => new Vector3(1.04f, 1.02f, 0.96f),
                 BlockType.PinePlank => new Vector3(1.02f, 0.96f, 0.88f),
                 BlockType.Cobblestone => new Vector3(0.96f, 0.96f, 0.98f),
@@ -157,22 +157,23 @@ namespace Autonocraft.World
 
         private static float GetFaceShade(Vector3 normal)
         {
+            // Top faces must not exceed 1.0 so elevated blocks don't appear self-illuminated.
             if (normal.Y > 0.5f)
             {
-                return 1.04f;
+                return 0.96f;
             }
 
             if (normal.Y < -0.5f)
             {
-                return 0.78f;
+                return 0.66f;
             }
 
             if (MathF.Abs(normal.X) > 0.5f)
             {
-                return 0.88f;
+                return 0.83f;
             }
 
-            return 0.92f;
+            return 0.88f;
         }
 
         private static void AccumulateNeighborTints(

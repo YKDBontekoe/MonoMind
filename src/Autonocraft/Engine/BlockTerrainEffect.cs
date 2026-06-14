@@ -92,7 +92,7 @@ namespace Autonocraft.Engine
             _effect.View = view;
             _effect.Projection = projection;
             _effect.Texture = atlas;
-            _effect.AmbientLightColor = ambientColor * 1.15f;
+            _effect.AmbientLightColor = ambientColor;
             _effect.FogEnabled = true;
             _effect.FogColor = fogColor;
             _effect.FogStart = fogStart;

@@ -76,12 +76,12 @@ Agent-oriented navigation index. Pair with [AGENTS.md](../AGENTS.md) for build/t
 | `HudRenderer.cs` | HUD: crosshair, hotbar, health, skills |
 | `PixelFont.cs` | Bitmap glyph data |
 | `Camera.cs` | View/projection matrices |
-| `BlockTerrainEffect.cs` | Custom block shader wrapper |
+| `BlockTerrainEffect.cs` | Terrain `BasicEffect` wrapper (fog + sun/moon lights) |
 | `BlockOverlayRenderer.cs` | Block highlight outline |
-| `SkyEffect.cs` | SkyEffect.fx wrapper with BasicEffect fallback |
+| `SkyEffect.cs` | Sky/cloud `BasicEffect` wrapper |
 | `SkyBoxRenderer.cs` | Cached hemisphere skydome (`SkyDomeRenderer`) |
-| `CloudLayerRenderer.cs` | Three scrolling cloud layers via SkyEffect |
-| `Content/SkyEffect.fx` | View-gradient sky shader (stars, sun/moon, haze) |
+| `CloudLayerRenderer.cs` | Three scrolling cloud layers |
+| `SkyColor.cs` | CPU sky gradient + procedural stars |
 | `FloraRenderer.cs` | Tall grass/flower billboards |
 | `ParticleSystem.cs` | Block break and water splash particles |
 | `SceneLighting.cs` | Time-of-day sun/moon/ambient |
@@ -205,9 +205,9 @@ Agent-oriented navigation index. Pair with [AGENTS.md](../AGENTS.md) for build/t
 
 ### Change rendering
 
-1. World geometry: `Engine/WorldRenderer.cs`, `Content/BlockEffect.fx`
-2. Sky: `Content/SkyEffect.fx`, `Engine/SkyEffect.cs`, `Engine/SkyBoxRenderer.cs` (`SkyDomeRenderer`), `Engine/CloudLayerRenderer.cs`
-3. Compile sky shader (Wine + MGFXC required on macOS/Linux): `bash scripts/compile_sky_effect.sh` — or build with `-p:SkipMonoGameContent=true` to use the BasicEffect fallback
+1. World geometry: `Engine/WorldRenderer.cs`, `Engine/BlockTerrainEffect.cs`
+2. Sky/time-of-day: `Engine/SceneLighting.cs`, `Engine/SkyColor.cs`, `Engine/SkyBoxRenderer.cs` (`SkyDomeRenderer`), `Engine/CloudLayerRenderer.cs`
+3. Shared day/night phases: `Autonocraft.Domain/Core/DayNightCycle.cs`
 4. HUD: `Engine/HudRenderer.cs`
 5. Run `--test` then visual check:
    ```bash

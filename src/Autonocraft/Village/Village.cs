@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Autonocraft.Domain.Core;
 using Autonocraft.Domain.Village;
 using Autonocraft.Entities;
 using Autonocraft.Items;
@@ -237,7 +238,7 @@ namespace Autonocraft.Village
                 SimulateDailyNeeds();
             }
 
-            bool isNight = timeOfDay < 0.2f || timeOfDay > 0.8f;
+            bool isNight = DayNightCycle.IsNight(timeOfDay);
             if (isNight && FoodStock <= 0f)
             {
                 Happiness = MathF.Max(0.2f, Happiness - 0.05f);

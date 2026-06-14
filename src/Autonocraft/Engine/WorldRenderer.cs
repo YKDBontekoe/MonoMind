@@ -202,7 +202,8 @@ namespace Autonocraft.Engine
                 renderDistance,
                 blendState: BlendState.AlphaBlend,
                 depthState: DepthStencilState.DepthRead,
-                twilightFactor: twilightFactor);
+                twilightFactor: twilightFactor,
+                alphaCutoutOnly: true);
 
             var floraFogStart = ChunkLod.GetFogStart(renderDistance);
             var floraFogEnd = ChunkLod.GetFogEnd(renderDistance, twilightFactor);
@@ -628,7 +629,8 @@ namespace Autonocraft.Engine
             BlendState blendState,
             DepthStencilState depthState,
             float twilightFactor,
-            bool waterOnly = false)
+            bool waterOnly = false,
+            bool alphaCutoutOnly = false)
         {
             _device.BlendState = blendState;
             _device.DepthStencilState = depthState;
@@ -662,6 +664,11 @@ namespace Autonocraft.Engine
                 foreach (var entry in _visibleChunksScratch)
                 {
                     if (waterOnly && !entry.Chunk.HasWaterBlocks)
+                    {
+                        continue;
+                    }
+
+                    if (alphaCutoutOnly && !entry.Chunk.HasAlphaCutoutBlocks)
                     {
                         continue;
                     }

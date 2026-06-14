@@ -387,7 +387,7 @@ For multi-step flows, JSON scenarios, and a reusable Python client, see `.cursor
 | Block types | `World/BlockType.cs` |
 | Saves | `World/WorldSaveManager.cs`, `World/WorldSaveData.cs`, `Core/SaveSnapshot.cs` |
 | Texture atlas | `World/BlockAtlas.cs`, `World/AtlasLayout.cs`, `atlas_layout.json`, `scripts/build_atlas.py` |
-| Rendering | `Engine/Renderer.cs`, `Engine/WorldRenderer.cs`, `Engine/HudRenderer.cs`, `Engine/BlockTerrainEffect.cs`, `Content/BlockEffect.fx` |
+| Rendering | `Engine/Renderer.cs`, `Engine/WorldRenderer.cs`, `Engine/HudRenderer.cs`, `Engine/SceneLighting.cs`, `Engine/BlockTerrainEffect.cs` |
 | Audio | `Engine/Audio/AudioManager.cs`, `Engine/Audio/ProceduralSfx.cs`, `Engine/Audio/ProceduralAmbient.cs`, `Engine/Audio/ProceduralMusic.cs` |
 | Tools & skills | `Items/ToolRegistry.cs`, `Items/MiningCalculator.cs`, `Items/PlayerSkills.cs` |
 | Crafting sigils | `Crafting/SigilRegistry.cs`, `Crafting/SigilPattern.cs` |
@@ -408,7 +408,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/CODEMAP.md](docs/CODE
 | Change mining speed | `MiningCalculator.cs`, `ToolRegistry.cs` | `TestToolMiningSpeed` |
 | Fix swimming | `Player.cs`, `FluidSystem.cs` | `TestSwimThroughWater`, `TestDrowning` |
 | Add structure | `StructureRegistry.cs`, `StructurePlacer.cs` | `TestStructureGeneration` |
-| Rendering change | `Engine/WorldRenderer.cs`, `BlockEffect.fx` | `--test` + screenshot |
+| Rendering change | `Engine/WorldRenderer.cs`, `Engine/SceneLighting.cs`, `Engine/BlockTerrainEffect.cs` | `--test` + screenshot |
 
 ---
 

@@ -126,11 +126,18 @@ Each level has its own vertex/index buffers on the GPU.
 
 ### Stack
 
-- **MonoGame DesktopGL** with `BasicEffect` for sky, HUD, and animal billboards.
-- **BlockTerrainEffect** — custom `BlockEffect.fx` shader (compiled to `BlockEffect.xnb` via MGCB) with fog, dual directional lights, water UV animation, and world-seed tinting. Falls back to `BasicEffect` if the `.xnb` is missing.
-- **WorldRenderer** — sky, terrain LOD, water, flora, animals, block overlay.
+- **MonoGame DesktopGL** with stock `BasicEffect` for sky, terrain, HUD, and entity billboards.
+- **BlockTerrainEffect** — thin wrapper around `BasicEffect` with fog, dual directional lights (sun/moon), and vertex-color terrain shading.
+- **SceneLighting** — global time-of-day sun/moon direction, ambient, fog, and sky colors (no per-voxel block/sky light propagation).
+- **SkyDomeRenderer** — cached hemisphere mesh with CPU sky colors (`SkyColor.cs`); colors refresh only when time-of-day or lighting inputs change.
+- **WorldRenderer** — sky, terrain LOD (opaque / water / alpha-cutout passes), flora, animals, block overlay.
 - **HudRenderer** — crosshair, hotbar, health, skills, compass, damage flash, held-item animation.
 - **Renderer** — thin orchestrator calling `Draw(GameRenderContext)`.
+
+### Time of day
+
+- `DayNightCycle` in `Autonocraft.Domain` centralizes `TimePhase` boundaries for crafting, villages, and HUD labels.
+- Chunk meshes bake ambient occlusion into vertex colors at build time; caves use the same global directional light as the surface.
 
 ### Texture Atlas
 
