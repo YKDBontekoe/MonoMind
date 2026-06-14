@@ -41,6 +41,8 @@ namespace Autonocraft.UI
         public string? RequestedBlueprintId { get; private set; }
         public int RequestedAssignVillagerId { get; private set; } = -1;
         public JobType RequestedAssignJob { get; private set; } = JobType.Idle;
+        public int RequestedChatVillagerId { get; private set; } = -1;
+        public bool RequestBlueprintPlacement { get; private set; }
 
         public VillageScreen(UiRenderer ui, VillagerManager villagers)
         {
@@ -90,6 +92,8 @@ namespace Autonocraft.UI
             CloseRequested = false;
             RequestedBlueprintId = null;
             RequestedAssignVillagerId = -1;
+            RequestedChatVillagerId = -1;
+            RequestBlueprintPlacement = false;
 
             if (!IsOpen || _village == null)
             {
@@ -191,10 +195,12 @@ namespace Autonocraft.UI
 
             if (_selectedTab == 2)
             {
+                float listLeft = left;
+                float listWidth = layout.S(240f);
                 float villagerY = panelY + layout.S(120f);
                 foreach (int villagerId in _village.VillagerIds)
                 {
-                    var rowRect = new Rectangle((int)left, (int)villagerY, (int)layout.S(280f), (int)layout.S(22f));
+                    var rowRect = new Rectangle((int)listLeft, (int)villagerY, (int)listWidth, (int)layout.S(22f));
                     if (HitTest(rowRect, mouse.X, mouse.Y))
                     {
                         _hoveredButton = 30 + villagerId;
@@ -205,9 +211,10 @@ namespace Autonocraft.UI
 
                 if (_selectedVillagerId >= 0)
                 {
+                    float detailX = panelX + panelW / 2f;
                     float jobY = panelY + panelH - layout.S(120f);
                     string[] jobs = { "IDLE", "GATHER", "BUILD", "HAUL" };
-                    float jobX = left;
+                    float jobX = detailX;
                     for (int i = 0; i < jobs.Length; i++)
                     {
                         var jobRect = new Rectangle((int)jobX, (int)jobY, (int)layout.S(90f), (int)buttonH);
@@ -217,6 +224,13 @@ namespace Autonocraft.UI
                         }
 
                         jobX += layout.S(98f);
+                    }
+
+                    float talkY = jobY - buttonH - layout.S(16f);
+                    var talkRect = new Rectangle((int)detailX, (int)talkY, (int)layout.S(90f), (int)buttonH);
+                    if (HitTest(talkRect, mouse.X, mouse.Y))
+                    {
+                        _hoveredButton = 50;
                     }
                 }
             }
@@ -269,6 +283,7 @@ namespace Autonocraft.UI
                     if (_hoveredButton == 20 + buildIndex)
                     {
                         RequestedBlueprintId = blueprint.Id;
+                        RequestBlueprintPlacement = true;
                         return;
                     }
 
@@ -286,6 +301,12 @@ namespace Autonocraft.UI
             {
                 RequestedAssignVillagerId = _selectedVillagerId;
                 RequestedAssignJob = (JobType)(_hoveredButton - 40);
+                return;
+            }
+
+            if (_hoveredButton == 50 && _selectedVillagerId >= 0)
+            {
+                RequestedChatVillagerId = _selectedVillagerId;
             }
         }
 
@@ -317,7 +338,7 @@ namespace Autonocraft.UI
                     DrawBuildingsTab(layout, panelX, panelY, left, alpha);
                     break;
                 case 2:
-                    DrawVillagersTab(layout, panelX, panelY, panelH, left, buttonH, alpha);
+                    DrawVillagersTab(layout, panelX, panelY, panelH, left, alpha);
                     break;
                 default:
                     DrawOverviewTab(layout, panelY, left, alpha);
@@ -440,9 +461,15 @@ namespace Autonocraft.UI
             }
         }
 
-        private void DrawVillagersTab(UiLayout layout, float panelX, float panelY, float panelH, float left, float buttonH, float alpha)
+        private void DrawVillagersTab(UiLayout layout, float panelX, float panelY, float panelH, float left, float alpha)
         {
+            float btnHeight = buttonH(layout);
+            float listLeft = left;
+            float detailX = panelX + layout.S(PanelWidth) / 2f;
             float y = panelY + layout.S(84f);
+            _ui.DrawString("VILLAGERS", listLeft, y, layout.S(1.1f), new Color(0.55f, 0.75f, 0.65f) * alpha);
+            y += layout.S(28f);
+
             foreach (int villagerId in _village!.VillagerIds)
             {
                 if (!_villagers.TryGet(villagerId, out var villager))
@@ -451,21 +478,42 @@ namespace Autonocraft.UI
                 }
 
                 bool selected = villagerId == _selectedVillagerId;
+                var roleColor = VillagerVisuals.GetRoleColor(villager.Role);
+                _ui.DrawFilledRect(listLeft, y + layout.S(6f), layout.S(8f), layout.S(8f), roleColor * alpha);
                 Color color = selected ? new Color(0.55f, 0.85f, 0.7f) : new Color(0.85f, 0.88f, 0.92f);
-                string line = $"{villager.Name.ToUpperInvariant()} - {villager.Role} / {villager.CurrentJob}";
-                _ui.DrawString(line, left + layout.S(12f), y, layout.S(1.05f), color * alpha);
+                string line = $"{villager.Name.ToUpperInvariant()} — {villager.Role}";
+                _ui.DrawString(line, listLeft + layout.S(14f), y, layout.S(1.0f), color * alpha);
                 y += layout.S(24f);
             }
 
-            if (_selectedVillagerId >= 0)
+            if (_selectedVillagerId >= 0 && _villagers.TryGet(_selectedVillagerId, out var selectedVillager))
             {
+                float detailY = panelY + layout.S(84f);
+                _ui.DrawString("DETAILS", detailX, detailY, layout.S(1.1f), new Color(0.55f, 0.75f, 0.65f) * alpha);
+                detailY += layout.S(28f);
+                _ui.DrawString(selectedVillager.Name.ToUpperInvariant(), detailX, detailY, layout.S(1.25f), new Color(0.85f, 0.88f, 0.92f) * alpha);
+                detailY += layout.S(24f);
+                _ui.DrawString(
+                    $"{selectedVillager.Role} / {selectedVillager.CurrentJob}".ToUpperInvariant(),
+                    detailX,
+                    detailY,
+                    layout.S(1.0f),
+                    VillagerVisuals.GetRoleColor(selectedVillager.Role) * alpha);
+                detailY += layout.S(22f);
+                _ui.DrawString($"TRAIT: {selectedVillager.Persona.Trait.ToUpperInvariant()}", detailX, detailY, layout.S(0.95f), new Color(0.62f, 0.72f, 0.78f) * alpha);
+                detailY += layout.S(24f);
+                detailY += layout.S(18f);
+                _ui.DrawProgressBar(detailX, detailY, layout.S(180f), layout.S(12f), selectedVillager.Happiness, "HAPPINESS", 0.75f, alpha);
+
                 float jobY = panelY + panelH - layout.S(120f);
-                _ui.DrawString("ASSIGN JOB", left, jobY - layout.S(22f), layout.S(1.1f), new Color(0.55f, 0.75f, 0.65f) * alpha);
+                float talkY = jobY - btnHeight - layout.S(16f);
+                _ui.DrawButton(detailX, talkY, layout.S(90f), btnHeight, "TALK", _hoveredButton == 50, false, layout.S(0.95f), alpha);
+                _ui.DrawString("ASSIGN JOB", detailX, jobY - layout.S(22f), layout.S(1.1f), new Color(0.55f, 0.75f, 0.65f) * alpha);
                 string[] jobs = { "IDLE", "GATHER", "BUILD", "HAUL" };
-                float jobX = left;
+                float jobX = detailX;
                 for (int i = 0; i < jobs.Length; i++)
                 {
-                    _ui.DrawButton(jobX, jobY, layout.S(90f), buttonH, jobs[i], _hoveredButton == 40 + i, false, layout.S(0.95f), alpha);
+                    _ui.DrawButton(jobX, jobY, layout.S(90f), btnHeight, jobs[i], _hoveredButton == 40 + i, false, layout.S(0.95f), alpha);
                     jobX += layout.S(98f);
                 }
             }

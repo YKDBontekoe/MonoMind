@@ -39,7 +39,7 @@ namespace Autonocraft.Entities
         public int? HomeBuildingId { get; set; }
 
         public Inventory Inventory { get; } = new Inventory(8);
-        public VillagerPersonaData Persona { get; }
+        public VillagerPersonaData Persona { get; private set; }
 
         public float IdleTime { get; private set; }
         public Vector3 WanderDirection;
@@ -74,6 +74,14 @@ namespace Autonocraft.Entities
         }
 
         public static void ResetIdCounter(int nextId) => _nextId = Math.Max(1, nextId);
+
+        public void RestorePersona(string trait)
+        {
+            if (!string.IsNullOrWhiteSpace(trait))
+            {
+                Persona.RestoreTrait(trait);
+            }
+        }
 
         public void AssignJob(JobType job, Vector3? target, int? buildingSiteId)
         {
@@ -436,8 +444,16 @@ namespace Autonocraft.Entities
 
     public sealed class VillagerPersonaData
     {
-        public string Trait { get; init; } = "cheerful";
+        public string Trait { get; private set; } = "cheerful";
         public string SpeechStyle { get; init; } = "plain";
+
+        public void RestoreTrait(string trait)
+        {
+            if (!string.IsNullOrWhiteSpace(trait))
+            {
+                Trait = trait;
+            }
+        }
 
         public static VillagerPersonaData Generate(Random rng, VillagerRole role)
         {

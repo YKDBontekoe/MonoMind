@@ -52,6 +52,8 @@
     "tool_gold_axe": { "col": 3, "row": 6, "file": "tool_gold_axe.png" },
     "tool_gold_shovel": { "col": 4, "row": 6, "file": "tool_gold_shovel.png" },
     "tool_gold_sword": { "col": 5, "row": 6, "file": "tool_gold_sword.png" },
+    "villager_body": { "col": 6, "row": 6, "file": "villager_body.png" },
+    "villager_head": { "col": 7, "row": 6, "file": "villager_head.png" },
     "willow_log": { "col": 0, "row": 7, "file": "willow_log.png" },
     "willow_leaves": { "col": 1, "row": 7, "file": "willow_leaves.png" },
     "palm_log": { "col": 2, "row": 7, "file": "palm_log.png" },
@@ -121,5 +123,8 @@
     "Sheep": { "body": "sheep_body", "head": "sheep_head" },
     "Pig": { "body": "pig_body", "head": "pig_head" },
     "Chicken": { "body": "chicken_body", "head": "chicken_head" }
+  },
+  "villagers": {
+    "Default": { "body": "villager_body", "head": "villager_head" }
   }
 }

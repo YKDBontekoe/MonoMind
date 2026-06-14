@@ -291,6 +291,70 @@ public static class VillageTests
             throw new Exception("Building sites not persisted.");
         }
 
+        if (exportedVillagers.Count > 0)
+        {
+            var exportedVillager = exportedVillagers[0];
+            session.Villagers.TryGet(exportedVillager.Id, out var loadedVillager);
+            if (loadedVillager == null)
+            {
+                throw new Exception("Villager not loaded after save round-trip.");
+            }
+
+            if (string.IsNullOrEmpty(exportedVillager.Trait))
+            {
+                throw new Exception("Exported villager trait missing.");
+            }
+
+            if (!string.Equals(loadedVillager.Persona.Trait, exportedVillager.Trait, StringComparison.Ordinal))
+            {
+                throw new Exception($"Villager trait not restored: expected {exportedVillager.Trait}, got {loadedVillager.Persona.Trait}.");
+            }
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunCanPlaceBlueprint()
+    {
+        Console.Write("Running Can Place Blueprint Test... ");
+        var villagers = new Entities.VillagerManager();
+        var villages = new VillageManager(villagers);
+        var world = new VoxelWorld(4242);
+        int ax = 32;
+        int az = 32;
+        if (!villages.TryFoundVillage(world, "Placement Test", ax, az, out var village) || village == null)
+        {
+            throw new Exception("Could not found village.");
+        }
+
+        if (!PlayerStructureRegistry.TryGet("farm_plot", out var blueprint))
+        {
+            throw new Exception("farm_plot blueprint missing.");
+        }
+
+        village.Storage.AddItem(ItemStack.CreateBlock(BlockType.Dirt, 32));
+        village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 8));
+
+        if (villages.CanPlaceBlueprint(world, village, blueprint, ax + 80, az + 80, village.Storage))
+        {
+            throw new Exception("Expected out-of-radius blueprint placement to fail.");
+        }
+
+        int candidateX = ax + 8;
+        int candidateZ = az + 8;
+        int anchorY = StructureFingerprint.FindSurfaceAnchorY(world, candidateX, candidateZ);
+        world.SetBlock(candidateX, anchorY, candidateZ, BlockType.Stone);
+        if (villages.CanPlaceBlueprint(world, village, blueprint, candidateX, candidateZ, village.Storage))
+        {
+            throw new Exception("Expected overlapping blueprint placement to fail.");
+        }
+
+        if (blueprint.CanAfford(village.Storage)
+            && villages.CanPlaceBlueprint(world, village, blueprint, ax + 80, az, village.Storage))
+        {
+            throw new Exception("Expected out-of-radius placement to fail even when affordable.");
+        }
+
         Console.WriteLine("PASSED");
     }
 
@@ -349,6 +413,15 @@ public static class VillageTests
         if (!closeRect.Contains(closeRect.Center.X, closeRect.Center.Y))
         {
             throw new Exception("Close button center must be inside close hit box.");
+        }
+
+        float detailX = panelX + panelW / 2f;
+        float jobY = panelY + panelH - layout.S(120f);
+        float talkY = jobY - layout.S(34f) - layout.S(16f);
+        var talkRect = new Microsoft.Xna.Framework.Rectangle((int)detailX, (int)talkY, (int)layout.S(90f), (int)layout.S(34f));
+        if (!talkRect.Contains(talkRect.Center.X, talkRect.Center.Y))
+        {
+            throw new Exception("Talk button center must be inside talk hit box.");
         }
 
         Console.WriteLine("PASSED");

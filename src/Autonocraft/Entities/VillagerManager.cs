@@ -102,6 +102,7 @@ namespace Autonocraft.Entities
                 villager.Role = (VillagerRole)entry.Role;
                 villager.AssignJob((JobType)entry.Job, null, entry.BuildingSiteId);
                 villager.Happiness = entry.Happiness;
+                villager.RestorePersona(entry.Trait);
 
                 if (entry.Inventory != null)
                 {

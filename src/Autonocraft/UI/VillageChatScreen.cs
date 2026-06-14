@@ -39,6 +39,14 @@ namespace Autonocraft.UI
             _orchestrator = orchestrator ?? new VillageAiOrchestrator();
         }
 
+        private string? _villagerDisplayName;
+
+        public void OpenWithVillager(VillageEntity village, int villagerId, string villagerName)
+        {
+            _villagerDisplayName = villagerName;
+            Open(village, villagerId.ToString(), stewardMode: false);
+        }
+
         public void Open(VillageEntity village, string target = "mayor", bool stewardMode = true)
         {
             _village = village;
@@ -48,7 +56,41 @@ namespace Autonocraft.UI
             _input = string.Empty;
             _hoveredButton = -1;
             _history.Clear();
-            _history.Add(_stewardMode ? "Steward: How may I serve the village?" : "Villager: Yes?");
+            if (_stewardMode)
+            {
+                _history.Add("Steward: How may I serve the village?");
+            }
+            else
+            {
+                string villagerName = _villagerDisplayName ?? GetVillagerDisplayName(village, target);
+                _history.Add($"{villagerName}: Yes?");
+            }
+        }
+
+        private static string GetVillagerDisplayName(VillageEntity village, string target)
+        {
+            if (int.TryParse(target, out int villagerId))
+            {
+                foreach (int id in village.VillagerIds)
+                {
+                    if (id == villagerId)
+                    {
+                        return $"Villager {villagerId}";
+                    }
+                }
+            }
+
+            return "Villager";
+        }
+
+        public string GetChatHeaderLabel()
+        {
+            if (_stewardMode || _village == null)
+            {
+                return "VILLAGE STEWARD";
+            }
+
+            return (_villagerDisplayName ?? "VILLAGER").ToUpperInvariant();
         }
 
         public void Close()
@@ -57,6 +99,7 @@ namespace Autonocraft.UI
             _village = null;
             _input = string.Empty;
             _waitingForReply = false;
+            _villagerDisplayName = null;
             _orchestrator.ClearPendingConfirmation();
         }
 
@@ -143,7 +186,7 @@ namespace Autonocraft.UI
             _ui.DrawFullscreenBackground(new Color(0.02f, 0.03f, 0.06f) * (0.65f * alpha));
             _ui.DrawPanel(panelX, panelY, panelW, panelH, new Color(0.05f, 0.07f, 0.11f) * alpha, new Color(0.35f, 0.55f, 0.45f) * alpha);
 
-            string title = _stewardMode ? "VILLAGE STEWARD" : "VILLAGER CHAT";
+            string title = GetChatHeaderLabel();
             _ui.DrawCenteredText(title, panelY + layout.S(16f), layout.S(1.5f), new Color(0.8f, 0.95f, 0.85f) * alpha);
             _ui.DrawCenteredText(_village.Name.ToUpperInvariant(), panelY + layout.S(34f), layout.S(1.0f), new Color(0.55f, 0.65f, 0.75f) * alpha);
 

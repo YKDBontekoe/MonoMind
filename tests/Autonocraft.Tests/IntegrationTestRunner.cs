@@ -19,6 +19,7 @@ public static class IntegrationTestRunner
         {
             WorldGenTests.RunGameSettingsRoundTrip();
             VillageTests.RunVillageScreenInputLayout();
+            VillageTests.RunCanPlaceBlueprint();
             WorldGenTests.RunChunkLodBands();
             WorldGenTests.RunChunkLodMeshCounts();
             ChunkStreamingTests.RunInitialLoadWaitsForInFlightGeneration();

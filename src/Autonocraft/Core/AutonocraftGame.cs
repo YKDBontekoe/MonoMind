@@ -45,6 +45,8 @@ namespace Autonocraft.Core
         private VillageAiOrchestrator? _villageAiOrchestrator;
         private bool _mouseLockedBeforeCrafting;
         private bool _mouseLockedBeforeVillageUi;
+        private string? _pendingBlueprintId;
+        private BlueprintPlacementPreview? _blueprintPlacementPreview;
         private readonly UiTransition _screenFade = new UiTransition();
         private readonly UiTransition _pauseFade = new UiTransition();
         private readonly UiTransition _deathFade = new UiTransition();
@@ -1360,6 +1362,110 @@ namespace Autonocraft.Core
             return false;
         }
 
+        private void StartBlueprintPlacement(Village.Village village, string blueprintId)
+        {
+            if (!PlayerStructureRegistry.TryGet(blueprintId, out var blueprint))
+            {
+                return;
+            }
+
+            CloseVillageUi();
+            _pendingBlueprintId = blueprintId;
+            UpdateBlueprintPlacementPreview(village, blueprint);
+            EnsureMouseLockedForGameplay();
+        }
+
+        private void CancelBlueprintPlacement()
+        {
+            _pendingBlueprintId = null;
+            _blueprintPlacementPreview = null;
+        }
+
+        private void ConfirmBlueprintPlacement()
+        {
+            if (_pendingBlueprintId == null || _blueprintPlacementPreview == null || !_blueprintPlacementPreview.Valid)
+            {
+                return;
+            }
+
+            var village = _session.Villages.GetPrimaryVillage() ?? _session.Villages.GetVillageAt(_session.Player.Position);
+            if (village == null)
+            {
+                CancelBlueprintPlacement();
+                return;
+            }
+
+            var payer = village.Storage.HasSpaceFor(ItemStack.CreateBlock(BlockType.Dirt, 1))
+                ? (IItemContainer)village.Storage
+                : WrapPlayerHotbar();
+
+            _session.Villages.TryQueueBlueprint(
+                _session.Grid,
+                village,
+                _pendingBlueprintId,
+                _blueprintPlacementPreview.AnchorX,
+                _blueprintPlacementPreview.AnchorZ,
+                payer);
+
+            CancelBlueprintPlacement();
+        }
+
+        private void UpdateBlueprintPlacementPreview(Village.Village village, BuildingBlueprint blueprint)
+        {
+            var (hitBlockPos, normal, _, _) = BlockInteractionSystem.RaycastSolid(
+                _session.Grid,
+                _camera.Position,
+                _camera.Front,
+                BlockInteractionSystem.RaycastRange);
+
+            if (!hitBlockPos.HasValue || !normal.HasValue)
+            {
+                _blueprintPlacementPreview = new BlueprintPlacementPreview
+                {
+                    Blueprint = blueprint,
+                    AnchorX = village.AnchorX,
+                    AnchorY = StructureFingerprint.FindSurfaceAnchorY(_session.Grid, village.AnchorX, village.AnchorZ),
+                    AnchorZ = village.AnchorZ,
+                    Valid = false
+                };
+                return;
+            }
+
+            Vector3 placePos = hitBlockPos.Value + normal.Value;
+            int anchorX = (int)MathF.Floor(placePos.X);
+            int anchorZ = (int)MathF.Floor(placePos.Z);
+            int anchorY = StructureFingerprint.FindSurfaceAnchorY(_session.Grid, anchorX, anchorZ);
+            var payer = village.Storage.HasSpaceFor(ItemStack.CreateBlock(BlockType.Dirt, 1))
+                ? (IItemContainer)village.Storage
+                : WrapPlayerHotbar();
+
+            bool valid = _session.Villages.CanPlaceBlueprint(_session.Grid, village, blueprint, anchorX, anchorZ, payer);
+            _blueprintPlacementPreview = new BlueprintPlacementPreview
+            {
+                Blueprint = blueprint,
+                AnchorX = anchorX,
+                AnchorY = anchorY,
+                AnchorZ = anchorZ,
+                Valid = valid
+            };
+        }
+
+        private void OpenVillageChatWithVillager(Village.Village village, int villagerId, string villagerName)
+        {
+            PrepareMouseForUi();
+            _villageChatScreen!.OpenWithVillager(village, villagerId, villagerName);
+        }
+
+        private void EnsureMouseLockedForGameplay()
+        {
+            if (!_isMouseLocked)
+            {
+                _isMouseLocked = true;
+                IsMouseVisible = false;
+                SdlMouseCapture.TryEnableRelativeMode();
+            }
+        }
+
         private void HandleVillageScreenActions()
         {
             var village = _session.Villages.GetPrimaryVillage() ?? _session.Villages.GetVillageAt(_session.Player.Position);
@@ -1385,20 +1491,15 @@ namespace Autonocraft.Core
                     _session.Villages.TryClaimStructure(_session.Grid, ax, az, out _);
                 }
             }
-            else if (_villageScreen.RequestedBlueprintId != null)
+            else if (_villageScreen.RequestedBlueprintId != null && _villageScreen.RequestBlueprintPlacement)
             {
-                int ax = village.AnchorX + 6;
-                int az = village.AnchorZ + 6;
-                var payer = village.Storage.HasSpaceFor(ItemStack.CreateBlock(BlockType.Dirt, 1))
-                    ? (IItemContainer)village.Storage
-                    : WrapPlayerHotbar();
-                _session.Villages.TryQueueBlueprint(
-                    _session.Grid,
-                    village,
-                    _villageScreen.RequestedBlueprintId,
-                    ax,
-                    az,
-                    payer);
+                StartBlueprintPlacement(village, _villageScreen.RequestedBlueprintId);
+            }
+            else if (_villageScreen.RequestedChatVillagerId >= 0 &&
+                     _session.Villagers.TryGet(_villageScreen.RequestedChatVillagerId, out var chatVillager))
+            {
+                CloseVillageUi();
+                OpenVillageChatWithVillager(village, chatVillager.Id, chatVillager.Name);
             }
             else if (_villageScreen.RequestedAssignVillagerId >= 0 &&
                      _session.Villagers.TryGet(_villageScreen.RequestedAssignVillagerId, out var villager))
@@ -1531,8 +1632,28 @@ namespace Autonocraft.Core
 
             if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && _session.Player.IsAlive)
             {
+                if (_pendingBlueprintId != null)
+                {
+                    CancelBlueprintPlacement();
+                    return;
+                }
+
                 OpenPauseMenu();
                 return;
+            }
+
+            if (_pendingBlueprintId != null
+                && PlayerStructureRegistry.TryGet(_pendingBlueprintId, out var placementBlueprint))
+            {
+                var placementVillage = _session.Villages.GetPrimaryVillage() ?? _session.Villages.GetVillageAt(_session.Player.Position);
+                if (placementVillage != null)
+                {
+                    UpdateBlueprintPlacementPreview(placementVillage, placementBlueprint);
+                }
+                else
+                {
+                    CancelBlueprintPlacement();
+                }
             }
 
             // Keyboard slot selections (D1-D9)
@@ -1724,6 +1845,12 @@ namespace Autonocraft.Core
 
                 if (CanProcessGameplayMouse())
                 {
+                    if (_pendingBlueprintId != null && leftPressed)
+                    {
+                        ConfirmBlueprintPlacement();
+                    }
+                    else
+                    {
                     var solidRayHit = BlockInteractionSystem.RaycastSolidHit(
                         _session.Grid,
                         _camera.Position,
@@ -1766,6 +1893,7 @@ namespace Autonocraft.Core
                             (int)stationPos.Y,
                             (int)stationPos.Z,
                             _session.BlockInteraction.PendingStationType);
+                    }
                     }
                 }
             }
@@ -1954,7 +2082,11 @@ namespace Autonocraft.Core
                     {
                         // Water animation via atlas.SetData causes GPU stalls on macOS — use static tile.
                         var drawStopwatch = Stopwatch.StartNew();
-                        _renderer?.Draw(_session.PrepareRenderContext(_camera, _timeOfDay, _waterAnimTime, _settings.RenderDistance));
+                        var renderContext = _session.PrepareRenderContext(_camera, _timeOfDay, _waterAnimTime, _settings.RenderDistance);
+                        renderContext.VillageUiOpen = _villageScreen?.IsOpen == true;
+                        renderContext.BlueprintPlacement = _blueprintPlacementPreview;
+                        renderContext.HudPlacementHint = _pendingBlueprintId != null ? "CLICK TO PLACE · ESC CANCEL" : null;
+                        _renderer?.Draw(renderContext);
                         drawStopwatch.Stop();
                         PerfCounters.RecordDraw((float)drawStopwatch.Elapsed.TotalMilliseconds);
                     }

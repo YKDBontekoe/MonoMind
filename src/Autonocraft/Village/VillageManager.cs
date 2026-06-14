@@ -250,9 +250,9 @@ namespace Autonocraft.Village
                 return false;
             }
 
-            if (!blueprint.CanAfford(payer))
+            if (!CanPlaceBlueprint(world, village, blueprint, anchorX, anchorZ, payer))
             {
-                ShowToast?.Invoke($"Cannot afford {blueprint.DisplayName}.");
+                ShowToast?.Invoke($"Cannot place {blueprint.DisplayName} here.");
                 return false;
             }
 
@@ -261,6 +261,67 @@ namespace Autonocraft.Village
             village.QueueBuild(blueprint, anchorX, anchorY, anchorZ);
             ShowToast?.Invoke($"Queued {blueprint.DisplayName} for construction.");
             return true;
+        }
+
+        public bool CanPlaceBlueprint(
+            VoxelWorld world,
+            Village village,
+            BuildingBlueprint blueprint,
+            int anchorX,
+            int anchorZ,
+            IItemContainer payer)
+        {
+            if (!blueprint.CanAfford(payer))
+            {
+                return false;
+            }
+
+            float dx = anchorX + 0.5f - village.Center.X;
+            float dz = anchorZ + 0.5f - village.Center.Z;
+            if (dx * dx + dz * dz > village.Radius * village.Radius)
+            {
+                return false;
+            }
+
+            int anchorY = StructureFingerprint.FindSurfaceAnchorY(world, anchorX, anchorZ);
+            foreach (var block in blueprint.Template.Blocks)
+            {
+                int wx = anchorX + block.Dx;
+                int wy = anchorY + block.Dy;
+                int wz = anchorZ + block.Dz;
+                if (wy <= 0 || wy >= Chunk.Height)
+                {
+                    return false;
+                }
+
+                var current = world.GetBlock(wx, wy, wz);
+                if (!CanAcceptBlueprintBlock(current))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool CanAcceptBlueprintBlock(BlockType current)
+        {
+            if (current == BlockType.Air)
+            {
+                return true;
+            }
+
+            if (current.IsTransparent())
+            {
+                return true;
+            }
+
+            return current is BlockType.Grass
+                or BlockType.Dirt
+                or BlockType.Sand
+                or BlockType.Snow
+                or BlockType.Gravel
+                or BlockType.Mud;
         }
 
         public bool TryRecruit(Village village)

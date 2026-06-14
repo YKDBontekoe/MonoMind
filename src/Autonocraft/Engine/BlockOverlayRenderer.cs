@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Autonocraft.Core;
 using Autonocraft.Engine.Animation;
+using Autonocraft.Village;
 using Autonocraft.World;
 using Vector3 = System.Numerics.Vector3;
 using Vector2 = System.Numerics.Vector2;
@@ -39,7 +40,8 @@ namespace Autonocraft.Engine
             Matrix view,
             Matrix projection,
             Camera camera,
-            float animTime)
+            float animTime,
+            BlueprintPlacementPreview? blueprintPlacement = null)
         {
             _device.DepthStencilState = DepthStencilState.Default;
             _device.RasterizerState = RasterizerState.CullNone;
@@ -49,6 +51,11 @@ namespace Autonocraft.Engine
             _overlayEffect.View = view;
             _overlayEffect.Projection = projection;
             _overlayEffect.Alpha = 1f;
+
+            if (blueprintPlacement != null)
+            {
+                DrawBlueprintGhost(blueprintPlacement);
+            }
 
             if (interaction.TargetBlockPos.HasValue && interaction.TargetBlockType != BlockType.Air)
             {
@@ -86,6 +93,21 @@ namespace Autonocraft.Engine
             }
 
             DrawParticles(particles, camera);
+        }
+
+        private void DrawBlueprintGhost(BlueprintPlacementPreview preview)
+        {
+            var tint = preview.Valid
+                ? new Color(0.35f, 0.92f, 0.45f, 0.38f)
+                : new Color(0.95f, 0.28f, 0.28f, 0.38f);
+
+            foreach (var block in preview.Blueprint.Template.Blocks)
+            {
+                int wx = preview.AnchorX + block.Dx;
+                int wy = preview.AnchorY + block.Dy;
+                int wz = preview.AnchorZ + block.Dz;
+                DrawGhostBlock(new Vector3(wx, wy, wz), block.Type, tint);
+            }
         }
 
         private void DrawWireframeCube(Vector3 blockPos, Color color)

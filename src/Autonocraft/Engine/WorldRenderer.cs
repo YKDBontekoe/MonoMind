@@ -4,6 +4,7 @@ using System.Numerics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Autonocraft.Core;
+using Autonocraft.Domain.Village;
 using Autonocraft.Entities;
 using Autonocraft.World;
 using Vector3 = System.Numerics.Vector3;
@@ -188,7 +189,8 @@ namespace Autonocraft.Engine
                 monoView,
                 monoProj,
                 ctx.Camera,
-                ctx.BlockInteraction.AnimTime);
+                ctx.BlockInteraction.AnimTime,
+                ctx.BlueprintPlacement);
 
             if (underwaterFactor > 0f)
             {
@@ -336,7 +338,23 @@ namespace Autonocraft.Engine
             _worldEffect.FogStart = ChunkLod.GetFogStart(renderDistance);
             _worldEffect.FogEnd = ChunkLod.GetFogEnd(renderDistance, lighting.TwilightFactor);
 
-            var bodyUV = BlockAtlas.GetTileUVs(2, 3);
+            int bodyCol = 6;
+            int bodyRow = 6;
+            int headCol = 7;
+            int headRow = 6;
+            if (BlockAtlas.LayoutData.Villagers.TryGetValue("Default", out var villagerTiles))
+            {
+                var body = BlockAtlas.LayoutData.GetTile(villagerTiles.Body);
+                var head = BlockAtlas.LayoutData.GetTile(villagerTiles.Head);
+                bodyCol = body.Col;
+                bodyRow = body.Row;
+                headCol = head.Col;
+                headRow = head.Row;
+            }
+
+            var bodyUV = BlockAtlas.GetTileUVs(bodyCol, bodyRow);
+            var headUV = BlockAtlas.GetTileUVs(headCol, headRow);
+
             foreach (var villager in villagers)
             {
                 float yawRad = MathHelper.ToRadians(-villager.Yaw);
@@ -344,14 +362,37 @@ namespace Autonocraft.Engine
                 var translation = Matrix.CreateTranslation(villager.Position.X, villager.Position.Y, villager.Position.Z);
                 var villagerWorld = rotation * translation;
 
-                DrawTexturedBox(villagerWorld, Villager.Width * 0.45f, Villager.Height * 0.45f, Villager.Width * 0.45f, 0f, Villager.Height * 0.45f, 0f, bodyUV, bodyUV);
+                float bodyHeight = Villager.Height * 0.55f;
+                float bodyCenterY = Villager.Height * 0.35f;
+                DrawTexturedBox(villagerWorld, Villager.Width * 0.45f, bodyHeight * 0.5f, Villager.Width * 0.45f, 0f, bodyCenterY, 0f, bodyUV, bodyUV);
 
-                if (villager.CurrentJob != Domain.Village.JobType.Idle && villager.CurrentJob != Domain.Village.JobType.Sleep)
+                float headSize = Villager.Width * 0.22f;
+                float headCenterY = Villager.Height * 0.72f;
+                float headForward = Villager.Width * 0.35f;
+                DrawTexturedBox(villagerWorld, headSize, headSize, headSize, 0f, headCenterY, headForward, bodyUV, headUV);
+
+                var roleColor = VillagerVisuals.GetRoleColor(villager.Role);
+                _worldEffect.TextureEnabled = false;
+                float vestHeight = bodyHeight * 0.35f;
+                DrawColoredBox(villagerWorld, Villager.Width * 0.38f, vestHeight * 0.5f, Villager.Width * 0.12f, 0f, bodyCenterY, Villager.Width * 0.38f, roleColor * 0.85f);
+
+                if (villager.Role == VillagerRole.Lumberjack)
                 {
-                    _worldEffect.TextureEnabled = false;
-                    DrawColoredBox(villagerWorld, 0.12f, 0.12f, 0.12f, 0f, Villager.Height + 0.2f, 0f, new Color(0.9f, 0.85f, 0.3f, 0.9f));
-                    _worldEffect.TextureEnabled = true;
+                    DrawColoredBox(villagerWorld, 0.06f, 0.06f, 0.14f, Villager.Width * 0.35f, bodyCenterY + 0.05f, Villager.Width * 0.42f, new Color(0.55f, 0.35f, 0.18f, 0.95f));
                 }
+                else if (villager.Role == VillagerRole.Builder)
+                {
+                    DrawColoredBox(villagerWorld, Villager.Width * 0.42f, 0.04f, Villager.Width * 0.42f, 0f, headCenterY + headSize * 0.6f, 0f, new Color(0.95f, 0.55f, 0.15f, 0.95f));
+                }
+
+                if (VillagerVisuals.ShouldDrawJobIndicator(villager.CurrentJob))
+                {
+                    var jobColor = VillagerVisuals.GetJobIndicatorColor(villager.CurrentJob);
+                    float indicatorSize = villager.CurrentJob == JobType.Sleep ? 0.1f : 0.12f;
+                    DrawColoredBox(villagerWorld, indicatorSize, indicatorSize, indicatorSize, 0f, Villager.Height + 0.18f, 0f, jobColor);
+                }
+
+                _worldEffect.TextureEnabled = true;
             }
 
             _worldEffect.TextureEnabled = prevTextureEnabled;

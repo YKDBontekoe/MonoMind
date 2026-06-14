@@ -170,6 +170,13 @@ namespace Autonocraft.Engine
                 float hintWidth = PixelFont.MeasureString(hint, hintSize);
                 PixelFont.DrawString(_spriteBatch, _whiteTexture, hint, cx - hintWidth / 2f, hotbarYMin - layout.S(30f), hintSize, new Color(0.55f, 0.82f, 0.65f), 0.85f);
             }
+            else if (!string.IsNullOrEmpty(ctx.HudPlacementHint))
+            {
+                string hint = ctx.HudPlacementHint!;
+                float hintSize = layout.S(0.95f);
+                float hintWidth = PixelFont.MeasureString(hint, hintSize);
+                PixelFont.DrawString(_spriteBatch, _whiteTexture, hint, cx - hintWidth / 2f, hotbarYMin - layout.S(30f), hintSize, new Color(0.55f, 0.82f, 0.65f), 0.85f);
+            }
             else if (ctx.Crafting.ShowCraftingHint)
             {
                 string hint = "BUILD PATTERNS  SHIFT+CLICK TO AWAKEN";

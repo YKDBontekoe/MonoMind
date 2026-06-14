@@ -1052,6 +1052,38 @@ def make_procedural_tile(name: str, tile: int) -> Optional[Image.Image]:
         draw.rectangle((cx - 3, cy + beak_size + 1, cx + 2, cy + beak_size + 7), fill=(220, 30, 30, 255))
         return img
 
+    if name == "villager_body.png":
+        tunic = (92, 118, 168)
+        belt = (72, 52, 36)
+        img = fill_noisy_tile(name, tile, tunic, 6)
+        draw = ImageDraw.Draw(img)
+        margin = tile // 10
+        draw.rectangle((margin, margin, tile - margin, tile - margin), outline=shade(tunic, -24) + (255,), width=2)
+        belt_y = tile * 3 // 5
+        draw.rectangle((margin + 2, belt_y, tile - margin - 2, belt_y + tile // 10), fill=belt + (255,))
+        draw.rectangle((margin + 2, belt_y, tile - margin - 2, belt_y + 2), fill=shade(belt, 18) + (255,))
+        collar = shade(tunic, 22)
+        draw.rectangle((tile // 3, margin, tile * 2 // 3, margin + tile // 8), fill=collar + (255,))
+        return img
+
+    if name == "villager_head.png":
+        skin = (224, 188, 152)
+        hair = (88, 58, 36)
+        img = fill_noisy_tile(name, tile, skin, 6)
+        draw = ImageDraw.Draw(img)
+        margin = tile // 8
+        draw.rectangle((margin, margin, tile - margin, tile - margin), outline=shade(skin, -18) + (255,), width=2)
+        cx, cy = tile // 2, tile // 2
+        draw.rectangle((margin, margin, tile - margin, cy - tile // 10), fill=hair + (255,))
+        eye_y = cy - tile // 16
+        eye_offset = tile // 4
+        draw.rectangle((cx - eye_offset - 3, eye_y - 2, cx - eye_offset + 2, eye_y + 2), fill=(255, 255, 255, 255))
+        draw.rectangle((cx - eye_offset - 1, eye_y - 2, cx - eye_offset + 1, eye_y + 2), fill=(40, 30, 24, 255))
+        draw.rectangle((cx + eye_offset - 3, eye_y - 2, cx + eye_offset + 2, eye_y + 2), fill=(255, 255, 255, 255))
+        draw.rectangle((cx + eye_offset - 1, eye_y - 2, cx + eye_offset + 1, eye_y + 2), fill=(40, 30, 24, 255))
+        draw.rectangle((cx - 5, cy + tile // 10, cx + 5, cy + tile // 10 + 3), fill=shade(skin, -12) + (255,))
+        return img
+
     return None
 
 
