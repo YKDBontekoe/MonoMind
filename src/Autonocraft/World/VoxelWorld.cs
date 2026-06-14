@@ -73,6 +73,7 @@ namespace Autonocraft.World
         }
 
         private readonly ConcurrentQueue<CompletedMeshUpload> _completedMeshUploads = new();
+        private readonly ConcurrentQueue<(int cx, int cz)> _failedMeshRequeues = new();
         private int _meshBuildsInFlight;
 
         private int _lastAgentCx = int.MinValue;
@@ -542,12 +543,22 @@ namespace Autonocraft.World
             }
             else
             {
-                // Mark neighbors stale — keeps old geometry visible while async rebuild runs.
-                EnqueueMeshForChunk(chunk.ChunkX - 1, chunk.ChunkZ, markStale: true);
-                EnqueueMeshForChunk(chunk.ChunkX + 1, chunk.ChunkZ, markStale: true);
-                EnqueueMeshForChunk(chunk.ChunkX, chunk.ChunkZ - 1, markStale: true);
-                EnqueueMeshForChunk(chunk.ChunkX, chunk.ChunkZ + 1, markStale: true);
+                TryEnqueueNeighborRemeshInRange(chunk.ChunkX - 1, chunk.ChunkZ, profile);
+                TryEnqueueNeighborRemeshInRange(chunk.ChunkX + 1, chunk.ChunkZ, profile);
+                TryEnqueueNeighborRemeshInRange(chunk.ChunkX, chunk.ChunkZ - 1, profile);
+                TryEnqueueNeighborRemeshInRange(chunk.ChunkX, chunk.ChunkZ + 1, profile);
             }
+        }
+
+        private void TryEnqueueNeighborRemeshInRange(int cx, int cz, ChunkStreamingProfile profile)
+        {
+            int dist = GetChunkSortDistance(cx, cz, profile.AgentChunkX, profile.AgentChunkZ);
+            if (dist > _streamRenderDistance)
+            {
+                return;
+            }
+
+            EnqueueMeshForChunk(cx, cz, markStale: true);
         }
 
         private void TryEnqueueNeighborRemesh(int cx, int cz, ChunkStreamingProfile profile)
@@ -598,6 +609,34 @@ namespace Autonocraft.World
                     QueueTerrainLoad(leadCx + dx, leadCz + dz);
                 }
             }
+        }
+
+        private int CountChunksNeedingMeshInRange(int agentCx, int agentCz, int renderDistance, bool restrictLod)
+        {
+            int count = 0;
+            _lock.EnterReadLock();
+            try
+            {
+                foreach (var chunk in _activeChunkList)
+                {
+                    int chunkDistance = GetChunkSortDistance(chunk.ChunkX, chunk.ChunkZ, agentCx, agentCz);
+                    if (chunkDistance > renderDistance)
+                    {
+                        continue;
+                    }
+
+                    if (ChunkLod.NeedsHigherDetailBuild(chunk, chunkDistance, renderDistance, restrictLod))
+                    {
+                        count++;
+                    }
+                }
+            }
+            finally
+            {
+                _lock.ExitReadLock();
+            }
+
+            return count;
         }
 
         private void SelectClosestMeshJobs(
@@ -667,6 +706,18 @@ namespace Autonocraft.World
                 }
 
                 int chunkDistance = GetChunkSortDistance(coord.cx, coord.cz, agentCx, agentCz);
+                if (chunkDistance > renderDistance)
+                {
+                    _pendingMeshSortScratch.Add(coord);
+                    continue;
+                }
+
+                if (!TryCreateMeshBuildContextNoLock(chunk, out _))
+                {
+                    _pendingMeshSortScratch.Add(coord);
+                    continue;
+                }
+
                 if (!ChunkLod.NeedsHigherDetailBuild(chunk, chunkDistance, renderDistance, restrictLod))
                 {
                     _pendingMeshSortScratch.Add(coord);
@@ -846,6 +897,11 @@ namespace Autonocraft.World
             _lock.EnterWriteLock();
             try
             {
+                while (_failedMeshRequeues.TryDequeue(out var failedCoord))
+                {
+                    _pendingMesh.Add(failedCoord);
+                }
+
                 int terrainProcessed = 0;
                 while (_pendingTerrain.Count > 0 && terrainProcessed < maxTerrainPerFrame)
                 {
@@ -1026,6 +1082,7 @@ namespace Autonocraft.World
                         {
                             ClearMeshBuildInFlight(capturedChunk, capturedDetail);
                             InputDebugTrace.LogChunkEvent($"async mesh build failed ({capturedChunk.ChunkX},{capturedChunk.ChunkZ}): {ex.Message}");
+                            _failedMeshRequeues.Enqueue((capturedChunk.ChunkX, capturedChunk.ChunkZ));
                         }
                         finally
                         {
@@ -1181,7 +1238,7 @@ namespace Autonocraft.World
                 {
                     if (_initialLoadMeshTotal == 0)
                     {
-                        _initialLoadMeshTotal = Math.Max(1, _pendingMesh.Count);
+                        _initialLoadMeshTotal = Math.Max(1, _initialLoadTotal);
                     }
 
                     _initialLoadQueue = null;
@@ -1194,8 +1251,10 @@ namespace Autonocraft.World
 
             ProcessPendingWork(device, agentPos, _initialLoadRenderDistance, profile, maxTerrainPerFrame: chunksPerFrame, maxMeshPerFrame: meshesPerFrame);
 
+            GetChunkCoords((int)MathF.Round(agentPos.X), (int)MathF.Round(agentPos.Z), out int agentCx, out int agentCz, out _, out _);
             bool terrainDone = _initialLoadQueue == null && _inFlightGeneration.Count == 0;
-            bool meshesDone = _pendingMesh.Count == 0
+            int chunksNeedingMesh = CountChunksNeedingMeshInRange(agentCx, agentCz, _initialLoadRenderDistance, restrictLod: false);
+            bool meshesDone = chunksNeedingMesh == 0
                 && Volatile.Read(ref _meshBuildsInFlight) == 0
                 && _completedMeshUploads.IsEmpty;
 
@@ -1213,8 +1272,7 @@ namespace Autonocraft.World
             }
             else
             {
-                int remaining = _pendingMesh.Count;
-                int completed = Math.Max(0, _initialLoadMeshTotal - remaining);
+                int completed = Math.Max(0, _initialLoadMeshTotal - chunksNeedingMesh);
                 progress = 0.65f + completed / (float)_initialLoadMeshTotal * 0.35f;
                 status = $"MESHING CHUNKS {completed}/{_initialLoadMeshTotal}";
             }
