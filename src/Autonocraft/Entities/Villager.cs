@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Autonocraft.Domain.Village;
 using Autonocraft.Items;
+using Autonocraft.Village;
 using Autonocraft.World;
 
 namespace Autonocraft.Entities
@@ -35,11 +36,17 @@ namespace Autonocraft.Entities
 
         public Vector3? JobTarget { get; private set; }
         public int? AssignedBuildingSiteId { get; private set; }
+        public int? AssignedBuildingId { get; private set; }
+        public int? HaulSourceChestId { get; private set; }
+        public int? HaulSourceVillagerId { get; private set; }
+        public bool HaulIsDelivering { get; private set; }
         public Vector3? MarkedResource { get; set; }
         public int? HomeBuildingId { get; set; }
 
         public Inventory Inventory { get; } = new Inventory(8);
+        public ItemStack EquippedTool { get; private set; }
         public VillagerPersonaData Persona { get; private set; }
+        public VillagerSkills Skills { get; } = new();
 
         public float IdleTime { get; private set; }
         public Vector3 WanderDirection;
@@ -70,7 +77,40 @@ namespace Autonocraft.Entities
             Position = position;
             Velocity = Vector3.Zero;
             Persona = VillagerPersonaData.Generate(_rng, Role);
+            Happiness = 0.9f + (float)_rng.NextDouble() * 0.1f;
             IdleTime = 1f + (float)_rng.NextDouble() * 2f;
+        }
+
+        public void RestoreSkills(
+            int miningLevel,
+            float miningXp,
+            int woodcuttingLevel,
+            float woodcuttingXp,
+            int farmingLevel,
+            float farmingXp)
+        {
+            Skills.Mining = new SkillProgress { Level = miningLevel > 0 ? miningLevel : 1, Xp = miningXp };
+            Skills.Woodcutting = new SkillProgress { Level = woodcuttingLevel > 0 ? woodcuttingLevel : 1, Xp = woodcuttingXp };
+            Skills.Farming = new SkillProgress { Level = farmingLevel > 0 ? farmingLevel : 1, Xp = farmingXp };
+        }
+
+        public void DriftHappinessToward(float villageHappiness, float deltaTime)
+        {
+            float t = Math.Clamp(deltaTime * 0.02f, 0f, 1f);
+            Happiness = Math.Clamp(
+                Happiness + (villageHappiness - Happiness) * t,
+                0.1f,
+                1f);
+        }
+
+        public void RefreshWorkSpeed(float villageMultiplier)
+        {
+            float personal = Math.Clamp(Happiness, 0.5f, 1.25f);
+            WorkSpeedMultiplier = villageMultiplier * personal;
+            if (CurrentJob == JobType.Mine)
+            {
+                WorkSpeedMultiplier *= VillagerTraits.GetMineSpeedMultiplier(Persona.Trait);
+            }
         }
 
         public static void ResetIdCounter(int nextId) => _nextId = Math.Max(1, nextId);
@@ -83,12 +123,31 @@ namespace Autonocraft.Entities
             }
         }
 
-        public void AssignJob(JobType job, Vector3? target, int? buildingSiteId)
+        public void AssignJob(JobType job, Vector3? target, int? buildingSiteId, int? assignedBuildingId = null)
         {
             CurrentJob = job;
             JobTarget = target;
             AssignedBuildingSiteId = buildingSiteId;
+            AssignedBuildingId = assignedBuildingId;
+            HaulSourceChestId = null;
+            HaulSourceVillagerId = null;
+            HaulIsDelivering = false;
             AiPhase = job == JobType.Idle ? VillagerAiPhase.Idle : VillagerAiPhase.PathTo;
+            WorkTimer = 0f;
+            BreakProgress = 0f;
+            _path.Clear();
+            _pathIndex = 0;
+        }
+
+        public void AssignHaulJob(Vector3? pickupTarget, int? sourceChestId, int? sourceVillagerId)
+        {
+            CurrentJob = JobType.Haul;
+            JobTarget = pickupTarget;
+            AssignedBuildingSiteId = null;
+            HaulSourceChestId = sourceChestId;
+            HaulSourceVillagerId = sourceVillagerId;
+            HaulIsDelivering = false;
+            AiPhase = VillagerAiPhase.PathTo;
             WorkTimer = 0f;
             BreakProgress = 0f;
             _path.Clear();
@@ -150,7 +209,14 @@ namespace Autonocraft.Entities
                     UpdateSleep(deltaTime);
                     break;
                 case JobType.Gather:
-                    UpdateGather(deltaTime, world, context);
+                case JobType.Lumber:
+                    UpdateLumber(deltaTime, world, context);
+                    break;
+                case JobType.Mine:
+                    UpdateMine(deltaTime, world, context);
+                    break;
+                case JobType.Farm:
+                    UpdateFarm(deltaTime, world, context);
                     break;
                 case JobType.Build:
                     UpdateBuild(deltaTime, world, context);
@@ -159,7 +225,7 @@ namespace Autonocraft.Entities
                     UpdateHaul(deltaTime, world, context);
                     break;
                 case JobType.Craft:
-                    UpdateCraft(deltaTime, context);
+                    UpdateCraft(deltaTime, world, context);
                     break;
                 default:
                     UpdateIdle(deltaTime, world, context);
@@ -184,18 +250,184 @@ namespace Autonocraft.Entities
             UpdateWander(deltaTime, world, context.VillageRadius, context.VillageCenter);
         }
 
-        private void UpdateGather(float deltaTime, VoxelWorld world, VillageContext context)
+        private void UpdateLumber(float deltaTime, VoxelWorld world, VillageContext context)
         {
-            var target = MarkedResource ?? JobTarget;
-            if (!target.HasValue)
+            UpdateBreakBlockJob(deltaTime, world, context, ToolType.Axe, IsLumberBlock);
+        }
+
+        private void UpdateMine(float deltaTime, VoxelWorld world, VillageContext context)
+        {
+            UpdateBreakBlockJob(deltaTime, world, context, ToolType.Pickaxe, IsMineableBlock);
+        }
+
+        private void UpdateFarm(float deltaTime, VoxelWorld world, VillageContext context)
+        {
+            if (context.Village == null)
             {
+                AssignJob(JobType.Idle, null, null);
+                return;
+            }
+
+            if (!TryResolveFarmTarget(world, context, out var workCell, out var approach))
+            {
+                AssignJob(JobType.Idle, null, null);
+                return;
+            }
+
+            JobTarget = workCell;
+            if (AiPhase == VillagerAiPhase.PathTo)
+            {
+                if (TryMoveAlongPath(deltaTime, world) || TryMoveToward(deltaTime, world, approach))
+                {
+                    return;
+                }
+
+                AiPhase = VillagerAiPhase.Working;
+            }
+
+            if (AiPhase != VillagerAiPhase.Working)
+            {
+                return;
+            }
+
+            int bx = (int)MathF.Floor(workCell.X);
+            int by = (int)MathF.Floor(workCell.Y);
+            int bz = (int)MathF.Floor(workCell.Z);
+            var block = world.GetBlock(bx, by, bz);
+            var work = FarmCropHelper.ClassifyWork(block);
+            if (work == FarmWorkKind.None)
+            {
+                MarkedResource = null;
+                TryAdvanceFarmTarget(world, context);
+                return;
+            }
+
+            WorkTimer += deltaTime * WorkSpeedMultiplier * Skills.GetBonus(VillagerSkill.Farming);
+            float workDuration = WorkInterval * (work == FarmWorkKind.Harvest ? 1f : 1.2f);
+            if (WorkTimer < workDuration)
+            {
+                return;
+            }
+
+            WorkTimer = 0f;
+            if (work == FarmWorkKind.Harvest)
+            {
+                var harvest = FarmCropHelper.GetHarvestProduct(block);
+                world.SetBlock(bx, by, bz, BlockType.Dirt);
+                GrantFarmYield(context, FarmCropHelper.GetFoodValue(harvest));
+                Skills.AddXp(VillagerSkill.Farming, 1f);
+                Inventory.AddItem(ItemStack.CreateBlock(harvest, 1));
+                TryOffloadCarryToOutputChest(context);
+            }
+            else
+            {
+                var crop = FarmCropHelper.PickPlantCrop(bx, bz);
+                world.SetBlock(bx, by, bz, FarmCropHelper.GetSproutBlock(crop));
+                Skills.AddXp(VillagerSkill.Farming, 0.5f);
+            }
+
+            MarkedResource = null;
+            TryAdvanceFarmTarget(world, context);
+        }
+
+        private bool TryResolveFarmTarget(
+            VoxelWorld world,
+            VillageContext context,
+            out Vector3 workCell,
+            out Vector3 approach)
+        {
+            workCell = default;
+            approach = default;
+            if (context.Village == null)
+            {
+                return false;
+            }
+
+            if (MarkedResource.HasValue || JobTarget.HasValue)
+            {
+                workCell = MarkedResource ?? JobTarget!.Value;
+                int bx = (int)MathF.Floor(workCell.X);
+                int by = (int)MathF.Floor(workCell.Y);
+                int bz = (int)MathF.Floor(workCell.Z);
+                var block = world.GetBlock(bx, by, bz);
+                if (FarmCropHelper.ClassifyWork(block) != FarmWorkKind.None)
+                {
+                    approach = FarmCropHelper.GetApproachPosition(world, bx, by, bz, Position);
+                    return true;
+                }
+
+                MarkedResource = null;
+                JobTarget = null;
+            }
+
+            VillageBuilding? plot = null;
+            if (AssignedBuildingId.HasValue &&
+                context.Village.TryGetBuilding(AssignedBuildingId.Value, out var assigned) &&
+                assigned.Kind == BuildingKind.FarmPlot)
+            {
+                plot = assigned;
+            }
+
+            var next = plot != null
+                ? FarmCropHelper.FindBestFarmCell(world, context.Village, plot, Position)
+                : FarmCropHelper.FindBestFarmCellAnyPlot(world, context.Village, Position);
+            if (!next.HasValue)
+            {
+                return false;
+            }
+
+            workCell = next.Value;
+            MarkedResource = workCell;
+            JobTarget = workCell;
+            int wx = (int)MathF.Floor(workCell.X);
+            int wy = (int)MathF.Floor(workCell.Y);
+            int wz = (int)MathF.Floor(workCell.Z);
+            approach = FarmCropHelper.GetApproachPosition(world, wx, wy, wz, Position);
+            TryBeginFarmPath(world, approach);
+            return true;
+        }
+
+        private void TryAdvanceFarmTarget(VoxelWorld world, VillageContext context)
+        {
+            if (!TryResolveFarmTarget(world, context, out _, out _))
+            {
+                AssignJob(JobType.Idle, null, null);
+                return;
+            }
+
+            AiPhase = VillagerAiPhase.PathTo;
+        }
+
+        private void TryBeginFarmPath(VoxelWorld world, Vector3 approach)
+        {
+            if (VoxelPathfinder.TryFindPath(world, Position, approach, 24, out var waypoints))
+            {
+                SetPath(waypoints);
+            }
+            else
+            {
+                _path.Clear();
+                _pathIndex = 0;
+            }
+        }
+
+        private void UpdateBreakBlockJob(
+            float deltaTime,
+            VoxelWorld world,
+            VillageContext context,
+            ToolType requiredTool,
+            Func<BlockType, bool> isTargetBlock)
+        {
+            if (!TryResolveBreakTarget(world, context, isTargetBlock, out var target))
+            {
+                ReturnEquippedTool(context.Storage);
                 AssignJob(JobType.Idle, null, null);
                 return;
             }
 
             if (AiPhase == VillagerAiPhase.PathTo)
             {
-                if (TryMoveToward(deltaTime, world, target.Value))
+                if (TryMoveToward(deltaTime, world, target))
                 {
                     return;
                 }
@@ -205,26 +437,183 @@ namespace Autonocraft.Entities
 
             if (AiPhase == VillagerAiPhase.Working)
             {
-                int bx = (int)MathF.Floor(target.Value.X);
-                int by = (int)MathF.Floor(target.Value.Y);
-                int bz = (int)MathF.Floor(target.Value.Z);
-                var block = world.GetBlock(bx, by, bz);
-                if (block == BlockType.Air || !block.IsCollidable())
+                if (!EnsureEquippedTool(context.Storage, requiredTool, context.CreativeMode))
                 {
-                    AssignJob(JobType.Haul, context.StoragePosition, null);
+                    ReturnEquippedTool(context.Storage);
+                    AssignJob(JobType.Idle, null, null);
                     return;
                 }
 
-                WorkTimer += deltaTime * WorkSpeedMultiplier;
-                if (WorkTimer >= WorkInterval)
+                int bx = (int)MathF.Floor(target.X);
+                int by = (int)MathF.Floor(target.Y);
+                int bz = (int)MathF.Floor(target.Z);
+                var block = world.GetBlock(bx, by, bz);
+                if (block == BlockType.Air || !block.IsCollidable() || !isTargetBlock(block))
                 {
-                    WorkTimer = 0f;
-                    world.SetBlock(bx, by, bz, BlockType.Air);
-                    Inventory.AddItem(ItemStack.CreateBlock(block, 1));
-                    AssignJob(JobType.Haul, context.StoragePosition, null);
+                    context.Village?.WorkQueue.Complete(bx, by, bz);
+                    MarkedResource = null;
+                    JobTarget = null;
+                    AiPhase = VillagerAiPhase.PathTo;
+                    return;
                 }
+
+                float breakTime = MiningCalculator.GetEffectiveBreakTime(block, EquippedTool, Skills);
+                if (breakTime <= 0f)
+                {
+                    breakTime = block.GetBreakTime();
+                }
+
+                BreakProgress += deltaTime * WorkSpeedMultiplier / Math.Max(0.01f, breakTime);
+                if (BreakProgress < 1f)
+                {
+                    return;
+                }
+
+                BreakProgress = 0f;
+                world.SetBlock(bx, by, bz, BlockType.Air);
+                Inventory.AddItem(ItemStack.CreateBlock(block, 1));
+                var workSkill = MiningCalculator.ToVillagerSkill(MiningCalculator.GetSkillForBlock(block));
+                Skills.AddXp(workSkill, MiningCalculator.GetXpForBlock(block));
+                DamageEquippedTool(1, context.CreativeMode);
+                context.Village?.WorkQueue.Complete(bx, by, bz);
+                MarkedResource = null;
+                JobTarget = null;
+                if (HaulLogistics.IsCarryFull(Inventory))
+                {
+                    TryOffloadCarryToOutputChest(context);
+                }
+
+                AiPhase = VillagerAiPhase.PathTo;
             }
         }
+
+        private bool EnsureEquippedTool(VillageStorage storage, ToolType requiredTool, bool creative = false)
+        {
+            if (EquippedTool.IsTool() &&
+                ToolRegistry.TryGet(EquippedTool.ToolId, out var equippedDef) &&
+                equippedDef.ToolType == requiredTool &&
+                (creative || EquippedTool.Durability > 0))
+            {
+                return true;
+            }
+
+            ReturnEquippedTool(storage);
+            if (storage.TryWithdrawTool(requiredTool, out var tool))
+            {
+                EquippedTool = tool;
+                return true;
+            }
+
+            if (creative && TryEquipCreativeTool(requiredTool))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool TryEquipCreativeTool(ToolType requiredTool)
+        {
+            EquippedTool = ToolRegistry.CreateStack(requiredTool, ToolTier.Stone);
+            return EquippedTool.IsTool();
+        }
+
+        private void ReturnEquippedTool(VillageStorage storage)
+        {
+            if (EquippedTool.IsEmpty)
+            {
+                return;
+            }
+
+            storage.TryReturnTool(EquippedTool);
+            EquippedTool = ItemStack.Empty;
+        }
+
+        private bool DamageEquippedTool(int amount, bool creative = false)
+        {
+            if (!EquippedTool.IsTool() || amount <= 0 || creative)
+            {
+                return false;
+            }
+
+            var tool = EquippedTool;
+            tool.Durability -= amount;
+            if (tool.Durability <= 0)
+            {
+                EquippedTool = ItemStack.Empty;
+                return true;
+            }
+
+            EquippedTool = tool;
+            return false;
+        }
+
+        private bool TryResolveBreakTarget(
+            VoxelWorld world,
+            VillageContext context,
+            Func<BlockType, bool> isTargetBlock,
+            out Vector3 target)
+        {
+            if (MarkedResource.HasValue)
+            {
+                target = MarkedResource.Value;
+                return true;
+            }
+
+            if (JobTarget.HasValue)
+            {
+                int bx = (int)MathF.Floor(JobTarget.Value.X);
+                int by = (int)MathF.Floor(JobTarget.Value.Y);
+                int bz = (int)MathF.Floor(JobTarget.Value.Z);
+                var block = world.GetBlock(bx, by, bz);
+                if (block != BlockType.Air && block.IsCollidable() && isTargetBlock(block))
+                {
+                    target = JobTarget.Value;
+                    return true;
+                }
+
+                context.Village?.WorkQueue.Complete(bx, by, bz);
+                JobTarget = null;
+            }
+
+            if (context.Village != null)
+            {
+                VillagerRole queueRole = Role switch
+                {
+                    VillagerRole.Miner => VillagerRole.Miner,
+                    VillagerRole.Lumberjack => VillagerRole.Lumberjack,
+                    _ => VillagerRole.Peasant
+                };
+
+                if (context.Village.WorkQueue.TryGetNextForRole(queueRole, world, out int x, out int y, out int z)
+                    || (queueRole == VillagerRole.Peasant && context.Village.WorkQueue.TryGetNextAny(world, out x, out y, out z)))
+                {
+                    var queuedBlock = world.GetBlock(x, y, z);
+                    if (isTargetBlock(queuedBlock))
+                    {
+                        target = new Vector3(x + 0.5f, y, z + 0.5f);
+                        JobTarget = target;
+                        return true;
+                    }
+
+                    context.Village.WorkQueue.Complete(x, y, z);
+                }
+            }
+
+            target = default;
+            return false;
+        }
+
+        private static bool IsLumberBlock(BlockType block) =>
+            block is BlockType.OakLog or BlockType.OakLeaves
+                or BlockType.BirchLog or BlockType.BirchLeaves
+                or BlockType.PineLog or BlockType.PineLeaves
+                or BlockType.WillowLog or BlockType.WillowLeaves
+                or BlockType.PalmLog or BlockType.PalmLeaves;
+
+        private static bool IsMineableBlock(BlockType block) =>
+            block is BlockType.Stone or BlockType.Cobblestone or BlockType.CoalOre
+                or BlockType.IronOre or BlockType.GoldOre or BlockType.Gravel or BlockType.MossStone;
 
         private void UpdateBuild(float deltaTime, VoxelWorld world, VillageContext context)
         {
@@ -255,26 +644,79 @@ namespace Autonocraft.Entities
             if (WorkTimer >= WorkInterval * 0.5f)
             {
                 WorkTimer = 0f;
-                site.TryPlaceNextBlock(world, context.Storage, Width, Height, Position);
+                site.TryPlaceNextBlock(world, context.Storage, Width, Height, Position, context.CreativeMode);
                 AiPhase = VillagerAiPhase.PathTo;
             }
         }
 
         private void UpdateHaul(float deltaTime, VoxelWorld world, VillageContext context)
         {
-            if (Inventory.CountBlock(BlockType.Air) == 0 && !Inventory.GetSlot(0).IsEmpty)
-            {
-                // has items
-            }
-            else if (IsInventoryEmpty())
+            if (context.Village == null)
             {
                 AssignJob(JobType.Idle, null, null);
                 return;
             }
 
+            if (!HaulIsDelivering)
+            {
+                if (!IsInventoryEmpty())
+                {
+                    HaulIsDelivering = true;
+                    HaulSourceChestId = null;
+                    HaulSourceVillagerId = null;
+                    PrepareDeliveryTarget(context);
+                    AiPhase = VillagerAiPhase.PathTo;
+                }
+                else if (HaulSourceChestId.HasValue || HaulSourceVillagerId.HasValue)
+                {
+                    var pickupPos = GetHaulPickupPosition(context);
+                    if (!pickupPos.HasValue)
+                    {
+                        AssignJob(JobType.Idle, null, null);
+                        return;
+                    }
+
+                    if (AiPhase == VillagerAiPhase.PathTo)
+                    {
+                        if (TryMoveToward(deltaTime, world, pickupPos.Value))
+                        {
+                            return;
+                        }
+
+                        AiPhase = VillagerAiPhase.Working;
+                    }
+
+                    TryExecuteHaulPickup(context);
+                    if (IsInventoryEmpty())
+                    {
+                        AssignJob(JobType.Idle, null, null);
+                        return;
+                    }
+
+                    HaulIsDelivering = true;
+                    HaulSourceChestId = null;
+                    HaulSourceVillagerId = null;
+                    PrepareDeliveryTarget(context);
+                    AiPhase = VillagerAiPhase.PathTo;
+                }
+                else
+                {
+                    AssignJob(JobType.Idle, null, null);
+                }
+
+                return;
+            }
+
+            if (IsInventoryEmpty())
+            {
+                AssignJob(JobType.Idle, null, null);
+                return;
+            }
+
+            var destination = JobTarget ?? context.StoragePosition;
             if (AiPhase == VillagerAiPhase.PathTo)
             {
-                if (TryMoveToward(deltaTime, world, context.StoragePosition))
+                if (TryMoveToward(deltaTime, world, destination))
                 {
                     return;
                 }
@@ -282,23 +724,186 @@ namespace Autonocraft.Entities
                 AiPhase = VillagerAiPhase.Working;
             }
 
-            DepositAllToStorage(context.Storage);
+            DepositAtDeliveryTarget(context);
+            if (IsInventoryEmpty())
+            {
+                AssignJob(JobType.Idle, null, null);
+                return;
+            }
+
+            PrepareDeliveryTarget(context);
+            AiPhase = VillagerAiPhase.PathTo;
+        }
+
+        private Vector3? GetHaulPickupPosition(VillageContext context)
+        {
+            if (HaulSourceChestId.HasValue &&
+                context.Village != null &&
+                context.Village.TryGetOutputChest(HaulSourceChestId.Value, out var chest))
+            {
+                return chest.Position;
+            }
+
+            if (HaulSourceVillagerId.HasValue &&
+                context.TryGetVillager(HaulSourceVillagerId.Value, out var source))
+            {
+                return source.Position;
+            }
+
+            return JobTarget;
+        }
+
+        private void TryExecuteHaulPickup(VillageContext context)
+        {
+            if (context.Village == null)
+            {
+                return;
+            }
+
+            if (HaulSourceChestId.HasValue &&
+                context.Village.TryGetOutputChest(HaulSourceChestId.Value, out var chest))
+            {
+                HaulLogistics.TryPickupChestToHauler(chest, this);
+                return;
+            }
+
+            if (HaulSourceVillagerId.HasValue &&
+                context.TryGetVillager(HaulSourceVillagerId.Value, out var source))
+            {
+                HaulLogistics.TryPickupVillagerToHauler(source, this);
+            }
+        }
+
+        private void PrepareDeliveryTarget(VillageContext context)
+        {
+            if (context.Village == null ||
+                !HaulLogistics.TryGetHighestPriorityStack(Inventory, out _, out var stack))
+            {
+                JobTarget = context.StoragePosition;
+                return;
+            }
+
+            JobTarget = HaulLogistics.ResolveDeliveryTarget(
+                context.Village,
+                stack.BlockType,
+                Position,
+                out _);
+        }
+
+        private void DepositAtDeliveryTarget(VillageContext context)
+        {
+            if (context.Village == null ||
+                !HaulLogistics.TryGetHighestPriorityStack(Inventory, out int slot, out var stack))
+            {
+                return;
+            }
+
+            HaulLogistics.ResolveDeliveryTarget(
+                context.Village,
+                stack.BlockType,
+                Position,
+                out bool toFoodStock);
+
+            if (toFoodStock && stack.IsBlock() && FarmCropHelper.IsFoodCrop(stack.BlockType))
+            {
+                context.Village.AddFarmFood(FarmCropHelper.GetFoodValue(stack.BlockType) * stack.Count);
+                Inventory.SetSlot(slot, ItemStack.Empty);
+                return;
+            }
+
+            if (context.Storage.AddItem(stack))
+            {
+                Inventory.SetSlot(slot, ItemStack.Empty);
+            }
+        }
+
+        private void TryOffloadCarryToOutputChest(VillageContext context)
+        {
+            if (context.Village == null)
+            {
+                return;
+            }
+
+            BuildingKind? kind = CurrentJob switch
+            {
+                JobType.Lumber => BuildingKind.LumberCamp,
+                JobType.Mine => BuildingKind.Quarry,
+                JobType.Farm => BuildingKind.FarmPlot,
+                _ => null
+            };
+
+            if (!kind.HasValue)
+            {
+                return;
+            }
+
+            OutputChest? chest = null;
+            if (AssignedBuildingId.HasValue &&
+                context.Village.TryGetOutputChestForBuilding(AssignedBuildingId.Value, out var buildingChest))
+            {
+                chest = buildingChest;
+            }
+            else
+            {
+                chest = context.Village.GetNearestOutputChest(kind.Value, Position);
+            }
+
+            if (chest != null)
+            {
+                HaulLogistics.OffloadInventoryToChest(this, chest);
+            }
+        }
+
+        private void UpdateCraft(float deltaTime, VoxelWorld world, VillageContext context)
+        {
+            var target = JobTarget ?? context.VillageCenter;
+            if (AiPhase == VillagerAiPhase.PathTo)
+            {
+                if (TryMoveToward(deltaTime, world, target))
+                {
+                    return;
+                }
+
+                AiPhase = VillagerAiPhase.Working;
+            }
+
+            if (AiPhase != VillagerAiPhase.Working)
+            {
+                return;
+            }
+
+            WorkTimer += deltaTime * WorkSpeedMultiplier;
+            if (WorkTimer < WorkInterval * 2f)
+            {
+                return;
+            }
+
+            WorkTimer = 0f;
+            if (Role == VillagerRole.Farmer)
+            {
+                GrantFarmYield(context, 0.5f);
+                Skills.AddXp(VillagerSkill.Farming, 1f);
+            }
+            else if (Role == VillagerRole.Smith && !VillageWorkshopCrafting.TrySmithWork(context.Storage, context.CreativeMode))
+            {
+                AssignJob(JobType.Idle, null, null);
+                return;
+            }
+
             AssignJob(JobType.Idle, null, null);
         }
 
-        private void UpdateCraft(float deltaTime, VillageContext context)
+        private void GrantFarmYield(VillageContext context, float baseAmount)
         {
-            WorkTimer += deltaTime * WorkSpeedMultiplier;
-            if (WorkTimer >= WorkInterval * 2f)
+            if (context.Village == null)
             {
-                WorkTimer = 0f;
-                if (Role == VillagerRole.Farmer)
-                {
-                    context.Village?.AddFarmFood(0.5f);
-                }
-
-                AssignJob(JobType.Idle, null, null);
+                return;
             }
+
+            float yield = baseAmount
+                * Skills.GetBonus(VillagerSkill.Farming)
+                * VillagerTraits.GetFarmYieldMultiplier(Persona.Trait);
+            context.Village.AddFarmFood(yield);
         }
 
         private void DepositAllToStorage(Village.VillageStorage storage)
@@ -457,7 +1062,7 @@ namespace Autonocraft.Entities
 
         public static VillagerPersonaData Generate(Random rng, VillagerRole role)
         {
-            string[] traits = { "cheerful", "grumpy", "quiet", "eager", "wise" };
+            string[] traits = { "cheerful", "grumpy", "quiet", "eager", "wise", "strong", "green_thumb" };
             return new VillagerPersonaData
             {
                 Trait = traits[rng.Next(traits.Length)],
@@ -465,8 +1070,10 @@ namespace Autonocraft.Entities
                 {
                     VillagerRole.Builder => "practical",
                     VillagerRole.Lumberjack => "blunt",
+                    VillagerRole.Miner => "gruff",
                     VillagerRole.Farmer => "gentle",
                     VillagerRole.Smith => "terse",
+                    VillagerRole.Hauler => "steady",
                     _ => "plain"
                 }
             };
@@ -476,11 +1083,14 @@ namespace Autonocraft.Entities
     public sealed class VillageContext
     {
         public Village.Village? Village { get; init; }
+        public bool CreativeMode { get; init; }
         public Vector3 VillageCenter { get; init; }
         public float VillageRadius { get; init; } = 32f;
         public Vector3 StoragePosition { get; init; }
         public Village.VillageStorage Storage { get; init; } = null!;
         public Func<int, Village.BuildingSite?>? ResolveBuildingSite { get; init; }
+        public Func<int, Village.VillageBuilding?>? ResolveBuilding { get; init; }
+        public Func<int, Villager?>? ResolveVillager { get; init; }
 
         public bool TryGetBuildingSite(int id, out Village.BuildingSite site)
         {
@@ -492,6 +1102,19 @@ namespace Autonocraft.Entities
             }
 
             site = resolved;
+            return true;
+        }
+
+        public bool TryGetVillager(int id, out Villager villager)
+        {
+            villager = null!;
+            var resolved = ResolveVillager?.Invoke(id);
+            if (resolved == null)
+            {
+                return false;
+            }
+
+            villager = resolved;
             return true;
         }
     }

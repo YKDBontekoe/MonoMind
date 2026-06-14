@@ -22,6 +22,16 @@ namespace Autonocraft.UI
         private const float ButtonHeight = 34f;
         private const int HitPadding = 6;
 
+        private static readonly (string Label, JobType Job)[] AssignableJobs =
+        {
+            ("IDLE", JobType.Idle),
+            ("LUMBER", JobType.Lumber),
+            ("MINE", JobType.Mine),
+            ("FARM", JobType.Farm),
+            ("BUILD", JobType.Build),
+            ("HAUL", JobType.Haul),
+        };
+
         private readonly UiRenderer _ui;
         private readonly VillagerManager _villagers;
         private VillageEntity? _village;
@@ -29,6 +39,7 @@ namespace Autonocraft.UI
         private VoxelWorld? _world;
         private Vector3 _playerPos;
         private IItemContainer? _playerPayer;
+        private bool _playerCreative;
         private int _selectedTab;
         private int _selectedVillagerId = -1;
         private int _hoveredButton = -1;
@@ -43,6 +54,7 @@ namespace Autonocraft.UI
         public JobType RequestedAssignJob { get; private set; } = JobType.Idle;
         public int RequestedChatVillagerId { get; private set; } = -1;
         public bool RequestBlueprintPlacement { get; private set; }
+        public bool RequestWorkZonePlacement { get; private set; }
 
         public VillageScreen(UiRenderer ui, VillagerManager villagers)
         {
@@ -55,13 +67,15 @@ namespace Autonocraft.UI
             VillageManager villageManager,
             VoxelWorld world,
             Vector3 playerPos,
-            IItemContainer? playerPayer)
+            IItemContainer? playerPayer,
+            bool playerCreative = false)
         {
             _village = village;
             _villageManager = villageManager;
             _world = world;
             _playerPos = playerPos;
             _playerPayer = playerPayer;
+            _playerCreative = playerCreative;
             _selectedTab = 0;
             _selectedVillagerId = -1;
             _hoveredButton = -1;
@@ -76,6 +90,7 @@ namespace Autonocraft.UI
             _villageManager = null;
             _world = null;
             _playerPayer = null;
+            _playerCreative = false;
             _hoveredButton = -1;
             _selectedVillagerId = -1;
         }
@@ -94,6 +109,7 @@ namespace Autonocraft.UI
             RequestedAssignVillagerId = -1;
             RequestedChatVillagerId = -1;
             RequestBlueprintPlacement = false;
+            RequestWorkZonePlacement = false;
 
             if (!IsOpen || _village == null)
             {
@@ -172,6 +188,16 @@ namespace Autonocraft.UI
                 }
             }
 
+            if (_selectedTab == 0)
+            {
+                float zoneY = panelY + panelH - layout.S(120f);
+                var zoneRect = new Rectangle((int)left, (int)zoneY, (int)buttonW, (int)buttonH);
+                if (HitTest(zoneRect, mouse.X, mouse.Y))
+                {
+                    _hoveredButton = 13;
+                }
+            }
+
             if (_selectedTab == 1)
             {
                 float buildY = panelY + layout.S(120f);
@@ -213,20 +239,23 @@ namespace Autonocraft.UI
                 {
                     float detailX = panelX + panelW / 2f;
                     float jobY = panelY + panelH - layout.S(120f);
-                    string[] jobs = { "IDLE", "GATHER", "BUILD", "HAUL" };
-                    float jobX = detailX;
-                    for (int i = 0; i < jobs.Length; i++)
+                    float jobButtonW = layout.S(90f);
+                    float jobButtonH = buttonH;
+                    float jobGap = layout.S(98f);
+                    for (int i = 0; i < AssignableJobs.Length; i++)
                     {
-                        var jobRect = new Rectangle((int)jobX, (int)jobY, (int)layout.S(90f), (int)buttonH);
+                        int row = i / 3;
+                        int col = i % 3;
+                        float jobX = detailX + col * jobGap;
+                        float rowY = jobY + row * (jobButtonH + layout.S(8f));
+                        var jobRect = new Rectangle((int)jobX, (int)rowY, (int)jobButtonW, (int)jobButtonH);
                         if (HitTest(jobRect, mouse.X, mouse.Y))
                         {
                             _hoveredButton = 40 + i;
                         }
-
-                        jobX += layout.S(98f);
                     }
 
-                    float talkY = jobY - buttonH - layout.S(16f);
+                    float talkY = jobY - jobButtonH - layout.S(16f);
                     var talkRect = new Rectangle((int)detailX, (int)talkY, (int)layout.S(90f), (int)buttonH);
                     if (HitTest(talkRect, mouse.X, mouse.Y))
                     {
@@ -270,6 +299,12 @@ namespace Autonocraft.UI
                 return;
             }
 
+            if (_hoveredButton == 13)
+            {
+                RequestWorkZonePlacement = true;
+                return;
+            }
+
             if (_hoveredButton >= 20)
             {
                 int buildIndex = 0;
@@ -297,10 +332,10 @@ namespace Autonocraft.UI
                 return;
             }
 
-            if (_hoveredButton >= 40 && _hoveredButton < 44 && _selectedVillagerId >= 0)
+            if (_hoveredButton >= 40 && _hoveredButton < 40 + AssignableJobs.Length && _selectedVillagerId >= 0)
             {
                 RequestedAssignVillagerId = _selectedVillagerId;
-                RequestedAssignJob = (JobType)(_hoveredButton - 40);
+                RequestedAssignJob = AssignableJobs[_hoveredButton - 40].Job;
                 return;
             }
 
@@ -350,6 +385,12 @@ namespace Autonocraft.UI
             if (_selectedTab == 0 && _canClaimNearby)
             {
                 _ui.DrawButton(left + buttonW + layout.S(12f), footerY, buttonW, buttonH, "CLAIM OUTPOST", _hoveredButton == 12, false, layout.S(1.0f), alpha);
+            }
+
+            if (_selectedTab == 0)
+            {
+                float zoneY = panelY + panelH - layout.S(120f);
+                _ui.DrawButton(left, zoneY, buttonW, buttonH, "PAINT ZONE", _hoveredButton == 13, false, layout.S(1.0f), alpha);
             }
 
             float closeX = panelX + panelW - layout.S(20f) - buttonW;
@@ -416,6 +457,17 @@ namespace Autonocraft.UI
             {
                 _ui.DrawString("EMPTY", left + layout.S(12f), y, layout.S(1.0f), new Color(0.45f, 0.5f, 0.58f) * alpha);
             }
+
+            y += layout.S(28f);
+            _ui.DrawString("WORK QUEUE", left, y, layout.S(1.2f), new Color(0.55f, 0.75f, 0.65f) * alpha);
+            y += layout.S(22f);
+            int queued = _village!.WorkQueue.Count;
+            string queueLine = queued == 0
+                ? "EMPTY — SHIFT+CLICK BLOCKS IN WORLD"
+                : $"{queued} BLOCK(S) QUEUED";
+            _ui.DrawString(queueLine, left + layout.S(12f), y, layout.S(1.0f), new Color(0.72f, 0.78f, 0.86f) * alpha);
+            y += layout.S(22f);
+            _ui.DrawString("OR PAINT A ZONE BELOW", left + layout.S(12f), y, layout.S(0.95f), new Color(0.45f, 0.5f, 0.58f) * alpha);
         }
 
         private void DrawBuildingsTab(UiLayout layout, float panelX, float panelY, float left, float alpha)
@@ -454,7 +506,7 @@ namespace Autonocraft.UI
                     continue;
                 }
 
-                bool canAfford = _playerPayer != null && blueprint.CanAfford(_playerPayer);
+                bool canAfford = _playerCreative || (_playerPayer != null && blueprint.CanAfford(_playerPayer));
                 Color color = canAfford ? new Color(0.85f, 0.88f, 0.92f) : new Color(0.45f, 0.5f, 0.58f);
                 _ui.DrawString($"+ {blueprint.DisplayName.ToUpperInvariant()}", left + layout.S(12f), y + layout.S(4f), layout.S(1.0f), color * alpha);
                 y += buttonH(layout) + layout.S(8f);
@@ -502,6 +554,13 @@ namespace Autonocraft.UI
                 detailY += layout.S(22f);
                 _ui.DrawString($"TRAIT: {selectedVillager.Persona.Trait.ToUpperInvariant()}", detailX, detailY, layout.S(0.95f), new Color(0.62f, 0.72f, 0.78f) * alpha);
                 detailY += layout.S(24f);
+                _ui.DrawString(
+                    $"MINING {selectedVillager.Skills.Mining.Level}  WOOD {selectedVillager.Skills.Woodcutting.Level}  FARM {selectedVillager.Skills.Farming.Level}",
+                    detailX,
+                    detailY,
+                    layout.S(0.9f),
+                    new Color(0.58f, 0.68f, 0.74f) * alpha);
+                detailY += layout.S(22f);
                 detailY += layout.S(18f);
                 _ui.DrawProgressBar(detailX, detailY, layout.S(180f), layout.S(12f), selectedVillager.Happiness, "HAPPINESS", 0.75f, alpha);
 
@@ -509,12 +568,24 @@ namespace Autonocraft.UI
                 float talkY = jobY - btnHeight - layout.S(16f);
                 _ui.DrawButton(detailX, talkY, layout.S(90f), btnHeight, "TALK", _hoveredButton == 50, false, layout.S(0.95f), alpha);
                 _ui.DrawString("ASSIGN JOB", detailX, jobY - layout.S(22f), layout.S(1.1f), new Color(0.55f, 0.75f, 0.65f) * alpha);
-                string[] jobs = { "IDLE", "GATHER", "BUILD", "HAUL" };
-                float jobX = detailX;
-                for (int i = 0; i < jobs.Length; i++)
+                float jobButtonW = layout.S(90f);
+                float jobGap = layout.S(98f);
+                for (int i = 0; i < AssignableJobs.Length; i++)
                 {
-                    _ui.DrawButton(jobX, jobY, layout.S(90f), btnHeight, jobs[i], _hoveredButton == 40 + i, false, layout.S(0.95f), alpha);
-                    jobX += layout.S(98f);
+                    int row = i / 3;
+                    int col = i % 3;
+                    float jobX = detailX + col * jobGap;
+                    float rowY = jobY + row * (btnHeight + layout.S(8f));
+                    _ui.DrawButton(
+                        jobX,
+                        rowY,
+                        jobButtonW,
+                        btnHeight,
+                        AssignableJobs[i].Label,
+                        _hoveredButton == 40 + i,
+                        false,
+                        layout.S(0.95f),
+                        alpha);
                 }
             }
         }

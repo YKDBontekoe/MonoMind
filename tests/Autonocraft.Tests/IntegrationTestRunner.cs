@@ -33,7 +33,11 @@ public static class IntegrationTestRunner
             VillageTests.RunBlockActionService();
             VillageTests.RunClaimWorldStructure();
             VillageTests.RunFarmFoodProduction();
+            VillageTests.RunBuildingJobWiring();
+            VillageTests.RunVillagerToolMining();
             VillageTests.RunVillageAiToolsMock();
+            VillageTests.RunVillageNumericGoals();
+            VillageTests.RunPlayerWorkQueue();
 
             using (var game = new AutonocraftGame(runTests: true))
             {

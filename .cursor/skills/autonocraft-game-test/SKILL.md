@@ -73,7 +73,7 @@ Each step is one key. Supported keys:
 | `select_tool` | `{"select_tool": "pickaxe"}` |
 | `teleport` | `{"teleport": {"x": 16, "y": 70, "z": 16}}` |
 | `look` | `{"look": {"yaw": 0, "pitch": -60}}` or `{"look": {"dx": 30, "dy": 0}}` |
-| `set_flying` | `{"set_flying": true}` |
+| `set_creative` | `{"set_creative": true}` |
 | `move` | `{"move": {"forward": 2.0}}` or `{"move": {"keys": ["w","a"], "seconds": 1.5}}` |
 | `click` | `{"click": "left"}` or `{"click": {"button": "left", "times": 3}}` |
 | `mine` | `{"mine": {"clicks": 20, "interval": 0.15}}` |

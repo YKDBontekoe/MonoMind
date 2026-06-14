@@ -65,6 +65,7 @@ public static class InventoryTests
     {
         Console.Write("Running Tool Durability Test... ");
 
+        player.CreativeMode = false;
         player.Hotbar[0] = ToolRegistry.CreateStack(ToolType.Pickaxe, ToolTier.Wood);
         player.Hotbar[0].Durability = 1;
         player.SelectedSlot = 0;

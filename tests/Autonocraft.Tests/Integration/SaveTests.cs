@@ -23,7 +23,7 @@ public static class SaveTests
         player.Velocity = new Vector3(1f, 0f, -2f);
         player.Yaw = 45f;
         player.Pitch = -10f;
-        player.FlyingMode = true;
+        player.CreativeMode = true;
         player.SelectedSlot = 2;
         player.Hotbar[2] = ItemStack.CreateBlock(BlockType.Stone, 12);
         var savedTool = ToolRegistry.CreateStack(ToolType.Pickaxe, ToolTier.Wood);

@@ -100,9 +100,22 @@ namespace Autonocraft.Entities
                     entry.Name,
                     entry.Id);
                 villager.Role = (VillagerRole)entry.Role;
-                villager.AssignJob((JobType)entry.Job, null, entry.BuildingSiteId);
+                var job = (JobType)entry.Job;
+                if (job == JobType.Gather)
+                {
+                    job = JobType.Lumber;
+                }
+
+                villager.AssignJob(job, null, entry.BuildingSiteId, entry.AssignedBuildingId);
                 villager.Happiness = entry.Happiness;
                 villager.RestorePersona(entry.Trait);
+                villager.RestoreSkills(
+                    entry.MiningLevel,
+                    entry.MiningXp,
+                    entry.WoodcuttingLevel,
+                    entry.WoodcuttingXp,
+                    entry.FarmingLevel,
+                    entry.FarmingXp);
 
                 if (entry.Inventory != null)
                 {
@@ -139,7 +152,14 @@ namespace Autonocraft.Entities
                     PosZ = villager.Position.Z,
                     Happiness = villager.Happiness,
                     Trait = villager.Persona.Trait,
+                    MiningLevel = villager.Skills.Mining.Level,
+                    MiningXp = villager.Skills.Mining.Xp,
+                    WoodcuttingLevel = villager.Skills.Woodcutting.Level,
+                    WoodcuttingXp = villager.Skills.Woodcutting.Xp,
+                    FarmingLevel = villager.Skills.Farming.Level,
+                    FarmingXp = villager.Skills.Farming.Xp,
                     BuildingSiteId = villager.AssignedBuildingSiteId,
+                    AssignedBuildingId = villager.AssignedBuildingId,
                     Inventory = inventory
                 });
             }

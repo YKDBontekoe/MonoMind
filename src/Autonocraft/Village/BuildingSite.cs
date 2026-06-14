@@ -86,7 +86,13 @@ namespace Autonocraft.Village
             }
         }
 
-        public bool TryPlaceNextBlock(VoxelWorld world, VillageStorage storage, float entityWidth, float entityHeight, Vector3 builderPos)
+        public bool TryPlaceNextBlock(
+            VoxelWorld world,
+            VillageStorage storage,
+            float entityWidth,
+            float entityHeight,
+            Vector3 builderPos,
+            bool creative = false)
         {
             if (!TryGetNextBlock(out var next))
             {
@@ -104,7 +110,7 @@ namespace Autonocraft.Village
                 return true;
             }
 
-            if (!storage.TryConsumeBlock(next.Type, 1))
+            if (!creative && !storage.TryConsumeBlock(next.Type, 1))
             {
                 return false;
             }
@@ -121,7 +127,11 @@ namespace Autonocraft.Village
                     inventory: null,
                     consumeFromInventory: false))
             {
-                storage.AddItem(Items.ItemStack.CreateBlock(next.Type, 1));
+                if (!creative)
+                {
+                    storage.AddItem(Items.ItemStack.CreateBlock(next.Type, 1));
+                }
+
                 return false;
             }
 

@@ -153,7 +153,7 @@ Each level has its own vertex/index buffers on the GPU.
 
 `Core/Player.cs`:
 
-- **Flying mode** (default off at spawn): no gravity, free vertical movement with Space/Shift.
+- **Creative mode** (default off at spawn): no gravity, free vertical movement with Space/Shift, unlimited resources.
 - **Physics mode**: gravity, ground collision, jumping, fall damage, swimming, drowning.
 - **Inventory**: 9-slot hotbar with `ItemStack` (blocks, tools with durability, fluid containers).
 - **Skills**: mining, woodcutting, combat — XP and levels affect mining speed.
@@ -222,7 +222,7 @@ Crucible transmutation recipes with environment requirements (time of day, nearb
 `World/WorldSaveManager.cs` stores per-slot data as `world.json` (version 6):
 
 - World seed and spawn coordinates
-- Player position, velocity, health, flying mode, hotbar (`ItemStack` with tool durability)
+- Player position, velocity, health, creative mode, hotbar (`ItemStack` with tool durability)
 - Player skills (mining/woodcutting/combat levels and XP)
 - Block and fluid modifications
 - Unlocked crafting discovery IDs

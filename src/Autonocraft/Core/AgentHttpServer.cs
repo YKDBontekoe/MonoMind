@@ -196,7 +196,7 @@ namespace Autonocraft.Core
             sb.Append($"\"velocity\": {{\"x\": {player.Velocity.X}, \"y\": {player.Velocity.Y}, \"z\": {player.Velocity.Z}}},");
             sb.Append($"\"yaw\": {player.Yaw},");
             sb.Append($"\"pitch\": {player.Pitch},");
-            sb.Append($"\"flyingMode\": {player.FlyingMode.ToString().ToLower()},");
+            sb.Append($"\"creativeMode\": {player.CreativeMode.ToString().ToLower()},");
             sb.Append($"\"isGrounded\": {player.IsGrounded.ToString().ToLower()},");
             sb.Append($"\"health\": {player.Health},");
             sb.Append($"\"maxHealth\": {player.MaxHealth},");
@@ -539,22 +539,23 @@ namespace Autonocraft.Core
                     }
                     break;
 
+                case "set_creative":
                 case "set_flying":
-                    string? flyStr = request.QueryString["flying"];
-                    if (bool.TryParse(flyStr, out bool flying))
+                    string? creativeStr = request.QueryString["creative"] ?? request.QueryString["flying"];
+                    if (bool.TryParse(creativeStr, out bool creative))
                     {
                         _bridge.PendingActions.Enqueue(() =>
                         {
                             var p = _bridge.Host.Session.Player;
-                            p.FlyingMode = flying;
+                            p.CreativeMode = creative;
                             p.Velocity = System.Numerics.Vector3.Zero;
                         });
-                        message = $"Set flying mode to {flying}";
+                        message = $"Set creative mode to {creative}";
                     }
                     else
                     {
                         success = false;
-                        message = "Invalid or missing 'flying' parameter (must be true or false)";
+                        message = "Invalid or missing 'creative' parameter (must be true or false)";
                     }
                     break;
 

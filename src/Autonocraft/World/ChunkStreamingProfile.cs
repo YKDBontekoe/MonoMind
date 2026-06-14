@@ -9,7 +9,7 @@ namespace Autonocraft.World
         public int AgentChunkX { get; init; }
         public int AgentChunkZ { get; init; }
 
-        public static ChunkStreamingProfile FromMovement(Vector3 position, Vector3 velocity, bool flying)
+        public static ChunkStreamingProfile FromMovement(Vector3 position, Vector3 velocity, bool creative)
         {
             VoxelWorld.GetChunkCoords(
                 (int)MathF.Round(position.X),
@@ -22,7 +22,7 @@ namespace Autonocraft.World
             float horizontalSpeed = MathF.Sqrt(velocity.X * velocity.X + velocity.Z * velocity.Z);
             return new ChunkStreamingProfile
             {
-                FastTravel = flying || horizontalSpeed > 8f,
+                FastTravel = creative || horizontalSpeed > 8f,
                 Velocity = velocity,
                 AgentChunkX = agentCx,
                 AgentChunkZ = agentCz
@@ -31,7 +31,7 @@ namespace Autonocraft.World
 
         public static ChunkStreamingProfile Stationary(Vector3 position)
         {
-            return FromMovement(position, Vector3.Zero, flying: false);
+            return FromMovement(position, Vector3.Zero, creative: false);
         }
     }
 }

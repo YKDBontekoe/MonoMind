@@ -190,7 +190,8 @@ namespace Autonocraft.Engine
                 monoProj,
                 ctx.Camera,
                 ctx.BlockInteraction.AnimTime,
-                ctx.BlueprintPlacement);
+                ctx.BlueprintPlacement,
+                ctx.WorkZonePlacement);
 
             if (underwaterFactor > 0f)
             {

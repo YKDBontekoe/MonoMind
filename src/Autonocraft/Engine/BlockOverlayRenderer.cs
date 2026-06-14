@@ -41,7 +41,8 @@ namespace Autonocraft.Engine
             Matrix projection,
             Camera camera,
             float animTime,
-            BlueprintPlacementPreview? blueprintPlacement = null)
+            BlueprintPlacementPreview? blueprintPlacement = null,
+            WorkZonePlacementPreview? workZonePlacement = null)
         {
             _device.DepthStencilState = DepthStencilState.Default;
             _device.RasterizerState = RasterizerState.CullNone;
@@ -55,6 +56,11 @@ namespace Autonocraft.Engine
             if (blueprintPlacement != null)
             {
                 DrawBlueprintGhost(blueprintPlacement);
+            }
+
+            if (workZonePlacement != null && workZonePlacement.HasFirstCorner)
+            {
+                DrawWorkZonePreview(workZonePlacement);
             }
 
             if (interaction.TargetBlockPos.HasValue && interaction.TargetBlockType != BlockType.Air)
@@ -108,6 +114,67 @@ namespace Autonocraft.Engine
                 int wz = preview.AnchorZ + block.Dz;
                 DrawGhostBlock(new Vector3(wx, wy, wz), block.Type, tint);
             }
+        }
+
+        private void DrawWorkZonePreview(WorkZonePlacementPreview preview)
+        {
+            var tint = preview.Valid
+                ? new Color(0.95f, 0.72f, 0.18f, 0.75f)
+                : new Color(0.95f, 0.28f, 0.28f, 0.65f);
+
+            DrawBoundsWireframe(
+                preview.MinX,
+                preview.MinY,
+                preview.MinZ,
+                preview.MaxX + 1,
+                preview.MaxY + 1,
+                preview.MaxZ + 1,
+                tint);
+        }
+
+        private void DrawBoundsWireframe(int minX, int minY, int minZ, int maxX, int maxY, int maxZ, Color color)
+        {
+            float x0 = minX + 0.002f;
+            float y0 = minY + 0.002f;
+            float z0 = minZ + 0.002f;
+            float x1 = maxX - 0.002f;
+            float y1 = maxY - 0.002f;
+            float z1 = maxZ - 0.002f;
+
+            var vertices = new VertexPositionColor[24];
+            int i = 0;
+
+            void AddLine(Vector3 a, Vector3 b)
+            {
+                vertices[i++] = new VertexPositionColor(ToMono(a), color);
+                vertices[i++] = new VertexPositionColor(ToMono(b), color);
+            }
+
+            AddLine(new Vector3(x0, y0, z0), new Vector3(x1, y0, z0));
+            AddLine(new Vector3(x1, y0, z0), new Vector3(x1, y0, z1));
+            AddLine(new Vector3(x1, y0, z1), new Vector3(x0, y0, z1));
+            AddLine(new Vector3(x0, y0, z1), new Vector3(x0, y0, z0));
+
+            AddLine(new Vector3(x0, y1, z0), new Vector3(x1, y1, z0));
+            AddLine(new Vector3(x1, y1, z0), new Vector3(x1, y1, z1));
+            AddLine(new Vector3(x1, y1, z1), new Vector3(x0, y1, z1));
+            AddLine(new Vector3(x0, y1, z1), new Vector3(x0, y1, z0));
+
+            AddLine(new Vector3(x0, y0, z0), new Vector3(x0, y1, z0));
+            AddLine(new Vector3(x1, y0, z0), new Vector3(x1, y1, z0));
+            AddLine(new Vector3(x1, y0, z1), new Vector3(x1, y1, z1));
+            AddLine(new Vector3(x0, y0, z1), new Vector3(x0, y1, z1));
+
+            _overlayEffect.World = Matrix.Identity;
+            _overlayEffect.TextureEnabled = false;
+
+            foreach (var pass in _overlayEffect.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                _device.DrawUserPrimitives(PrimitiveType.LineList, vertices, 0, 12);
+            }
+
+            _overlayEffect.TextureEnabled = true;
         }
 
         private void DrawWireframeCube(Vector3 blockPos, Color color)

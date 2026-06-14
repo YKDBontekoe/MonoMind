@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Text.Json.Serialization;
 
 namespace Autonocraft.World
 {
@@ -40,7 +41,11 @@ namespace Autonocraft.World
         public float Pitch { get; set; }
         public float Health { get; set; } = 20f;
         public float MaxHealth { get; set; } = 20f;
-        public bool FlyingMode { get; set; }
+        public bool CreativeMode { get; set; }
+
+        [JsonPropertyName("flyingMode")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public bool? FlyingModeLegacy { get; set; }
         public int SelectedSlot { get; set; }
         public List<InventorySlotSaveData> Hotbar { get; set; } = new();
         public int MiningLevel { get; set; } = 1;
@@ -126,6 +131,28 @@ namespace Autonocraft.World
         public List<int> VillagerIds { get; set; } = new();
         public List<BuildingSaveData> Buildings { get; set; } = new();
         public List<BuildingSiteSaveData> BuildingSites { get; set; } = new();
+        public List<WorkQueueBlockSaveData> WorkQueue { get; set; } = new();
+        public List<VillageGoalSaveData> Goals { get; set; } = new();
+    }
+
+    public sealed class VillageGoalSaveData
+    {
+        public int Id { get; set; }
+        public string Description { get; set; } = string.Empty;
+        public int Priority { get; set; }
+        public bool Completed { get; set; }
+        public int Kind { get; set; }
+        public int? StockBlock { get; set; }
+        public int TargetCount { get; set; }
+        public string? BlueprintId { get; set; }
+        public bool BuildQueued { get; set; }
+    }
+
+    public sealed class WorkQueueBlockSaveData
+    {
+        public int X { get; set; }
+        public int Y { get; set; }
+        public int Z { get; set; }
     }
 
     public sealed class BuildingSaveData
@@ -168,7 +195,14 @@ namespace Autonocraft.World
         public float PosZ { get; set; }
         public float Happiness { get; set; } = 1f;
         public string Trait { get; set; } = string.Empty;
+        public int MiningLevel { get; set; } = 1;
+        public float MiningXp { get; set; }
+        public int WoodcuttingLevel { get; set; } = 1;
+        public float WoodcuttingXp { get; set; }
+        public int FarmingLevel { get; set; } = 1;
+        public float FarmingXp { get; set; }
         public int? BuildingSiteId { get; set; }
+        public int? AssignedBuildingId { get; set; }
         public List<InventorySlotSaveData> Inventory { get; set; } = new();
     }
 }

@@ -27,6 +27,7 @@ namespace Autonocraft.Core
         public string? HudPlacementHint { get; set; }
         public bool VillageUiOpen { get; set; }
         public BlueprintPlacementPreview? BlueprintPlacement { get; set; }
+        public WorkZonePlacementPreview? WorkZonePlacement { get; set; }
         public float TimeOfDay { get; set; }
         public float WaterAnimTime { get; set; }
         public int RenderDistance { get; set; }

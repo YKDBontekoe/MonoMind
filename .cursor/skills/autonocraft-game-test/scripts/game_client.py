@@ -71,8 +71,12 @@ class GameSnapshot:
         return int(self.raw.get("health", 0))
 
     @property
+    def creative(self) -> bool:
+        return bool(self.raw.get("creativeMode", self.raw.get("flyingMode", False)))
+
+    @property
     def flying(self) -> bool:
-        return bool(self.raw.get("flyingMode", False))
+        return self.creative
 
     @property
     def grounded(self) -> bool:
@@ -249,8 +253,11 @@ class GameClient:
     def teleport_vec(self, pos: Vec3) -> dict[str, Any]:
         return self.teleport(pos.x, pos.y, pos.z)
 
+    def set_creative(self, creative: bool) -> dict[str, Any]:
+        return self.action_ok("set_creative", creative=creative)
+
     def set_flying(self, flying: bool) -> dict[str, Any]:
-        return self.action_ok("set_flying", flying=flying)
+        return self.set_creative(flying)
 
     def select_slot(self, slot: int) -> dict[str, Any]:
         return self.action_ok("select_slot", slot=slot)
@@ -371,7 +378,7 @@ class GameClient:
         return self.dev(f"unlock {recipe_id}")
 
     def fly_to(self, pos: Vec3) -> None:
-        self.set_flying(True)
+        self.set_creative(True)
         self.teleport_vec(pos)
 
     def look_at_ground(self, yaw: float = 0, pitch: float = -60) -> dict[str, Any]:
@@ -472,8 +479,8 @@ class GameClient:
             raise AssertionError(f"health {snap.health} < {health_min}")
         if health_max is not None and snap.health > health_max:
             raise AssertionError(f"health {snap.health} > {health_max}")
-        if flying is not None and snap.flying != flying:
-            raise AssertionError(f"flyingMode expected {flying}, got {snap.flying}")
+        if flying is not None and snap.creative != flying:
+            raise AssertionError(f"creativeMode expected {flying}, got {snap.creative}")
         if grounded is not None and snap.grounded != grounded:
             raise AssertionError(f"isGrounded expected {grounded}, got {snap.grounded}")
         if has_village is not None:

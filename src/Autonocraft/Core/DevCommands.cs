@@ -28,7 +28,7 @@ namespace Autonocraft.Core
                 "time" => HandleTime(host, parts),
                 "tp" or "teleport" => HandleTeleport(session, parts),
                 "pos" => $"Position: ({session.Player.Position.X:F1}, {session.Player.Position.Y:F1}, {session.Player.Position.Z:F1})",
-                "fly" => HandleFly(session, parts),
+                "creative" or "fly" => HandleCreative(session, parts),
                 "give" => HandleGive(session, parts),
                 "health" or "heal" => HandleHealth(session, parts),
                 "damage" or "hurt" => HandleDamage(session, parts),
@@ -61,7 +61,7 @@ namespace Autonocraft.Core
                 "  time pause|resume - pause/resume day cycle",
                 "  tp <x> <y> <z>    - teleport",
                 "  pos               - show position",
-                "  fly [on|off]      - toggle/set flying mode",
+                "  creative [on|off] - toggle/set creative mode (alias: fly)",
                 "  give <block> [n]  - add blocks to hotbar",
                 "  health [n]        - set health (default: max)",
                 "  damage [n]        - apply damage to player (default: 1)",
@@ -148,25 +148,25 @@ namespace Autonocraft.Core
             return $"Teleported to ({x:F1}, {y:F1}, {z:F1})";
         }
 
-        private static string HandleFly(GameSession session, string[] parts)
+        private static string HandleCreative(GameSession session, string[] parts)
         {
             if (parts.Length == 1)
             {
-                session.Player.FlyingMode = !session.Player.FlyingMode;
+                session.Player.CreativeMode = !session.Player.CreativeMode;
             }
             else
             {
                 string arg = parts[1].ToLowerInvariant();
                 if (arg is "on" or "true" or "1")
-                    session.Player.FlyingMode = true;
+                    session.Player.CreativeMode = true;
                 else if (arg is "off" or "false" or "0")
-                    session.Player.FlyingMode = false;
+                    session.Player.CreativeMode = false;
                 else
-                    return "Usage: fly [on|off]";
+                    return "Usage: creative [on|off]";
             }
 
             session.Player.Velocity = Vector3.Zero;
-            return $"Flying mode: {(session.Player.FlyingMode ? "ON (creative)" : "OFF (survival)")}";
+            return $"Creative mode: {(session.Player.CreativeMode ? "ON" : "OFF (survival)")}";
         }
 
         private static string HandleGive(GameSession session, string[] parts)
@@ -401,7 +401,7 @@ namespace Autonocraft.Core
         {
             if (parts.Length < 3)
             {
-                return "Usage: assign <villager_id> <Idle|Gather|Build|Haul>";
+                return "Usage: assign <villager_id> <Idle|Lumber|Mine|Farm|Build|Haul>";
             }
 
             if (!int.TryParse(parts[1], out int vid) || !Enum.TryParse<JobType>(parts[2], true, out var job))

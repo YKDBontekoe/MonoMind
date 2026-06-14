@@ -564,7 +564,7 @@ namespace Autonocraft.Engine
             float badgeH = layout.S(34f);
             float badgeX = layout.Width - layout.Padding - badgeW;
             float badgeY = layout.Height - layout.S(188f);
-            Color accent = player.FlyingMode ? new Color(0.25f, 0.75f, 1.0f) : new Color(0.95f, 0.62f, 0.22f);
+            Color accent = player.CreativeMode ? new Color(0.25f, 0.75f, 1.0f) : new Color(0.95f, 0.62f, 0.22f);
             DrawHudGlassPanel(_spriteBatch, badgeX, badgeY, badgeW, badgeH, accent, 0.82f);
         }
 
@@ -574,8 +574,8 @@ namespace Autonocraft.Engine
             float badgeH = layout.S(34f);
             float badgeX = layout.Width - layout.Padding - badgeW;
             float badgeY = layout.Height - layout.S(188f);
-            string modeLabel = player.FlyingMode ? "CREATIVE" : "SURVIVAL";
-            Color modeColor = player.FlyingMode ? new Color(0.45f, 0.85f, 1.0f) : new Color(0.98f, 0.72f, 0.35f);
+            string modeLabel = player.CreativeMode ? "CREATIVE" : "SURVIVAL";
+            Color modeColor = player.CreativeMode ? new Color(0.45f, 0.85f, 1.0f) : new Color(0.98f, 0.72f, 0.35f);
             float textSize = layout.S(0.95f);
             float textW = PixelFont.MeasureString(modeLabel, textSize);
             PixelFont.DrawString(_spriteBatch, _whiteTexture, modeLabel, badgeX + (badgeW - textW) / 2f, badgeY + layout.S(10f), textSize, modeColor, 0.95f);

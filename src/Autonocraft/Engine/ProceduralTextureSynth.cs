@@ -275,6 +275,33 @@ namespace Autonocraft.Engine
             return image.Pixels;
         }
 
+        public static Color[] WheatCropSprite(int tileSize, string name, Color stem, Color head)
+        {
+            var image = new TileImage(FillSolid(tileSize, Color.Transparent), tileSize);
+            int cx = tileSize / 2;
+            DrawBlade(image, cx, tileSize - 2, cx, tileSize / 3, stem, 3);
+            for (int i = -2; i <= 2; i++)
+            {
+                int top = tileSize / 3 - i * 4;
+                DrawBlade(image, cx, top + 10, cx + i * 5, top, Darken(head, i * 4), 2);
+            }
+
+            FillEllipse(image, cx - 8, tileSize / 4 - 6, cx + 8, tileSize / 4 + 8, head);
+            return image.Pixels;
+        }
+
+        public static Color[] CarrotCropSprite(int tileSize, string name, Color stem, Color root)
+        {
+            var image = new TileImage(FillSolid(tileSize, Color.Transparent), tileSize);
+            int cx = tileSize / 2;
+            DrawBlade(image, cx, tileSize - 2, cx, tileSize / 2, stem, 3);
+            DrawBlade(image, cx - 4, tileSize / 2, cx - 10, tileSize / 2 + 6, Darken(stem, 8), 2);
+            DrawBlade(image, cx + 4, tileSize / 2, cx + 10, tileSize / 2 + 6, Darken(stem, 8), 2);
+            FillEllipse(image, cx - 7, tileSize / 2 + 4, cx + 7, tileSize - 4, root);
+            FillEllipse(image, cx - 4, tileSize / 2 + 8, cx + 4, tileSize - 6, Lighten(root, 12));
+            return image.Pixels;
+        }
+
         /// <summary>Packs four variant sprites into the quadrants of a full atlas tile.</summary>
         public static Color[] PackFloraVariants(int tileSize, Func<int, int, Color[]> generateVariant)
         {

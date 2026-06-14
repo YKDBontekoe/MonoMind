@@ -31,6 +31,8 @@ namespace Autonocraft.World
                 BlockType.Reed => new Vector3(0.38f, 0.72f, 0.42f),
                 BlockType.Sunflower => new Vector3(0.92f, 0.78f, 0.28f),
                 BlockType.HayBale => new Vector3(0.82f, 0.68f, 0.28f),
+                BlockType.Wheat or BlockType.WheatSprout => new Vector3(0.78f, 0.72f, 0.28f),
+                BlockType.Carrot or BlockType.CarrotSprout => new Vector3(0.88f, 0.52f, 0.22f),
                 BlockType.Ice => new Vector3(0.72f, 0.88f, 0.96f),
                 BlockType.CoalOre => new Vector3(0.28f, 0.28f, 0.30f),
                 BlockType.IronOre => new Vector3(0.62f, 0.52f, 0.46f),

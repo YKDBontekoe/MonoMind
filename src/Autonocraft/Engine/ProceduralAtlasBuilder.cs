@@ -654,6 +654,42 @@ namespace Autonocraft.Engine
                             ShiftColor(new Color(158, 128, 48), seedShift),
                             ShiftColor(new Color(138, 108, 38), seedShift)));
                     }
+                case "wheat_sprout":
+                    {
+                        var palette = new[]
+                        {
+                            ShiftColor(new Color(72, 118, 42), seedShift),
+                            ShiftColor(new Color(88, 138, 48), seedShift),
+                            ShiftColor(new Color(104, 158, 54), seedShift)
+                        };
+                        return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                            ProceduralTextureSynth.ShortGrassSprite(half, $"wheat_sprout_v{variant}", palette)));
+                    }
+                case "wheat_crop":
+                    {
+                        var stem = ShiftColor(new Color(58, 108, 36), seedShift);
+                        var head = ShiftColor(new Color(196, 168, 58), seedShift);
+                        return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                            ProceduralTextureSynth.WheatCropSprite(half, $"wheat_crop_v{variant}", stem, head)));
+                    }
+                case "carrot_sprout":
+                    {
+                        var palette = new[]
+                        {
+                            ShiftColor(new Color(62, 112, 40), seedShift),
+                            ShiftColor(new Color(78, 132, 46), seedShift),
+                            ShiftColor(new Color(92, 148, 52), seedShift)
+                        };
+                        return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                            ProceduralTextureSynth.ShortGrassSprite(half, $"carrot_sprout_v{variant}", palette)));
+                    }
+                case "carrot_crop":
+                    {
+                        var stem = ShiftColor(new Color(52, 102, 34), seedShift);
+                        var root = ShiftColor(new Color(214, 108, 38), seedShift);
+                        return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                            ProceduralTextureSynth.CarrotCropSprite(half, $"carrot_crop_v{variant}", stem, root)));
+                    }
                 case "ice":
                     return FromSynth(ProceduralTextureSynth.IceTile(_tileSize, name));
                 case "sheep_body":

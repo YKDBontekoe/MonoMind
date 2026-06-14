@@ -140,7 +140,7 @@ namespace Autonocraft.Core
             var spawnPos = Player.FindSafeSpawnPosition(Grid, spawnX, spawnZ);
             Player.Position = spawnPos;
             Player.Velocity = Vector3.Zero;
-            Player.FlyingMode = false;
+            Player.CreativeMode = false;
         }
 
         public void PopulateAnimals(int renderDistance, int spawnX = GameConstants.DefaultSpawnX, int spawnZ = GameConstants.DefaultSpawnZ)
@@ -196,7 +196,7 @@ namespace Autonocraft.Core
         public void UpdatePlayerMovement(
             float deltaTime,
             Vector3 moveDir,
-            bool flyingMode,
+            bool creativeMode,
             bool swimUp,
             bool swimDown,
             bool jumpPressed)
@@ -206,7 +206,7 @@ namespace Autonocraft.Core
                 return;
             }
 
-            if (flyingMode)
+            if (creativeMode)
             {
                 Player.Update(deltaTime, Grid, moveDir);
             }
@@ -228,12 +228,12 @@ namespace Autonocraft.Core
 
         public void UpdateMovementAudio(float deltaTime, Vector3 moveDir)
         {
-            if (_audio == null || !Player.IsAlive || Player.FlyingMode)
+            if (_audio == null || !Player.IsAlive || Player.CreativeMode)
             {
                 return;
             }
 
-            if (Player.JustLanded && !Player.FlyingMode)
+            if (Player.JustLanded && !Player.CreativeMode)
             {
                 float volume = Math.Clamp(Player.FallDistance / 6f, 0.3f, 1f);
                 _audio.PlaySfx(SfxKind.Land, volume: volume);
@@ -346,7 +346,7 @@ namespace Autonocraft.Core
             int maxTerrainPerFrame = VoxelWorld.DefaultTerrainChunksPerFrame,
             int maxMeshPerFrame = VoxelWorld.DefaultMeshChunksPerFrame)
         {
-            var profile = ChunkStreamingProfile.FromMovement(Player.Position, Player.Velocity, Player.FlyingMode);
+            var profile = ChunkStreamingProfile.FromMovement(Player.Position, Player.Velocity, Player.CreativeMode);
             Grid.UpdateChunksAround(device, cameraPosition, renderDistance, profile);
             Grid.ProcessPendingWork(
                 device,
@@ -364,6 +364,7 @@ namespace Autonocraft.Core
 
         public void UpdateVillages(float deltaTime, float timeOfDay)
         {
+            Villages.CreativeMode = Player.CreativeMode;
             Villages.Update(deltaTime, Grid, timeOfDay);
         }
 

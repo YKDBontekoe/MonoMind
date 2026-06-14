@@ -352,7 +352,7 @@ namespace Autonocraft.World
                 Pitch = player.Pitch,
                 Health = player.Health,
                 MaxHealth = player.MaxHealth,
-                FlyingMode = player.FlyingMode,
+                CreativeMode = player.CreativeMode,
                 SelectedSlot = player.SelectedSlot,
                 Hotbar = SerializeHotbar(player),
                 MiningLevel = player.Skills.Mining.Level,
@@ -373,7 +373,7 @@ namespace Autonocraft.World
             player.Pitch = data.Pitch;
             player.MaxHealth = Math.Max(1, data.MaxHealth);
             player.Health = Math.Clamp(data.Health, 0, player.MaxHealth);
-            player.FlyingMode = data.FlyingMode;
+            player.CreativeMode = data.CreativeMode || data.FlyingModeLegacy == true;
             player.SelectedSlot = Math.Clamp(data.SelectedSlot, 0, 8);
 
             for (int i = 0; i < player.Hotbar.Length; i++)

@@ -38,7 +38,7 @@ namespace Autonocraft.Core
             }
         }
 
-        public void RecordMovement(Vector3 prevPos, Vector3 newPos, bool flying, bool grounded)
+        public void RecordMovement(Vector3 prevPos, Vector3 newPos, bool creative, bool grounded)
         {
             float horizontal = MathF.Sqrt(
                 (newPos.X - prevPos.X) * (newPos.X - prevPos.X) +
@@ -46,7 +46,7 @@ namespace Autonocraft.Core
 
             if (horizontal > 0.001f)
             {
-                if (flying)
+                if (creative)
                 {
                     DistanceFlown += horizontal;
                 }

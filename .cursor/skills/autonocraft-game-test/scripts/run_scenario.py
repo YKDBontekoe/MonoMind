@@ -90,11 +90,12 @@ def _look(client: GameClient, value: Any, index: int) -> None:
     print(f"[{index}] look {data}")
 
 
+@step("set_creative")
 @step("set_flying")
-def _set_flying(client: GameClient, value: Any, index: int) -> None:
-    flying = value if isinstance(value, bool) else str(value).lower() == "true"
-    client.set_flying(flying)
-    print(f"[{index}] set_flying {flying}")
+def _set_creative(client: GameClient, value: Any, index: int) -> None:
+    creative = value if isinstance(value, bool) else str(value).lower() == "true"
+    client.set_creative(creative)
+    print(f"[{index}] set_creative {creative}")
 
 
 @step("select_slot")

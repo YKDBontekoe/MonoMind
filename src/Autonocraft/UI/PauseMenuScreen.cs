@@ -409,9 +409,9 @@ namespace Autonocraft.UI
             string[] lines =
             {
                 "WASD - MOVE",
-                "SPACE - JUMP / FLY UP",
-                "SHIFT - FLY DOWN",
-                "G - TOGGLE FLYING",
+                "SPACE - JUMP / CREATIVE UP",
+                "SHIFT - CREATIVE DOWN",
+                "G - TOGGLE CREATIVE",
                 "LEFT CLICK - MINE / ATTACK",
                 "RIGHT CLICK - PLACE / OPEN STATION",
                 "SHIFT+RIGHT CLICK - AWAKEN SIGIL",

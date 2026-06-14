@@ -36,8 +36,8 @@ namespace Autonocraft.Ai
                 reply = JsonSerializer.Serialize(new
                 {
                     tool = "assign_job",
-                    args = new { villager_id = 1, job = "Gather" },
-                    reply = "I will assign that villager to gather resources."
+                    args = new { villager_id = 1, job = "Lumber" },
+                    reply = "I will assign that villager to cut lumber."
                 });
             }
             else if (lower.Contains("build") || lower.Contains("house"))

@@ -1,6 +1,6 @@
 {
   "gridCols": 8,
-  "gridRows": 9,
+  "gridRows": 10,
   "tileSize": 128,
   "tiles": {
     "grass_top": { "col": 0, "row": 0, "file": "grass_top.png" },
@@ -73,7 +73,11 @@
     "birch_log_top": { "col": 4, "row": 1, "file": "birch_log_top.png" },
     "pine_log_top": { "col": 5, "row": 0, "file": "pine_log_top.png" },
     "willow_log_top": { "col": 5, "row": 1, "file": "willow_log_top.png" },
-    "palm_log_top": { "col": 7, "row": 4, "file": "palm_log_top.png" }
+    "palm_log_top": { "col": 7, "row": 4, "file": "palm_log_top.png" },
+    "wheat_sprout": { "col": 0, "row": 9, "file": "wheat_sprout.png" },
+    "wheat_crop": { "col": 1, "row": 9, "file": "wheat_crop.png" },
+    "carrot_sprout": { "col": 2, "row": 9, "file": "carrot_sprout.png" },
+    "carrot_crop": { "col": 3, "row": 9, "file": "carrot_crop.png" }
   },
   "blockFaces": {
     "Grass": { "top": "grass_top", "bottom": "dirt", "side": "grass_side" },
@@ -117,7 +121,11 @@
     "Reed": { "all": "reed" },
     "Sunflower": { "all": "sunflower" },
     "HayBale": { "all": "hay_bale" },
-    "Ice": { "all": "ice" }
+    "Ice": { "all": "ice" },
+    "WheatSprout": { "all": "wheat_sprout" },
+    "Wheat": { "all": "wheat_crop" },
+    "CarrotSprout": { "all": "carrot_sprout" },
+    "Carrot": { "all": "carrot_crop" }
   },
   "animals": {
     "Sheep": { "body": "sheep_body", "head": "sheep_head" },

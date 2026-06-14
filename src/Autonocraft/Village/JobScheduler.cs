@@ -13,6 +13,11 @@ namespace Autonocraft.Village
         public string Description { get; set; } = string.Empty;
         public int Priority { get; set; }
         public bool Completed { get; set; }
+        public VillageGoalKind Kind { get; set; } = VillageGoalKind.Generic;
+        public BlockType? StockBlock { get; set; }
+        public int TargetCount { get; set; }
+        public string? BlueprintId { get; set; }
+        public bool BuildQueued { get; set; }
     }
 
     public sealed class JobScheduler
@@ -22,17 +27,65 @@ namespace Autonocraft.Village
 
         public IReadOnlyList<VillageGoal> Goals => _goals;
 
+        public static void ResetGoalIdCounter(int nextId) => _nextGoalId = Math.Max(1, nextId);
+
         public int AddGoal(string description, int priority = 0)
+        {
+            if (VillageGoalParser.TryParseDescription(description, out var parsed))
+            {
+                return parsed.Kind switch
+                {
+                    VillageGoalKind.Stock when parsed.StockBlock.HasValue =>
+                        AddStockGoal(parsed.StockBlock.Value, parsed.TargetCount, priority, parsed.Description),
+                    VillageGoalKind.Build when !string.IsNullOrEmpty(parsed.BlueprintId) =>
+                        AddBuildGoal(parsed.BlueprintId, priority, parsed.Description),
+                    _ => AddGenericGoal(description, priority)
+                };
+            }
+
+            return AddGenericGoal(description, priority);
+        }
+
+        public int AddStockGoal(BlockType blockType, int targetCount, int priority = 0, string? description = null)
         {
             var goal = new VillageGoal
             {
                 Id = _nextGoalId++,
-                Description = description,
-                Priority = priority
+                Kind = VillageGoalKind.Stock,
+                Description = description ?? $"Stock {targetCount} {blockType}",
+                Priority = priority,
+                StockBlock = blockType,
+                TargetCount = targetCount
             };
-            _goals.Add(goal);
-            _goals.Sort((a, b) => b.Priority.CompareTo(a.Priority));
+            InsertGoal(goal);
             return goal.Id;
+        }
+
+        public int AddBuildGoal(string blueprintId, int priority = 0, string? description = null)
+        {
+            string label = description ?? $"Build {blueprintId}";
+            if (PlayerStructureRegistry.TryGet(blueprintId, out var blueprint))
+            {
+                label = description ?? $"Build {blueprint.DisplayName}";
+            }
+
+            var goal = new VillageGoal
+            {
+                Id = _nextGoalId++,
+                Kind = VillageGoalKind.Build,
+                Description = label,
+                Priority = priority,
+                BlueprintId = blueprintId
+            };
+            InsertGoal(goal);
+            return goal.Id;
+        }
+
+        public void RestoreGoal(VillageGoal goal)
+        {
+            goal.Id = goal.Id > 0 ? goal.Id : _nextGoalId++;
+            _nextGoalId = Math.Max(_nextGoalId, goal.Id + 1);
+            InsertGoal(goal);
         }
 
         public void CompleteGoal(int goalId)
@@ -60,14 +113,71 @@ namespace Autonocraft.Village
             return null;
         }
 
-        public bool AssignJob(Villager villager, JobType job, Vector3? target = null, int? buildingSiteId = null)
+        public bool HasActiveNumericGoal()
+        {
+            foreach (var goal in _goals)
+            {
+                if (!goal.Completed && goal.Kind is VillageGoalKind.Stock or VillageGoalKind.Build)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public void CheckGoalProgress(Village village)
+        {
+            foreach (var goal in _goals)
+            {
+                if (goal.Completed)
+                {
+                    continue;
+                }
+
+                switch (goal.Kind)
+                {
+                    case VillageGoalKind.Stock when goal.StockBlock.HasValue:
+                        if (village.Storage.CountBlock(goal.StockBlock.Value) >= goal.TargetCount)
+                        {
+                            goal.Completed = true;
+                        }
+
+                        break;
+                    case VillageGoalKind.Build when !string.IsNullOrEmpty(goal.BlueprintId):
+                        if (village.HasCompletedBuilding(goal.BlueprintId))
+                        {
+                            goal.Completed = true;
+                        }
+
+                        break;
+                }
+            }
+        }
+
+        public int GetStockProgress(VillageGoal goal, Village village)
+        {
+            if (goal.Kind != VillageGoalKind.Stock || !goal.StockBlock.HasValue)
+            {
+                return 0;
+            }
+
+            return village.Storage.CountBlock(goal.StockBlock.Value);
+        }
+
+        public bool AssignJob(
+            Villager villager,
+            JobType job,
+            Vector3? target = null,
+            int? buildingSiteId = null,
+            int? assignedBuildingId = null)
         {
             if (villager == null)
             {
                 return false;
             }
 
-            villager.AssignJob(job, target, buildingSiteId);
+            villager.AssignJob(job, target, buildingSiteId, assignedBuildingId);
             return true;
         }
 
@@ -90,11 +200,102 @@ namespace Autonocraft.Village
 
         public bool TryApplyGoal(Village village, VoxelWorld world, VillageManager manager, VillageGoal goal)
         {
+            switch (goal.Kind)
+            {
+                case VillageGoalKind.Stock:
+                    return false;
+                case VillageGoalKind.Build:
+                    return TryApplyBuildGoal(village, world, manager, goal);
+                default:
+                    return TryApplyGenericGoal(village, world, manager, goal);
+            }
+        }
+
+        public bool TryAssignForGoal(
+            Village village,
+            VoxelWorld world,
+            VillageManager manager,
+            VillageGoal goal,
+            Villager villager)
+        {
+            if (goal.Completed || villager.CurrentJob != JobType.Idle)
+            {
+                return false;
+            }
+
+            switch (goal.Kind)
+            {
+                case VillageGoalKind.Stock when goal.StockBlock.HasValue:
+                    if (village.Storage.CountBlock(goal.StockBlock.Value) >= goal.TargetCount)
+                    {
+                        goal.Completed = true;
+                        return false;
+                    }
+
+                    return manager.TryAssignStockGoalWorker(village, world, villager, goal.StockBlock.Value);
+                case VillageGoalKind.Build:
+                    var site = village.GetNearestPendingSite(villager.Position);
+                    if (site != null &&
+                        !string.IsNullOrEmpty(goal.BlueprintId) &&
+                        string.Equals(site.BlueprintId, goal.BlueprintId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return manager.TryAssignJob(village, villager, JobType.Build, null, site.Id);
+                    }
+
+                    if (site != null && string.IsNullOrEmpty(goal.BlueprintId))
+                    {
+                        return manager.TryAssignJob(village, villager, JobType.Build, null, site.Id);
+                    }
+
+                    return false;
+                default:
+                    return false;
+            }
+        }
+
+        private bool TryApplyBuildGoal(Village village, VoxelWorld world, VillageManager manager, VillageGoal goal)
+        {
+            if (goal.BuildQueued || string.IsNullOrEmpty(goal.BlueprintId))
+            {
+                return false;
+            }
+
+            if (village.HasPendingOrCompleteBuilding(goal.BlueprintId))
+            {
+                goal.BuildQueued = true;
+                return false;
+            }
+
+            if (!PlayerStructureRegistry.TryGet(goal.BlueprintId, out var blueprint))
+            {
+                return false;
+            }
+
+            int[] offsets = { 3, 6, -3, -6, 9, -9 };
+            foreach (int dx in offsets)
+            {
+                foreach (int dz in offsets)
+                {
+                    int ax = village.AnchorX + dx;
+                    int az = village.AnchorZ + dz;
+                    if (manager.TryQueueBlueprint(world, village, goal.BlueprintId, ax, az, village.Storage))
+                    {
+                        goal.BuildQueued = true;
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TryApplyGenericGoal(Village village, VoxelWorld world, VillageManager manager, VillageGoal goal)
+        {
             string description = goal.Description.ToLowerInvariant();
             if (description.Contains("storage") || description.Contains("expand_storage"))
             {
                 if (PlayerStructureRegistry.TryGet("storage_crate", out var blueprint) &&
-                    blueprint.CanAfford(village.Storage))
+                    (manager.CreativeMode || blueprint.CanAfford(village.Storage)))
                 {
                     int ax = village.AnchorX + 6;
                     int az = village.AnchorZ;
@@ -104,7 +305,8 @@ namespace Autonocraft.Village
 
             if (description.Contains("farm") || description.Contains("food"))
             {
-                if (PlayerStructureRegistry.TryGet("farm_plot", out var farm) && farm.CanAfford(village.Storage))
+                if (PlayerStructureRegistry.TryGet("farm_plot", out var farm) &&
+                    (manager.CreativeMode || farm.CanAfford(village.Storage)))
                 {
                     int ax = village.AnchorX - 6;
                     int az = village.AnchorZ;
@@ -112,7 +314,45 @@ namespace Autonocraft.Village
                 }
             }
 
+            if (description.Contains("mine") || description.Contains("quarry") || description.Contains("ore"))
+            {
+                if (PlayerStructureRegistry.TryGet("quarry", out var quarry) &&
+                    (manager.CreativeMode || quarry.CanAfford(village.Storage)))
+                {
+                    int ax = village.AnchorX + 6;
+                    int az = village.AnchorZ + 6;
+                    return manager.TryQueueBlueprint(world, village, "quarry", ax, az, village.Storage);
+                }
+            }
+
+            if (description.Contains("house") || description.Contains("peasant"))
+            {
+                if (PlayerStructureRegistry.TryGet("peasant_house", out _))
+                {
+                    return manager.TryQueueBlueprint(world, village, "peasant_house", village.AnchorX + 3, village.AnchorZ + 3, village.Storage);
+                }
+            }
+
             return false;
+        }
+
+        private int AddGenericGoal(string description, int priority)
+        {
+            var goal = new VillageGoal
+            {
+                Id = _nextGoalId++,
+                Kind = VillageGoalKind.Generic,
+                Description = description,
+                Priority = priority
+            };
+            InsertGoal(goal);
+            return goal.Id;
+        }
+
+        private void InsertGoal(VillageGoal goal)
+        {
+            _goals.Add(goal);
+            _goals.Sort((a, b) => b.Priority.CompareTo(a.Priority));
         }
     }
 }

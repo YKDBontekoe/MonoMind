@@ -1,3 +1,5 @@
+using System;
+using System.Numerics;
 using Autonocraft.Core;
 using Autonocraft.Ai;
 using Autonocraft.Domain.Village;
@@ -159,27 +161,90 @@ public static class VillageTests
     public static void RunFarmFoodProduction()
     {
         Console.Write("Running Farm Food Production Test... ");
-        var village = new VillageEntity("Farm Test", 0, 64, 0);
+        var villagers = new VillagerManager();
+        var villages = new VillageManager(villagers);
+        var world = new VoxelWorld(4242);
+        int ax = 24;
+        int az = 24;
+        world.UpdateChunksAround(null, new Vector3(ax + 0.5f, 64f, az + 0.5f), 2);
+
+        if (!villages.TryFoundVillage(world, "Farm Test", ax, az, out var village) || village == null)
+        {
+            throw new Exception("Failed to found farm test village.");
+        }
+
+        villagers.Update(0f, world, new[] { village });
+
+        int ay = village.AnchorY;
         village.RestoreBuilding(new BuildingSaveData
         {
             Id = 1,
             BlueprintId = "farm_plot",
             Kind = (int)BuildingKind.FarmPlot,
-            AnchorX = 0,
-            AnchorY = 64,
-            AnchorZ = 0,
+            AnchorX = ax,
+            AnchorY = ay,
+            AnchorZ = az,
             IsComplete = true
         });
 
-        float initialFood = village.FoodStock;
-        for (int i = 0; i < 70; i++)
+        if (PlayerStructureRegistry.TryGet("farm_plot", out var farmBlueprint))
         {
-            village.UpdateSimulation(1f, 0.5f);
+            for (int dx = -5; dx <= 5; dx++)
+            {
+                for (int dz = -5; dz <= 5; dz++)
+                {
+                    if (Math.Abs(dx) <= 2 && Math.Abs(dz) <= 2)
+                    {
+                        continue;
+                    }
+
+                    world.SetBlock(ax + dx, ay, az + dz, BlockType.Dirt);
+                }
+            }
+
+            foreach (var block in farmBlueprint.Template.Blocks)
+            {
+                if (block.Type != BlockType.Dirt)
+                {
+                    continue;
+                }
+
+                world.SetBlock(ax + block.Dx, ay + block.Dy, az + block.Dz, BlockType.Dirt);
+            }
         }
 
-        if (village.FoodStock <= initialFood)
+        world.SetBlock(ax, ay, az, BlockType.Wheat);
+
+        var farmer = villagers.Spawn(village.Id, village.Center, 11);
+        farmer.Role = VillagerRole.Farmer;
+        farmer.Position = new Vector3(ax + 0.5f, ay + 1f, az - 3.5f);
+        farmer.SetAiPhase(VillagerAiPhase.Working);
+        village.RegisterVillager(farmer.Id);
+
+        if (!villages.TryAssignJob(village, farmer, JobType.Farm, FarmCropHelper.GetBlockCenter(ax, ay, az), buildingId: 1))
         {
-            throw new Exception("Farm plot did not increase food stock.");
+            throw new Exception("Failed to assign farmer to farm plot.");
+        }
+
+        float initialFood = village.FoodStock;
+        for (int i = 0; i < 120; i++)
+        {
+            villages.Update(0.25f, world, 0.5f);
+        }
+
+        bool gainedFood = village.FoodStock > initialFood;
+        bool hasCropInStorage = village.Storage.CountBlock(BlockType.Wheat) > 0
+            || village.Storage.CountBlock(BlockType.Carrot) > 0;
+        bool hasCropInChest = false;
+        if (village.TryGetOutputChestForBuilding(1, out var chest))
+        {
+            hasCropInChest = chest.Buffer.CountBlock(BlockType.Wheat) > 0
+                || chest.Buffer.CountBlock(BlockType.Carrot) > 0;
+        }
+
+        if (!gainedFood && !hasCropInStorage && !hasCropInChest)
+        {
+            throw new Exception("Farmer did not harvest crops into food stock or storage.");
         }
 
         Console.WriteLine("PASSED");
@@ -250,6 +315,13 @@ public static class VillageTests
 
         int expectedSites = village?.BuildingSites.Count ?? 0;
 
+        if (village != null && village.VillagerIds.Count > 0 &&
+            session.Villagers.TryGet(village.VillagerIds[0], out var seedVillager))
+        {
+            seedVillager.Skills.AddXp(Autonocraft.Items.VillagerSkill.Mining, 55f);
+            seedVillager.Skills.AddXp(Autonocraft.Items.VillagerSkill.Farming, 12f);
+        }
+
         var exportedVillages = session.Villages.ExportVillages();
         var exportedVillagers = session.Villagers.ExportVillagers();
         var exportedAnchors = session.Villages.ExportClaimedAnchors();
@@ -309,6 +381,16 @@ public static class VillageTests
             {
                 throw new Exception($"Villager trait not restored: expected {exportedVillager.Trait}, got {loadedVillager.Persona.Trait}.");
             }
+
+            if (loadedVillager.Skills.Mining.Level != exportedVillager.MiningLevel ||
+                MathF.Abs(loadedVillager.Skills.Mining.Xp - exportedVillager.MiningXp) > 0.001f ||
+                loadedVillager.Skills.Woodcutting.Level != exportedVillager.WoodcuttingLevel ||
+                MathF.Abs(loadedVillager.Skills.Woodcutting.Xp - exportedVillager.WoodcuttingXp) > 0.001f ||
+                loadedVillager.Skills.Farming.Level != exportedVillager.FarmingLevel ||
+                MathF.Abs(loadedVillager.Skills.Farming.Xp - exportedVillager.FarmingXp) > 0.001f)
+            {
+                throw new Exception("Villager skills not restored after save round-trip.");
+            }
         }
 
         Console.WriteLine("PASSED");
@@ -358,6 +440,256 @@ public static class VillageTests
         Console.WriteLine("PASSED");
     }
 
+    public static void RunBuildingJobWiring()
+    {
+        Console.Write("Running Building Job Wiring Test... ");
+        var villagers = new VillagerManager();
+        var villages = new VillageManager(villagers);
+        var world = new VoxelWorld(7777);
+        int ax = 24;
+        int az = 24;
+        world.UpdateChunksAround(null, new System.Numerics.Vector3(ax + 0.5f, 64f, az + 0.5f), 2);
+        villages.TryFoundVillage(world, "Building Test", ax, az, out var village);
+        if (village == null)
+        {
+            throw new Exception("Village missing.");
+        }
+
+        villagers.Update(0f, world, new[] { village });
+
+        villagers.Update(0f, world, new[] { village });
+
+        int ay = village.AnchorY;
+        village.RestoreBuilding(new BuildingSaveData
+        {
+            Id = 1,
+            BlueprintId = "lumber_camp",
+            Kind = (int)BuildingKind.LumberCamp,
+            AnchorX = ax + 8,
+            AnchorY = ay,
+            AnchorZ = az,
+            IsComplete = true
+        });
+        village.RestoreBuilding(new BuildingSaveData
+        {
+            Id = 2,
+            BlueprintId = "workshop",
+            Kind = (int)BuildingKind.Workshop,
+            AnchorX = ax - 8,
+            AnchorY = ay,
+            AnchorZ = az,
+            IsComplete = true
+        });
+        village.RestoreBuilding(new BuildingSaveData
+        {
+            Id = 3,
+            BlueprintId = "farm_plot",
+            Kind = (int)BuildingKind.FarmPlot,
+            AnchorX = ax,
+            AnchorY = ay,
+            AnchorZ = az + 8,
+            IsComplete = true
+        });
+        village.RestoreBuilding(new BuildingSaveData
+        {
+            Id = 4,
+            BlueprintId = "quarry",
+            Kind = (int)BuildingKind.Quarry,
+            AnchorX = ax + 8,
+            AnchorY = ay,
+            AnchorZ = az + 8,
+            IsComplete = true
+        });
+
+        var farmer = villagers.Spawn(village.Id, village.Center, 1);
+        farmer.Role = VillagerRole.Farmer;
+        village.RegisterVillager(farmer.Id);
+
+        if (!villages.TryAssignJob(village, farmer, JobType.Farm, buildingId: 3))
+        {
+            throw new Exception("Farmer assignment to farm plot failed.");
+        }
+
+        if (farmer.AssignedBuildingId != 3)
+        {
+            throw new Exception("Farmer not bound to farm plot building.");
+        }
+
+        if (farmer.JobTarget == null || farmer.JobTarget.Value.Z < az + 7f)
+        {
+            throw new Exception("Farmer target not at farm plot anchor.");
+        }
+
+        village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakLog, 4));
+        var smith = villagers.Spawn(village.Id, village.Center, 2);
+        smith.Role = VillagerRole.Smith;
+        village.RegisterVillager(smith.Id);
+
+        if (!villages.TryAssignJob(village, smith, JobType.Craft))
+        {
+            throw new Exception("Smith craft assignment failed without workshop recipe materials.");
+        }
+
+        if (smith.AssignedBuildingId != 2 || smith.Role != VillagerRole.Smith)
+        {
+            throw new Exception("Smith not bound to workshop.");
+        }
+
+        int logsBefore = village.Storage.CountBlock(BlockType.OakLog);
+        smith.SetAiPhase(VillagerAiPhase.Working);
+        smith.WorkTimer = 10f;
+        var context = new VillageContext
+        {
+            Village = village,
+            VillageCenter = village.Center,
+            StoragePosition = village.StoragePosition,
+            Storage = village.Storage
+        };
+        smith.Update(2f, world, context);
+        if (village.Storage.CountBlock(BlockType.OakLog) >= logsBefore &&
+            village.Storage.CountTools(ToolType.Pickaxe) == 0 &&
+            village.Storage.CountTools(ToolType.Axe) == 0)
+        {
+            throw new Exception("Workshop smith did not craft or repair tools from storage.");
+        }
+
+        var lumberjack = villagers.Spawn(village.Id, village.Center, 3);
+        lumberjack.Role = VillagerRole.Lumberjack;
+        village.RegisterVillager(lumberjack.Id);
+        if (!villages.TryAssignJob(village, lumberjack, JobType.Lumber, buildingId: 1))
+        {
+            throw new Exception("Lumberjack assignment to camp failed.");
+        }
+
+        if (lumberjack.AssignedBuildingId != 1)
+        {
+            throw new Exception("Lumberjack not bound to lumber camp.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunVillagerToolMining()
+    {
+        Console.Write("Running Villager Tool Mining Test... ");
+        var villagers = new VillagerManager();
+        var villages = new VillageManager(villagers);
+        var world = new VoxelWorld(8888);
+        int ax = 40;
+        int az = 40;
+        world.UpdateChunksAround(null, new Vector3(ax + 0.5f, 64f, az + 0.5f), 2);
+        villages.TryFoundVillage(world, "Tool Test", ax, az, out var village);
+        if (village == null)
+        {
+            throw new Exception("Village missing.");
+        }
+
+        villagers.Update(0f, world, new[] { village });
+
+        int x = ax + 4;
+        int z = az + 4;
+        int y = world.GetHighestSolidY(x, z) + 1;
+        world.SetBlock(x, y, z, BlockType.Stone);
+
+        var miner = villagers.Spawn(village.Id, village.Center, 11);
+        miner.Role = VillagerRole.Miner;
+        village.RegisterVillager(miner.Id);
+
+        var target = new Vector3(x + 0.5f, y, z + 0.5f);
+        if (!villages.TryAssignJob(village, miner, JobType.Mine, target))
+        {
+            throw new Exception("Mine job assignment failed.");
+        }
+
+        miner.Position = target + new Vector3(0f, 0f, 1.5f);
+        miner.SetAiPhase(VillagerAiPhase.Working);
+
+        var context = new VillageContext
+        {
+            Village = village,
+            VillageCenter = village.Center,
+            StoragePosition = village.StoragePosition,
+            Storage = village.Storage
+        };
+
+        miner.Update(0.5f, world, context);
+        if (miner.CurrentJob != JobType.Idle)
+        {
+            throw new Exception("Miner without pickaxe should stop when no tool is available.");
+        }
+
+        var pickaxe = ToolRegistry.CreateStack(ToolType.Pickaxe, ToolTier.Wood);
+        int initialDurability = pickaxe.Durability;
+        village.Storage.AddItem(pickaxe);
+
+        if (!villages.TryAssignJob(village, miner, JobType.Mine, target))
+        {
+            throw new Exception("Mine job reassignment failed.");
+        }
+
+        miner.Position = target + new Vector3(0f, 0f, 1.5f);
+        miner.SetAiPhase(VillagerAiPhase.Working);
+        miner.BreakProgress = 0f;
+
+        var skills = new PlayerSkills();
+        float breakTime = MiningCalculator.GetEffectiveBreakTime(BlockType.Stone, pickaxe, skills);
+        float bareHands = MiningCalculator.GetEffectiveBreakTime(BlockType.Stone, ItemStack.Empty, skills);
+        if (breakTime >= bareHands)
+        {
+            throw new Exception("Pickaxe should reduce stone break time for villagers.");
+        }
+
+        miner.Update(breakTime + 0.05f, world, context);
+        if (world.GetBlock(x, y, z) != BlockType.Air)
+        {
+            throw new Exception("Miner with pickaxe did not break stone in expected time.");
+        }
+
+        if (miner.Inventory.CountBlock(BlockType.Stone) != 1)
+        {
+            throw new Exception("Miner should carry mined stone.");
+        }
+
+        if (miner.CurrentJob != JobType.Mine)
+        {
+            throw new Exception("Miner should continue mining after a single stone break.");
+        }
+
+        if (miner.EquippedTool.Durability != initialDurability - 1)
+        {
+            throw new Exception("Pickaxe durability should decrease after mining.");
+        }
+
+        pickaxe = ToolRegistry.CreateStack(ToolType.Pickaxe, ToolTier.Wood);
+        pickaxe.Durability = 10;
+        pickaxe.MaxDurability = ToolRegistry.Get(pickaxe.ToolId).MaxDurability;
+        village.Storage.AddItem(pickaxe);
+        village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 4));
+
+        if (!VillageWorkshopCrafting.TrySmithWork(village.Storage))
+        {
+            throw new Exception("Smith should repair damaged pickaxe.");
+        }
+
+        bool foundRepaired = false;
+        for (int i = 0; i < village.Storage.SlotCount; i++)
+        {
+            var stack = village.Storage.GetSlot(i);
+            if (stack.IsTool() && stack.ToolId == ItemId.WoodPickaxe && stack.Durability > 10)
+            {
+                foundRepaired = true;
+                break;
+            }
+        }
+
+        if (!foundRepaired)
+        {
+            throw new Exception("Repaired pickaxe not returned to storage.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
     public static void RunVillageAiToolsMock()
     {
         Console.Write("Running Village AI Tools Test... ");
@@ -376,6 +708,180 @@ public static class VillageTests
         if (!ok || string.IsNullOrEmpty(msg))
         {
             throw new Exception("Summary tool failed.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunVillageNumericGoals()
+    {
+        Console.Write("Running Village Numeric Goals Test... ");
+        var villagers = new VillagerManager();
+        var villages = new VillageManager(villagers);
+        var world = new VoxelWorld(4243);
+        world.UpdateChunksAround(null, new Vector3(16.5f, 64f, 16.5f), 2);
+
+        int ax = 16;
+        int az = 16;
+        villages.TryFoundVillage(world, "Goals Test", ax, az, out var village);
+        if (village == null)
+        {
+            throw new Exception("Village missing.");
+        }
+
+        if (!VillageGoalParser.TryParseDescription("Stock 64 Cobblestone", out var stockParsed) ||
+            stockParsed.Kind != VillageGoalKind.Stock ||
+            stockParsed.StockBlock != BlockType.Cobblestone ||
+            stockParsed.TargetCount != 64)
+        {
+            throw new Exception("Stock goal parser failed.");
+        }
+
+        if (!VillageGoalParser.TryParseDescription("Build peasant house", out var buildParsed) ||
+            buildParsed.Kind != VillageGoalKind.Build ||
+            buildParsed.BlueprintId != "peasant_house")
+        {
+            throw new Exception("Build goal parser failed.");
+        }
+
+        var (stockOk, _) = VillageAiTools.ExecuteTool(
+            "set_village_goal",
+            """{"kind":"stock","block_type":"Cobblestone","target_count":64}""",
+            villages,
+            villagers,
+            village);
+        if (!stockOk)
+        {
+            throw new Exception("set_village_goal stock failed.");
+        }
+
+        var topStock = village.Scheduler.GetTopOpenGoal();
+        if (topStock == null || topStock.Kind != VillageGoalKind.Stock || topStock.TargetCount != 64)
+        {
+            throw new Exception("Stock goal not registered.");
+        }
+
+        village.Storage.AddItem(ItemStack.CreateBlock(BlockType.Cobblestone, 64));
+        village.Scheduler.CheckGoalProgress(village);
+        if (!topStock.Completed)
+        {
+            throw new Exception("Stock goal should complete at target count.");
+        }
+
+        village.Storage.TryConsumeBlock(BlockType.OakPlank, village.Storage.CountBlock(BlockType.OakPlank));
+        village.Storage.TryConsumeBlock(BlockType.Cobblestone, village.Storage.CountBlock(BlockType.Cobblestone));
+        village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 24));
+        village.Storage.AddItem(ItemStack.CreateBlock(BlockType.Cobblestone, 8));
+
+        var (buildOk, _) = VillageAiTools.ExecuteTool(
+            "set_village_goal",
+            """{"description":"Build peasant house","priority":5}""",
+            villages,
+            villagers,
+            village);
+        if (!buildOk)
+        {
+            throw new Exception("set_village_goal build failed.");
+        }
+
+        var buildGoal = village.Scheduler.GetTopOpenGoal();
+        if (buildGoal == null || buildGoal.Kind != VillageGoalKind.Build || buildGoal.BlueprintId != "peasant_house")
+        {
+            throw new Exception("Build goal not registered.");
+        }
+
+        if (!village.Scheduler.TryApplyGoal(village, world, villages, buildGoal))
+        {
+            throw new Exception("Build goal should queue peasant house when materials are available.");
+        }
+
+        if (!buildGoal.BuildQueued || village.BuildingSites.Count == 0)
+        {
+            throw new Exception("Peasant house site not queued.");
+        }
+
+        var exported = villages.ExportVillages();
+        if (exported.Count == 0 || exported[0].Goals.Count < 2)
+        {
+            throw new Exception("Goals not exported.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunPlayerWorkQueue()
+    {
+        Console.Write("Running Player Work Queue Test... ");
+        var villagers = new VillagerManager();
+        var villages = new VillageManager(villagers);
+        var world = new VoxelWorld(8181);
+        world.UpdateChunksAround(null, new System.Numerics.Vector3(16.5f, 64f, 16.5f), 2);
+
+        int ax = 16;
+        int az = 16;
+        villages.TryFoundVillage(world, "Work Test", ax, az, out var village);
+        if (village == null)
+        {
+            throw new Exception("Village missing.");
+        }
+
+        var lumberjack = villagers.Spawn(village.Id, village.Center, 11);
+        lumberjack.Role = VillagerRole.Lumberjack;
+        village.RegisterVillager(lumberjack.Id);
+
+        int minY = int.MaxValue;
+        int maxY = int.MinValue;
+        for (int dx = 1; dx <= 3; dx++)
+        {
+            for (int dz = 1; dz <= 3; dz++)
+            {
+                int cx = ax + dx;
+                int cz = az + dz;
+                int cy = world.GetHighestSolidY(cx, cz);
+                world.SetBlock(cx, cy, cz, BlockType.OakLog);
+                minY = Math.Min(minY, cy);
+                maxY = Math.Max(maxY, cy);
+            }
+        }
+
+        if (!villages.TryMarkWorkBlock(world, ax + 2, minY, az + 2, out _))
+        {
+            throw new Exception("Mark work block failed.");
+        }
+
+        if (village.WorkQueue.Count != 1)
+        {
+            throw new Exception("Expected one queued block.");
+        }
+
+        if (lumberjack.CurrentJob != JobType.Lumber)
+        {
+            throw new Exception("Expected lumberjack assigned to marked block.");
+        }
+
+        if (!villages.TryMarkWorkZone(world, village, ax + 1, minY, az + 1, ax + 3, maxY, az + 3, out string zoneMessage))
+        {
+            throw new Exception($"Mark work zone failed: {zoneMessage}");
+        }
+
+        if (village.WorkQueue.Count < 2)
+        {
+            throw new Exception("Work zone should queue additional blocks.");
+        }
+
+        var exported = villages.ExportVillages();
+        if (exported[0].WorkQueue.Count == 0)
+        {
+            throw new Exception("Work queue not exported.");
+        }
+
+        var reloadedVillagers = new VillagerManager();
+        var reloadedVillages = new VillageManager(reloadedVillagers);
+        reloadedVillages.LoadFromSave(exported, villagers.ExportVillagers());
+        var loaded = reloadedVillages.GetPrimaryVillage();
+        if (loaded == null || loaded.WorkQueue.Count == 0)
+        {
+            throw new Exception("Work queue not restored from save.");
         }
 
         Console.WriteLine("PASSED");

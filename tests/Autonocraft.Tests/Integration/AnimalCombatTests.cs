@@ -223,7 +223,7 @@ public static class AnimalCombatTests
             }
         }
 
-        player.FlyingMode = true;
+        player.CreativeMode = true;
         player.Position = new Vector3(16.5f, surfaceY + 1.2f, 16.5f);
 
         var sheep = game.Animals.SpawnAt(AnimalType.Sheep, new Vector3(16.5f, surfaceY + 1f, 18.5f), world);

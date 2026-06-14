@@ -167,8 +167,10 @@ namespace Autonocraft.Ai
             return $"{persona}\n" +
                 "Village context JSON:\n" +
                 $"{context}\n\n" +
-                "When you need to act, respond with JSON like {{\"tool\":\"assign_job\",\"args\":{{\"villager_id\":1,\"job\":\"Gather\"}},\"reply\":\"short player-facing text\"}}.\n" +
+                "When you need to act, respond with JSON like {{\"tool\":\"assign_job\",\"args\":{{\"villager_id\":1,\"job\":\"Lumber\"}},\"reply\":\"short player-facing text\"}}.\n" +
+                "Jobs: Idle, Lumber, Mine, Farm, Build, Haul (Gather is an alias for Lumber).\n" +
                 "Available tools: get_village_summary, list_villagers, assign_job, recruit_villager, queue_build, mark_resource, cancel_job, set_village_goal.\n" +
+                "set_village_goal supports kind=stock (block_type, target_count) or kind=build (blueprint_id), or a natural-language description like \"Stock 64 Cobblestone\" or \"Build peasant house\".\n" +
                 "For normal conversation, reply with plain text only.";
         }
 

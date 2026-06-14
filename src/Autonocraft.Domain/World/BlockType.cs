@@ -44,7 +44,11 @@ namespace Autonocraft.Domain.World
         Reed = 39,
         Sunflower = 40,
         HayBale = 41,
-        Ice = 42
+        Ice = 42,
+        WheatSprout = 43,
+        Wheat = 44,
+        CarrotSprout = 45,
+        Carrot = 46
     }
 
     public static class BlockTypeExtensions
@@ -63,6 +67,10 @@ namespace Autonocraft.Domain.World
                 || type == BlockType.Reed
                 || type == BlockType.Sunflower
                 || type == BlockType.Cactus
+                || type == BlockType.WheatSprout
+                || type == BlockType.Wheat
+                || type == BlockType.CarrotSprout
+                || type == BlockType.Carrot
                 || type == BlockType.Glass;
         }
 
@@ -86,7 +94,8 @@ namespace Autonocraft.Domain.World
         public static bool IsFloraModel(this BlockType type)
         {
             return type is BlockType.TallGrass or BlockType.Sunflower or BlockType.Flower or BlockType.Reed
-                or BlockType.Cactus;
+                or BlockType.Cactus or BlockType.WheatSprout or BlockType.Wheat
+                or BlockType.CarrotSprout or BlockType.Carrot;
         }
 
         public static bool IsAlphaCutout(this BlockType type)
@@ -117,6 +126,8 @@ namespace Autonocraft.Domain.World
                 BlockType.Air => 0f,
                 BlockType.TallGrass => 0.1f,
                 BlockType.Flower => 0.1f,
+                BlockType.WheatSprout or BlockType.CarrotSprout => 0.1f,
+                BlockType.Wheat or BlockType.Carrot => 0.15f,
                 BlockType.OakLeaves => 0.15f,
                 BlockType.BirchLeaves => 0.15f,
                 BlockType.PineLeaves => 0.15f,

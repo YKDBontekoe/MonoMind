@@ -28,7 +28,7 @@ public static class InteractionTests
             world.SetBlock(16, y, 16, BlockType.Air);
         }
 
-        player.FlyingMode = true;
+        player.CreativeMode = true;
         player.Position = new Vector3(16.5f, targetY + 1.2f, 16.5f);
         player.Velocity = Vector3.Zero;
 
@@ -79,7 +79,14 @@ public static class InteractionTests
         }
 
         int finalCount = player.Hotbar[player.SelectedSlot].Count;
-        if (finalCount != initialCount - 1)
+        if (player.CreativeMode)
+        {
+            if (finalCount != initialCount)
+            {
+                throw new Exception($"Creative placement should not consume blocks, went from {initialCount} to {finalCount}");
+            }
+        }
+        else if (finalCount != initialCount - 1)
         {
             throw new Exception($"Expected inventory count to decrease by 1, went from {initialCount} to {finalCount}");
         }
@@ -98,7 +105,7 @@ public static class InteractionTests
             world.SetBlock(16, y, 16, BlockType.Air);
         }
 
-        player.FlyingMode = true;
+        player.CreativeMode = true;
         player.Position = new Vector3(16.5f, targetY + 1.2f, 16.5f);
         IntegrationTestHelpers.SyncCamera(game, player);
 

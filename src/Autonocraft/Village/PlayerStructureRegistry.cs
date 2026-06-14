@@ -1,3 +1,5 @@
+using System;
+using System;
 using System.Collections.Generic;
 using Autonocraft.Domain.Village;
 using Autonocraft.World;
@@ -104,6 +106,18 @@ namespace Autonocraft.Village
                         new BlockCost(BlockType.Dirt, 16),
                         new BlockCost(BlockType.OakPlank, 4)
                     }
+                },
+                new BuildingBlueprint
+                {
+                    Id = "quarry",
+                    Kind = BuildingKind.Quarry,
+                    DisplayName = "Quarry",
+                    Template = BuildQuarry(),
+                    Costs = new[]
+                    {
+                        new BlockCost(BlockType.Cobblestone, 16),
+                        new BlockCost(BlockType.OakPlank, 8)
+                    }
                 }
             };
         }
@@ -206,6 +220,22 @@ namespace Autonocraft.Village
                 }
             }
 
+            return new StructureTemplate { FootprintRadius = 2, Blocks = blocks.ToArray() };
+        }
+
+        private static StructureTemplate BuildQuarry()
+        {
+            var blocks = new List<StructureBlock>();
+            for (int dx = -2; dx <= 2; dx++)
+            {
+                for (int dz = -2; dz <= 2; dz++)
+                {
+                    bool edge = Math.Abs(dx) == 2 || Math.Abs(dz) == 2;
+                    blocks.Add(new StructureBlock(dx, 0, dz, edge ? BlockType.Cobblestone : BlockType.Air));
+                }
+            }
+
+            blocks.Add(new StructureBlock(0, 1, 0, BlockType.OakLog));
             return new StructureTemplate { FootprintRadius = 2, Blocks = blocks.ToArray() };
         }
     }

@@ -11,6 +11,28 @@ namespace Autonocraft.Items
             in ItemStack heldItem,
             PlayerSkills skills)
         {
+            return GetEffectiveBreakTime(
+                block,
+                heldItem,
+                skills.GetBonus(GetSkillForBlock(block)));
+        }
+
+        public static float GetEffectiveBreakTime(
+            BlockType block,
+            in ItemStack heldItem,
+            VillagerSkills skills)
+        {
+            return GetEffectiveBreakTime(
+                block,
+                heldItem,
+                skills.GetBonus(ToVillagerSkill(GetSkillForBlock(block))));
+        }
+
+        private static float GetEffectiveBreakTime(
+            BlockType block,
+            in ItemStack heldItem,
+            float skillBonus)
+        {
             float baseTime = block.GetBreakTime();
             if (baseTime <= 0f)
             {
@@ -41,10 +63,7 @@ namespace Autonocraft.Items
 
             if (toolDef.ToolType == preferredTool.Value)
             {
-                var skill = category == BlockHarvestCategory.Wood
-                    ? PlayerSkill.Woodcutting
-                    : PlayerSkill.Mining;
-                float multiplier = toolDef.MiningSpeedMultiplier * skills.GetBonus(skill);
+                float multiplier = toolDef.MiningSpeedMultiplier * skillBonus;
                 return baseTime / Math.Max(0.01f, multiplier);
             }
 
@@ -55,6 +74,13 @@ namespace Autonocraft.Items
 
             return baseTime;
         }
+
+        public static VillagerSkill ToVillagerSkill(PlayerSkill skill) =>
+            skill switch
+            {
+                PlayerSkill.Woodcutting => VillagerSkill.Woodcutting,
+                _ => VillagerSkill.Mining
+            };
 
         public static PlayerSkill GetSkillForBlock(BlockType block)
         {

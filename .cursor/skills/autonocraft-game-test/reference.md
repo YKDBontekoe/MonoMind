@@ -21,7 +21,7 @@ Base URL: `http://localhost:5001/` by default (`--agent-port` on game launch; av
 | `position` | `{x,y,z}` | Player world coords |
 | `velocity` | `{x,y,z}` | Current velocity |
 | `yaw`, `pitch` | float | Camera orientation |
-| `flyingMode` | bool | Physics bypass when true |
+| `creativeMode` | bool | Creative mode when true (legacy saves/API may use `flyingMode`) |
 | `isGrounded` | bool | On solid ground |
 | `health`, `maxHealth` | int | Combat health |
 | `oxygen` | float | Underwater breath |
@@ -46,7 +46,7 @@ Base URL: `http://localhost:5001/` by default (`--agent-port` on game launch; av
 | `set_look` | `yaw`, `pitch` | Absolute camera (pitch clamped ±89°) |
 | `look` | `dx`, `dy` | Relative rotation |
 | `teleport` | `x`, `y`, `z` | Teleport; zero velocity |
-| `set_flying` | `flying=true\|false` | Toggle flying |
+| `set_creative` | `creative=true\|false` | Toggle creative mode (alias: `set_flying` with `flying=`) |
 | `select_slot` | `slot=0-8` | Hotbar selection |
 | `set_time` | `value=0-1` | Time of day |
 | `set_time_scale` | `value` | Day cycle speed (0 = pause) |

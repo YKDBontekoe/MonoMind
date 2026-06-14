@@ -35,7 +35,7 @@ namespace Autonocraft.Core
         public bool HeadUnderwater { get; private set; }
         public bool OnWaterSurface { get; private set; }
         public float Oxygen { get; private set; } = MaxOxygen;
-        public bool FlyingMode { get; set; } = false;
+        public bool CreativeMode { get; set; } = false;
         public float CustomMoveSpeed { get; set; } = 0f;
         public bool IsAlive => Health > 0f;
         public bool JustLanded { get; private set; }
@@ -92,7 +92,13 @@ namespace Autonocraft.Core
 
         public bool CanPlaceFromSelected()
         {
-            return GetSelectedStack().IsBlock();
+            var stack = GetSelectedStack();
+            if (CreativeMode && stack.IsBlock())
+            {
+                return true;
+            }
+
+            return stack.IsBlock() && stack.Count > 0;
         }
 
         public BlockType GetSelectedBlockType()
@@ -109,6 +115,11 @@ namespace Autonocraft.Core
                 return false;
             }
 
+            if (CreativeMode)
+            {
+                return true;
+            }
+
             slot.Count--;
             if (slot.Count <= 0)
             {
@@ -120,7 +131,7 @@ namespace Autonocraft.Core
 
         public bool DamageSelectedTool(int amount)
         {
-            if (amount <= 0)
+            if (amount <= 0 || CreativeMode)
             {
                 return false;
             }
@@ -310,7 +321,7 @@ namespace Autonocraft.Core
             FallDistance = 0f;
             Vector3 prevPos = Position;
 
-            if (FlyingMode)
+            if (CreativeMode)
             {
                 float speed = CustomMoveSpeed > 0f ? CustomMoveSpeed : FlySpeed;
                 Velocity.Y = moveInput.Y * speed;
@@ -408,12 +419,12 @@ namespace Autonocraft.Core
                 _wasInWater = InWater;
             }
 
-            Stats.RecordMovement(prevPos, Position, FlyingMode, IsGrounded);
+            Stats.RecordMovement(prevPos, Position, CreativeMode, IsGrounded);
         }
 
         public void Jump()
         {
-            if (FlyingMode)
+            if (CreativeMode)
             {
                 return;
             }
