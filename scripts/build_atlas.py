@@ -2,7 +2,6 @@
 """Build block texture atlas procedurally for Autonocraft."""
 
 import json
-import math
 from pathlib import Path
 from typing import Optional
 from PIL import Image, ImageDraw
@@ -12,6 +11,19 @@ SRC = ROOT / "src" / "Autonocraft"
 TEXTURES = SRC / "base_textures"
 LAYOUT_PATH = SRC / "atlas_layout.json"
 OUTPUT = SRC / "atlas.png"
+
+# Integer sin/cos approximations (* 1000) for 30-degree steps — cross-platform deterministic.
+_DIRECTION_12_COS = (1000, 866, 500, 0, -500, -866, -1000, -866, -500, 0, 500, 866)
+_DIRECTION_12_SIN = (0, 500, 866, 1000, 866, 500, 0, -500, -866, -1000, -866, -500)
+
+
+def radial_offset(cx: int, cy: int, radius_x: int, radius_y: int, step_index: int) -> tuple[int, int]:
+    """Return an endpoint using fixed integer trig tables."""
+    cos_v = _DIRECTION_12_COS[step_index % 12]
+    sin_v = _DIRECTION_12_SIN[step_index % 12]
+    x2 = cx + (cos_v * radius_x) // 1000
+    y2 = cy + (sin_v * radius_y) // 1000
+    return x2, y2
 
 
 def load_layout() -> dict:
@@ -218,7 +230,7 @@ def make_procedural_tile(name: str, tile: int) -> Optional[Image.Image]:
                 base = lerp_color(lerp_color(deep, mid, blend), shallow, blend * blend)
                 base = lerp_color(base, lighten(base, 14), (n2 & 15) / 15.0 * 0.28)
                 base = lerp_color(base, darken(base, 8), ((n1 & 7) / 7.0) * 0.22)
-                caustic = math.sin((x * 0.45) + n0 * 0.05) * math.sin((y * 0.4) + n1 * 0.04)
+                caustic = (noise_value(name, x, y, 31) * noise_value(name, y, x, 37)) / (255.0 * 255.0)
                 if caustic > 0.68:
                     base = lerp_color(base, highlight, (caustic - 0.68) * 1.5)
                 px[x, y] = base + (255,)
@@ -394,10 +406,10 @@ def make_procedural_tile(name: str, tile: int) -> Optional[Image.Image]:
         img = fill_noisy_tile(name, tile, (58, 118, 48), 14)
         draw = ImageDraw.Draw(img)
         cx, cy = tile // 2, tile // 3
-        for angle in range(0, 360, 30):
-            rad = math.radians(angle)
-            x2 = int(cx + math.cos(rad) * tile * 0.38)
-            y2 = int(cy + math.sin(rad) * tile * 0.28)
+        radius_x = (tile * 38) // 100
+        radius_y = (tile * 28) // 100
+        for step in range(12):
+            x2, y2 = radial_offset(cx, cy, radius_x, radius_y, step)
             draw.line((cx, cy, x2, y2), fill=(42, 98, 38, 255), width=4)
         draw.ellipse((cx - 8, cy - 6, cx + 8, cy + 6), fill=(72, 142, 52, 255))
         return img
@@ -465,10 +477,8 @@ def make_procedural_tile(name: str, tile: int) -> Optional[Image.Image]:
         draw = ImageDraw.Draw(img)
         cx, cy = tile // 2, tile // 3
         draw.line((cx, tile - 3, cx, cy + 18), fill=(42, 98, 38, 255), width=5)
-        for angle in range(0, 360, 30):
-            rad = math.radians(angle)
-            x2 = int(cx + math.cos(rad) * 22)
-            y2 = int(cy + math.sin(rad) * 16)
+        for step in range(12):
+            x2, y2 = radial_offset(cx, cy, 22, 16, step)
             draw.ellipse((x2 - 7, y2 - 7, x2 + 7, y2 + 7), fill=(238, 198, 42, 255))
         draw.ellipse((cx - 12, cy - 10, cx + 12, cy + 10), fill=(68, 48, 28, 255))
         return img
@@ -637,6 +647,12 @@ def validate_layout(layout: dict) -> None:
             raise ValueError(f"tile '{tile_id}' slot {coord} is outside grid bounds")
 
 
+def image_pixel_hash(image: Image.Image) -> str:
+    import hashlib
+
+    return hashlib.sha256(image.convert("RGBA").tobytes()).hexdigest()
+
+
 def build_atlas(layout: dict, output_path: Path) -> tuple[int, int]:
     cols = layout["gridCols"]
     rows = layout["gridRows"]
@@ -645,19 +661,22 @@ def build_atlas(layout: dict, output_path: Path) -> tuple[int, int]:
     height = rows * tile
 
     atlas = Image.new("RGBA", (width, height), (0, 0, 0, 255))
-    for tile_id, slot in layout["tiles"].items():
+    tile_items = sorted(
+        layout["tiles"].items(),
+        key=lambda item: (item[1]["row"], item[1]["col"], item[0]),
+    )
+    for tile_id, slot in tile_items:
         filename = slot["file"]
         image = load_tile(filename, tile)
         atlas.paste(image, (slot["col"] * tile, slot["row"] * tile))
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    atlas.save(output_path, format="PNG", optimize=True)
+    atlas.save(output_path, format="PNG", compress_level=6, optimize=False)
     return width, height
 
 
 def check_atlas() -> None:
     import argparse
-    import hashlib
     import tempfile
 
     parser = argparse.ArgumentParser(description="Build or validate Autonocraft texture atlas")
@@ -681,13 +700,14 @@ def check_atlas() -> None:
                 f"{layout['gridCols']}x{layout['gridRows']} tiles @ {layout['tileSize']}px)"
             )
             if OUTPUT.exists():
-                committed = OUTPUT.read_bytes()
-                generated = temp_path.read_bytes()
-                if committed != generated:
-                    committed_hash = hashlib.sha256(committed).hexdigest()[:12]
-                    generated_hash = hashlib.sha256(generated).hexdigest()[:12]
+                committed_img = Image.open(OUTPUT).convert("RGBA")
+                generated_img = Image.open(temp_path).convert("RGBA")
+                committed_hash = image_pixel_hash(committed_img)
+                generated_hash = image_pixel_hash(generated_img)
+                if committed_hash != generated_hash:
                     raise SystemExit(
-                        f"atlas.png is out of date (committed={committed_hash}, generated={generated_hash}). "
+                        f"atlas.png is out of date (committed_pixels={committed_hash[:12]}, "
+                        f"generated_pixels={generated_hash[:12]}). "
                         "Run: python3 scripts/build_atlas.py"
                     )
                 print(f"Committed atlas matches generated output ({OUTPUT})")

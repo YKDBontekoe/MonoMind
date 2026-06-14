@@ -43,7 +43,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: pip install pillow
+        run: pip install -r scripts/requirements-atlas.txt
 
       - name: Validate atlas layout and generation
         run: python3 scripts/build_atlas.py --check
