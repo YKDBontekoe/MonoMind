@@ -58,6 +58,8 @@ jobs:
         env:
           USE_XVFB: ${{ runner.os == 'Linux' && '1' || '' }}
           PORT: '5001'
+          CI: 'true'
+          DYLD_LIBRARY_PATH: ''
         run: bash scripts/ci_e2e.sh
 
       - name: Run E2E suite (Windows)

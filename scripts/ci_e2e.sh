@@ -13,7 +13,12 @@ cd "$ROOT"
 mkdir -p "$OUTPUT"
 
 if [[ "$(uname)" == "Darwin" ]]; then
-  export DYLD_LIBRARY_PATH="/opt/homebrew/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+  # MonoGame ships its own SDL2; forcing Homebrew libs on CI causes SIGBUS on arm64 runners.
+  if [[ -z "${GITHUB_ACTIONS:-}" && "${CI:-}" != "true" && -d /opt/homebrew/lib ]]; then
+    export DYLD_LIBRARY_PATH="/opt/homebrew/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+  else
+    unset DYLD_LIBRARY_PATH
+  fi
 fi
 
 GAME_CMD=(dotnet exec src/Autonocraft/bin/Release/net10.0/Autonocraft.dll -- --skip-menu --agent-port "$PORT" --render-distance "$RENDER_DISTANCE")

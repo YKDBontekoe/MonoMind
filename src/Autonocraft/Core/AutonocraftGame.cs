@@ -282,6 +282,13 @@ namespace Autonocraft.Core
             }
 
             _settings.VSync = false;
+            if (IsCiEnvironment())
+            {
+                _graphics.PreferredBackBufferWidth = 800;
+                _graphics.PreferredBackBufferHeight = 600;
+                _graphics.HardwareModeSwitch = false;
+            }
+
             ApplyFastLoadingGraphics();
         }
 
