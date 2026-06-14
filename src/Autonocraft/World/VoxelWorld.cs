@@ -964,7 +964,7 @@ namespace Autonocraft.World
             _chunks.TryGetValue((center.ChunkX + 1, center.ChunkZ), out var posX);
             _chunks.TryGetValue((center.ChunkX, center.ChunkZ - 1), out var negZ);
             _chunks.TryGetValue((center.ChunkX, center.ChunkZ + 1), out var posZ);
-            context = new MeshBuildContext(center, negX, posX, negZ, posZ, Seed);
+            context = new MeshBuildContext(center, negX, posX, negZ, posZ, Seed, _generator.BiomeMap);
             return true;
         }
 

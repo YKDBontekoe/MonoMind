@@ -8,6 +8,12 @@ namespace Autonocraft.Core
         public static int GetBlockCalls;
         public static int RaycastBlockVisits;
         public static int TerrainDrawCalls;
+        public static int TerrainOpaqueDrawCalls;
+        public static int TerrainWaterDrawCalls;
+        public static int TerrainCutoutDrawCalls;
+        public static int FloraDrawCalls;
+        public static int FloraVertexCount;
+        public static float FloraDrawMs;
         public static int PendingMeshCount;
         public static int ChunksMeshedThisFrame;
         public static float MeshBuildMs;
@@ -23,6 +29,12 @@ namespace Autonocraft.Core
             GetBlockCalls = 0;
             RaycastBlockVisits = 0;
             TerrainDrawCalls = 0;
+            TerrainOpaqueDrawCalls = 0;
+            TerrainWaterDrawCalls = 0;
+            TerrainCutoutDrawCalls = 0;
+            FloraDrawCalls = 0;
+            FloraVertexCount = 0;
+            FloraDrawMs = 0f;
             ChunksMeshedThisFrame = 0;
             MeshBuildMs = 0f;
         }

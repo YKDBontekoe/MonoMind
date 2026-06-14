@@ -154,10 +154,10 @@ namespace Autonocraft.World
             {
                 float grassThreshold = column.Biome.Primary switch
                 {
-                    BiomeType.Forest => 0.76f,
-                    BiomeType.Plains => 0.68f,
-                    BiomeType.Swamp => 0.74f,
-                    _ => 0.72f
+                    BiomeType.Forest => 0.78f,
+                    BiomeType.Plains => 0.72f,
+                    BiomeType.Swamp => 0.76f,
+                    _ => 0.75f
                 };
                 if (floraSample > grassThreshold)
                 {

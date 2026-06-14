@@ -152,7 +152,7 @@ namespace Autonocraft.Engine
                     0.65f);
             }
 
-            DrawTerrainChunks(
+            DrawAllTerrainChunks(
                 monoWorld,
                 monoView,
                 monoProj,
@@ -165,45 +165,7 @@ namespace Autonocraft.Engine
                 monoMoonLight,
                 lighting.MoonEnabled,
                 renderDistance,
-                blendState: BlendState.Opaque,
-                depthState: DepthStencilState.Default,
-                twilightFactor: twilightFactor);
-
-            DrawTerrainChunks(
-                monoWorld,
-                monoView,
-                monoProj,
-                monoAmbColor,
-                monoFogColor,
-                monoSunDir,
-                monoLightColor,
-                lighting.SunEnabled,
-                monoMoonDir,
-                monoMoonLight,
-                lighting.MoonEnabled,
-                renderDistance,
-                blendState: BlendState.AlphaBlend,
-                depthState: DepthStencilState.DepthRead,
-                twilightFactor: twilightFactor,
-                waterOnly: true);
-
-            DrawTerrainChunks(
-                monoWorld,
-                monoView,
-                monoProj,
-                monoAmbColor,
-                monoFogColor,
-                monoSunDir,
-                monoLightColor,
-                lighting.SunEnabled,
-                monoMoonDir,
-                monoMoonLight,
-                lighting.MoonEnabled,
-                renderDistance,
-                blendState: BlendState.AlphaBlend,
-                depthState: DepthStencilState.DepthRead,
-                twilightFactor: twilightFactor,
-                alphaCutoutOnly: true);
+                twilightFactor);
 
             var floraFogStart = ChunkLod.GetFogStart(renderDistance);
             var floraFogEnd = ChunkLod.GetFogEnd(renderDistance, twilightFactor);
@@ -615,7 +577,7 @@ namespace Autonocraft.Engine
             }
         }
 
-        private void DrawTerrainChunks(
+        private void DrawAllTerrainChunks(
             Matrix monoWorld,
             Matrix monoView,
             Matrix monoProj,
@@ -628,15 +590,8 @@ namespace Autonocraft.Engine
             Microsoft.Xna.Framework.Vector3 monoMoonLight,
             bool moonEnabled,
             int renderDistance,
-            BlendState blendState,
-            DepthStencilState depthState,
-            float twilightFactor,
-            bool waterOnly = false,
-            bool alphaCutoutOnly = false)
+            float twilightFactor)
         {
-            _device.BlendState = blendState;
-            _device.DepthStencilState = depthState;
-
             _blockTerrainEffect.ApplyTerrainPassBase(
                 monoWorld,
                 monoView,
@@ -651,6 +606,53 @@ namespace Autonocraft.Engine
                 moonEnabled,
                 _atlasTexture);
 
+            DrawTerrainPass(
+                renderDistance,
+                twilightFactor,
+                BlendState.Opaque,
+                DepthStencilState.Default,
+                waterOnly: false,
+                alphaCutoutOnly: false,
+                TerrainPassKind.Opaque);
+
+            DrawTerrainPass(
+                renderDistance,
+                twilightFactor,
+                BlendState.AlphaBlend,
+                DepthStencilState.DepthRead,
+                waterOnly: true,
+                alphaCutoutOnly: false,
+                TerrainPassKind.Water);
+
+            DrawTerrainPass(
+                renderDistance,
+                twilightFactor,
+                BlendState.AlphaBlend,
+                DepthStencilState.DepthRead,
+                waterOnly: false,
+                alphaCutoutOnly: true,
+                TerrainPassKind.Cutout);
+        }
+
+        private enum TerrainPassKind
+        {
+            Opaque,
+            Water,
+            Cutout
+        }
+
+        private void DrawTerrainPass(
+            int renderDistance,
+            float twilightFactor,
+            BlendState blendState,
+            DepthStencilState depthState,
+            bool waterOnly,
+            bool alphaCutoutOnly,
+            TerrainPassKind passKind)
+        {
+            _device.BlendState = blendState;
+            _device.DepthStencilState = depthState;
+
             var bandDetails = new[]
             {
                 ChunkMeshDetail.Full,
@@ -660,6 +662,11 @@ namespace Autonocraft.Engine
 
             foreach (var bandDetail in bandDetails)
             {
+                if (!BandHasDrawableChunks(bandDetail, waterOnly, alphaCutoutOnly))
+                {
+                    continue;
+                }
+
                 var (fogStart, detailFogEnd) = ChunkLod.GetFogRange(renderDistance, bandDetail, twilightFactor);
                 _blockTerrainEffect.SetFogRange(fogStart, detailFogEnd);
 
@@ -692,10 +699,51 @@ namespace Autonocraft.Engine
                     {
                         pass.Apply();
                         _device.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, count / 3);
-                        PerfCounters.TerrainDrawCalls++;
+                        Autonocraft.Core.PerfCounters.TerrainDrawCalls++;
+                        switch (passKind)
+                        {
+                            case TerrainPassKind.Water:
+                                Autonocraft.Core.PerfCounters.TerrainWaterDrawCalls++;
+                                break;
+                            case TerrainPassKind.Cutout:
+                                Autonocraft.Core.PerfCounters.TerrainCutoutDrawCalls++;
+                                break;
+                            default:
+                                Autonocraft.Core.PerfCounters.TerrainOpaqueDrawCalls++;
+                                break;
+                        }
                     }
                 }
             }
+        }
+
+        private bool BandHasDrawableChunks(ChunkMeshDetail bandDetail, bool waterOnly, bool alphaCutoutOnly)
+        {
+            foreach (var entry in _visibleChunksScratch)
+            {
+                if (waterOnly && !entry.Chunk.HasWaterBlocks)
+                {
+                    continue;
+                }
+
+                if (alphaCutoutOnly && !entry.Chunk.HasAlphaCutoutBlocks)
+                {
+                    continue;
+                }
+
+                if (entry.RenderDetail != bandDetail)
+                {
+                    continue;
+                }
+
+                var (_, _, count) = entry.Chunk.GetMesh(entry.RenderDetail);
+                if (count > 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static void ExtractFrustumPlanes(Matrix viewProjection, Microsoft.Xna.Framework.Vector4[] planes)
