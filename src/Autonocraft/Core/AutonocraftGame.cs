@@ -259,6 +259,8 @@ namespace Autonocraft.Core
             string.Equals(Environment.GetEnvironmentVariable("CI"), "true", StringComparison.OrdinalIgnoreCase)
             || string.Equals(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"), "true", StringComparison.OrdinalIgnoreCase);
 
+        private bool _fastLoadingGraphicsApplied;
+
         private void ConfigureAgentSessionGraphics()
         {
             if (!_skipMenu || _graphics == null)
@@ -272,8 +274,32 @@ namespace Autonocraft.Core
                 _settings.RenderDistance = Math.Min(_settings.RenderDistance, 4);
             }
 
+            ApplyFastLoadingGraphics();
+        }
+
+        private void ApplyFastLoadingGraphics()
+        {
+            if (_graphics == null || _fastLoadingGraphicsApplied)
+            {
+                return;
+            }
+
             _graphics.SynchronizeWithVerticalRetrace = false;
+            _graphics.ApplyChanges();
             InactiveSleepTime = TimeSpan.Zero;
+            _fastLoadingGraphicsApplied = true;
+        }
+
+        private void RestoreGameplayGraphics()
+        {
+            if (_graphics == null || !_fastLoadingGraphicsApplied)
+            {
+                return;
+            }
+
+            _graphics.SynchronizeWithVerticalRetrace = _settings.VSync;
+            _graphics.ApplyChanges();
+            _fastLoadingGraphicsApplied = false;
         }
 
         protected override void Initialize()
@@ -557,6 +583,7 @@ namespace Autonocraft.Core
             ApplyMouseCapture();
             TryActivateWindow();
             Window.Title = "Autonocraft | Playing";
+            RestoreGameplayGraphics();
             TryStartAgentServer();
 
             Console.WriteLine("[Game] World ready — WASD move, mouse look, V village, Esc pause.");
@@ -674,6 +701,7 @@ namespace Autonocraft.Core
 
         private void StartWorldLoading()
         {
+            ApplyFastLoadingGraphics();
             _loadingScreen!.Begin(_camera.Position, _settings.RenderDistance, _pendingSaveData);
             _state = GameState.WorldLoading;
             Window.Title = "Autonocraft | Loading World...";

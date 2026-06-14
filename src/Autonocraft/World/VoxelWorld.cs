@@ -16,6 +16,9 @@ namespace Autonocraft.World
         public const int DefaultTerrainChunksPerFrame = 4;
         public const int DefaultMeshChunksPerFrame = 4;
         public const int LoadingMeshChunksPerFrame = 10;
+
+        public static int GetLoadingMeshChunksPerFrame(int renderDistance) =>
+            renderDistance >= 10 ? 16 : renderDistance >= 8 ? 12 : LoadingMeshChunksPerFrame;
         public const int LoadingTerrainCompletionsPerFrame = 4;
         public const int MaxTerrainCompletionsPerFrame = 2;
         public const int MaxMeshCandidatesPerFrame = 12;
@@ -730,13 +733,25 @@ namespace Autonocraft.World
             }
         }
 
+        private void SyncPendingMeshesForRange(int agentCx, int agentCz, int renderDistance, bool restrictLod)
+        {
+            foreach (var chunk in _activeChunkList)
+            {
+                int chunkDistance = GetChunkSortDistance(chunk.ChunkX, chunk.ChunkZ, agentCx, agentCz);
+                if (chunkDistance > renderDistance)
+                {
+                    continue;
+                }
+
+                if (ChunkLod.NeedsHigherDetailBuild(chunk, chunkDistance, renderDistance, restrictLod))
+                {
+                    _pendingMesh.Add((chunk.ChunkX, chunk.ChunkZ));
+                }
+            }
+        }
+
         private void EnqueueMissingDetailMeshes(int agentCx, int agentCz, int renderDistance, bool restrictLod = false)
         {
-            if (_pendingMesh.Count > 16)
-            {
-                return;
-            }
-
             _meshRescanScratch.Clear();
             _lock.EnterReadLock();
             try
@@ -935,9 +950,13 @@ namespace Autonocraft.World
                     }
                 }
 
-                if (device != null && maxMeshJobs > 0 && _pendingMesh.Count > 0)
+                if (device != null && maxMeshJobs > 0)
                 {
-                    SelectClosestMeshJobs(agentCx, agentCz, renderDistance, restrictLod, maxMeshJobs);
+                    SyncPendingMeshesForRange(agentCx, agentCz, renderDistance, restrictLod);
+                    if (_pendingMesh.Count > 0)
+                    {
+                        SelectClosestMeshJobs(agentCx, agentCz, renderDistance, restrictLod, maxMeshJobs);
+                    }
                 }
             }
             finally
@@ -1113,6 +1132,7 @@ namespace Autonocraft.World
                 {
                     InputDebugTrace.LogChunkEvent($"mesh failed ({chunk.ChunkX},{chunk.ChunkZ}) detail={detail}: {ex.Message}");
                     Console.WriteLine($"[Streaming] Mesh build failed for chunk ({chunk.ChunkX},{chunk.ChunkZ}) detail={detail}: {ex.Message}");
+                    _requeueScratch.Add((chunk.ChunkX, chunk.ChunkZ));
                     continue;
                 }
 

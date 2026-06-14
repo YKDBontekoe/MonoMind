@@ -349,6 +349,37 @@ namespace Autonocraft.World
         /// Main-thread GPU upload of mesh data pre-built by <see cref="BuildMeshCpuOnly"/>.
         /// Also clears the corresponding in-flight flag.
         /// </summary>
+        private void MarkEmptyMeshDetail(ChunkMeshDetail detail)
+        {
+            switch (detail)
+            {
+                case ChunkMeshDetail.Surface:
+                    _surfaceVertexBuffer?.Dispose();
+                    _surfaceIndexBuffer?.Dispose();
+                    _surfaceVertexBuffer = null;
+                    _surfaceIndexBuffer = null;
+                    _surfaceIndexCount = 0;
+                    _surfaceMeshBuilt = true;
+                    break;
+                case ChunkMeshDetail.Shell:
+                    _shellVertexBuffer?.Dispose();
+                    _shellIndexBuffer?.Dispose();
+                    _shellVertexBuffer = null;
+                    _shellIndexBuffer = null;
+                    _shellIndexCount = 0;
+                    _shellMeshBuilt = true;
+                    break;
+                default:
+                    _fullVertexBuffer?.Dispose();
+                    _fullIndexBuffer?.Dispose();
+                    _fullVertexBuffer = null;
+                    _fullIndexBuffer = null;
+                    _fullIndexCount = 0;
+                    _fullMeshBuilt = true;
+                    break;
+            }
+        }
+
         internal void ApplyPrebuiltMesh(GraphicsDevice device, PrebuiltMeshData data)
         {
             bool wasStale = MeshStale;
@@ -356,41 +387,41 @@ namespace Autonocraft.World
             switch (data.Detail)
             {
                 case ChunkMeshDetail.Surface:
-                    if ((!_surfaceMeshBuilt || wasStale) && data.Indices.Length > 0)
+                    if (data.Indices.Length == 0)
+                    {
+                        MarkEmptyMeshDetail(ChunkMeshDetail.Surface);
+                    }
+                    else if (!_surfaceMeshBuilt || wasStale)
                     {
                         UploadMeshBuffers(device, data.Vertices, data.Indices,
                             ref _surfaceVertexBuffer, ref _surfaceIndexBuffer, ref _surfaceIndexCount);
                         _surfaceMeshBuilt = true;
                     }
-                    else if (data.Indices.Length == 0)
-                    {
-                        _surfaceMeshBuilt = false;
-                    }
                     SurfaceMeshBuildInFlight = false;
                     break;
                 case ChunkMeshDetail.Shell:
-                    if ((!_shellMeshBuilt || wasStale) && data.Indices.Length > 0)
+                    if (data.Indices.Length == 0)
+                    {
+                        MarkEmptyMeshDetail(ChunkMeshDetail.Shell);
+                    }
+                    else if (!_shellMeshBuilt || wasStale)
                     {
                         UploadMeshBuffers(device, data.Vertices, data.Indices,
                             ref _shellVertexBuffer, ref _shellIndexBuffer, ref _shellIndexCount);
                         _shellMeshBuilt = true;
                     }
-                    else if (data.Indices.Length == 0)
-                    {
-                        _shellMeshBuilt = false;
-                    }
                     ShellMeshBuildInFlight = false;
                     break;
                 default:
-                    if ((!_fullMeshBuilt || wasStale) && data.Indices.Length > 0)
+                    if (data.Indices.Length == 0)
+                    {
+                        MarkEmptyMeshDetail(ChunkMeshDetail.Full);
+                    }
+                    else if (!_fullMeshBuilt || wasStale)
                     {
                         UploadMeshBuffers(device, data.Vertices, data.Indices,
                             ref _fullVertexBuffer, ref _fullIndexBuffer, ref _fullIndexCount);
                         _fullMeshBuilt = true;
-                    }
-                    else if (data.Indices.Length == 0)
-                    {
-                        _fullMeshBuilt = false;
                     }
                     FullMeshBuildInFlight = false;
                     break;
