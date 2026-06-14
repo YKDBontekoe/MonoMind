@@ -14,10 +14,8 @@ $GameErrLog = Join-Path $Output "game.err.log"
 Write-Host "==> Starting game on port $Port..."
 
 $GameArgs = @(
-    "run",
-    "--project", "src/Autonocraft",
-    "--configuration", "Release",
-    "--no-build",
+    "exec",
+    "src/Autonocraft/bin/Release/net10.0/Autonocraft.dll",
     "--",
     "--skip-menu",
     "--agent-port", $Port

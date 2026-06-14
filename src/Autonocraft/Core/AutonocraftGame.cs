@@ -255,6 +255,27 @@ namespace Autonocraft.Core
             _camera.ViewPitchOffset = -_session.InteractionAnimator.PitchRecoil;
         }
 
+        private static bool IsCiEnvironment() =>
+            string.Equals(Environment.GetEnvironmentVariable("CI"), "true", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"), "true", StringComparison.OrdinalIgnoreCase);
+
+        private void ConfigureAgentSessionGraphics()
+        {
+            if (!_skipMenu || _graphics == null)
+            {
+                return;
+            }
+
+            _settings.VSync = false;
+            if (IsCiEnvironment())
+            {
+                _settings.RenderDistance = Math.Min(_settings.RenderDistance, 4);
+            }
+
+            _graphics.SynchronizeWithVerticalRetrace = false;
+            InactiveSleepTime = TimeSpan.Zero;
+        }
+
         protected override void Initialize()
         {
             if (_runTests)
@@ -264,6 +285,7 @@ namespace Autonocraft.Core
 
             _graphics!.PreferredBackBufferWidth = 1280;
             _graphics.PreferredBackBufferHeight = 720;
+            ConfigureAgentSessionGraphics();
             _graphics.SynchronizeWithVerticalRetrace = _settings.VSync;
             _graphics.ApplyChanges();
 

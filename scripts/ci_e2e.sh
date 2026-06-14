@@ -14,7 +14,7 @@ if [[ "$(uname)" == "Darwin" ]]; then
   export DYLD_LIBRARY_PATH="/opt/homebrew/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
 fi
 
-GAME_CMD=(dotnet run --project src/Autonocraft --configuration Release --no-build -- --skip-menu --agent-port "$PORT")
+GAME_CMD=(dotnet exec src/Autonocraft/bin/Release/net10.0/Autonocraft.dll -- --skip-menu --agent-port "$PORT")
 
 echo "==> Starting game on port $PORT..."
 if [[ -n "${USE_XVFB:-}" ]]; then
