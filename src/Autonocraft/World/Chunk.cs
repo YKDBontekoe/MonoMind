@@ -23,6 +23,9 @@ namespace Autonocraft.World
         public int ChunkZ { get; }
 
         private readonly BlockType[] _blocks;
+        // Cached highest solid Y per column (lx + lz * Width). -1 = no solid block.
+        private readonly short[] _columnHighestSolid = new short[Width * Depth];
+        private bool _columnHeightsBuilt;
 
         private VertexBuffer? _fullVertexBuffer;
         private IndexBuffer? _fullIndexBuffer;
@@ -91,6 +94,41 @@ namespace Autonocraft.World
             ChunkX = chunkX;
             ChunkZ = chunkZ;
             _blocks = new BlockType[Width * Height * Depth];
+            Array.Fill(_columnHighestSolid, (short)-1);
+        }
+
+        /// <summary>Rebuilds per-column height cache after terrain generation or bulk edits.</summary>
+        internal void RebuildColumnHeights()
+        {
+            for (int lz = 0; lz < Depth; lz++)
+            {
+                for (int lx = 0; lx < Width; lx++)
+                {
+                    int best = -1;
+                    for (int y = Height - 1; y >= 0; y--)
+                    {
+                        if (_blocks[GetIndex(lx, y, lz)].IsSolidForSpawn())
+                        {
+                            best = y;
+                            break;
+                        }
+                    }
+
+                    _columnHighestSolid[lz * Width + lx] = (short)best;
+                }
+            }
+
+            _columnHeightsBuilt = true;
+        }
+
+        internal int GetCachedHighestSolidY(int lx, int lz)
+        {
+            if (!_columnHeightsBuilt)
+            {
+                RebuildColumnHeights();
+            }
+
+            return _columnHighestSolid[lz * Width + lx];
         }
 
         private int GetIndex(int x, int y, int z)
@@ -113,9 +151,42 @@ namespace Autonocraft.World
 
         public void SetBlock(int x, int y, int z, BlockType type)
         {
-            if (IsInLocalBounds(x, y, z))
+            if (!IsInLocalBounds(x, y, z))
             {
-                _blocks[GetIndex(x, y, z)] = type;
+                return;
+            }
+
+            _blocks[GetIndex(x, y, z)] = type;
+            if (_columnHeightsBuilt)
+            {
+                UpdateColumnHeightCache(x, y, z, type);
+            }
+        }
+
+        private void UpdateColumnHeightCache(int lx, int y, int lz, BlockType type)
+        {
+            int idx = lz * Width + lx;
+            int current = _columnHighestSolid[idx];
+            bool solid = type.IsSolidForSpawn();
+
+            if (solid && y >= current)
+            {
+                _columnHighestSolid[idx] = (short)y;
+                return;
+            }
+
+            if (!solid && y == current)
+            {
+                for (int scanY = y - 1; scanY >= 0; scanY--)
+                {
+                    if (_blocks[GetIndex(lx, scanY, lz)].IsSolidForSpawn())
+                    {
+                        _columnHighestSolid[idx] = (short)scanY;
+                        return;
+                    }
+                }
+
+                _columnHighestSolid[idx] = -1;
             }
         }
 
