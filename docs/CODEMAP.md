@@ -17,7 +17,8 @@ Agent-oriented navigation index. Pair with [AGENTS.md](../AGENTS.md) for build/t
 | `GameRenderContext.cs` | Read-only snapshot for rendering (decouples Engine from game) |
 | `GameConstants.cs` | Spawn coords, autosave interval |
 | `SaveSnapshot.cs` | DTO for save serialization |
-| `Player.cs` | Physics, inventory, skills, swimming |
+| `Player.cs` | Physics, inventory, skills, swimming, stats tracking |
+| `PlayerStatistics.cs` | Lifetime counters (distance, kills, play time, etc.) |
 | `BlockInteractionSystem.cs` | Raycast, mining, placing, sigils, station interaction |
 | `CombatSystem.cs` | Melee combat, fall effects, respawn |
 | `AgentHttpServer.cs` | HTTP API on port 5000 |
@@ -150,7 +151,8 @@ Agent-oriented navigation index. Pair with [AGENTS.md](../AGENTS.md) for build/t
 
 | File | Description |
 |------|-------------|
-| `SaveSlotScreen.cs` | Main menu save slots |
+| `SaveSlotScreen.cs` | Main menu save slots, lifetime stats strip |
+| `PlayerDashboardScreen.cs` | Home-screen player stats overlay (STATS button) |
 | `NewWorldSetupScreen.cs` | Seed and world type picker |
 | `LoadingScreen.cs` | Chunk load progress |
 | `PauseMenuScreen.cs` | Pause overlay |
@@ -252,7 +254,7 @@ Agent-oriented navigation index. Pair with [AGENTS.md](../AGENTS.md) for build/t
 | Inventory | `RunInventory` |
 | Tools/skills | `RunToolMiningSpeed`, `RunToolDurability`, `RunSkillProgression` |
 | Mining/placing | `RunMiningAndPlacing`, `RunClickPriority` |
-| Saves | `RunWorldSaveRoundTrip` |
+| Saves | `RunWorldSaveRoundTrip`, `RunPlayerStatisticsRoundTrip` |
 | Animals | `RunAnimalGravity`, `RunAnimalWanderCollision`, `RunAnimalSpawnCap` |
 | Combat | `RunPlayerTakeDamage`, `RunEntityRaycast`, `RunMeleeKillAnimal` |
 | Crafting | `RunSigilBenchActivation`, `RunCruciblePlankRecipe`, `RunNewCraftRecipes` |

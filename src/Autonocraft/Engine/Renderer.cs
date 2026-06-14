@@ -12,13 +12,19 @@ namespace Autonocraft.Engine
         private readonly HudRenderer _hudRenderer;
         private Texture2D _atlasTexture;
 
-        public Renderer(GraphicsDevice device, Texture2D atlas, Texture2D white, BlockTerrainEffect blockTerrainEffect, SkyEffect skyEffect)
+        public Renderer(GraphicsDevice device, Texture2D atlas, Texture2D white, BlockTerrainEffect blockTerrainEffect, SkyEffect skyEffect, bool highQualityLighting = false)
         {
             _device = device;
             _atlasTexture = atlas;
             _blockTerrainEffect = blockTerrainEffect;
-            _worldRenderer = new WorldRenderer(device, atlas, white, blockTerrainEffect, skyEffect);
+            _worldRenderer = new WorldRenderer(device, atlas, white, blockTerrainEffect, skyEffect, highQualityLighting);
             _hudRenderer = new HudRenderer(device, atlas, white);
+        }
+
+        public void SetPreferPerPixelLighting(bool enabled)
+        {
+            _blockTerrainEffect.SetPreferPerPixelLighting(enabled);
+            _worldRenderer.SetPreferPerPixelLighting(enabled);
         }
 
         public void Draw(GameRenderContext ctx)

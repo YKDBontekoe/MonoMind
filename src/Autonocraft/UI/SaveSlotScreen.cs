@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using Autonocraft.Core;
 using Autonocraft.Engine;
 using Autonocraft.Engine.Animation;
 using Autonocraft.World;
@@ -14,17 +15,18 @@ namespace Autonocraft.UI
         private const float PrimaryButtonWidth = 168f;
         private const float SecondaryButtonWidth = 128f;
         private const float ButtonHeight = 40f;
-        private const float ButtonSpacing = 10f;
+        private const float ButtonSpacing = 14f;
         private const float PanelWidth = 680f;
         private const float PanelHeight = 440f;
         private const float SlotRowHeight = 56f;
         private const int MaxVisibleSlots = 5;
         private const float DoubleClickWindow = 0.4f;
+        private const int MaxRenameLength = 32;
 
         private readonly UiRenderer _ui;
         private readonly MenuBackdrop _backdrop = new MenuBackdrop();
         private readonly UiTransition _panelTransition = new UiTransition();
-        private readonly float[] _buttonHoverT = new float[5];
+        private readonly float[] _buttonHoverT = new float[6];
         private readonly float[] _slotHoverT = new float[MaxVisibleSlots];
 
         private float _animTime;
@@ -42,12 +44,38 @@ namespace Autonocraft.UI
         private float _lastClickTime = -1f;
         private int _lastClickedSlot = -1;
         private float _errorFlashT;
+        private PlayerStatistics _lifetimeStats = new();
+        private PlayerStatistics _selectedWorldStats = new();
+        private int _worldCount;
+        private bool _renaming;
+        private string _renameBuffer = string.Empty;
 
         public bool LoadRequested { get; private set; }
         public bool NewWorldRequested { get; private set; }
         public bool SettingsRequested { get; private set; }
+        public bool StatsRequested { get; private set; }
         public bool QuitRequested { get; private set; }
         public string? SelectedSlotId { get; private set; }
+
+        public string? GetSelectedSlotId()
+        {
+            if (_slots.Count == 0 || _selectedIndex < 0 || _selectedIndex >= _slots.Count)
+            {
+                return null;
+            }
+
+            return _slots[_selectedIndex].SlotId;
+        }
+
+        public string? GetSelectedSlotName()
+        {
+            if (_slots.Count == 0 || _selectedIndex < 0 || _selectedIndex >= _slots.Count)
+            {
+                return null;
+            }
+
+            return _slots[_selectedIndex].SlotName;
+        }
 
         public SaveSlotScreen(UiRenderer ui)
         {
@@ -72,6 +100,29 @@ namespace Autonocraft.UI
             }
 
             _panelTransition.BeginFadeIn(0.3f);
+            RefreshLifetimeStats();
+            RefreshSelectedWorldStats();
+        }
+
+        private void RefreshLifetimeStats()
+        {
+            (_lifetimeStats, _worldCount) = WorldSaveManager.AggregateLifetimeStatistics();
+        }
+
+        private void RefreshSelectedWorldStats()
+        {
+            _selectedWorldStats = new PlayerStatistics();
+            if (_slots.Count == 0 || _selectedIndex < 0 || _selectedIndex >= _slots.Count)
+            {
+                return;
+            }
+
+            var slot = _slots[_selectedIndex];
+            if (!slot.IsCorrupt)
+            {
+                WorldSaveManager.TryLoadPlayerStatistics(slot.SlotId, out var stats, out _);
+                _selectedWorldStats = stats;
+            }
         }
 
         public void SetLoadError(string message)
@@ -91,6 +142,7 @@ namespace Autonocraft.UI
             {
                 _selectedBorderT = 0f;
                 _prevSelectedIndex = _selectedIndex;
+                RefreshSelectedWorldStats();
             }
 
             if (_prevScrollOffset != _scrollOffset)
@@ -118,6 +170,7 @@ namespace Autonocraft.UI
             LoadRequested = false;
             NewWorldRequested = false;
             SettingsRequested = false;
+            StatsRequested = false;
             QuitRequested = false;
             SelectedSlotId = null;
 
@@ -198,10 +251,15 @@ namespace Autonocraft.UI
                 }
                 else if (_hoveredButton == 3)
                 {
-                    SettingsRequested = true;
+                    StatsRequested = true;
                     _confirmingDelete = false;
                 }
                 else if (_hoveredButton == 4)
+                {
+                    SettingsRequested = true;
+                    _confirmingDelete = false;
+                }
+                else if (_hoveredButton == 5)
                 {
                     QuitRequested = true;
                 }
@@ -209,7 +267,14 @@ namespace Autonocraft.UI
 
             if (kb.IsKeyDown(Keys.Enter) && !prevKb.IsKeyDown(Keys.Enter) && _slots.Count > 0)
             {
-                TryRequestLoad();
+                if (_renaming)
+                {
+                    TryConfirmRename();
+                }
+                else
+                {
+                    TryRequestLoad();
+                }
             }
 
             if (kb.IsKeyDown(Keys.Delete) && !prevKb.IsKeyDown(Keys.Delete) && _slots.Count > 0)
@@ -228,13 +293,33 @@ namespace Autonocraft.UI
 
             if (kb.IsKeyDown(Keys.Escape) && !prevKb.IsKeyDown(Keys.Escape))
             {
-                if (_confirmingDelete)
+                if (_renaming)
+                {
+                    _renaming = false;
+                    _renameBuffer = string.Empty;
+                }
+                else if (_confirmingDelete)
                 {
                     _confirmingDelete = false;
                 }
                 else
                 {
                     QuitRequested = true;
+                }
+            }
+
+            if (_renaming)
+            {
+                HandleRenameInput(kb, prevKb);
+            }
+            else if (kb.IsKeyDown(Keys.F2) && !prevKb.IsKeyDown(Keys.F2) && _slots.Count > 0)
+            {
+                var slot = _slots[_selectedIndex];
+                if (!slot.IsCorrupt)
+                {
+                    _renaming = true;
+                    _renameBuffer = slot.SlotName;
+                    _confirmingDelete = false;
                 }
             }
 
@@ -270,16 +355,19 @@ namespace Autonocraft.UI
             _ui.DrawSoftGlow(accentX, accentY, accentW, layout.S(2f), new Color(0.15f, 0.7f, 1.0f), alpha * 0.5f, 2);
             _ui.DrawFilledRect(accentX, accentY, accentW, layout.S(2f), new Color(0.2f, 0.72f, 1.0f) * (0.85f * alpha));
 
+            DrawLifetimeStrip(layout, accentY, alpha, offsetY);
+
             _ui.DrawFramedPanel(
                 metrics.PanelX,
                 metrics.PanelY,
                 metrics.PanelW,
                 metrics.PanelH,
-                new Color(0.04f, 0.06f, 0.1f) * 0.94f,
-                new Color(0.2f, 0.45f, 0.65f),
+                UiTheme.PanelFill * 0.94f,
+                UiTheme.PanelBorder,
                 alpha);
 
             DrawPanelHeader(metrics, layout, alpha);
+            DrawWorldDetailStrip(metrics, layout, alpha);
             DrawSlotList(metrics, layout, alpha, offsetY);
             DrawActionDivider(metrics, layout, alpha);
             DrawActionButtons(metrics, layout, alpha);
@@ -297,35 +385,58 @@ namespace Autonocraft.UI
 
             string hint = _slots.Count == 0
                 ? "CREATE YOUR FIRST WORLD TO BEGIN"
-                : "ARROWS SELECT  ENTER CONTINUE  DBL-CLICK LOAD  DEL DELETE";
-            _ui.DrawCenteredText(hint, layout.Height - layout.S(28f) + offsetY, layout.S(0.92f), new Color(0.36f, 0.42f, 0.5f), 0.82f * alpha);
-            _ui.DrawString("VOXEL SANDBOX", layout.S(16f), layout.Height - layout.S(22f) + offsetY, layout.S(0.85f), new Color(0.28f, 0.34f, 0.42f), 0.7f * alpha);
+                : _renaming
+                    ? "ENTER SAVE  ESC CANCEL"
+                    : "ARROWS SELECT  ENTER CONTINUE  F2 RENAME  DBL-CLICK LOAD  DEL DELETE";
+            _ui.DrawCenteredText(hint, layout.Height - layout.S(28f) + offsetY, layout.S(0.92f), UiTheme.Hint, 0.82f * alpha);
+            _ui.DrawString("VOXEL SANDBOX", layout.S(16f), layout.Height - layout.S(22f) + offsetY, layout.S(0.85f), UiTheme.Hint * 0.85f, 0.7f * alpha);
         }
 
         private void DrawPanelHeader(MenuMetrics metrics, UiLayout layout, float alpha)
         {
-            float headerY = metrics.PanelY + layout.S(16f);
-            _ui.DrawString("YOUR WORLDS", metrics.PanelX + layout.S(22f), headerY, layout.S(1.3f), new Color(0.68f, 0.8f, 0.92f), alpha);
+            float headerY = metrics.PanelY + layout.S(14f);
+            UiTheme.DrawSectionHeader(_ui, "YOUR WORLDS", metrics.PanelX + layout.S(22f), headerY, layout, alpha, 1.35f);
 
             if (_slots.Count > 0)
             {
-                var selected = _slots[_selectedIndex];
-                string subtitle = Truncate(selected.SlotName, 28);
-                _ui.DrawString(subtitle, metrics.PanelX + layout.S(22f), headerY + layout.S(20f), layout.S(0.95f), new Color(0.42f, 0.5f, 0.58f), alpha * 0.9f);
-
                 string count = $"{_selectedIndex + 1}/{_slots.Count}";
                 float countW = _ui.MeasureString(count, layout.S(1.0f));
-                _ui.DrawString(count, metrics.PanelX + metrics.PanelW - layout.S(22f) - countW, headerY + layout.S(4f), layout.S(1.0f), new Color(0.42f, 0.5f, 0.58f), alpha);
+                _ui.DrawString(count, metrics.PanelX + metrics.PanelW - layout.S(22f) - countW, headerY + layout.S(2f), layout.S(1.0f), UiTheme.Meta, alpha);
+
+                if (_slots.Count > MaxVisibleSlots)
+                {
+                    int first = _scrollOffset + 1;
+                    int last = Math.Min(_scrollOffset + MaxVisibleSlots, _slots.Count);
+                    string scrollHint = $"{first}-{last} OF {_slots.Count}";
+                    float hintW = _ui.MeasureString(scrollHint, layout.S(0.9f));
+                    _ui.DrawString(scrollHint, metrics.PanelX + metrics.PanelW - layout.S(22f) - hintW, headerY + layout.S(18f), layout.S(0.9f), UiTheme.Meta * 0.9f, alpha * 0.85f);
+                }
+            }
+        }
+
+        private void DrawWorldDetailStrip(MenuMetrics metrics, UiLayout layout, float alpha)
+        {
+            if (_slots.Count == 0)
+            {
+                return;
             }
 
-            if (_slots.Count > MaxVisibleSlots)
+            float stripY = metrics.DetailStripY;
+            float stripX = metrics.PanelX + layout.S(18f);
+            float stripW = metrics.PanelW - layout.S(36f);
+            float stripH = layout.S(22f);
+
+            _ui.DrawPanel(stripX, stripY, stripW, stripH, new Color(0.03f, 0.05f, 0.08f) * 0.9f, new Color(0.14f, 0.22f, 0.3f), 0.6f, alpha);
+
+            if (_renaming)
             {
-                int first = _scrollOffset + 1;
-                int last = Math.Min(_scrollOffset + MaxVisibleSlots, _slots.Count);
-                string scrollHint = $"{first}-{last} OF {_slots.Count}";
-                float hintW = _ui.MeasureString(scrollHint, layout.S(0.9f));
-                _ui.DrawString(scrollHint, metrics.PanelX + metrics.PanelW - layout.S(22f) - hintW, headerY + layout.S(22f), layout.S(0.9f), new Color(0.38f, 0.45f, 0.52f), alpha * 0.85f);
+                string display = _renameBuffer + "_";
+                _ui.DrawString(display, stripX + layout.S(10f), stripY + layout.S(5f), layout.S(0.95f), UiTheme.Accent, alpha);
+                return;
             }
+
+            string worldStats = $"THIS WORLD  ·  {PlayerStatistics.FormatDuration(_selectedWorldStats.TotalPlayTimeSeconds)}  ·  {PlayerStatistics.FormatDistance(_selectedWorldStats.DistanceWalked)}  ·  {PlayerStatistics.FormatCount(_selectedWorldStats.AnimalsKilled)} kills";
+            _ui.DrawString(worldStats, stripX + layout.S(10f), stripY + layout.S(5f), layout.S(0.92f), UiTheme.Subtitle * 0.9f, alpha * 0.88f);
         }
 
         private void DrawSlotList(MenuMetrics metrics, UiLayout layout, float alpha, float offsetY)
@@ -344,11 +455,13 @@ namespace Autonocraft.UI
                 if (_scrollOffset > 0)
                 {
                     _ui.DrawFilledRect(slotListX, slotListTop, slotListW, layout.S(10f), Color.Black * (0.35f * alpha));
+                    _ui.DrawCenteredText("^", slotListTop + layout.S(1f), layout.S(0.85f), UiTheme.Accent * 0.7f, alpha * 0.75f);
                 }
 
                 if (_scrollOffset < _slots.Count - MaxVisibleSlots)
                 {
                     _ui.DrawFilledRect(slotListX, slotListTop + slotListHeight - layout.S(10f), slotListW, layout.S(10f), Color.Black * (0.35f * alpha));
+                    _ui.DrawCenteredText("V", slotListTop + slotListHeight - layout.S(9f), layout.S(0.85f), UiTheme.Accent * 0.7f, alpha * 0.75f);
                 }
             }
 
@@ -412,7 +525,7 @@ namespace Autonocraft.UI
                     ? new Color(0.95f, 0.45f, 0.45f)
                     : new Color(0.88f, 0.93f, 1.0f);
                 _ui.DrawString(title, textX, rowY + layout.S(9f), layout.S(1.2f), titleColor, rowAlpha);
-                _ui.DrawString(meta, textX, rowY + layout.S(27f), layout.S(0.88f), new Color(0.42f, 0.5f, 0.58f), rowAlpha * 0.95f);
+                _ui.DrawString(meta, textX, rowY + layout.S(27f), layout.S(0.95f), UiTheme.Meta, rowAlpha * 0.95f);
 
                 if (selected)
                 {
@@ -438,12 +551,35 @@ namespace Autonocraft.UI
             DrawButton(metrics.ButtonRects[0], "NEW WORLD", _hoveredButton == 0, layout.S(1.35f), _buttonHoverT[0], alpha, primary: true);
             DrawButton(metrics.ButtonRects[1], "CONTINUE", _hoveredButton == 1, layout.S(1.35f), _buttonHoverT[1], alpha, !hasSlots, accent: hasSlots);
             DrawButton(metrics.ButtonRects[2], deleteLabel, _hoveredButton == 2, layout.S(1.2f), _buttonHoverT[2], alpha, !hasSlots, danger: _confirmingDelete);
-            DrawButton(metrics.ButtonRects[3], "SETTINGS", _hoveredButton == 3, layout.S(1.2f), _buttonHoverT[3], alpha);
-            DrawButton(metrics.ButtonRects[4], "QUIT", _hoveredButton == 4, layout.S(1.25f), _buttonHoverT[4], alpha);
+            DrawButton(metrics.ButtonRects[3], "STATS", _hoveredButton == 3, layout.S(1.2f), _buttonHoverT[3], alpha, !hasSlots, accent: hasSlots);
+            DrawButton(metrics.ButtonRects[4], "SETTINGS", _hoveredButton == 4, layout.S(1.2f), _buttonHoverT[4], alpha);
+            DrawButton(metrics.ButtonRects[5], "QUIT", _hoveredButton == 5, layout.S(1.25f), _buttonHoverT[5], alpha);
+        }
+
+        private void DrawLifetimeStrip(UiLayout layout, float accentY, float alpha, float offsetY)
+        {
+            float stripY = accentY + layout.S(14f) + offsetY;
+            float stripW = layout.S(620f);
+            float stripH = layout.S(24f);
+            float stripX = layout.CenterX - stripW / 2f;
+
+            _ui.DrawFramedPanel(stripX, stripY, stripW, stripH, UiTheme.PanelFill * 0.88f, UiTheme.PanelBorder, alpha * 0.75f);
+
+            string lifetimeText = _worldCount == 0
+                ? "LIFETIME  |  NO WORLDS YET"
+                : $"LIFETIME  |  {PlayerStatistics.FormatDuration(_lifetimeStats.TotalPlayTimeSeconds)} played  |  {PlayerStatistics.FormatDistance(_lifetimeStats.DistanceWalked)} walked  |  {PlayerStatistics.FormatCount(_lifetimeStats.AnimalsKilled)} kills  |  {_worldCount} worlds";
+
+            _ui.DrawCenteredText(lifetimeText, stripY + layout.S(5f), layout.S(0.92f), UiTheme.Subtitle, alpha * 0.92f);
         }
 
         private void DrawButton(Rectangle rect, string label, bool hovered, float textSize, float hoverT, float alpha, bool disabled = false, bool accent = false, bool danger = false, bool primary = false)
         {
+            if (disabled)
+            {
+                _ui.DrawButton(rect.X, rect.Y, rect.Width, rect.Height, label, false, false, textSize, alpha * 0.45f, 0f);
+                return;
+            }
+
             if (primary)
             {
                 float glow = 0.45f + 0.55f * hoverT;
@@ -469,28 +605,29 @@ namespace Autonocraft.UI
             float panelW = layout.S(PanelWidth);
             float panelH = layout.S(PanelHeight);
             float panelX = layout.CenterX - panelW / 2f;
-            float panelY = layout.Height * 0.205f;
+            float panelY = layout.Height * 0.235f;
 
             float primaryW = layout.S(PrimaryButtonWidth);
             float secondaryW = layout.S(SecondaryButtonWidth);
             float buttonH = layout.S(ButtonHeight);
             float spacing = layout.S(ButtonSpacing);
-            float rowGap = layout.S(14f);
+            float rowGap = layout.S(18f);
 
-            float row1Y = panelY + panelH - layout.S(108f);
+            float row1Y = panelY + panelH - layout.S(112f);
             float row2Y = row1Y + buttonH + rowGap;
             float row1TotalW = primaryW * 2f + secondaryW + spacing * 2f;
             float row1X = layout.CenterX - row1TotalW / 2f;
 
-            var buttons = new Rectangle[5];
+            var buttons = new Rectangle[6];
             buttons[0] = new Rectangle((int)row1X, (int)row1Y, (int)primaryW, (int)buttonH);
             buttons[1] = new Rectangle((int)(row1X + primaryW + spacing), (int)row1Y, (int)primaryW, (int)buttonH);
             buttons[2] = new Rectangle((int)(row1X + (primaryW + spacing) * 2f), (int)row1Y, (int)secondaryW, (int)buttonH);
 
-            float row2TotalW = primaryW + secondaryW + spacing;
+            float row2TotalW = primaryW * 2f + secondaryW + spacing * 2f;
             float row2X = layout.CenterX - row2TotalW / 2f;
             buttons[3] = new Rectangle((int)row2X, (int)row2Y, (int)primaryW, (int)buttonH);
-            buttons[4] = new Rectangle((int)(row2X + primaryW + spacing), (int)row2Y, (int)secondaryW, (int)buttonH);
+            buttons[4] = new Rectangle((int)(row2X + primaryW + spacing), (int)row2Y, (int)primaryW, (int)buttonH);
+            buttons[5] = new Rectangle((int)(row2X + (primaryW + spacing) * 2f), (int)row2Y, (int)secondaryW, (int)buttonH);
 
             return new MenuMetrics
             {
@@ -498,8 +635,74 @@ namespace Autonocraft.UI
                 PanelY = panelY,
                 PanelW = panelW,
                 PanelH = panelH,
-                SlotListTop = panelY + layout.S(58f),
+                DetailStripY = panelY + layout.S(52f),
+                SlotListTop = panelY + layout.S(80f),
                 ButtonRects = buttons
+            };
+        }
+
+        private void TryConfirmRename()
+        {
+            if (!_renaming || _slots.Count == 0)
+            {
+                return;
+            }
+
+            var slot = _slots[_selectedIndex];
+            if (WorldSaveManager.TryRenameSlot(slot.SlotId, _renameBuffer, out string error))
+            {
+                _renaming = false;
+                _renameBuffer = string.Empty;
+                RefreshSlots();
+            }
+            else
+            {
+                SetLoadError(error);
+            }
+        }
+
+        private void HandleRenameInput(KeyboardState kb, KeyboardState prevKb)
+        {
+            if (kb.IsKeyDown(Keys.Back) && !prevKb.IsKeyDown(Keys.Back) && _renameBuffer.Length > 0)
+            {
+                _renameBuffer = _renameBuffer[..^1];
+                return;
+            }
+
+            foreach (Keys key in Enum.GetValues<Keys>())
+            {
+                if (!kb.IsKeyDown(key) || prevKb.IsKeyDown(key))
+                {
+                    continue;
+                }
+
+                char? ch = KeyToChar(key, kb.IsKeyDown(Keys.LeftShift) || kb.IsKeyDown(Keys.RightShift));
+                if (ch.HasValue && _renameBuffer.Length < MaxRenameLength)
+                {
+                    _renameBuffer += ch.Value;
+                }
+            }
+        }
+
+        private static char? KeyToChar(Keys key, bool shift)
+        {
+            if (key >= Keys.A && key <= Keys.Z)
+            {
+                char c = (char)('a' + (key - Keys.A));
+                return shift ? char.ToUpper(c) : c;
+            }
+
+            if (key >= Keys.D0 && key <= Keys.D9)
+            {
+                return (char)('0' + (key - Keys.D0));
+            }
+
+            return key switch
+            {
+                Keys.OemMinus => shift ? '_' : '-',
+                Keys.OemPeriod => '.',
+                Keys.Space => ' ',
+                _ => null
             };
         }
 
@@ -590,6 +793,7 @@ namespace Autonocraft.UI
             public float PanelY { get; init; }
             public float PanelW { get; init; }
             public float PanelH { get; init; }
+            public float DetailStripY { get; init; }
             public float SlotListTop { get; init; }
             public Rectangle[] ButtonRects { get; init; }
         }

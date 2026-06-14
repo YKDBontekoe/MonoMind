@@ -13,6 +13,10 @@ namespace Autonocraft.Core
         public static float MeshBuildMs;
         public static float LastFrameMeshBuildMs;
         public static float PeakMeshBuildMs;
+        public static float LastUpdateMs;
+        public static float LastDrawMs;
+        public static float PeakUpdateMs;
+        public static float PeakDrawMs;
 
         public static void ResetFrame()
         {
@@ -21,6 +25,24 @@ namespace Autonocraft.Core
             TerrainDrawCalls = 0;
             ChunksMeshedThisFrame = 0;
             MeshBuildMs = 0f;
+        }
+
+        public static void RecordUpdate(float milliseconds)
+        {
+            LastUpdateMs = milliseconds;
+            if (milliseconds > PeakUpdateMs)
+            {
+                PeakUpdateMs = milliseconds;
+            }
+        }
+
+        public static void RecordDraw(float milliseconds)
+        {
+            LastDrawMs = milliseconds;
+            if (milliseconds > PeakDrawMs)
+            {
+                PeakDrawMs = milliseconds;
+            }
         }
 
         public static void RecordMeshBuild(float milliseconds)

@@ -49,6 +49,7 @@ public static class IntegrationTestRunner
                 InventoryTests.RunToolDurability(player);
                 InventoryTests.RunSkillProgression(player);
                 SaveTests.RunWorldSaveRoundTrip(game, player, world);
+                SaveTests.RunPlayerStatisticsRoundTrip(game, player, world);
                 SaveTests.RunCorruptSaveSelectedSlotClamped();
                 SaveTests.RunSyncSaveFailureDoesNotThrow();
                 SaveTests.RunLoadFailureForMissingSlot();

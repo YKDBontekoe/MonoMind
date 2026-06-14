@@ -213,6 +213,46 @@ namespace Autonocraft.Engine
                             palette,
                             ShiftColor(new Color(72, 72, 76), seedShift)));
                     }
+                case "oak_log_top":
+                    return FromSynth(ProceduralTextureSynth.WoodLogTop(
+                        _tileSize,
+                        name,
+                        ShiftColor(new Color(96, 72, 48), seedShift),
+                        ShiftColor(new Color(68, 48, 30), seedShift),
+                        ShiftColor(new Color(156, 118, 72), seedShift),
+                        ShiftColor(new Color(118, 86, 52), seedShift)));
+                case "birch_log_top":
+                    return FromSynth(ProceduralTextureSynth.WoodLogTop(
+                        _tileSize,
+                        name,
+                        ShiftColor(new Color(210, 205, 188), seedShift),
+                        ShiftColor(new Color(184, 178, 162), seedShift),
+                        ShiftColor(new Color(198, 188, 168), seedShift),
+                        ShiftColor(new Color(158, 148, 128), seedShift)));
+                case "pine_log_top":
+                    return FromSynth(ProceduralTextureSynth.WoodLogTop(
+                        _tileSize,
+                        name,
+                        ShiftColor(new Color(78, 58, 36), seedShift),
+                        ShiftColor(new Color(52, 38, 22), seedShift),
+                        ShiftColor(new Color(128, 96, 58), seedShift),
+                        ShiftColor(new Color(92, 68, 40), seedShift)));
+                case "willow_log_top":
+                    return FromSynth(ProceduralTextureSynth.WoodLogTop(
+                        _tileSize,
+                        name,
+                        ShiftColor(new Color(68, 52, 38), seedShift),
+                        ShiftColor(new Color(44, 32, 22), seedShift),
+                        ShiftColor(new Color(136, 106, 68), seedShift),
+                        ShiftColor(new Color(102, 78, 48), seedShift)));
+                case "palm_log_top":
+                    return FromSynth(ProceduralTextureSynth.WoodLogTop(
+                        _tileSize,
+                        name,
+                        ShiftColor(new Color(168, 138, 88), seedShift),
+                        ShiftColor(new Color(138, 108, 68), seedShift),
+                        ShiftColor(new Color(208, 182, 128), seedShift),
+                        ShiftColor(new Color(178, 148, 96), seedShift)));
                 case "oak_log":
                     return FromSynth(ProceduralTextureSynth.WoodLog(
                         _tileSize,
@@ -383,6 +423,14 @@ namespace Autonocraft.Engine
                         int margin = _tileSize / 6;
                         DrawRectOutline(image, margin, margin, _tileSize - margin, _tileSize - margin, ShiftColor(new Color(72, 52, 34), seedShift), 4);
                         DrawHorizontalLine(image, margin, _tileSize / 2, _tileSize - margin, _tileSize / 2, ShiftColor(new Color(148, 112, 72), seedShift), 3);
+
+                        // Draw tiny hammer details on the workbench (matching Python exactly)
+                        DrawHorizontalLine(image, margin + 12, margin + 12, margin + 12, margin + 28, ShiftColor(new Color(124, 88, 52), seedShift), 2);
+                        DrawHorizontalLine(image, margin + 6, margin + 12, margin + 18, margin + 12, ShiftColor(new Color(156, 156, 162), seedShift), 4);
+
+                        // Draw blueprint details
+                        FillRect(image, _tileSize - margin - 30, _tileSize - margin - 22, 25, 17, ShiftColor(new Color(42, 98, 176), seedShift));
+                        DrawRectOutline(image, _tileSize - margin - 26, _tileSize - margin - 18, _tileSize - margin - 10, _tileSize - margin - 10, new Color(220, 240, 255, 180), 1);
                         return image;
                     }
                 case "station_forge":
@@ -605,17 +653,17 @@ namespace Autonocraft.Engine
                 case "ice":
                     return FromSynth(ProceduralTextureSynth.IceTile(_tileSize, name));
                 case "sheep_body":
-                    return FromSynth(ProceduralTextureSynth.AnimalHide(_tileSize, name, new Color(220, 220, 220), new Color(180, 180, 180)));
+                    return FromSynth(ProceduralTextureSynth.SheepBody(_tileSize, name, new Color(220, 220, 220), new Color(180, 180, 180)));
                 case "sheep_head":
-                    return FromSynth(ProceduralTextureSynth.AnimalHide(_tileSize, name, new Color(210, 210, 210), new Color(170, 170, 170)));
+                    return FromSynth(ProceduralTextureSynth.AnimalHead(_tileSize, name, new Color(210, 210, 210), new Color(170, 170, 170), "sheep"));
                 case "pig_body":
-                    return FromSynth(ProceduralTextureSynth.AnimalHide(_tileSize, name, new Color(240, 170, 170), new Color(200, 120, 120)));
+                    return FromSynth(ProceduralTextureSynth.PigBody(_tileSize, name, new Color(240, 170, 170), new Color(200, 120, 120)));
                 case "pig_head":
-                    return FromSynth(ProceduralTextureSynth.AnimalHide(_tileSize, name, new Color(230, 160, 160), new Color(190, 110, 110)));
+                    return FromSynth(ProceduralTextureSynth.AnimalHead(_tileSize, name, new Color(230, 160, 160), new Color(190, 110, 110), "pig"));
                 case "chicken_body":
-                    return FromSynth(ProceduralTextureSynth.AnimalHide(_tileSize, name, new Color(240, 220, 120), new Color(200, 160, 60)));
+                    return FromSynth(ProceduralTextureSynth.ChickenBody(_tileSize, name, new Color(240, 220, 120), new Color(200, 160, 60)));
                 case "chicken_head":
-                    return FromSynth(ProceduralTextureSynth.AnimalHide(_tileSize, name, new Color(230, 210, 110), new Color(190, 150, 50)));
+                    return FromSynth(ProceduralTextureSynth.AnimalHead(_tileSize, name, new Color(230, 210, 110), new Color(190, 150, 50), "chicken"));
                 default:
                     {
                         string stem = name.Split('.')[0];
@@ -662,13 +710,23 @@ namespace Autonocraft.Engine
                 case "pickaxe":
                     DrawToolLine(image, cx - 3 * s, cy + 4 * s, cx + s, cy - s, handle, s);
                     DrawToolLine(image, cx - 3 * s + 1, cy + 4 * s + 1, cx + s + 1, cy - s + 1, handleDark, Math.Max(1, s / 3));
-                    FillRect(image, cx - 4 * s, cy - 3 * s, 8 * s + 1, 2 * s + 1, head);
-                    FillRect(image, cx - 4 * s, cy - 3 * s, 8 * s + 1, s, highlight);
-                    FillTriangle(image, cx - 4 * s, cy - 2 * s, cx - 5 * s, cy + s, cx - 3 * s, cy - s, headDark);
-                    FillTriangle(image, cx + 4 * s, cy - 2 * s, cx + 5 * s, cy + s, cx + 3 * s, cy - s, headDark);
+                    FillPolygon(image, new[]
+                    {
+                        (cx - 5 * s, cy - s),
+                        (cx - 3 * s, cy - 3 * s),
+                        (cx + 3 * s, cy - 3 * s),
+                        (cx + 5 * s, cy - s),
+                        (cx + 4 * s, cy),
+                        (cx, cy - 2 * s),
+                        (cx - 4 * s, cy)
+                    }, head);
+                    DrawToolLine(image, cx - 4 * s, cy - 2 * s, cx + 4 * s, cy - 2 * s, highlight, Math.Max(1, s / 2));
+                    FillTriangle(image, cx - 5 * s, cy - s, cx - 6 * s, cy + s, cx - 4 * s, cy, headDark);
+                    FillTriangle(image, cx + 5 * s, cy - s, cx + 6 * s, cy + s, cx + 4 * s, cy, headDark);
                     break;
                 case "axe":
                     DrawToolLine(image, cx - s / 2, cy + 4 * s, cx - s / 2, cy - 2 * s, handle, s);
+                    FillRect(image, cx - s - 1, cy - 3 * s, 2 * s + 2, 2 * s, headDark);
                     FillPolygon(image, new[]
                     {
                         (cx + s, cy - 4 * s),
@@ -691,13 +749,26 @@ namespace Autonocraft.Engine
                     }, head);
                     DrawToolLine(image, cx - s, cy - 2 * s, cx + s, cy - 2 * s, highlight, Math.Max(2, s / 2));
                     FillRect(image, cx - 2 * s, cy, 4 * s + 1, s + 1, headDark);
+                    // Central crease line shading
+                    DrawToolLine(image, cx, cy - 3 * s, cx, cy + s, headDark, Math.Max(1, s / 3));
+                    DrawToolLine(image, cx - 1, cy - 3 * s, cx - 1, cy + s, highlight, Math.Max(1, s / 3));
                     break;
                 case "sword":
-                    FillRect(image, cx - s / 2, cy + 3 * s, s + 1, 2 * s + 1, handle);
-                    FillRect(image, cx - 2 * s, cy + 2 * s, 4 * s + 1, s + 1, headDark);
-                    FillRect(image, cx - s, cy - 4 * s, 2 * s + 1, 6 * s + 1, head);
-                    FillRect(image, cx - s + 1, cy - 3 * s, 2 * s - 1, s, highlight);
-                    FillTriangle(image, cx, cy - 5 * s, cx - s, cy - 4 * s, cx + s, cy - 4 * s, highlight);
+                    FillEllipse(image, cx - s, cy + 5 * s, cx + s, cy + 7 * s, headDark);
+                    FillRect(image, cx - s / 2, cy + 3 * s, s + 1, 2 * s + 1, new Color(100, 70, 40));
+                    FillPolygon(image, new[]
+                    {
+                        (cx - 3 * s, cy + s),
+                        (cx - 2 * s, cy + 2 * s),
+                        (cx + 2 * s, cy + 2 * s),
+                        (cx + 3 * s, cy + s),
+                        (cx, cy + 2 * s)
+                    }, headDark);
+                    FillRect(image, cx - s, cy - 4 * s, s, 5 * s, head);
+                    FillRect(image, cx, cy - 4 * s, s + 1, 5 * s, headDark);
+                    FillRect(image, cx - s, cy - 4 * s, 1, 5 * s, highlight);
+                    FillTriangle(image, cx, cy - 5 * s, cx - s, cy - 4 * s, cx, cy - 4 * s, highlight);
+                    FillTriangle(image, cx, cy - 5 * s, cx, cy - 4 * s, cx + s, cy - 4 * s, headDark);
                     break;
             }
 

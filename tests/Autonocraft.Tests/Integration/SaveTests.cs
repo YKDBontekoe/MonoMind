@@ -117,6 +117,80 @@ public static class SaveTests
         Console.ResetColor();
     }
 
+    public static void RunPlayerStatisticsRoundTrip(AutonocraftGame game, Player player, VoxelWorld world)
+    {
+        Console.Write("Running Player Statistics Save/Load Round-Trip Test... ");
+
+        const string slotId = "test-stats";
+        const string slotName = "Stats World";
+
+        player.Stats.TotalPlayTimeSeconds = 3661;
+        player.Stats.SessionCount = 4;
+        player.Stats.DistanceWalked = 8420.5f;
+        player.Stats.StepsWalked = 12034;
+        player.Stats.MaxAltitude = 128.4f;
+        player.Stats.DistanceFlown = 512.2f;
+        player.Stats.AnimalsKilled = 17;
+        player.Stats.SheepKilled = 8;
+        player.Stats.PigKilled = 5;
+        player.Stats.ChickenKilled = 4;
+        player.Stats.DamageDealt = 240f;
+        player.Stats.DamageTaken = 63f;
+        player.Stats.PlayerDeaths = 2;
+        player.Stats.BlocksBroken = 450;
+        player.Stats.BlocksPlaced = 220;
+        player.Stats.ToolsBroken = 3;
+        player.Stats.FallDamageEvents = 1;
+        player.Stats.TimesDrowned = 1;
+        player.Stats.ItemsCrafted = 6;
+
+        var snapshot = game.Session.BuildSaveSnapshot(
+            slotId, slotName, game.TimeOfDay, game.TimeScale, game.TimePaused,
+            GameConstants.DefaultSpawnX, GameConstants.DefaultSpawnZ);
+        var saveData = WorldSaveManager.BuildFromSnapshot(snapshot);
+        WorldSaveManager.Save(saveData);
+
+        var loadedSave = WorldSaveManager.Load(slotId);
+        var loadedPlayer = new Player(Vector3.Zero);
+        WorldSaveManager.ApplyPlayerSaveData(loadedPlayer, loadedSave.Player);
+
+        var expected = player.Stats.Clone();
+        var actual = loadedPlayer.Stats;
+
+        if (Math.Abs(expected.TotalPlayTimeSeconds - actual.TotalPlayTimeSeconds) > 0.001
+            || expected.SessionCount != actual.SessionCount
+            || MathF.Abs(expected.DistanceWalked - actual.DistanceWalked) > 0.001f
+            || expected.StepsWalked != actual.StepsWalked
+            || MathF.Abs(expected.MaxAltitude - actual.MaxAltitude) > 0.001f
+            || MathF.Abs(expected.DistanceFlown - actual.DistanceFlown) > 0.001f
+            || expected.AnimalsKilled != actual.AnimalsKilled
+            || expected.SheepKilled != actual.SheepKilled
+            || expected.PigKilled != actual.PigKilled
+            || expected.ChickenKilled != actual.ChickenKilled
+            || MathF.Abs(expected.DamageDealt - actual.DamageDealt) > 0.001f
+            || MathF.Abs(expected.DamageTaken - actual.DamageTaken) > 0.001f
+            || expected.PlayerDeaths != actual.PlayerDeaths
+            || expected.BlocksBroken != actual.BlocksBroken
+            || expected.BlocksPlaced != actual.BlocksPlaced
+            || expected.ToolsBroken != actual.ToolsBroken
+            || expected.FallDamageEvents != actual.FallDamageEvents
+            || expected.TimesDrowned != actual.TimesDrowned
+            || expected.ItemsCrafted != actual.ItemsCrafted)
+        {
+            throw new Exception("Loaded player statistics did not match saved values.");
+        }
+
+        var (lifetime, worldCount) = WorldSaveManager.AggregateLifetimeStatistics();
+        if (worldCount < 1 || lifetime.AnimalsKilled < expected.AnimalsKilled)
+        {
+            throw new Exception("Aggregate lifetime statistics did not include saved world stats.");
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
+
     public static void RunCorruptSaveSelectedSlotClamped()
     {
         Console.Write("Running Corrupt Save SelectedSlot Sanitization Test... ");

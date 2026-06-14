@@ -283,6 +283,11 @@ namespace Autonocraft.Core
             return string.Join("\n", new[]
             {
                 "PERF COUNTERS:",
+                $"  FPS (rolling): {RuntimeMetrics.RollingFps:F1}",
+                $"  UpdateMs: {PerfCounters.LastUpdateMs:F2}",
+                $"  DrawMs: {PerfCounters.LastDrawMs:F2}",
+                $"  PeakUpdateMs: {PerfCounters.PeakUpdateMs:F2}",
+                $"  PeakDrawMs: {PerfCounters.PeakDrawMs:F2}",
                 $"  GetBlockCalls: {PerfCounters.GetBlockCalls}",
                 $"  RaycastBlockVisits: {PerfCounters.RaycastBlockVisits}",
                 $"  TerrainDrawCalls: {PerfCounters.TerrainDrawCalls}",

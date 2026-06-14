@@ -356,29 +356,41 @@ namespace Autonocraft.World
             switch (data.Detail)
             {
                 case ChunkMeshDetail.Surface:
-                    if (!_surfaceMeshBuilt || wasStale)
+                    if ((!_surfaceMeshBuilt || wasStale) && data.Indices.Length > 0)
                     {
                         UploadMeshBuffers(device, data.Vertices, data.Indices,
                             ref _surfaceVertexBuffer, ref _surfaceIndexBuffer, ref _surfaceIndexCount);
                         _surfaceMeshBuilt = true;
                     }
+                    else if (data.Indices.Length == 0)
+                    {
+                        _surfaceMeshBuilt = false;
+                    }
                     SurfaceMeshBuildInFlight = false;
                     break;
                 case ChunkMeshDetail.Shell:
-                    if (!_shellMeshBuilt || wasStale)
+                    if ((!_shellMeshBuilt || wasStale) && data.Indices.Length > 0)
                     {
                         UploadMeshBuffers(device, data.Vertices, data.Indices,
                             ref _shellVertexBuffer, ref _shellIndexBuffer, ref _shellIndexCount);
                         _shellMeshBuilt = true;
                     }
+                    else if (data.Indices.Length == 0)
+                    {
+                        _shellMeshBuilt = false;
+                    }
                     ShellMeshBuildInFlight = false;
                     break;
                 default:
-                    if (!_fullMeshBuilt || wasStale)
+                    if ((!_fullMeshBuilt || wasStale) && data.Indices.Length > 0)
                     {
                         UploadMeshBuffers(device, data.Vertices, data.Indices,
                             ref _fullVertexBuffer, ref _fullIndexBuffer, ref _fullIndexCount);
                         _fullMeshBuilt = true;
+                    }
+                    else if (data.Indices.Length == 0)
+                    {
+                        _fullMeshBuilt = false;
                     }
                     FullMeshBuildInFlight = false;
                     break;

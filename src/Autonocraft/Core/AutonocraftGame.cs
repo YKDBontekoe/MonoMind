@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Numerics;
 using System.Collections.Generic;
@@ -50,7 +51,9 @@ namespace Autonocraft.Core
         private GameState _prevState = GameState.MainMenu;
         private SaveSlotScreen? _saveSlotScreen;
         private MainMenuSettingsScreen? _mainMenuSettingsScreen;
+        private PlayerDashboardScreen? _playerDashboardScreen;
         private bool _mainMenuSettingsOpen;
+        private bool _playerDashboardOpen;
         private NewWorldSetupScreen? _newWorldSetupScreen;
         private LoadingScreen? _loadingScreen;
         private DevConsole? _devConsole;
@@ -261,7 +264,7 @@ namespace Autonocraft.Core
 
             _graphics!.PreferredBackBufferWidth = 1280;
             _graphics.PreferredBackBufferHeight = 720;
-            _graphics.SynchronizeWithVerticalRetrace = true;
+            _graphics.SynchronizeWithVerticalRetrace = _settings.VSync;
             _graphics.ApplyChanges();
 
             Window.AllowUserResizing = true;
@@ -439,15 +442,17 @@ namespace Autonocraft.Core
             _whiteTexture.SetData(new[] { Color.White });
 
             RegenerateAtlasTexture(_session.Grid.Seed);
-            var blockTerrainEffect = new BlockTerrainEffect(GraphicsDevice, _atlasTexture!);
+            var blockTerrainEffect = new BlockTerrainEffect(GraphicsDevice, _atlasTexture!, _settings.HighQualityLighting);
             _blockTerrainEffect = blockTerrainEffect;
             _skyEffect = SkyEffect.Create(GraphicsDevice);
 
-            _renderer = new Renderer(GraphicsDevice, _atlasTexture!, _whiteTexture, blockTerrainEffect, _skyEffect);
+            _renderer = new Renderer(GraphicsDevice, _atlasTexture!, _whiteTexture, blockTerrainEffect, _skyEffect, _settings.HighQualityLighting);
+            _renderer.SetPreferPerPixelLighting(_settings.HighQualityLighting);
             BlockAtlas.UseCpuBlockVariation = true;
             _ui = new UiRenderer(GraphicsDevice, _whiteTexture);
             _saveSlotScreen = new SaveSlotScreen(_ui);
             _mainMenuSettingsScreen = new MainMenuSettingsScreen(_ui);
+            _playerDashboardScreen = new PlayerDashboardScreen(_ui);
             _newWorldSetupScreen = new NewWorldSetupScreen(_ui);
             _loadingScreen = new LoadingScreen(_session.Grid, GraphicsDevice, _ui);
             _devConsole = new DevConsole(_ui);
@@ -455,7 +460,10 @@ namespace Autonocraft.Core
             _pauseMenu.SetRenderDistance(_settings.RenderDistance);
             _pauseMenu.RenderDistanceChanged += distance => SetRenderDistance(distance);
             _pauseMenu.MuteAudioChanged += mute => ApplyMuteAudio(mute);
+            _pauseMenu.VSyncChanged += ApplyVSync;
+            _pauseMenu.HighQualityLightingChanged += ApplyHighQualityLighting;
             _pauseMenu.ApplyAudioSettings(_settings);
+            _pauseMenu.ApplyGraphicsSettings(_settings);
             _deathScreen = new DeathScreen(_ui);
             _crucibleScreen = new CrucibleScreen(_ui);
             _journalScreen = new JournalScreen(_ui);
@@ -508,6 +516,8 @@ namespace Autonocraft.Core
             }
 
             SyncCameraFromPlayer();
+
+            _session.Player.Stats.RecordSessionStart();
 
             _loadingFromSave = false;
             _spawnWarmupRemaining = SpawnWarmupSeconds;
@@ -754,6 +764,7 @@ namespace Autonocraft.Core
 
         private void OpenDeathScreen()
         {
+            _session.Player.Stats.RecordDeath();
             _mouseLockedBeforeDeath = _isMouseLocked;
             _isMouseLocked = false;
             ReleaseMouseCapture();
@@ -956,6 +967,26 @@ namespace Autonocraft.Core
 
         private void UpdateMainMenu(KeyboardState kbState, MouseState mouseState, float deltaTime)
         {
+            if (_playerDashboardOpen)
+            {
+                _playerDashboardScreen!.Update(
+                    GraphicsDevice.Viewport,
+                    kbState,
+                    _prevKbState,
+                    mouseState,
+                    _prevMouseState,
+                    deltaTime);
+
+                if (_playerDashboardScreen.CloseRequested)
+                {
+                    _playerDashboardScreen.Close();
+                    _playerDashboardOpen = false;
+                }
+
+                Window.Title = "Autonocraft | Player Stats";
+                return;
+            }
+
             if (_mainMenuSettingsOpen)
             {
                 _mainMenuSettingsScreen!.Update(
@@ -997,12 +1028,24 @@ namespace Autonocraft.Core
                 _mainMenuSettingsScreen!.Open(_settings);
                 _mainMenuSettingsOpen = true;
             }
+            else if (_saveSlotScreen.StatsRequested)
+            {
+                OpenPlayerDashboard();
+            }
             else if (_saveSlotScreen.QuitRequested)
             {
                 Exit();
             }
 
             Window.Title = "Autonocraft | Main Menu";
+        }
+
+        private void OpenPlayerDashboard()
+        {
+            _playerDashboardScreen!.Open(
+                _saveSlotScreen!.GetSelectedSlotId(),
+                _saveSlotScreen.GetSelectedSlotName());
+            _playerDashboardOpen = true;
         }
 
         private void ApplyGameSettings(GameSettings settings)
@@ -1020,9 +1063,12 @@ namespace Autonocraft.Core
             _settings.AmbientVolume = settings.AmbientVolume;
             _settings.MusicVolume = settings.MusicVolume;
             _settings.MuteAudio = settings.MuteAudio;
+            _settings.VSync = settings.VSync;
+            _settings.HighQualityLighting = settings.HighQualityLighting;
             _settings.Clamp();
             GameSettingsManager.Save(_settings);
             _audio?.ApplySettings(_settings);
+            ApplyGraphicsSettings();
 
             if (_settings.RenderDistance != previousRenderDistance)
             {
@@ -1033,6 +1079,7 @@ namespace Autonocraft.Core
                 _pauseMenu?.SetRenderDistance(_settings.RenderDistance);
             }
 
+            _pauseMenu?.ApplyGraphicsSettings(_settings);
             RecreateVillageAi();
         }
 
@@ -1062,7 +1109,7 @@ namespace Autonocraft.Core
         {
             if (_state != GameState.Playing)
             {
-                return _mainMenuSettingsOpen;
+                return _mainMenuSettingsOpen || _playerDashboardOpen;
             }
 
             return _pauseMenu?.IsOpen == true
@@ -1072,7 +1119,8 @@ namespace Autonocraft.Core
                 || _villageChatScreen?.IsOpen == true
                 || _session.Crafting.Crucible.IsOpen
                 || _session.Crafting.IsJournalUiBlocking
-                || _mainMenuSettingsOpen;
+                || _mainMenuSettingsOpen
+                || _playerDashboardOpen;
         }
 
         private void RecreateVillageAi()
@@ -1320,6 +1368,7 @@ namespace Autonocraft.Core
             // Avoid one slow streaming frame turning into a giant physics/input step.
             deltaTime = Math.Min(deltaTime, MaxGameplayDeltaTime);
 
+            var updateStopwatch = Stopwatch.StartNew();
             try
             {
                 UpdateGameplayCore(deltaTime, kbState, mouseState);
@@ -1329,6 +1378,11 @@ namespace Autonocraft.Core
                 RuntimeMetrics.RecordManagedException("UpdateGameplay", ex);
                 InputDebugTrace.LogException("UpdateGameplay", ex);
                 Console.WriteLine($"[Game] UpdateGameplay fault: {ex}");
+            }
+            finally
+            {
+                updateStopwatch.Stop();
+                PerfCounters.RecordUpdate((float)updateStopwatch.Elapsed.TotalMilliseconds);
             }
         }
 
@@ -1343,6 +1397,11 @@ namespace Autonocraft.Core
             if (UpdateBlockingGameplayOverlays(deltaTime, kbState, mouseState))
             {
                 return;
+            }
+
+            if (!_pauseMenu!.IsOpen && !_deathScreen!.IsOpen && _session.Player.IsAlive)
+            {
+                _session.Player.Stats.RecordPlayTime(deltaTime);
             }
 
             bool consoleToggle = (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.F3) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.F3))
@@ -1702,9 +1761,7 @@ namespace Autonocraft.Core
             if (_titleUpdateTimer >= 0.5f)
             {
                 _titleUpdateTimer = 0f;
-                string modeStr = _session.Player.FlyingMode ? "FLY" : "PHYSICS";
-                string groundedStr = _session.Player.IsGrounded ? "Grounded" : "Airborne";
-                Window.Title = $"Autonocraft | {modeStr} ({groundedStr}) | Chunks: {_session.Grid.ActiveChunkCount} | Mesh: {PerfCounters.MeshBuildMs:F1}ms | Pending: {PerfCounters.PendingMeshCount}{(_session.Player.FlyingMode ? " | FLY" : "")}";
+                Window.Title = $"Autonocraft | FPS: {RuntimeMetrics.RollingFps:F0} | Draw: {PerfCounters.LastDrawMs:F1}ms | Update: {PerfCounters.LastUpdateMs:F1}ms | DC: {PerfCounters.TerrainDrawCalls} | Chunks: {_session.Grid.ActiveChunkCount} | Mesh: {PerfCounters.MeshBuildMs:F1}ms | Pending: {PerfCounters.PendingMeshCount}{(_session.Player.FlyingMode ? " | FLY" : "")}";
             }
 
             string? overlayName = null;
@@ -1732,13 +1789,52 @@ namespace Autonocraft.Core
                 overlayName != null,
                 overlayName);
 
+        }
+
+        private void ApplyGraphicsSettings()
+        {
+            if (_graphics != null)
+            {
+                _graphics.SynchronizeWithVerticalRetrace = _settings.VSync;
+                _graphics.ApplyChanges();
+            }
+
+            _blockTerrainEffect?.SetPreferPerPixelLighting(_settings.HighQualityLighting);
+            _renderer?.SetPreferPerPixelLighting(_settings.HighQualityLighting);
+            _pauseMenu?.ApplyGraphicsSettings(_settings);
+        }
+
+        private void ApplyVSync(bool enabled)
+        {
+            _settings.VSync = enabled;
+            ApplyGraphicsSettings();
+            GameSettingsManager.Save(_settings);
+        }
+
+        private void ApplyHighQualityLighting(bool enabled)
+        {
+            _settings.HighQualityLighting = enabled;
+            ApplyGraphicsSettings();
+            GameSettingsManager.Save(_settings);
+        }
+
+        private void RecordFrameMetrics(float deltaTime)
+        {
+            if (_state != GameState.Playing)
+            {
+                return;
+            }
+
             RuntimeMetrics.RecordFrame(
                 deltaTime,
                 _state,
                 _session.Grid.ActiveChunkCount,
                 PerfCounters.PendingMeshCount,
                 PerfCounters.MeshBuildMs,
-                _spawnWarmupRemaining);
+                _spawnWarmupRemaining,
+                PerfCounters.LastUpdateMs,
+                PerfCounters.LastDrawMs,
+                PerfCounters.TerrainDrawCalls);
         }
 
         protected override void Draw(GameTime gameTime)
@@ -1767,7 +1863,11 @@ namespace Autonocraft.Core
             {
                 case GameState.MainMenu:
                     _saveSlotScreen!.Draw(GraphicsDevice.Viewport, _screenFade.Alpha, _screenFade.OffsetY);
-                    if (_mainMenuSettingsOpen)
+                    if (_playerDashboardOpen)
+                    {
+                        _playerDashboardScreen!.Draw(GraphicsDevice.Viewport);
+                    }
+                    else if (_mainMenuSettingsOpen)
                     {
                         _mainMenuSettingsScreen!.Draw(GraphicsDevice.Viewport);
                     }
@@ -1782,11 +1882,15 @@ namespace Autonocraft.Core
                     if (HasBlockingGameplayOverlay())
                     {
                         _ui!.DrawFullscreenBackground(new Microsoft.Xna.Framework.Color(0.02f, 0.03f, 0.06f) * 0.92f);
+                        PerfCounters.RecordDraw(0f);
                     }
                     else
                     {
                         // Water animation via atlas.SetData causes GPU stalls on macOS — use static tile.
+                        var drawStopwatch = Stopwatch.StartNew();
                         _renderer?.Draw(_session.PrepareRenderContext(_camera, _timeOfDay, _waterAnimTime, _settings.RenderDistance));
+                        drawStopwatch.Stop();
+                        PerfCounters.RecordDraw((float)drawStopwatch.Elapsed.TotalMilliseconds);
                     }
 
                     _crucibleScreen?.Draw(GraphicsDevice.Viewport, _session.Crafting.Crucible, _session.Crafting.GetCurrentEnvironment(_session.Grid, _timeOfDay), _atlasTexture);
@@ -1806,6 +1910,7 @@ namespace Autonocraft.Core
                     _devConsole?.Draw(GraphicsDevice.Viewport);
                     _pauseMenu?.Draw(GraphicsDevice.Viewport, _pauseFade.Alpha, _pauseFade.OffsetY);
                     _deathScreen?.Draw(GraphicsDevice.Viewport, _deathFade.Alpha, _deathFade.OffsetY);
+                    RecordFrameMetrics((float)gameTime.ElapsedGameTime.TotalSeconds);
                     break;
             }
 

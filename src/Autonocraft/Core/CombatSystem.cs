@@ -161,6 +161,7 @@ namespace Autonocraft.Core
 
             if (!targetAnimal.IsAlive)
             {
+                player.Stats.RecordAnimalKill(targetAnimal.Type, damage);
                 if (player.Skills.AddXp(PlayerSkill.Combat, 10f))
                 {
                     ShowToast?.Invoke($"Combat level {player.Skills.GetLevel(PlayerSkill.Combat)}!");
@@ -169,6 +170,10 @@ namespace Autonocraft.Core
                 targetAnimal.BeginDeathAnimation();
                 PlaySfx?.Invoke(SfxKind.AnimalDeath, 1f);
                 Console.WriteLine($"[Combat] {targetAnimal.Type} died.");
+            }
+            else
+            {
+                player.Stats.RecordMeleeDamage(damage);
             }
 
             if (toolBroke)
@@ -232,6 +237,7 @@ namespace Autonocraft.Core
             float flashStrength = damage >= 3f ? 1.2f : 0.8f;
             if (player.TakeDamage(damage, out _))
             {
+                player.Stats.RecordFallDamage();
                 Console.WriteLine(
                     $"[Combat] Fall damage: {damage:F0} from {player.FallDistance:F1} blocks ({player.Health:F0}/{player.MaxHealth:F0} HP)");
                 animator.TriggerDamage(flashStrength);

@@ -49,6 +49,30 @@ namespace Autonocraft.World
         public float WoodcuttingXp { get; set; }
         public int CombatLevel { get; set; } = 1;
         public float CombatXp { get; set; }
+        public PlayerStatisticsSaveData Statistics { get; set; } = new();
+    }
+
+    public sealed class PlayerStatisticsSaveData
+    {
+        public double TotalPlayTimeSeconds { get; set; }
+        public int SessionCount { get; set; }
+        public float DistanceWalked { get; set; }
+        public int StepsWalked { get; set; }
+        public float MaxAltitude { get; set; }
+        public float DistanceFlown { get; set; }
+        public int AnimalsKilled { get; set; }
+        public int SheepKilled { get; set; }
+        public int PigKilled { get; set; }
+        public int ChickenKilled { get; set; }
+        public float DamageDealt { get; set; }
+        public float DamageTaken { get; set; }
+        public int PlayerDeaths { get; set; }
+        public int BlocksBroken { get; set; }
+        public int BlocksPlaced { get; set; }
+        public int ToolsBroken { get; set; }
+        public int FallDamageEvents { get; set; }
+        public int TimesDrowned { get; set; }
+        public int ItemsCrafted { get; set; }
     }
 
     public sealed class InventorySlotSaveData
