@@ -1,0 +1,23 @@
+---
+description: Run integration tests after gameplay/world changes
+globs: src/Autonocraft/Core/**,src/Autonocraft/World/**,src/Autonocraft/Entities/**,src/Autonocraft/Items/**,src/Autonocraft/Crafting/**
+alwaysApply: false
+---
+
+# Autonocraft Test Gate
+
+After modifying player physics, world generation, chunking, blocks, inventory, tools, skills, animals, combat, crafting, fluids, structures, or saves:
+
+```bash
+dotnet run --project src/Autonocraft -- --test
+```
+
+Or:
+
+```bash
+dotnet test tests/Autonocraft.Tests
+```
+
+All tests must pass (exit code 0) before concluding the task.
+
+See `AGENTS.md` §3 for the full test catalog and `docs/CODEMAP.md` for test-to-subsystem mapping.

@@ -9,17 +9,28 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Autonocraft.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.2.1105" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Autonocraft.Domain\Autonocraft.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\tests\Autonocraft.Tests\TestHost.cs" Link="Tests\TestHost.cs" />
+    <Compile Include="..\..\tests\Autonocraft.Tests\IntegrationTestRunner.cs" Link="Tests\IntegrationTestRunner.cs" />
+    <Compile Include="..\..\tests\Autonocraft.Tests\Integration\**\*.cs" Link="Tests\Integration\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>
     <None Update="openrouter_key.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Update="atlas.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="base_textures/*.png">
+    <None Update="atlas_layout.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

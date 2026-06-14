@@ -8,6 +8,8 @@ namespace Autonocraft.Engine
         public Vector3 Position { get; set; } = new Vector3(16f, 30f, 16f);
         public float Yaw { get; set; } = -90f;    // facing -Z initially
         public float Pitch { get; set; } = 0f;
+        public Vector3 ViewPositionOffset { get; set; }
+        public float ViewPitchOffset { get; set; }
 
         public Vector3 Front
         {
@@ -30,7 +32,17 @@ namespace Autonocraft.Engine
 
         public Matrix4x4 GetViewMatrix()
         {
-            return Matrix4x4.CreateLookAt(Position, Position + Front, Vector3.UnitY);
+            Vector3 eye = Position + ViewPositionOffset;
+            float pitchRad = (Pitch + ViewPitchOffset) * (MathF.PI / 180f);
+            float yawRad = Yaw * (MathF.PI / 180f);
+
+            Vector3 front;
+            front.X = MathF.Cos(pitchRad) * MathF.Cos(yawRad);
+            front.Y = MathF.Sin(pitchRad);
+            front.Z = MathF.Cos(pitchRad) * MathF.Sin(yawRad);
+            front = Vector3.Normalize(front);
+
+            return Matrix4x4.CreateLookAt(eye, eye + front, Vector3.UnitY);
         }
 
         public Matrix4x4 GetProjectionMatrix(float aspectRatio, float farPlane = 1000f)

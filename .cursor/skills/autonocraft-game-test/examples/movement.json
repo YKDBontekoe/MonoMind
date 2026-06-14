@@ -1,0 +1,18 @@
+{
+  "name": "full movement and camera smoke test",
+  "steps": [
+    {"wait_ready": 120},
+    {"screenshot": "test_output/scenarios/move_01_spawn.png"},
+    {"assert": {"health_min": 1, "has_village": true}},
+    {"dev": "fly on"},
+    {"teleport": {"x": 20, "y": 72, "z": 20}},
+    {"look": {"yaw": 90, "pitch": -30}},
+    {"screenshot": "test_output/scenarios/move_02_aerial.png"},
+    {"set_flying": false},
+    {"move": {"forward": 1.5}},
+    {"wait_for": {"position_change": 0.2, "timeout": 8}},
+    {"look": {"dx": -20, "dy": 10}},
+    {"release_keys": true},
+    {"state": "test_output/scenarios/move_final_state.json"}
+  ]
+}

@@ -1,41 +1,54 @@
 using System;
 using System.Numerics;
 using Autonocraft.Entities;
+using Autonocraft.Items;
 using Autonocraft.World;
 
 namespace Autonocraft.Core
 {
     public class Player
     {
-        public Vector3 Position; // Bottom-center position of player's feet
+        public Vector3 Position;
         public Vector3 Velocity;
         public float Yaw { get; set; } = -90f;
         public float Pitch { get; set; } = 0f;
 
-        // Player health
         public float Health { get; set; } = 20f;
         public float MaxHealth { get; set; } = 20f;
 
-        // Player physical dimensions
         public const float Width = 0.6f;
         public const float Height = 1.8f;
         public const float EyeHeight = 1.6f;
 
-        // Movement constants
-        public const float Gravity = -32f; // acceleration in blocks/sec^2
+        public const float Gravity = -32f;
         public const float WalkSpeed = 5.0f;
         public const float FlySpeed = 15.0f;
         public const float JumpForce = 9.0f;
-        public const float Damping = 0.15f; // friction damping per second
+        public const float Damping = 0.15f;
+
+        public const float SwimSpeed = 4.5f;
+        public const float MaxOxygen = 15f;
+        public const float OxygenDamagePerSecond = 2f;
 
         public bool IsGrounded { get; private set; }
+        public bool InWater { get; private set; }
+        public bool HeadUnderwater { get; private set; }
+        public bool OnWaterSurface { get; private set; }
+        public float Oxygen { get; private set; } = MaxOxygen;
         public bool FlyingMode { get; set; } = false;
         public float CustomMoveSpeed { get; set; } = 0f;
         public bool IsAlive => Health > 0f;
         public bool JustLanded { get; private set; }
         public float FallDistance { get; private set; }
 
+        public Action<string>? ShowToast { get; set; }
+
+        public PlayerSkills Skills { get; } = new();
+
+        private void Notify(string message) => ShowToast?.Invoke(message);
+
         private bool _wasGrounded = true;
+        private bool _wasInWater;
         private float _fallStartY;
         private float _invulnerabilityTimer;
         public const float InvulnerabilityDuration = 0.5f;
@@ -43,18 +56,13 @@ namespace Autonocraft.Core
         public void ResetFallTracking()
         {
             _wasGrounded = IsGrounded;
+            _wasInWater = InWater;
+            _fallStartY = Position.Y;
             JustLanded = false;
             FallDistance = 0f;
         }
 
-        // Inventory: 9 slots
-        public struct InventorySlot
-        {
-            public BlockType Type;
-            public int Count;
-        }
-        
-        public readonly InventorySlot[] Hotbar = new InventorySlot[9];
+        public ItemStack[] Hotbar { get; } = new ItemStack[9];
         public int SelectedSlot { get; set; } = 0;
 
         public Player(Vector3 spawnPosition)
@@ -62,47 +70,140 @@ namespace Autonocraft.Core
             Position = spawnPosition;
             Velocity = Vector3.Zero;
 
-            // Initialize inventory with some default items
-            Hotbar[0] = new InventorySlot { Type = BlockType.Grass, Count = 64 };
-            Hotbar[1] = new InventorySlot { Type = BlockType.OakLog, Count = 64 };
-            Hotbar[2] = new InventorySlot { Type = BlockType.Stone, Count = 64 };
-            Hotbar[3] = new InventorySlot { Type = BlockType.Dirt, Count = 64 };
-            
-            // Other slots are Air (empty)
-            for (int i = 4; i < 9; i++)
+            Hotbar[0] = ItemStack.CreateBlock(BlockType.Grass, 32);
+            Hotbar[1] = ItemStack.CreateBlock(BlockType.OakLog, 16);
+            Hotbar[2] = ItemStack.CreateBlock(BlockType.Dirt, 32);
+            Hotbar[3] = ToolRegistry.CreateStack(ToolType.Pickaxe, ToolTier.Wood);
+            Hotbar[4] = ToolRegistry.CreateStack(ToolType.Axe, ToolTier.Wood);
+
+            for (int i = 5; i < 9; i++)
             {
-                Hotbar[i] = new InventorySlot { Type = BlockType.Air, Count = 0 };
+                Hotbar[i] = ItemStack.Empty;
             }
+        }
+
+        public ItemStack GetSelectedStack() => Hotbar[SelectedSlot];
+
+        public bool IsHoldingTool()
+        {
+            return GetSelectedStack().IsTool();
+        }
+
+        public bool CanPlaceFromSelected()
+        {
+            return GetSelectedStack().IsBlock();
         }
 
         public BlockType GetSelectedBlockType()
         {
-            return Hotbar[SelectedSlot].Type;
+            var stack = GetSelectedStack();
+            return stack.IsBlock() ? stack.BlockType : BlockType.Air;
         }
 
         public bool UseSelectedBlock()
         {
-            if (Hotbar[SelectedSlot].Type == BlockType.Air || Hotbar[SelectedSlot].Count <= 0)
+            ref var slot = ref Hotbar[SelectedSlot];
+            if (!slot.IsBlock())
             {
                 return false;
             }
 
-            Hotbar[SelectedSlot].Count--;
-            if (Hotbar[SelectedSlot].Count == 0)
+            slot.Count--;
+            if (slot.Count <= 0)
             {
-                Hotbar[SelectedSlot].Type = BlockType.Air;
+                slot = ItemStack.Empty;
             }
+
             return true;
+        }
+
+        public bool DamageSelectedTool(int amount)
+        {
+            if (amount <= 0)
+            {
+                return false;
+            }
+
+            ref var slot = ref Hotbar[SelectedSlot];
+            if (!slot.IsTool())
+            {
+                return false;
+            }
+
+            slot.Durability -= amount;
+            if (slot.Durability <= 0)
+            {
+                string toolName = slot.GetDisplayName();
+                slot = ItemStack.Empty;
+                Notify($"{toolName} broke!");
+                return true;
+            }
+
+            return false;
+        }
+
+        public float GetSelectedMeleeDamage()
+        {
+            var stack = GetSelectedStack();
+            if (stack.IsTool() && ToolRegistry.TryGet(stack.ToolId, out var def) && def.ToolType == ToolType.Sword)
+            {
+                return def.MeleeDamage * Skills.GetBonus(PlayerSkill.Combat);
+            }
+
+            return CombatSystem.BareHandDamage;
         }
 
         public void GiveBlocks(BlockType blockType, int count)
         {
-            if (blockType == BlockType.Air || count <= 0) return;
+            AddItem(ItemStack.CreateBlock(blockType, count));
+        }
+
+        public void AddItem(ItemStack item)
+        {
+            if (item.IsEmpty)
+            {
+                return;
+            }
+
+            if (item.IsBlock())
+            {
+                AddBlockStack(item.BlockType, item.Count);
+                return;
+            }
+
+            if (item.IsTool())
+            {
+                AddToolStack(item);
+                return;
+            }
+
+            if (item.IsFluidContainer())
+            {
+                AddFluidContainerStack(item);
+            }
+        }
+
+        public void AddToInventory(BlockType blockType)
+        {
+            if (blockType == BlockType.Air)
+            {
+                return;
+            }
+
+            AddBlockStack(blockType, 1);
+        }
+
+        private void AddBlockStack(BlockType blockType, int count)
+        {
+            if (blockType == BlockType.Air || count <= 0)
+            {
+                return;
+            }
 
             int remaining = count;
             for (int i = 0; i < 9 && remaining > 0; i++)
             {
-                if (Hotbar[i].Type == blockType && Hotbar[i].Count < 64)
+                if (Hotbar[i].IsBlock() && Hotbar[i].BlockType == blockType && Hotbar[i].Count < 64)
                 {
                     int add = Math.Min(64 - Hotbar[i].Count, remaining);
                     Hotbar[i].Count += add;
@@ -112,46 +213,65 @@ namespace Autonocraft.Core
 
             for (int i = 0; i < 9 && remaining > 0; i++)
             {
-                if (Hotbar[i].Type == BlockType.Air)
+                if (Hotbar[i].IsEmpty)
                 {
                     int add = Math.Min(64, remaining);
-                    Hotbar[i] = new InventorySlot { Type = blockType, Count = add };
+                    Hotbar[i] = ItemStack.CreateBlock(blockType, add);
                     remaining -= add;
                 }
             }
+
+            if (remaining > 0)
+            {
+                Notify($"Hotbar full! Lost {remaining}x {blockType}");
+            }
         }
 
-        public void AddToInventory(BlockType blockType)
+        private void AddToolStack(ItemStack tool)
         {
-            if (blockType == BlockType.Air) return;
-
-            // First search if we already have this block in hotbar
             for (int i = 0; i < 9; i++)
             {
-                if (Hotbar[i].Type == blockType && Hotbar[i].Count < 64)
+                if (Hotbar[i].CanStackWith(tool))
                 {
                     Hotbar[i].Count++;
-                    Console.WriteLine($"[Inventory] Added {blockType} to Slot {i+1} (Count: {Hotbar[i].Count})");
+                    Console.WriteLine($"[Inventory] Added {tool.GetDisplayName()} to slot {i + 1}");
                     return;
                 }
             }
 
-            // Find first empty slot
             for (int i = 0; i < 9; i++)
             {
-                if (Hotbar[i].Type == BlockType.Air)
+                if (Hotbar[i].IsEmpty)
                 {
-                    Hotbar[i] = new InventorySlot { Type = blockType, Count = 1 };
-                    Console.WriteLine($"[Inventory] Added {blockType} to Slot {i+1} (Count: 1)");
+                    Hotbar[i] = tool;
+                    Console.WriteLine($"[Inventory] Added {tool.GetDisplayName()} to slot {i + 1}");
                     return;
                 }
             }
 
-            Console.WriteLine($"[Inventory] Hotbar full! Cannot collect {blockType}.");
+            Console.WriteLine($"[Inventory] Hotbar full! Cannot collect {tool.GetDisplayName()}.");
+            Notify($"Hotbar full! Cannot collect {tool.GetDisplayName()}");
         }
 
-        public bool TakeDamage(float amount)
+        private void AddFluidContainerStack(ItemStack container)
         {
+            for (int i = 0; i < 9; i++)
+            {
+                if (Hotbar[i].IsEmpty)
+                {
+                    Hotbar[i] = container;
+                    Console.WriteLine($"[Inventory] Added {container.GetDisplayName()} to slot {i + 1}");
+                    return;
+                }
+            }
+
+            Console.WriteLine($"[Inventory] Hotbar full! Cannot collect {container.GetDisplayName()}.");
+            Notify($"Hotbar full! Cannot collect {container.GetDisplayName()}");
+        }
+
+        public bool TakeDamage(float amount, out bool tookDamage)
+        {
+            tookDamage = false;
             if (!IsAlive || _invulnerabilityTimer > 0f || amount <= 0f)
             {
                 return false;
@@ -159,7 +279,13 @@ namespace Autonocraft.Core
 
             Health = Math.Max(0f, Health - amount);
             _invulnerabilityTimer = InvulnerabilityDuration;
+            tookDamage = true;
             return true;
+        }
+
+        public bool TakeDamage(float amount)
+        {
+            return TakeDamage(amount, out _);
         }
 
         public void UpdateInvulnerability(float deltaTime)
@@ -175,7 +301,7 @@ namespace Autonocraft.Core
             _invulnerabilityTimer = 0f;
         }
 
-        public void Update(float deltaTime, VoxelWorld world, Vector3 moveInput)
+        public void Update(float deltaTime, VoxelWorld world, Vector3 moveInput, bool swimUp = false, bool swimDown = false)
         {
             JustLanded = false;
             FallDistance = 0f;
@@ -183,13 +309,15 @@ namespace Autonocraft.Core
             if (FlyingMode)
             {
                 float speed = CustomMoveSpeed > 0f ? CustomMoveSpeed : FlySpeed;
-                // In flying mode, move along input direction directly
                 Velocity.Y = moveInput.Y * speed;
                 Velocity.X = moveInput.X * speed;
                 Velocity.Z = moveInput.Z * speed;
 
                 Position += Velocity * deltaTime;
                 IsGrounded = false;
+                InWater = false;
+                HeadUnderwater = false;
+                OnWaterSurface = false;
             }
             else
             {
@@ -198,6 +326,11 @@ namespace Autonocraft.Core
                 {
                     horizontalMove = Vector3.Normalize(horizontalMove);
                     float speed = CustomMoveSpeed > 0f ? CustomMoveSpeed : WalkSpeed;
+                    if (InWater)
+                    {
+                        speed = CustomMoveSpeed > 0f ? CustomMoveSpeed : SwimSpeed;
+                    }
+
                     horizontalMove *= speed;
                 }
                 else
@@ -216,19 +349,45 @@ namespace Autonocraft.Core
                     IsGrounded = IsGrounded
                 };
 
-                EntityCollision.ApplyGravityAndMove(ref state, world, deltaTime, Width, Height, horizontalMove);
+                EntityCollision.ApplyGravityAndMove(
+                    ref state,
+                    world,
+                    deltaTime,
+                    Width,
+                    Height,
+                    EyeHeight,
+                    horizontalMove,
+                    swimUp,
+                    swimDown);
 
                 Position = state.Position;
                 Velocity = state.Velocity;
                 IsGrounded = state.IsGrounded;
+                InWater = state.InWater;
+                HeadUnderwater = state.HeadUnderwater;
+                OnWaterSurface = state.OnWaterSurface;
+
+                if (HeadUnderwater)
+                {
+                    Oxygen = MathF.Max(0f, Oxygen - deltaTime);
+                }
+                else
+                {
+                    Oxygen = MaxOxygen;
+                }
 
                 if (_wasGrounded && !IsGrounded)
                 {
                     _fallStartY = Position.Y;
                 }
-                else if (!IsGrounded)
+                else if (!IsGrounded && !InWater)
                 {
                     _fallStartY = MathF.Max(_fallStartY, Position.Y);
+                }
+                else if (!_wasInWater && InWater && !_wasGrounded)
+                {
+                    JustLanded = true;
+                    FallDistance = MathF.Max(0f, _fallStartY - Position.Y);
                 }
                 else if (!_wasGrounded && IsGrounded)
                 {
@@ -237,16 +396,27 @@ namespace Autonocraft.Core
                 }
 
                 _wasGrounded = IsGrounded;
+                _wasInWater = InWater;
             }
         }
 
         public void Jump()
         {
-            if (IsGrounded && !FlyingMode)
+            if (FlyingMode)
+            {
+                return;
+            }
+
+            if (IsGrounded)
             {
                 Velocity.Y = JumpForce;
                 IsGrounded = false;
                 Console.WriteLine("[Player] Jumped!");
+            }
+            else if (InWater && !HeadUnderwater)
+            {
+                Velocity.Y = JumpForce * 0.85f;
+                Console.WriteLine("[Player] Jumped from water!");
             }
         }
 
@@ -259,7 +429,6 @@ namespace Autonocraft.Core
             float minZ = Position.Z - Width / 2f;
             float maxZ = Position.Z + Width / 2f;
 
-            // A block at (x,y,z) has bounding box [x, x+1] x [y, y+1] x [z, z+1]
             return (minX < x + 1 && maxX > x) &&
                    (minY < y + 1 && maxY > y) &&
                    (minZ < z + 1 && maxZ > z);
@@ -299,16 +468,22 @@ namespace Autonocraft.Core
             for (int i = 0; i < 9; i++)
             {
                 string marker = (i == SelectedSlot) ? "*" : "";
-                if (Hotbar[i].Type == BlockType.Air)
+                if (Hotbar[i].IsEmpty)
                 {
-                    sb.Append($"[{marker}{i+1}: -]");
+                    sb.Append($"[{marker}{i + 1}: -]");
+                }
+                else if (Hotbar[i].IsTool())
+                {
+                    sb.Append($"[{marker}{i + 1}: {Hotbar[i].GetDisplayName()} ({Hotbar[i].Durability})]");
                 }
                 else
                 {
-                    sb.Append($"[{marker}{i+1}: {Hotbar[i].Type} ({Hotbar[i].Count})]");
+                    sb.Append($"[{marker}{i + 1}: {Hotbar[i].BlockType} ({Hotbar[i].Count})]");
                 }
+
                 if (i < 8) sb.Append(" ");
             }
+
             return sb.ToString();
         }
     }

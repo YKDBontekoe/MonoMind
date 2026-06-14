@@ -10,7 +10,7 @@ echo ""
 
 # Run the game using dotnet run
 export DYLD_LIBRARY_PATH=/opt/homebrew/lib:$DYLD_LIBRARY_PATH
-dotnet run --project src/Autonocraft
+dotnet run --project src/Autonocraft "$@"
 
 # Pause terminal output on exit so the user can read any logs/errors if it closes
 echo ""

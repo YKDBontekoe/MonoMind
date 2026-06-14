@@ -1,0 +1,14 @@
+---
+description: Keep docs in sync when adding subsystems
+globs: src/Autonocraft/**
+alwaysApply: false
+---
+
+# Autonocraft Documentation
+
+When adding or significantly changing a subsystem, update:
+- `AGENTS.md` — test list, codebase map, HTTP API if applicable
+- `docs/ARCHITECTURE.md` — subsystem design section
+- `docs/CODEMAP.md` — file index and task playbook
+
+Do not edit the plan file in `.cursor/plans/`.

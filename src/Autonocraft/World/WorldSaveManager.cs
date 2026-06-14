@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Autonocraft.Core;
+using Autonocraft.Items;
 
 namespace Autonocraft.World
 {
@@ -71,16 +72,19 @@ namespace Autonocraft.World
                     {
                         SlotId = slotId,
                         SlotName = data.SlotName,
+                        Seed = data.Seed,
                         SavedAt = data.SavedAt
                     });
                 }
-                catch
+                catch (Exception ex)
                 {
+                    Console.WriteLine($"[Save] Corrupt save slot '{slotId}': {ex.Message}");
                     slots.Add(new SaveSlotInfo
                     {
                         SlotId = slotId,
-                        SlotName = slotId,
-                        SavedAt = File.GetLastWriteTimeUtc(worldPath)
+                        SlotName = $"{slotId} (corrupt)",
+                        SavedAt = File.GetLastWriteTimeUtc(worldPath),
+                        IsCorrupt = true
                     });
                 }
             }
@@ -123,7 +127,7 @@ namespace Autonocraft.World
         {
             return new WorldSaveData
             {
-                Version = 1,
+                Version = 4,
                 SlotId = slotId,
                 SlotName = slotName,
                 Seed = seed,
@@ -131,57 +135,39 @@ namespace Autonocraft.World
                 Spawn = new SpawnSaveData { X = spawnX, Z = spawnZ },
                 Player = CreateDefaultPlayerSaveData(spawnX, spawnZ),
                 Time = new TimeSaveData(),
-                Modifications = new List<BlockModification>()
+                Modifications = new List<BlockModification>(),
+                UnlockedCraftingIds = new List<string>()
             };
         }
 
+        public static WorldSaveData BuildFromSnapshot(SaveSnapshot snapshot)
+        {
+            return new WorldSaveData
+            {
+                Version = 6,
+                SlotId = snapshot.SlotId,
+                SlotName = snapshot.SlotName,
+                Seed = snapshot.Seed,
+                SavedAt = DateTime.UtcNow,
+                Spawn = new SpawnSaveData { X = snapshot.SpawnX, Z = snapshot.SpawnZ },
+                Time = snapshot.Time,
+                Modifications = snapshot.Modifications,
+                FluidModifications = snapshot.FluidModifications,
+                UnlockedCraftingIds = snapshot.UnlockedCraftingIds,
+                Villages = snapshot.Villages,
+                Villagers = snapshot.Villagers,
+                ClaimedAnchors = snapshot.ClaimedAnchors,
+                Player = snapshot.Player
+            };
+        }
+
+        [Obsolete("Use BuildFromSnapshot")]
         public static WorldSaveData BuildFromGame(string slotId, string slotName, AutonocraftGame game, VoxelWorld world)
         {
-            var player = game.Player;
-            var save = new WorldSaveData
-            {
-                Version = 1,
-                SlotId = slotId,
-                SlotName = slotName,
-                Seed = world.Seed,
-                SavedAt = DateTime.UtcNow,
-                Spawn = new SpawnSaveData { X = AutonocraftGame.DefaultSpawnX, Z = AutonocraftGame.DefaultSpawnZ },
-                Time = new TimeSaveData
-                {
-                    TimeOfDay = game.TimeOfDay,
-                    TimeScale = game.TimeScale,
-                    TimePaused = game.TimePaused
-                },
-                Modifications = world.ExportModifications()
-            };
-
-            save.Player = new PlayerSaveData
-            {
-                PosX = player.Position.X,
-                PosY = player.Position.Y,
-                PosZ = player.Position.Z,
-                VelX = player.Velocity.X,
-                VelY = player.Velocity.Y,
-                VelZ = player.Velocity.Z,
-                Yaw = player.Yaw,
-                Pitch = player.Pitch,
-                Health = player.Health,
-                MaxHealth = player.MaxHealth,
-                FlyingMode = player.FlyingMode,
-                SelectedSlot = player.SelectedSlot,
-                Hotbar = new List<InventorySlotSaveData>()
-            };
-
-            for (int i = 0; i < player.Hotbar.Length; i++)
-            {
-                save.Player.Hotbar.Add(new InventorySlotSaveData
-                {
-                    Block = (byte)player.Hotbar[i].Type,
-                    Count = player.Hotbar[i].Count
-                });
-            }
-
-            return save;
+            var snapshot = game.Session.BuildSaveSnapshot(
+                slotId, slotName, game.TimeOfDay, game.TimeScale, game.TimePaused,
+                GameConstants.DefaultSpawnX, GameConstants.DefaultSpawnZ);
+            return BuildFromSnapshot(snapshot);
         }
 
         public static void Save(WorldSaveData data)
@@ -211,9 +197,95 @@ namespace Autonocraft.World
 
             data.SlotId = slotId;
             data.Modifications ??= new List<BlockModification>();
+            data.FluidModifications ??= new List<FluidModification>();
+            data.UnlockedCraftingIds ??= new List<string>();
+            data.Villages ??= new List<VillageSaveData>();
+            data.Villagers ??= new List<VillagerSaveData>();
+            data.ClaimedAnchors ??= new List<ClaimedAnchorSaveData>();
             data.Player ??= CreateDefaultPlayerSaveData(data.Spawn.X, data.Spawn.Z);
             data.Time ??= new TimeSaveData();
             data.Spawn ??= new SpawnSaveData();
+            MigrateSaveData(data);
+            ValidateAndSanitize(data);
+            return data;
+        }
+
+        internal static void ValidateAndSanitize(WorldSaveData data)
+        {
+            data.Player ??= CreateDefaultPlayerSaveData(data.Spawn.X, data.Spawn.Z);
+
+            data.Player.MaxHealth = Math.Max(1, data.Player.MaxHealth);
+            data.Player.Health = Math.Clamp(data.Player.Health, 0, data.Player.MaxHealth);
+            data.Player.SelectedSlot = Math.Clamp(data.Player.SelectedSlot, 0, 8);
+
+            if (data.Player.Hotbar == null)
+            {
+                data.Player.Hotbar = new List<InventorySlotSaveData>();
+            }
+
+            while (data.Player.Hotbar.Count < 9)
+            {
+                data.Player.Hotbar.Add(new InventorySlotSaveData());
+            }
+
+            if (data.Player.Hotbar.Count > 9)
+            {
+                data.Player.Hotbar = data.Player.Hotbar.GetRange(0, 9);
+            }
+
+            for (int i = 0; i < data.Player.Hotbar.Count; i++)
+            {
+                data.Player.Hotbar[i] = SanitizeHotbarSlot(data.Player.Hotbar[i]);
+            }
+
+            var validMods = new List<BlockModification>();
+            foreach (var mod in data.Modifications)
+            {
+                if (mod.Y < 0 || mod.Y >= Chunk.Height)
+                {
+                    continue;
+                }
+
+                if (!Enum.IsDefined(typeof(BlockType), mod.Block))
+                {
+                    continue;
+                }
+
+                validMods.Add(mod);
+            }
+
+            data.Modifications = validMods;
+        }
+
+        private static InventorySlotSaveData SanitizeHotbarSlot(InventorySlotSaveData data)
+        {
+            var kind = (ItemKind)data.Kind;
+            if (kind == ItemKind.Tool && data.ToolId != 0)
+            {
+                if (!ToolRegistry.TryGet((ItemId)data.ToolId, out _))
+                {
+                    return new InventorySlotSaveData();
+                }
+            }
+            else if (kind == ItemKind.FluidContainer && data.ToolId != 0)
+            {
+                if (!ToolRegistry.TryGet((ItemId)data.ToolId, out _))
+                {
+                    return new InventorySlotSaveData();
+                }
+            }
+            else if (kind == ItemKind.Block || (kind == ItemKind.Empty && data.Count > 0))
+            {
+                if (data.Count <= 0 || !Enum.IsDefined(typeof(BlockType), data.Block) || data.Block == (byte)BlockType.Air)
+                {
+                    return new InventorySlotSaveData();
+                }
+            }
+            else if (data.Count > 0)
+            {
+                return new InventorySlotSaveData();
+            }
+
             return data;
         }
 
@@ -226,38 +298,187 @@ namespace Autonocraft.World
             }
         }
 
+        public static PlayerSaveData BuildPlayerSaveData(Player player)
+        {
+            return new PlayerSaveData
+            {
+                PosX = player.Position.X,
+                PosY = player.Position.Y,
+                PosZ = player.Position.Z,
+                VelX = player.Velocity.X,
+                VelY = player.Velocity.Y,
+                VelZ = player.Velocity.Z,
+                Yaw = player.Yaw,
+                Pitch = player.Pitch,
+                Health = player.Health,
+                MaxHealth = player.MaxHealth,
+                FlyingMode = player.FlyingMode,
+                SelectedSlot = player.SelectedSlot,
+                Hotbar = SerializeHotbar(player),
+                MiningLevel = player.Skills.Mining.Level,
+                MiningXp = player.Skills.Mining.Xp,
+                WoodcuttingLevel = player.Skills.Woodcutting.Level,
+                WoodcuttingXp = player.Skills.Woodcutting.Xp,
+                CombatLevel = player.Skills.Combat.Level,
+                CombatXp = player.Skills.Combat.Xp
+            };
+        }
+
         public static void ApplyPlayerSaveData(Player player, PlayerSaveData data)
         {
             player.Position = new System.Numerics.Vector3(data.PosX, data.PosY, data.PosZ);
             player.Velocity = new System.Numerics.Vector3(data.VelX, data.VelY, data.VelZ);
             player.Yaw = data.Yaw;
             player.Pitch = data.Pitch;
-            player.Health = data.Health;
-            player.MaxHealth = data.MaxHealth;
+            player.MaxHealth = Math.Max(1, data.MaxHealth);
+            player.Health = Math.Clamp(data.Health, 0, player.MaxHealth);
             player.FlyingMode = data.FlyingMode;
-            player.SelectedSlot = data.SelectedSlot;
+            player.SelectedSlot = Math.Clamp(data.SelectedSlot, 0, 8);
 
             for (int i = 0; i < player.Hotbar.Length; i++)
             {
-                if (i < data.Hotbar.Count)
+                player.Hotbar[i] = i < data.Hotbar.Count
+                    ? DeserializeHotbarSlot(data.Hotbar[i])
+                    : ItemStack.Empty;
+            }
+
+            player.Skills.Mining = new SkillProgress { Level = data.MiningLevel > 0 ? data.MiningLevel : 1, Xp = data.MiningXp };
+            player.Skills.Woodcutting = new SkillProgress { Level = data.WoodcuttingLevel > 0 ? data.WoodcuttingLevel : 1, Xp = data.WoodcuttingXp };
+            player.Skills.Combat = new SkillProgress { Level = data.CombatLevel > 0 ? data.CombatLevel : 1, Xp = data.CombatXp };
+        }
+
+        private static List<InventorySlotSaveData> SerializeHotbar(Player player)
+        {
+            var hotbar = new List<InventorySlotSaveData>();
+            for (int i = 0; i < player.Hotbar.Length; i++)
+            {
+                hotbar.Add(SerializeHotbarSlot(player.Hotbar[i]));
+            }
+
+            return hotbar;
+        }
+
+        private static InventorySlotSaveData SerializeHotbarSlot(ItemStack stack)
+        {
+            if (stack.IsEmpty)
+            {
+                return new InventorySlotSaveData();
+            }
+
+            if (stack.IsTool())
+            {
+                return new InventorySlotSaveData
                 {
-                    player.Hotbar[i] = new Player.InventorySlot
+                    Kind = (byte)ItemKind.Tool,
+                    ToolId = (ushort)stack.ToolId,
+                    Count = stack.Count,
+                    Durability = stack.Durability,
+                    MaxDurability = stack.MaxDurability
+                };
+            }
+
+            if (stack.IsFluidContainer())
+            {
+                return new InventorySlotSaveData
+                {
+                    Kind = (byte)ItemKind.FluidContainer,
+                    ToolId = (ushort)stack.ToolId,
+                    Count = 1
+                };
+            }
+
+            return new InventorySlotSaveData
+            {
+                Kind = (byte)ItemKind.Block,
+                Block = (byte)stack.BlockType,
+                Count = stack.Count
+            };
+        }
+
+        private static ItemStack DeserializeHotbarSlot(InventorySlotSaveData data)
+        {
+            var kind = (ItemKind)data.Kind;
+            if (kind == ItemKind.FluidContainer && data.ToolId != 0)
+            {
+                return ItemStack.CreateFluidContainer((ItemId)data.ToolId);
+            }
+
+            if (kind == ItemKind.Tool && data.ToolId != 0)
+            {
+                var toolId = (ItemId)data.ToolId;
+                if (!ToolRegistry.TryGet(toolId, out _))
+                {
+                    return ItemStack.Empty;
+                }
+
+                int maxDurability = data.MaxDurability > 0 ? data.MaxDurability : ToolRegistry.Get(toolId).MaxDurability;
+                int durability = data.Durability > 0 ? data.Durability : maxDurability;
+                return new ItemStack
+                {
+                    Kind = ItemKind.Tool,
+                    ToolId = toolId,
+                    Count = Math.Max(1, data.Count),
+                    Durability = durability,
+                    MaxDurability = maxDurability
+                };
+            }
+
+            if (data.Count <= 0 || data.Block == (byte)BlockType.Air || !Enum.IsDefined(typeof(BlockType), data.Block))
+            {
+                return ItemStack.Empty;
+            }
+
+            return ItemStack.CreateBlock((BlockType)data.Block, data.Count);
+        }
+
+        private static void MigrateSaveData(WorldSaveData data)
+        {
+            if (data.Version < 3)
+            {
+                foreach (var slot in data.Player.Hotbar)
+                {
+                    if (slot.Kind == 0 && slot.Count > 0)
                     {
-                        Type = (BlockType)data.Hotbar[i].Block,
-                        Count = data.Hotbar[i].Count
-                    };
+                        slot.Kind = (byte)ItemKind.Block;
+                    }
                 }
-                else
+
+                data.Version = 3;
+            }
+
+            if (data.Version < 5)
+            {
+                data.Villages ??= new List<VillageSaveData>();
+                data.Villagers ??= new List<VillagerSaveData>();
+                data.Version = 5;
+            }
+
+            if (data.Version < 6)
+            {
+                data.ClaimedAnchors ??= new List<ClaimedAnchorSaveData>();
+                foreach (var village in data.Villages)
                 {
-                    player.Hotbar[i] = new Player.InventorySlot { Type = BlockType.Air, Count = 0 };
+                    village.Buildings ??= new List<BuildingSaveData>();
+                    village.BuildingSites ??= new List<BuildingSiteSaveData>();
                 }
+
+                foreach (var villager in data.Villagers)
+                {
+                    villager.Inventory ??= new List<InventorySlotSaveData>();
+                }
+
+                data.Version = 6;
             }
         }
+
+        public static InventorySlotSaveData SerializeItemStack(ItemStack stack) => SerializeHotbarSlot(stack);
+
+        public static ItemStack DeserializeItemStack(InventorySlotSaveData data) => DeserializeHotbarSlot(data);
 
         private static PlayerSaveData CreateDefaultPlayerSaveData(int spawnX, int spawnZ)
         {
             var player = new Player(new System.Numerics.Vector3(spawnX + 0.5f, 64f, spawnZ + 0.5f));
-            var data = new PlayerSaveData
+            return new PlayerSaveData
             {
                 PosX = player.Position.X,
                 PosY = player.Position.Y,
@@ -266,19 +487,8 @@ namespace Autonocraft.World
                 Pitch = player.Pitch,
                 Health = player.Health,
                 MaxHealth = player.MaxHealth,
-                Hotbar = new List<InventorySlotSaveData>()
+                Hotbar = SerializeHotbar(player)
             };
-
-            for (int i = 0; i < player.Hotbar.Length; i++)
-            {
-                data.Hotbar.Add(new InventorySlotSaveData
-                {
-                    Block = (byte)player.Hotbar[i].Type,
-                    Count = player.Hotbar[i].Count
-                });
-            }
-
-            return data;
         }
 
         private static string Slugify(string value)

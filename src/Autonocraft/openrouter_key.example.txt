@@ -1,9 +1,17 @@
-# Place your OpenRouter API Key below.
-# Alternatively, configure the OPENROUTER_API_KEY environment variable.
-# Copy this file to openrouter_key.txt and fill in your key.
+# LLM configuration for Autonocraft village AI chat
+#
+# Preferred: Main menu → SETTINGS → configure Play with AI, provider, and fields.
+# Settings are saved to ~/Library/Application Support/Autonocraft/settings.json (macOS).
+#
+# --- OpenRouter (cloud) ---
+# Option 1: Set OPENROUTER_API_KEY environment variable.
+# Option 2: Copy this file to openrouter_key.txt and fill in your key.
+#
+# --- llama.cpp (local) ---
+#   llama-server -m /path/to/model.gguf --port 8080
+#
+# --- Offline testing ---
+# Set provider to "Mock" in main menu Settings.
 
 API_KEY=YOUR_OPENROUTER_API_KEY_HERE
-
-# You can configure any model available on OpenRouter.
-# Defaults: google/gemini-2.5-flash (fast/cheap), anthropic/claude-3.5-sonnet (smart), etc.
-MODEL=google/gemini-2.5-flash
+MODEL=openai/gpt-4o-mini

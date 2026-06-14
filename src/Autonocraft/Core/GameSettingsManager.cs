@@ -53,8 +53,9 @@ namespace Autonocraft.Core
                 settings.Clamp();
                 return settings;
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"[Settings] Failed to load settings from '{path}': {ex.Message}. Using defaults.");
                 return CreateDefault();
             }
         }

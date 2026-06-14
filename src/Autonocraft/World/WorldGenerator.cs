@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using Autonocraft.World.Structures;
 
 namespace Autonocraft.World
 {
@@ -9,6 +11,7 @@ namespace Autonocraft.World
         private readonly CaveCarver _caveCarver;
         private readonly OrePlacer _orePlacer;
         private readonly Decorator _decorator;
+        private readonly StructurePlacer _structurePlacer;
         private readonly int _seed;
         private readonly WorldGenParams _params;
 
@@ -24,21 +27,19 @@ namespace Autonocraft.World
             _caveCarver = new CaveCarver(seed, _params);
             _orePlacer = new OrePlacer(seed, _params);
             _decorator = new Decorator(seed, _params);
+            _structurePlacer = new StructurePlacer(seed, _params);
         }
 
         public void GenerateChunkTerrain(Chunk chunk, VoxelWorld? world = null)
         {
             var columns = new TerrainColumn[Chunk.Width, Chunk.Depth];
 
-            for (int lx = 0; lx < Chunk.Width; lx++)
-            {
-                for (int lz = 0; lz < Chunk.Depth; lz++)
-                {
-                    int wx = chunk.ChunkX * Chunk.Width + lx;
-                    int wz = chunk.ChunkZ * Chunk.Depth + lz;
-                    columns[lx, lz] = _terrainShaper.BuildColumn(wx, wz);
-                }
-            }
+            TerrainPostProcessor.ProcessChunk(
+                chunk.ChunkX,
+                chunk.ChunkZ,
+                columns,
+                (wx, wz) => _terrainShaper.BuildBaseColumn(wx, wz),
+                _params.EnableRivers);
 
             for (int lx = 0; lx < Chunk.Width; lx++)
             {
@@ -51,8 +52,47 @@ namespace Autonocraft.World
             _caveCarver.CarveChunk(chunk, columns);
             _orePlacer.PlaceOres(chunk);
             _decorator.DecorateChunk(chunk, world, columns);
+
+            var previewCache = new Dictionary<(int cx, int cz), TerrainColumn[,]>
+            {
+                [(chunk.ChunkX, chunk.ChunkZ)] = columns
+            };
+
+            TerrainColumn PreviewColumnCached(int wx, int wz)
+            {
+                VoxelWorld.GetChunkCoords(wx, wz, out int cx, out int cz, out int lx, out int lz);
+                if (!previewCache.TryGetValue((cx, cz), out var cachedColumns))
+                {
+                    cachedColumns = PreviewChunkColumns(cx, cz);
+                    previewCache[(cx, cz)] = cachedColumns;
+                }
+
+                return cachedColumns[lx, lz];
+            }
+
+            _structurePlacer.PlaceStructures(chunk, columns, PreviewColumnCached);
         }
 
-        public TerrainColumn PreviewColumn(int wx, int wz) => _terrainShaper.BuildColumn(wx, wz);
+        public TerrainColumn PreviewColumn(int wx, int wz)
+        {
+            VoxelWorld.GetChunkCoords(wx, wz, out int cx, out int cz, out int lx, out int lz);
+            return PreviewChunkColumns(cx, cz)[lx, lz];
+        }
+
+        public BiomeSample SampleBiome(int wx, int wz) => _biomeMap.Sample(wx, wz);
+
+        public TerrainColumn[,] PreviewChunkColumns(int chunkX, int chunkZ)
+        {
+            var columns = new TerrainColumn[Chunk.Width, Chunk.Depth];
+
+            TerrainPostProcessor.ProcessChunk(
+                chunkX,
+                chunkZ,
+                columns,
+                (x, z) => _terrainShaper.BuildBaseColumn(x, z),
+                _params.EnableRivers);
+
+            return columns;
+        }
     }
 }

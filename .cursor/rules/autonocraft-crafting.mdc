@@ -1,0 +1,16 @@
+---
+description: Crafting and items change guidelines
+globs: src/Autonocraft/Crafting/**,src/Autonocraft/Items/**
+alwaysApply: false
+---
+
+# Autonocraft Crafting & Items
+
+- Sigils: `Crafting/SigilRegistry.cs`
+- Station recipes: `Crafting/CraftRecipeRegistry.cs`
+- Tools: `Items/ToolRegistry.cs`, mining speed: `Items/MiningCalculator.cs`
+- UI: `UI/CrucibleScreen.cs`, `UI/JournalScreen.cs`
+
+Tests to run after changes: `TestSigilBenchActivation`, `TestCruciblePlankRecipe`, `TestNewCraftRecipes`, `TestToolMiningSpeed`, `TestSkillProgression`.
+
+HTTP test: `python3 tests/interact.py action dev cmd_line="unlock recipe:plank"`

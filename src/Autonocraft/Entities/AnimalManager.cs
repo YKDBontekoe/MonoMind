@@ -12,6 +12,7 @@ namespace Autonocraft.Entities
         public const int MaxAnimalsPerChunk = 2;
 
         private readonly List<Animal> _animals = new List<Animal>();
+        private readonly List<Animal> _rangeScratch = new();
         private readonly HashSet<(int cx, int cz)> _populatedChunks = new HashSet<(int cx, int cz)>();
         private readonly int _worldSeed;
         private int _nextSpawnSeed = 5000;
@@ -34,6 +35,18 @@ namespace Autonocraft.Entities
                 var prevZ = animal.Position.Z;
 
                 animal.Update(deltaTime, world);
+                animal.UpdateAnimation(deltaTime);
+
+                if (animal.ReadyForRemoval)
+                {
+                    _animals.RemoveAt(i);
+                    continue;
+                }
+
+                if (animal.IsDying)
+                {
+                    continue;
+                }
 
                 if (!animal.IsGrounded && animal.Velocity.X == 0f && animal.Velocity.Z == 0f &&
                     (MathF.Abs(animal.Position.X - prevX) < 0.001f && MathF.Abs(animal.Position.Z - prevZ) < 0.001f) &&
@@ -173,17 +186,17 @@ namespace Autonocraft.Entities
         public List<Animal> GetAnimalsInRange(Vector3 center, float radius)
         {
             float radiusSq = radius * radius;
-            var result = new List<Animal>();
+            _rangeScratch.Clear();
 
             foreach (var animal in _animals)
             {
                 if (Vector3.DistanceSquared(animal.Position, center) <= radiusSq)
                 {
-                    result.Add(animal);
+                    _rangeScratch.Add(animal);
                 }
             }
 
-            return result;
+            return _rangeScratch;
         }
 
         public (Animal? animal, float distance) RaycastTarget(Vector3 origin, Vector3 direction, float maxDistance)

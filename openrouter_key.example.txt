@@ -1,0 +1,31 @@
+# LLM configuration for Autonocraft village AI chat
+#
+# Preferred: Main menu → SETTINGS → configure Play with AI, provider, and fields.
+# Settings are saved to ~/Library/Application Support/Autonocraft/settings.json (macOS).
+#
+# --- OpenRouter (cloud) ---
+# Option 1: Set OPENROUTER_API_KEY environment variable.
+# Option 2: Copy this file to openrouter_key.txt and fill in your key.
+#
+# Search order for API key:
+#   1. settings.json (OpenRouter API key field)
+#   2. OPENROUTER_API_KEY env var
+#   3. ~/Library/Application Support/Autonocraft/openrouter_key.txt (macOS app data)
+#   4. openrouter_key.txt next to the game executable (build output directory)
+#
+# Optional model override via settings, OPENROUTER_MODEL env var, or MODEL= below.
+# Default model: openai/gpt-4o-mini
+#
+# --- llama.cpp (local) ---
+# Install llama.cpp and run llama-server, then in Settings choose "llama.cpp Local":
+#
+#   llama-server -m /path/to/model.gguf --port 8080
+#
+# Default URL: http://127.0.0.1:8080 (OpenAI-compatible /v1/chat/completions)
+# Model field is optional — leave empty to use the server's loaded model.
+#
+# --- Offline testing ---
+# Set provider to "Mock" for deterministic replies without a network call.
+
+API_KEY=YOUR_OPENROUTER_API_KEY_HERE
+MODEL=openai/gpt-4o-mini

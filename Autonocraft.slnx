@@ -1,5 +1,9 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Autonocraft.Domain/Autonocraft.Domain.csproj" />
     <Project Path="src/Autonocraft/Autonocraft.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Autonocraft.Tests/Autonocraft.Tests.csproj" />
   </Folder>
 </Solution>

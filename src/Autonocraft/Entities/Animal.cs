@@ -20,6 +20,14 @@ namespace Autonocraft.Entities
         public float WanderDistanceRemaining;
         public float AirborneTime;
         public float Health { get; private set; }
+        public float HitFlashTimer { get; private set; }
+        public float DeathAnimTimer { get; private set; }
+        public bool IsDying { get; private set; }
+        public bool ReadyForRemoval => IsDying && DeathAnimTimer <= 0f;
+        public float DeathScale => IsDying ? Math.Clamp(DeathAnimTimer / DeathAnimDuration, 0f, 1f) : 1f;
+
+        private const float HitFlashDuration = 0.15f;
+        private const float DeathAnimDuration = 0.3f;
 
         private readonly Random _rng;
         private readonly AnimalStats _stats;
@@ -51,6 +59,7 @@ namespace Autonocraft.Entities
             }
 
             Health = Math.Max(0f, Health - amount);
+            HitFlashTimer = HitFlashDuration;
 
             if (attackerPos.HasValue)
             {
@@ -64,8 +73,32 @@ namespace Autonocraft.Entities
             }
         }
 
+        public void BeginDeathAnimation()
+        {
+            IsDying = true;
+            DeathAnimTimer = DeathAnimDuration;
+        }
+
+        public void UpdateAnimation(float deltaTime)
+        {
+            if (HitFlashTimer > 0f)
+            {
+                HitFlashTimer = Math.Max(0f, HitFlashTimer - deltaTime);
+            }
+
+            if (DeathAnimTimer > 0f)
+            {
+                DeathAnimTimer = Math.Max(0f, DeathAnimTimer - deltaTime);
+            }
+        }
+
         public void Update(float deltaTime, VoxelWorld world)
         {
+            if (IsDying)
+            {
+                return;
+            }
+
             UpdateAi(deltaTime);
 
             var horizontal = new Vector3(WanderDirection.X * _stats.WalkSpeed, 0f, WanderDirection.Z * _stats.WalkSpeed);
@@ -81,7 +114,16 @@ namespace Autonocraft.Entities
                 IsGrounded = IsGrounded
             };
 
-            EntityCollision.ApplyGravityAndMove(ref state, world, deltaTime, _stats.Width, _stats.Height, horizontal);
+            EntityCollision.ApplyGravityAndMove(
+                ref state,
+                world,
+                deltaTime,
+                _stats.Width,
+                _stats.Height,
+                _stats.Height * 0.85f,
+                horizontal,
+                swimUp: false,
+                swimDown: false);
 
             Position = state.Position;
             Velocity = state.Velocity;

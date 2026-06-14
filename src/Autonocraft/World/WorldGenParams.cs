@@ -11,6 +11,8 @@ namespace Autonocraft.World
         public bool EnableCaves { get; init; } = true;
         public bool EnableOres { get; init; } = true;
         public bool EnableRivers { get; init; } = true;
+        public bool EnableStructures { get; init; } = true;
+        public float StructureDensityScale { get; init; } = 1f;
 
         public static WorldGenParams ForType(WorldType type) => type switch
         {
@@ -37,7 +39,8 @@ namespace Autonocraft.World
                 MountainWeight = 0.1f,
                 TreeDensityScale = 0.5f,
                 EnableCaves = false,
-                EnableRivers = false
+                EnableRivers = false,
+                EnableStructures = false
             },
             _ => new WorldGenParams { WorldType = WorldType.Default }
         };

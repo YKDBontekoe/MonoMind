@@ -3,20 +3,25 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Autonocraft.Engine;
+using Autonocraft.Engine.Animation;
 using Autonocraft.World;
 
 namespace Autonocraft.UI
 {
     public class NewWorldSetupScreen
     {
-        private const float ButtonWidth = 220f;
+        private const float ButtonWidth = 200f;
         private const float ButtonHeight = 40f;
         private const float ButtonSpacing = 12f;
-        private const float PanelWidth = 520f;
-        private const float PanelHeight = 420f;
+        private const float PanelWidth = 560f;
+        private const float PanelHeight = 400f;
 
         private readonly UiRenderer _ui;
+        private readonly MenuBackdrop _backdrop = new MenuBackdrop(28);
+        private readonly UiTransition _transition = new UiTransition();
         private readonly Random _random = new Random();
+        private readonly float[] _buttonHoverT = new float[3];
+        private float _animTime;
         private int _hoveredButton = -1;
         private int _selectedWorldType;
         private string _seedText = WorldConstants.DefaultSeed.ToString();
@@ -47,28 +52,36 @@ namespace Autonocraft.UI
             _seedFocused = false;
             SelectedSeed = WorldConstants.DefaultSeed;
             SelectedWorldType = WorldType.Default;
+            _transition.BeginFadeIn(0.3f);
         }
 
-        public void Update(Viewport viewport, KeyboardState kb, MouseState mouse, KeyboardState prevKb, MouseState prevMouse)
+        public void Update(Viewport viewport, KeyboardState kb, MouseState mouse, KeyboardState prevKb, MouseState prevMouse, float deltaTime)
         {
+            _animTime += deltaTime;
+            _backdrop.Update(deltaTime);
+            _transition.Update(deltaTime);
+
+            for (int i = 0; i < _buttonHoverT.Length; i++)
+            {
+                float target = _hoveredButton == i ? 1f : 0f;
+                _buttonHoverT[i] = Tween.SmoothDamp(_buttonHoverT[i], target, 10f, deltaTime);
+            }
+
             CreateRequested = false;
             BackRequested = false;
 
             var layout = new UiLayout(viewport);
             float buttonW = layout.S(ButtonWidth);
             float buttonH = layout.S(ButtonHeight);
-            float buttonSpacing = layout.S(ButtonSpacing);
             float cx = layout.CenterX;
-            float panelY = layout.Height * 0.14f;
-            float typeY = panelY + layout.S(120f);
-            float seedY = typeY + layout.S(110f);
-            float createY = seedY + layout.S(90f);
-            float backY = createY + buttonH + buttonSpacing;
-            float randomY = seedY + layout.S(42f);
+            float panelY = layout.CenterY - layout.S(PanelHeight / 2f);
+            float typeY = panelY + layout.S(108f);
+            float seedY = typeY + layout.S(108f);
+            float createY = seedY + layout.S(86f);
 
-            var createRect = GetButtonRect(cx, createY, buttonW, buttonH);
-            var backRect = GetButtonRect(cx, backY, buttonW, buttonH);
-            var randomRect = GetButtonRect(cx + layout.S(90f), randomY, layout.S(120f), layout.S(30f));
+            var createRect = GetButtonRect(cx - buttonW / 2f - layout.S(6f), createY, buttonW, buttonH);
+            var backRect = GetButtonRect(cx + buttonW / 2f + layout.S(6f), createY, buttonW, buttonH);
+            var randomRect = GetButtonRect(cx + layout.S(100f), seedY + layout.S(40f), layout.S(120f), layout.S(30f));
 
             _hoveredButton = -1;
             if (createRect.Contains(mouse.X, mouse.Y)) _hoveredButton = 0;
@@ -96,18 +109,18 @@ namespace Autonocraft.UI
                 }
                 else
                 {
-                    float typeListX = cx - layout.S(180f);
+                    float typeListX = cx - layout.S(200f);
                     for (int i = 0; i < WorldTypes.Length; i++)
                     {
-                        float rowY = typeY + i * layout.S(28f);
-                        var rowRect = new Rectangle((int)typeListX, (int)rowY, (int)layout.S(360f), (int)layout.S(24f));
+                        float rowY = typeY + i * layout.S(30f);
+                        var rowRect = new Rectangle((int)typeListX, (int)rowY, (int)layout.S(400f), (int)layout.S(26f));
                         if (rowRect.Contains(mouse.X, mouse.Y))
                         {
                             _selectedWorldType = i;
                         }
                     }
 
-                    var seedBox = new Rectangle((int)(cx - layout.S(120f)), (int)seedY, (int)layout.S(240f), (int)layout.S(32f));
+                    var seedBox = new Rectangle((int)(cx - layout.S(130f)), (int)seedY, (int)layout.S(260f), (int)layout.S(34f));
                     _seedFocused = seedBox.Contains(mouse.X, mouse.Y);
                 }
             }
@@ -155,6 +168,11 @@ namespace Autonocraft.UI
             {
                 _selectedWorldType = (_selectedWorldType + 1) % WorldTypes.Length;
             }
+
+            if (kb.IsKeyDown(Keys.Escape) && !prevKb.IsKeyDown(Keys.Escape) && !_seedFocused)
+            {
+                BackRequested = true;
+            }
         }
 
         private void CommitSeed()
@@ -170,63 +188,91 @@ namespace Autonocraft.UI
 
         public void Draw(Viewport viewport)
         {
+            float alpha = _transition.Alpha;
+            float offsetY = _transition.OffsetY;
             var layout = new UiLayout(viewport);
             float buttonW = layout.S(ButtonWidth);
             float buttonH = layout.S(ButtonHeight);
-            float buttonSpacing = layout.S(ButtonSpacing);
             float panelW = layout.S(PanelWidth);
             float panelH = layout.S(PanelHeight);
             float cx = layout.CenterX;
             float panelX = cx - panelW / 2f;
-            float panelY = layout.Height * 0.14f;
+            float panelY = layout.CenterY - panelH / 2f + offsetY;
 
-            _ui.DrawFullscreenBackground(new Color(0.03f, 0.04f, 0.07f));
-            _ui.DrawPanel(panelX, panelY, panelW, panelH, new Color(0.04f, 0.05f, 0.08f) * 0.88f, new Color(0.2f, 0.3f, 0.4f));
+            _backdrop.Draw(_ui, viewport, alpha);
 
-            _ui.DrawCenteredText("NEW WORLD", panelY + layout.S(24f), layout.S(2.0f), new Color(0.8f, 0.9f, 1.0f));
-            _ui.DrawCenteredText("CONFIGURE GENERATION", panelY + layout.S(56f), layout.S(1.1f), new Color(0.55f, 0.65f, 0.75f));
+            _ui.DrawCenteredTitle("FOUND SETTLEMENT", layout.Height * 0.085f + offsetY, layout.S(2.4f), new Color(0.82f, 0.92f, 1.0f), alpha);
 
-            float typeY = panelY + layout.S(120f);
-            float typeListX = cx - layout.S(180f);
-            _ui.DrawString("WORLD TYPE", typeListX, typeY - layout.S(24f), layout.S(1.1f), new Color(0.7f, 0.78f, 0.88f));
+            _ui.DrawFramedPanel(panelX, panelY, panelW, panelH, new Color(0.04f, 0.06f, 0.09f) * 0.94f, new Color(0.2f, 0.45f, 0.65f), alpha);
+            _ui.DrawCenteredText("WORLD SETUP", panelY + layout.S(20f), layout.S(1.55f), new Color(0.75f, 0.86f, 0.96f), alpha);
+            _ui.DrawCenteredText("CHOOSE TERRAIN — YOUR STEWARD AWAITS", panelY + layout.S(48f), layout.S(1.05f), new Color(0.48f, 0.56f, 0.66f), alpha);
+
+            float typeY = panelY + layout.S(108f);
+            float typeListX = cx - layout.S(200f);
+            _ui.DrawString("TERRAIN TYPE", typeListX, typeY - layout.S(26f), layout.S(1.1f), new Color(0.55f, 0.68f, 0.78f), alpha);
 
             for (int i = 0; i < WorldTypes.Length; i++)
             {
                 bool selected = i == _selectedWorldType;
-                Color color = selected ? new Color(0.82f, 0.9f, 1.0f) : new Color(0.5f, 0.58f, 0.66f);
+                float rowY = typeY + i * layout.S(30f);
+                if (selected)
+                {
+                    _ui.DrawSoftGlow(typeListX - layout.S(4f), rowY - layout.S(2f), layout.S(400f), layout.S(26f), new Color(0.15f, 0.55f, 0.9f), alpha * 0.25f, 2);
+                    _ui.DrawPanel(typeListX - layout.S(4f), rowY - layout.S(2f), layout.S(400f), layout.S(26f), new Color(0.08f, 0.14f, 0.22f) * 0.9f, new Color(0.2f, 0.55f, 0.85f), 0.8f, alpha);
+                }
+
+                Color color = selected ? new Color(0.88f, 0.94f, 1.0f) : new Color(0.42f, 0.5f, 0.58f);
                 string prefix = selected ? "> " : "  ";
-                _ui.DrawString(prefix + WorldTypes[i].ToString().ToUpperInvariant(), typeListX, typeY + i * layout.S(28f), layout.S(1.15f), color);
+                string label = prefix + FormatWorldType(WorldTypes[i]);
+                _ui.DrawString(label, typeListX, rowY + layout.S(4f), layout.S(1.12f), color, alpha);
             }
 
-            float seedY = typeY + layout.S(110f);
-            _ui.DrawString("SEED", typeListX, seedY - layout.S(24f), layout.S(1.1f), new Color(0.7f, 0.78f, 0.88f));
-            _ui.DrawPanel(cx - layout.S(120f), seedY, layout.S(240f), layout.S(32f),
-                _seedFocused ? new Color(0.1f, 0.14f, 0.2f) : new Color(0.05f, 0.07f, 0.1f),
-                new Color(0.2f, 0.3f, 0.4f));
-            _ui.DrawString(_seedText, cx - layout.S(112f), seedY + layout.S(8f), layout.S(1.2f), new Color(0.85f, 0.92f, 1.0f));
+            float seedY = typeY + layout.S(108f);
+            _ui.DrawString("WORLD SEED", typeListX, seedY - layout.S(26f), layout.S(1.1f), new Color(0.55f, 0.68f, 0.78f), alpha);
+            _ui.DrawPanel(
+                cx - layout.S(130f),
+                seedY,
+                layout.S(260f),
+                layout.S(34f),
+                _seedFocused ? new Color(0.1f, 0.16f, 0.24f) : new Color(0.05f, 0.07f, 0.1f),
+                _seedFocused ? new Color(0.2f, 0.6f, 0.9f) : new Color(0.18f, 0.28f, 0.38f),
+                0.85f,
+                alpha);
+            _ui.DrawString(_seedText, cx - layout.S(120f), seedY + layout.S(9f), layout.S(1.2f), new Color(0.88f, 0.94f, 1.0f), alpha);
 
-            float randomY = seedY + layout.S(42f);
-            DrawButton(cx + layout.S(90f), randomY, layout.S(120f), layout.S(30f), "RANDOM", _hoveredButton == 2, layout.S(1.0f));
+            float randomY = seedY + layout.S(40f);
+            DrawButton(cx + layout.S(100f), randomY, layout.S(120f), layout.S(30f), "RANDOM", 2, layout.S(1.0f), alpha);
 
-            float createY = seedY + layout.S(90f);
-            float backY = createY + buttonH + buttonSpacing;
-            DrawButton(cx, createY, buttonW, buttonH, "CREATE WORLD", _hoveredButton == 0, layout.S(1.3f));
-            DrawButton(cx, backY, buttonW, buttonH, "BACK", _hoveredButton == 1, layout.S(1.3f));
+            float createY = seedY + layout.S(86f);
+            DrawButton(cx - buttonW / 2f - layout.S(6f), createY, buttonW, buttonH, "CREATE", 0, layout.S(1.3f), alpha, accent: true);
+            DrawButton(cx + buttonW / 2f + layout.S(6f), createY, buttonW, buttonH, "BACK", 1, layout.S(1.3f), alpha);
+
+            _ui.DrawCenteredText("LEFT/RIGHT CHANGE TERRAIN", layout.Height - layout.S(32f) + offsetY, layout.S(0.95f), new Color(0.38f, 0.44f, 0.52f), 0.85f * alpha);
         }
 
-        private void DrawButton(float centerX, float y, float width, float height, string label, bool hovered, float textPixelSize)
+        private void DrawButton(float x, float y, float width, float height, string label, int index, float textPixelSize, float alpha, bool accent = false)
         {
-            float x = centerX - width / 2f;
-            _ui.DrawButton(x, y, width, height, label, hovered, false, textPixelSize);
+            if (accent)
+            {
+                float glow = 0.5f + 0.5f * _buttonHoverT[index];
+                _ui.DrawFilledRect(x - 1, y - 1, width + 2, height + 2, new Color(0.1f, 0.5f, 0.8f) * (0.25f * glow * alpha));
+            }
+
+            _ui.DrawButton(x, y, width, height, label, _hoveredButton == index, false, textPixelSize, alpha, _buttonHoverT[index]);
         }
 
-        private static Rectangle GetButtonRect(float centerX, float y, float width, float height)
+        private static string FormatWorldType(WorldType type) => type switch
         {
-            return new Rectangle(
-                (int)(centerX - width / 2f),
-                (int)y,
-                (int)width,
-                (int)height);
+            WorldType.Default => "DEFAULT",
+            WorldType.Mountains => "MOUNTAINS",
+            WorldType.Islands => "ISLANDS",
+            WorldType.Flat => "FLAT",
+            _ => type.ToString().ToUpperInvariant()
+        };
+
+        private static Rectangle GetButtonRect(float x, float y, float width, float height)
+        {
+            return new Rectangle((int)x, (int)y, (int)width, (int)height);
         }
     }
 }

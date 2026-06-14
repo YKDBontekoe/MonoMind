@@ -1,4 +1,4 @@
-namespace Autonocraft.World
+namespace Autonocraft.Domain.World
 {
     public static class WorldConstants
     {

@@ -107,7 +107,7 @@ namespace Autonocraft.World
                 Type = type,
                 BaseHeight = WorldConstants.SeaLevel + 2,
                 HeightAmplitude = 4f,
-                SurfaceBlock = BlockType.Grass,
+                SurfaceBlock = BlockType.Mud,
                 SubsurfaceBlock = BlockType.Dirt,
                 FillerBlock = BlockType.Stone,
                 TreeDensity = 0.2f,

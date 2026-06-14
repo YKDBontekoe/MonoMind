@@ -168,6 +168,99 @@ namespace Autonocraft.Engine
             _spriteBatch.End();
         }
 
+        public void DrawBatch(Action<SpriteBatch, Texture2D> drawAction)
+        {
+            _spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+            drawAction(_spriteBatch, _whiteTexture);
+            _spriteBatch.End();
+        }
+
+        public void DrawVignette(float strength = 0.5f, float alpha = 1f)
+        {
+            int w = _device.Viewport.Width;
+            int h = _device.Viewport.Height;
+            const int bands = 14;
+            DrawBatch((batch, tex) =>
+            {
+                float bandW = w / (float)bands;
+                for (int i = 0; i < bands; i++)
+                {
+                    float t = i / (float)(bands - 1);
+                    float edge = MathF.Abs(t - 0.5f) * 2f;
+                    float a = edge * edge * strength * alpha;
+                    if (a < 0.01f) continue;
+                    batch.Draw(tex, new Rectangle((int)(i * bandW), 0, (int)(bandW + 1f), h), Color.Black * a);
+                }
+
+                float bandH = h / (float)bands;
+                for (int i = 0; i < bands; i++)
+                {
+                    float t = i / (float)(bands - 1);
+                    float edge = MathF.Abs(t - 0.5f) * 2f;
+                    float a = edge * edge * (strength * 0.65f) * alpha;
+                    if (a < 0.01f) continue;
+                    batch.Draw(tex, new Rectangle(0, (int)(i * bandH), w, (int)(bandH + 1f)), Color.Black * a);
+                }
+            });
+        }
+
+        public void DrawSoftGlow(float x, float y, float w, float h, Color color, float alpha = 1f, int layers = 4)
+        {
+            DrawBatch((batch, tex) =>
+            {
+                for (int i = layers; i >= 1; i--)
+                {
+                    float expand = i * 3f;
+                    float layerAlpha = alpha * (0.08f / i);
+                    batch.Draw(
+                        tex,
+                        new Rectangle((int)(x - expand), (int)(y - expand), (int)(w + expand * 2f), (int)(h + expand * 2f)),
+                        color * layerAlpha);
+                }
+            });
+        }
+
+        public void DrawCornerAccents(float x, float y, float w, float h, Color color, float length, float thickness, float alpha = 1f)
+        {
+            DrawBatch((batch, tex) =>
+            {
+                Color drawCol = color * alpha;
+                batch.Draw(tex, new Rectangle((int)x, (int)y, (int)length, (int)thickness), drawCol);
+                batch.Draw(tex, new Rectangle((int)x, (int)y, (int)thickness, (int)length), drawCol);
+                batch.Draw(tex, new Rectangle((int)(x + w - length), (int)y, (int)length, (int)thickness), drawCol);
+                batch.Draw(tex, new Rectangle((int)(x + w - thickness), (int)y, (int)thickness, (int)length), drawCol);
+                batch.Draw(tex, new Rectangle((int)x, (int)(y + h - thickness), (int)length, (int)thickness), drawCol);
+                batch.Draw(tex, new Rectangle((int)x, (int)(y + h - length), (int)thickness, (int)length), drawCol);
+                batch.Draw(tex, new Rectangle((int)(x + w - length), (int)(y + h - thickness), (int)length, (int)thickness), drawCol);
+                batch.Draw(tex, new Rectangle((int)(x + w - thickness), (int)(y + h - length), (int)thickness, (int)length), drawCol);
+            });
+        }
+
+        public void DrawHorizontalRule(float x, float y, float w, Color color, float thickness = 1f, float alpha = 1f)
+        {
+            DrawFilledRect(x, y, w, thickness, color * alpha);
+        }
+
+        public void DrawFramedPanel(float x, float y, float w, float h, Color fill, Color border, float alpha = 1f)
+        {
+            DrawSoftGlow(x, y, w, h, border, alpha * 0.55f, 3);
+            DrawPanel(x, y, w, h, fill, border, 0.9f, alpha);
+            DrawCornerAccents(x, y, w, h, border, Math.Min(18f, w * 0.06f), 2f, alpha * 0.95f);
+        }
+
+        public void DrawCenteredTitle(string text, float centerY, float pixelSize, Color color, float alpha = 1f)
+        {
+            float textWidth = MeasureString(text, pixelSize);
+            float x = (_device.Viewport.Width - textWidth) / 2f;
+            float shadowOffset = Math.Max(1f, pixelSize * 0.8f);
+
+            DrawBatch((batch, tex) =>
+            {
+                DrawStringInternal(text, x + shadowOffset, centerY + shadowOffset, pixelSize, Color.Black * (0.45f * alpha), alpha, batch, tex);
+                DrawStringInternal(text, x, centerY, pixelSize, color, alpha, batch, tex);
+            });
+        }
+
         public void DrawIntSlider(
             float x,
             float y,
@@ -249,6 +342,11 @@ namespace Autonocraft.Engine
 
         private void DrawStringInternal(string text, float startX, float startY, float pixelSize, Color color, float alpha)
         {
+            DrawStringInternal(text, startX, startY, pixelSize, color, alpha, _spriteBatch, _whiteTexture);
+        }
+
+        private static void DrawStringInternal(string text, float startX, float startY, float pixelSize, Color color, float alpha, SpriteBatch batch, Texture2D tex)
+        {
             float curX = startX;
             Color drawCol = color * alpha;
             foreach (char c in text.ToUpperInvariant())
@@ -266,7 +364,7 @@ namespace Autonocraft.Engine
                             int px = (int)(curX + col * pixelSize);
                             int py = (int)(startY + r * pixelSize);
                             int sz = (int)Math.Max(1f, pixelSize);
-                            _spriteBatch.Draw(_whiteTexture, new Rectangle(px, py, sz, sz), drawCol);
+                            batch.Draw(tex, new Rectangle(px, py, sz, sz), drawCol);
                         }
                     }
                 }

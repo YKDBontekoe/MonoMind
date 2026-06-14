@@ -47,7 +47,7 @@ namespace Autonocraft.UI
             }
         }
 
-        public void Update(Viewport viewport, KeyboardState kb, KeyboardState prevKb, AutonocraftGame game)
+        public void Update(Viewport viewport, KeyboardState kb, KeyboardState prevKb, GameHostContext host)
         {
             if (!IsOpen) return;
 
@@ -59,7 +59,7 @@ namespace Autonocraft.UI
 
             if (kb.IsKeyDown(Keys.Enter) && !prevKb.IsKeyDown(Keys.Enter))
             {
-                SubmitInput(game);
+                SubmitInput(host);
                 return;
             }
 
@@ -139,7 +139,7 @@ namespace Autonocraft.UI
             _ui.DrawString("> " + _input + "_", contentX, inputY, textScale, Color.White);
         }
 
-        private void SubmitInput(AutonocraftGame game)
+        private void SubmitInput(GameHostContext host)
         {
             string trimmed = _input.Trim();
             if (trimmed.Length == 0)
@@ -150,7 +150,7 @@ namespace Autonocraft.UI
             _historyIndex = -1;
             _input = string.Empty;
 
-            string result = DevCommands.Execute(game, trimmed);
+            string result = DevCommands.Execute(host, trimmed);
             if (result == "__CLEAR__")
             {
                 _lines.Clear();

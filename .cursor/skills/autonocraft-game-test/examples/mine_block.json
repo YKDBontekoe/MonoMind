@@ -1,0 +1,18 @@
+{
+  "name": "mining workflow with assertions",
+  "steps": [
+    {"wait_ready": 120},
+    {"give_tool": {"tool": "pickaxe", "tier": "stone"}},
+    {"select_tool": "pickaxe"},
+    {"dev": "fly off"},
+    {"teleport": {"x": 16, "y": 66, "z": 16}},
+    {"look": {"yaw": 0, "pitch": -60}},
+    {"sleep": 0.3},
+    {"sleep": 1.0},
+    {"screenshot": "test_output/scenarios/mine_01_target.png"},
+    {"click": "left"},
+    {"sleep": 0.5},
+    {"screenshot": "test_output/scenarios/mine_02_after.png"},
+    {"release_keys": true}
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "inventory and dev commands",
+  "steps": [
+    {"wait_ready": 120},
+    {"give_block": {"type": "Dirt", "count": 48}},
+    {"give_tool": {"tool": "pickaxe", "tier": "stone"}},
+    {"wait_for": {"hotbar_block": "Dirt", "timeout": 5}},
+    {"select_slot": 0},
+    {"assert": {"hotbar_block": "Dirt", "hotbar_tool": "pickaxe"}},
+    {"dev": "unlock recipe:plank"},
+    {"set_time": 0.5},
+    {"screenshot": "test_output/scenarios/inv_noon.png"},
+    {"set_time_scale": 0.01}
+  ]
+}

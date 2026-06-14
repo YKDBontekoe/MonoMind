@@ -2,20 +2,12 @@ using System;
 
 namespace Autonocraft.World
 {
-    public readonly struct RiverSample
-    {
-        public float Strength { get; init; }
-        public float BankStrength { get; init; }
-        public bool IsRiver => Strength > 0.3f;
-    }
-
     public sealed class BiomeMap
     {
         private readonly NoiseStack _temperatureNoise;
         private readonly NoiseStack _moistureNoise;
         private readonly NoiseStack _continentNoise;
         private readonly NoiseStack _erosionNoise;
-        private readonly NoiseStack _riverNoise;
         private readonly WorldGenParams _params;
 
         public BiomeMap(int seed, WorldGenParams parameters)
@@ -25,16 +17,17 @@ namespace Autonocraft.World
             _moistureNoise = new NoiseStack(seed + 202);
             _continentNoise = new NoiseStack(seed + 303);
             _erosionNoise = new NoiseStack(seed + 404);
-            _riverNoise = new NoiseStack(seed + 606);
         }
 
         public BiomeSample Sample(int wx, int wz)
         {
-            var (warpX, warpZ) = _continentNoise.DomainWarp(wx * 0.0022f, wz * 0.0022f, 4.5f);
+            // Keep continentalness on large, unwarped noise so oceans/beaches form coherent coastlines.
+            float continentalness = _continentNoise.Fbm(wx * 0.0014f, wz * 0.0014f, 4)
+                + _params.ContinentalnessBias;
 
+            var (warpX, warpZ) = _continentNoise.DomainWarp(wx * 0.0022f, wz * 0.0022f, 2.5f);
             float temperature = _temperatureNoise.Fbm(warpX + 50f, warpZ + 50f, 4);
             float moisture = _moistureNoise.Fbm(warpX + 150f, warpZ + 150f, 4);
-            float continentalness = _continentNoise.Fbm(warpX, warpZ, 5) + _params.ContinentalnessBias;
             float erosion = _erosionNoise.Fbm(warpX + 250f, warpZ + 250f, 4);
 
             BiomeType biome = Classify(temperature, moisture, continentalness, erosion);
@@ -110,12 +103,12 @@ namespace Autonocraft.World
 
         private BiomeType Classify(float temperature, float moisture, float continentalness, float erosion)
         {
-            if (continentalness < -0.2f)
+            if (continentalness < -0.22f)
             {
                 return BiomeType.Ocean;
             }
 
-            if (continentalness < -0.06f)
+            if (continentalness < -0.08f)
             {
                 return BiomeType.Beach;
             }
@@ -149,48 +142,5 @@ namespace Autonocraft.World
             return BiomeType.Plains;
         }
 
-        public RiverSample SampleRiver(int wx, int wz, BiomeSample biome, float surfaceHeight)
-        {
-            if (!_params.EnableRivers)
-            {
-                return default;
-            }
-
-            if (biome.Primary is BiomeType.Ocean or BiomeType.Beach)
-            {
-                return default;
-            }
-
-            if (surfaceHeight > WorldConstants.SeaLevel + 30 || biome.Continentalness < -0.02f)
-            {
-                return default;
-            }
-
-            var (riverX, riverZ) = _riverNoise.DomainWarp(wx * 0.0065f, wz * 0.0065f, 2.2f);
-            float mainChannel = MathF.Abs(_riverNoise.Raw(riverX, riverZ));
-            float tributary = MathF.Abs(_riverNoise.Raw(riverX * 1.7f + 19.7f, riverZ * 1.7f - 31.3f)) + 0.018f;
-            float channel = MathF.Min(mainChannel, tributary);
-
-            float moistureWidth = Math.Clamp((biome.Moisture + 0.35f) * 0.018f, 0f, 0.018f);
-            float width = 0.032f + moistureWidth;
-            float bankEdge = width + 0.075f;
-            float strength = 1f - SmoothStep(width, bankEdge, channel);
-            if (strength <= 0f)
-            {
-                return default;
-            }
-
-            return new RiverSample
-            {
-                Strength = strength,
-                BankStrength = 1f - SmoothStep(width + 0.035f, bankEdge + 0.07f, channel)
-            };
-        }
-
-        private static float SmoothStep(float edge0, float edge1, float value)
-        {
-            float t = Math.Clamp((value - edge0) / (edge1 - edge0), 0f, 1f);
-            return t * t * (3f - 2f * t);
-        }
     }
 }

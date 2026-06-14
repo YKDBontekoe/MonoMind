@@ -1,0 +1,315 @@
+# Autonocraft Architecture
+
+Technical reference for the Autonocraft voxel engine and game systems. For agent workflows see [AGENTS.md](../AGENTS.md). For file-level navigation see [CODEMAP.md](CODEMAP.md).
+
+## Overview
+
+```
+Program.cs
+    └── AutonocraftGame (MonoGame Game subclass — thin shell)
+            ├── GameSession         — player, world, animals, gameplay systems
+            ├── VoxelWorld          — chunk storage, async gen/mesh, modifications, fluids
+            ├── Player              — physics, inventory, skills, camera sync
+            ├── AnimalManager       — spawn, AI, combat targets
+            ├── Renderer            — orchestrates WorldRenderer + HudRenderer
+            ├── BlockInteractionSystem — raycast mine/place, sigils, stations
+            ├── CombatSystem        — melee damage to animals
+            ├── CraftingSystem      — sigils, crucible, discovery journal
+            ├── AgentHttpServer     — localhost:5000 automation API
+            └── UI screens          — menu, pause, loading, crucible, journal, death, dev console
+```
+
+Namespaces: `Autonocraft.Core`, `Autonocraft.Engine`, `Autonocraft.World`, `Autonocraft.World.Structures`, `Autonocraft.Entities`, `Autonocraft.Crafting`, `Autonocraft.Items`, `Autonocraft.UI`, `Autonocraft.Domain` (shared types).
+
+### Dependency rules
+
+```
+Program → Core (AutonocraftGame)
+Core → Engine, World, Entities, UI, Crafting, Items, Domain
+Engine → World, Entities, Items (via GameRenderContext, not AutonocraftGame)
+World → Domain (BlockType, constants)
+Crafting → Domain, Items, Core (Player)
+Items → Domain
+UI → Engine, Core, Crafting
+```
+
+Engine and World must not depend on `AutonocraftGame` directly — use `GameSession`, `GameRenderContext`, or `SaveSnapshot` at boundaries.
+
+---
+
+## Game State Machine
+
+| State | Description |
+|-------|-------------|
+| `MainMenu` | Save slot selection |
+| `NewWorldSetup` | Seed, world type — **FOUND SETTLEMENT** flow |
+| `WorldLoading` | Async chunk terrain + mesh generation with progress UI |
+| `Playing` | Active gameplay; starter hamlet spawned on new worlds; agent HTTP server starts here |
+
+**New world start:** `VillageManager.InitializeStarterSettlement()` places a completed Town Heart near spawn, seeds storage, spawns two villagers (lumberjack + peasant), and opens the village UI once with onboarding toasts. Player hotbar is tuned for settlement play (axe + lighter block stacks).
+
+**Discoverable outposts:** World-gen structures (`PlainsCottage`, `VillageOutpost`, `ForestShelter`) can be claimed via **V** UI, Shift+right-click on structure blocks, or auto-claim when opening **V** near an unclaimed site.
+
+`--skip-menu` sets initial state to `WorldLoading`, bypassing menus.
+
+---
+
+## World and Chunks
+
+### Dimensions
+
+| Constant | Value |
+|----------|-------|
+| Chunk width / depth | 16 × 16 blocks |
+| Chunk height | 192 blocks (Y: 0–191) |
+| Sea level | 62 |
+| Default seed | 1337 |
+
+### VoxelWorld (`World/VoxelWorld.cs`)
+
+- Stores chunks in a `(chunkX, chunkZ)` dictionary.
+- Tracks player modifications separately from generated terrain.
+- Uses `ReaderWriterLockSlim` for thread-safe access.
+- **Async pipeline:** terrain generation and mesh building run on background tasks with per-frame budgets (`DefaultTerrainChunksPerFrame = 4`, `DefaultMeshChunksPerFrame = 4`).
+- Fires `ChunksLoaded` / `ChunksUnloaded` events for the loading screen and renderer.
+- Owns `FluidSystem` for water flow simulation.
+
+### Chunk LOD (`World/ChunkLod.cs`, `World/Chunk.cs`)
+
+Three mesh detail levels based on distance from the player:
+
+| Detail | Use |
+|--------|-----|
+| `Full` | Near chunks — all exposed faces |
+| `Surface` | Mid range — top surface emphasis |
+| `Shell` | Far chunks — outer shell only |
+
+Each level has its own vertex/index buffers on the GPU.
+
+---
+
+## World Generation Pipeline
+
+`WorldGenerator.GenerateChunkTerrain()` runs per chunk in this order:
+
+1. **BiomeMap** — temperature + moisture noise → biome type (Ocean, Beach, Plains, Forest, Desert, Mountains, SnowyPeaks, Swamp)
+2. **TerrainShaper** — biome profile drives base height, surface/subsurface/filler blocks
+3. **TerrainPostProcessor** — river carving across chunk boundaries (when `EnableRivers` is true)
+4. **CaveCarver** — 3D Perlin noise tunnels
+5. **OrePlacer** — coal, iron, gold at depth bands
+6. **Decorator** — trees, tall grass, flowers, cactus per biome rules
+7. **StructurePlacer** — procedural structures (ForestShelter, PlainsCottage, etc.) from `StructureRegistry`
+
+### World types (`World/WorldType.cs`)
+
+`Default`, `Mountains`, `Islands`, `Flat` — each maps to `WorldGenParams` presets (amplitude, cave density, river toggle, etc.).
+
+### Block types (`World/BlockType.cs`)
+
+43 block types (Air through Ice) including terrain, ores, vegetation, water, tree species (Oak, Birch, Pine, Willow, Palm), crafting stations (`StationBench`, `StationForge`, `StationCrucible`), and crafted blocks (`OakPlank`, `Glass`, `IronBlock`, `Cobblestone`, etc.).
+
+---
+
+## Fluid System
+
+`World/FluidSystem.cs` simulates water flow between blocks. `WaterQuery.cs` provides helpers for swimming, drowning, underwater camera tint, and splash detection. Player physics in `Player.cs` handles swim-up/down, surface buoyancy, and oxygen depletion.
+
+---
+
+## Structures
+
+`World/Structures/` places multi-block templates during world generation. `StructureRegistry` defines 12 structure types with tier and biome placement rules. `StructurePlacer` integrates with `WorldGenerator` after decoration.
+
+---
+
+## Rendering
+
+### Stack
+
+- **MonoGame DesktopGL** with `BasicEffect` for sky, HUD, and animal billboards.
+- **BlockTerrainEffect** — custom `BlockEffect.fx` shader (compiled to `BlockEffect.xnb` via MGCB) with fog, dual directional lights, water UV animation, and world-seed tinting. Falls back to `BasicEffect` if the `.xnb` is missing.
+- **WorldRenderer** — sky, terrain LOD, water, flora, animals, block overlay.
+- **HudRenderer** — crosshair, hotbar, health, skills, compass, damage flash, held-item animation.
+- **Renderer** — thin orchestrator calling `Draw(GameRenderContext)`.
+
+### Texture Atlas
+
+- Layout defined in `atlas_layout.json` (8×8 grid, 128px tiles).
+- Packed PNG at `src/Autonocraft/atlas.png`, built by `scripts/build_atlas.py` or runtime `ProceduralAtlasBuilder`.
+- `BlockAtlas` maps `BlockType` + face direction → UV coordinates.
+- `BlockTextureBlend` provides per-vertex blend weights for smooth biome transitions on terrain faces.
+- `MeshBuildContext` carries blend data during chunk mesh construction.
+
+---
+
+## Player and Physics
+
+`Core/Player.cs`:
+
+- **Flying mode** (default off at spawn): no gravity, free vertical movement with Space/Shift.
+- **Physics mode**: gravity, ground collision, jumping, fall damage, swimming, drowning.
+- **Inventory**: 9-slot hotbar with `ItemStack` (blocks, tools with durability, fluid containers).
+- **Skills**: mining, woodcutting, combat — XP and levels affect mining speed.
+- **Spawn**: `FindSafeSpawnPosition()` searches surface near `(16, 16)`.
+
+Camera (`Engine/Camera.cs`) syncs yaw/pitch/position from the player each frame.
+
+---
+
+## Tools and Skills
+
+`Items/ToolRegistry.cs` defines pickaxes, axes, shovels, and swords across four tiers (Wood, Stone, Iron, Gold). `MiningCalculator.cs` computes effective break time from tool tier, block hardness, and skill level. `PlayerSkills.cs` tracks XP progression.
+
+---
+
+## Block Interaction
+
+`Core/BlockInteractionSystem.cs`:
+
+- Raycasts up to 5 blocks from the camera.
+- **Left click:** if an animal is in range, `CombatSystem` handles melee; otherwise mines the targeted block via `MiningCalculator.GetEffectiveBreakTime()`.
+- **Right click:** places the held block on the adjacent face.
+- **Shift+right click:** activates a sigil pattern → crafting station block.
+- **Right click station:** opens crucible UI for Bench/Forge/Crucible.
+
+---
+
+## Animals
+
+`Entities/AnimalManager.cs` manages Sheep, Pig, and Chicken entities:
+
+- Spawn around player on world entry (`PopulateAroundSpawn`).
+- Gravity, ground collision, wander AI with obstacle avoidance.
+- Retaliation damage when attacked; death drops nothing yet.
+- Spawn cap enforced per type in a radius around spawn.
+- **Not persisted in saves** — animals respawn on world load.
+
+Rendering uses atlas texture tiles (`sheep_body`, `pig_head`, etc.) as colored billboards.
+
+---
+
+## Crafting
+
+### Sigils (`Crafting/SigilRegistry.cs`)
+
+3D block-pattern recipes activated via shift+right-click:
+
+| Sigil | Output |
+|-------|--------|
+| Workbench | `StationBench` |
+| Forge | `StationForge` |
+| Crucible | `StationCrucible` |
+
+### Station recipes (`Crafting/CraftRecipeRegistry.cs`)
+
+Crucible transmutation recipes with environment requirements (time of day, nearby blocks, heat). Examples: planks from logs, glass from sand, iron blocks.
+
+### Discovery
+
+`DiscoveryJournal` tracks unlocked sigil and recipe IDs. Persisted in save data. UI: `JournalScreen` (J key), `CrucibleScreen` (right-click station).
+
+---
+
+## Saves
+
+`World/WorldSaveManager.cs` stores per-slot data as `world.json` (version 6):
+
+- World seed and spawn coordinates
+- Player position, velocity, health, flying mode, hotbar (`ItemStack` with tool durability)
+- Player skills (mining/woodcutting/combat levels and XP)
+- Block and fluid modifications
+- Unlocked crafting discovery IDs
+- Time of day, scale, pause state
+- Villages (buildings, sites, storage, food, caps) and villagers (jobs, inventory)
+- Claimed world-structure anchors
+
+**Not saved:** animal positions (respawn on load). v5 saves migrate forward with empty buildings/sites.
+
+Auto-save every 300 seconds and on exit/pause. Saves live under the OS local application data folder (see AGENTS.md).
+
+---
+
+## Settings
+
+`Core/GameSettings.cs` — render distance (2–12 chunks, default 8), AI provider options, and audio volumes. Persisted via `GameSettingsManager` to `settings.json`.
+
+| Audio field | Default | Description |
+|-------------|---------|-------------|
+| `MasterVolume` | 1.0 | Global multiplier |
+| `SfxVolume` | 1.0 | One-shot effects (mine, place, combat) |
+| `AmbientVolume` | 0.6 | Water/wind loops |
+| `MusicVolume` | 0.5 | Menu and gameplay themes |
+| `MuteAudio` | false | Hard mute |
+
+Configure from main menu **SETTINGS** (all sliders) or pause menu **SETTINGS** (mute toggle).
+
+---
+
+## Audio
+
+Procedural audio lives in `Engine/Audio/`. No external `.wav` files or MGCB audio content.
+
+| Component | Role |
+|-----------|------|
+| `WavEncoder` | Builds in-memory 16-bit mono WAV streams |
+| `WaveSynth` | Sine, noise, envelopes, filters |
+| `ProceduralSfx` | One-shot presets (`SfxKind`) |
+| `ProceduralAmbient` | Looping water/wind |
+| `ProceduralMusic` | Menu and gameplay themes (`MusicState`) |
+| `AudioManager` | Playback pool, crossfade, ambient proximity, volume |
+
+**Lifecycle:** `AutonocraftGame.LoadContent()` creates and initializes `AudioManager`, binds it to `GameSession`, and disposes on exit. In `--test` mode audio is disabled (no OpenAL).
+
+**Event wiring:** `GameSession.WireNotifications()` connects `PlaySfx` callbacks on `BlockInteractionSystem`, `CombatSystem`, and crafting discovery. Footsteps/jump/land are handled in `GameSession.UpdateMovementAudio()`.
+
+**Music states:** `MainMenu`/`NewWorldSetup` → menu theme; `WorldLoading`/`Playing` → gameplay theme (2 s crossfade). Pause and crafting UIs duck ambient/music to 30%.
+
+---
+
+## Villages and settlers
+
+Villages are the default gameplay loop — not an optional side system.
+
+| Component | Role |
+|-----------|------|
+| `VillageManager` | Found/claim settlements, recruit, assign jobs, starter init, save v6 export |
+| `Village` | Storage, food/happiness sim, farm production, tier requirements, building sites |
+| `Villager` / `VillagerManager` | Gather → haul → build AI, sleep cycle, farmer craft jobs |
+| `VillageScreen` | Three-tab UI: overview, building queue, villager job assign |
+| `ClaimableStructureMap` | Maps world structures to player blueprints |
+| `JobScheduler` | Goals drive auto-queue (`expand_storage`, `farm`) on morning tick |
+
+**Economy:** Villagers gather logs into village storage; farm plots and farmers add `FoodStock`; daily consumption affects happiness and work speed. `storage_crate` expands `VillageStorage` slot count.
+
+**Persistence (v6):** `world.json` version 6 stores buildings, building sites, population/housing caps, claimed structure anchors, and stable village/villager IDs with inventories.
+
+---
+
+## Content Pipeline
+
+`Autonocraft.csproj` runs MGCB before build:
+
+```
+Content/Content.mgcb → Content/BlockEffect.xnb
+```
+
+Skip with `-p:SkipMonoGameContent=true` for faster C#-only iteration.
+
+`dotnet-tools.json` pins `dotnet-mgcb` 3.8.2.1105. Run `dotnet tool restore` on first clone.
+
+---
+
+## Testing Architecture
+
+`tests/Autonocraft.Tests/` contains domain-split integration and unit tests. `Program.cs --test` delegates to the test runner for backward compatibility.
+
+- No `Run()` → no game window.
+- `GraphicsDevice` may be null; chunk mesh building uses null-safe paths.
+- Saves/settings redirected to temp directories, cleaned up in `finally`.
+- Tests exercise simulation via `GameSession` APIs: physics ticks, block ops, save round-trip.
+
+---
+
+## Legacy / Unused
+
+- `openrouter_key.txt` — placeholder for planned LLM integration; no runtime code consumes it yet.

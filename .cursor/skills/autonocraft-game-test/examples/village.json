@@ -1,0 +1,15 @@
+{
+  "name": "village and animals overview",
+  "steps": [
+    {"wait_ready": 120},
+    {"assert": {"has_village": true}},
+    {"spawn_animal": {"type": "Chicken", "count": 2}},
+    {"sleep": 0.5},
+    {"dev": "fly on"},
+    {"teleport": {"x": 16, "y": 75, "z": 16}},
+    {"look": {"yaw": 180, "pitch": -35}},
+    {"screenshot": "test_output/scenarios/village_overview.png"},
+    {"state": "test_output/scenarios/village_state.json"},
+    {"release_keys": true}
+  ]
+}

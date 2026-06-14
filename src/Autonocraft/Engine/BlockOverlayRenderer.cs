@@ -15,7 +15,10 @@ namespace Autonocraft.Engine
     {
         private readonly GraphicsDevice _device;
         private readonly BasicEffect _overlayEffect;
-        private readonly Texture2D _atlasTexture;
+        private Texture2D _atlasTexture;
+        private readonly Vertex[] _texturedBatch = new Vertex[ParticleSystem.MaxParticles * 4];
+        private readonly VertexPositionColor[] _colorBatch = new VertexPositionColor[ParticleSystem.MaxParticles * 4];
+        private readonly short[] _quadIndices = BuildQuadIndices(ParticleSystem.MaxParticles);
 
         public BlockOverlayRenderer(GraphicsDevice device, Texture2D atlas)
         {
@@ -32,6 +35,7 @@ namespace Autonocraft.Engine
 
         public void Draw(
             BlockInteractionSystem interaction,
+            ParticleSystem particles,
             Matrix view,
             Matrix projection,
             Camera camera,
@@ -73,12 +77,15 @@ namespace Autonocraft.Engine
             if (interaction.PlacePop.Active)
             {
                 float t = 1f - Math.Clamp(interaction.PlacePop.Timer / interaction.PlacePop.Duration, 0f, 1f);
-                float scale = 0.85f + 0.15f * Tween.EaseOut(t);
+                float eased = Tween.EaseOut(t);
+                float scale = eased < 0.7f
+                    ? 0.8f + 0.25f * (eased / 0.7f)
+                    : 1.05f - 0.05f * ((eased - 0.7f) / 0.3f);
                 var popTint = new Color(1f, 1f, 1f, 0.7f * (1f - t));
                 DrawScaledBlock(interaction.PlacePop.Position, interaction.PlacePop.BlockType, scale, popTint);
             }
 
-            DrawParticles(interaction, view, projection, camera);
+            DrawParticles(particles, camera);
         }
 
         private void DrawWireframeCube(Vector3 blockPos, Color color)
@@ -164,7 +171,7 @@ namespace Autonocraft.Engine
                 new Vertex(p3, col, n, Vector2.Zero)
             };
 
-            DrawCrackPattern(stage, vertices);
+            DrawCrackPattern(stage, vertices, blockPos);
 
             var indices = new short[] { 0, 1, 2, 0, 2, 3 };
             _overlayEffect.World = Matrix.Identity;
@@ -176,10 +183,67 @@ namespace Autonocraft.Engine
                 _device.DrawUserIndexedPrimitives(PrimitiveType.TriangleList, vertices, 0, 4, indices, 0, 2);
             }
 
+            DrawCrackLines(blockPos, stage, p0, p1, p2, p3);
+
             _overlayEffect.TextureEnabled = true;
         }
 
-        private static void DrawCrackPattern(int stage, Vertex[] vertices)
+        private void DrawCrackLines(
+            Vector3 blockPos,
+            int stage,
+            Vector3 p0,
+            Vector3 p1,
+            Vector3 p2,
+            Vector3 p3)
+        {
+            if (stage <= 0)
+            {
+                return;
+            }
+
+            int lineCount = Math.Clamp(2 + stage, 2, 12);
+            int seed = HashBlockSeed(blockPos);
+            var rng = new Random(seed);
+
+            var lineVerts = new VertexPositionColor[lineCount * 2];
+            int vi = 0;
+
+            for (int i = 0; i < lineCount; i++)
+            {
+                float u0 = (float)rng.NextDouble();
+                float v0 = (float)rng.NextDouble();
+                float u1 = u0 + ((float)rng.NextDouble() - 0.5f) * 0.35f;
+                float v1 = v0 + ((float)rng.NextDouble() - 0.5f) * 0.35f;
+
+                Vector3 Local(float u, float v) =>
+                    p0 + (p1 - p0) * u + (p3 - p0) * v;
+
+                var a = Local(Math.Clamp(u0, 0.05f, 0.95f), Math.Clamp(v0, 0.05f, 0.95f));
+                var b = Local(Math.Clamp(u1, 0.05f, 0.95f), Math.Clamp(v1, 0.05f, 0.95f));
+                var crackColor = new Color(0.05f, 0.05f, 0.05f, 0.55f + stage * 0.04f);
+                lineVerts[vi++] = new VertexPositionColor(a, crackColor);
+                lineVerts[vi++] = new VertexPositionColor(b, crackColor);
+            }
+
+            foreach (var pass in _overlayEffect.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                _device.DrawUserPrimitives(PrimitiveType.LineList, lineVerts, 0, lineCount);
+            }
+        }
+
+        private static int HashBlockSeed(Vector3 blockPos)
+        {
+            int bx = (int)blockPos.X;
+            int by = (int)blockPos.Y;
+            int bz = (int)blockPos.Z;
+            unchecked
+            {
+                return bx * 73856093 ^ by * 19349663 ^ bz * 83492791;
+            }
+        }
+
+        private static void DrawCrackPattern(int stage, Vertex[] vertices, Vector3 blockPos)
         {
             float intensity = (stage + 1) / 10f;
             for (int i = 0; i < 4; i++)
@@ -259,56 +323,185 @@ namespace Autonocraft.Engine
             }
         }
 
-        private void DrawParticles(
-            BlockInteractionSystem interaction,
-            Matrix view,
-            Matrix projection,
-            Camera camera)
+        private static short[] BuildQuadIndices(int maxQuads)
         {
-            _overlayEffect.TextureEnabled = false;
-            _overlayEffect.World = Matrix.Identity;
+            var indices = new short[maxQuads * 6];
+            for (int q = 0; q < maxQuads; q++)
+            {
+                int v = q * 4;
+                int i = q * 6;
+                indices[i + 0] = (short)(v + 0);
+                indices[i + 1] = (short)(v + 1);
+                indices[i + 2] = (short)(v + 2);
+                indices[i + 3] = (short)(v + 0);
+                indices[i + 4] = (short)(v + 2);
+                indices[i + 5] = (short)(v + 3);
+            }
 
-            foreach (var particle in interaction.Particles)
+            return indices;
+        }
+
+        private void DrawParticles(ParticleSystem particles, Camera camera)
+        {
+            int texturedCount = 0;
+            int colorCount = 0;
+
+            foreach (var particle in particles.Particles)
             {
                 if (!particle.Active)
                 {
                     continue;
                 }
 
-                float lifeRatio = particle.Lifetime / particle.MaxLifetime;
-                float size = 0.06f * lifeRatio;
-                var right = camera.Right * size;
-                var up = camera.Up * size;
+                float lifeRatio = particle.MaxLifetime > 0f
+                    ? Math.Clamp(particle.Lifetime / particle.MaxLifetime, 0f, 1f)
+                    : 0f;
+                float alpha = GetParticleAlpha(particle.Kind, lifeRatio);
+                float size = particle.Size * (0.5f + 0.5f * lifeRatio);
+
+                GetBillboardAxes(camera, particle.Rotation, size, out var right, out var up);
                 var pos = particle.Position;
 
-                var v0 = ToMono(pos - right - up);
-                var v1 = ToMono(pos - right + up);
-                var v2 = ToMono(pos + right + up);
-                var v3 = ToMono(pos + right - up);
-
-                var color = new Color(0.9f, 0.85f, 0.7f, lifeRatio);
-                var vertices = new[]
+                if (particle.UseTexture)
                 {
-                    new VertexPositionColor(v0, color),
-                    new VertexPositionColor(v1, color),
-                    new VertexPositionColor(v2, color),
-                    new VertexPositionColor(v3, color)
-                };
-                var indices = new short[] { 0, 1, 2, 0, 2, 3 };
+                    int offset = texturedCount * 4;
+                    if (offset + 4 > _texturedBatch.Length)
+                    {
+                        break;
+                    }
 
+                    var uv = BlockAtlas.GetFaceUVs(particle.BlockType, new Vector3(0f, 1f, 0f));
+                    float inset = 0.15f;
+                    float u0 = uv.uMin + (uv.uMax - uv.uMin) * inset;
+                    float u1 = uv.uMax - (uv.uMax - uv.uMin) * inset;
+                    float v0 = uv.vMin + (uv.vMax - uv.vMin) * inset;
+                    float v1 = uv.vMax - (uv.vMax - uv.vMin) * inset;
+                    var color = particle.Color * alpha;
+
+                    AddTexturedQuad(offset, pos, right, up, color, u0, v0, u1, v1);
+                    texturedCount++;
+                }
+                else
+                {
+                    int offset = colorCount * 4;
+                    if (offset + 4 > _colorBatch.Length)
+                    {
+                        break;
+                    }
+
+                    var color = new Color(
+                        particle.Color.X,
+                        particle.Color.Y,
+                        particle.Color.Z,
+                        alpha);
+                    AddColorQuad(offset, pos, right, up, color);
+                    colorCount++;
+                }
+            }
+
+            _overlayEffect.World = Matrix.Identity;
+
+            if (texturedCount > 0)
+            {
+                _overlayEffect.TextureEnabled = true;
                 foreach (var pass in _overlayEffect.CurrentTechnique.Passes)
                 {
                     pass.Apply();
-                    _device.DrawUserIndexedPrimitives(PrimitiveType.TriangleList, vertices, 0, 4, indices, 0, 2);
+                    _device.DrawUserIndexedPrimitives(
+                        PrimitiveType.TriangleList,
+                        _texturedBatch,
+                        0,
+                        texturedCount * 4,
+                        _quadIndices,
+                        0,
+                        texturedCount * 2);
+                }
+            }
+
+            if (colorCount > 0)
+            {
+                _overlayEffect.TextureEnabled = false;
+                foreach (var pass in _overlayEffect.CurrentTechnique.Passes)
+                {
+                    pass.Apply();
+                    _device.DrawUserIndexedPrimitives(
+                        PrimitiveType.TriangleList,
+                        _colorBatch,
+                        0,
+                        colorCount * 4,
+                        _quadIndices,
+                        0,
+                        colorCount * 2);
                 }
             }
 
             _overlayEffect.TextureEnabled = true;
         }
 
+        private static float GetParticleAlpha(ParticleKind kind, float lifeRatio)
+        {
+            return kind switch
+            {
+                ParticleKind.Spark => lifeRatio * lifeRatio,
+                ParticleKind.Hint => lifeRatio * 0.85f,
+                ParticleKind.Dust => lifeRatio * 0.7f,
+                ParticleKind.Bubble => lifeRatio * 0.55f,
+                _ => lifeRatio
+            };
+        }
+
+        private static void GetBillboardAxes(Camera camera, float rotation, float size, out Vector3 right, out Vector3 up)
+        {
+            right = camera.Right * size;
+            up = camera.Up * size;
+
+            if (MathF.Abs(rotation) <= 0.001f)
+            {
+                return;
+            }
+
+            float cos = MathF.Cos(rotation);
+            float sin = MathF.Sin(rotation);
+            var rotatedRight = right * cos + up * sin;
+            up = up * cos - right * sin;
+            right = rotatedRight;
+        }
+
+        private void AddTexturedQuad(
+            int offset,
+            Vector3 pos,
+            Vector3 right,
+            Vector3 up,
+            Vector3 color,
+            float u0,
+            float v0,
+            float u1,
+            float v1)
+        {
+            var n = Vector3.UnitZ;
+            _texturedBatch[offset + 0] = new Vertex(pos - right - up, color, n, new Vector2(u0, v1));
+            _texturedBatch[offset + 1] = new Vertex(pos - right + up, color, n, new Vector2(u0, v0));
+            _texturedBatch[offset + 2] = new Vertex(pos + right + up, color, n, new Vector2(u1, v0));
+            _texturedBatch[offset + 3] = new Vertex(pos + right - up, color, n, new Vector2(u1, v1));
+        }
+
+        private void AddColorQuad(int offset, Vector3 pos, Vector3 right, Vector3 up, Color color)
+        {
+            _colorBatch[offset + 0] = new VertexPositionColor(ToMono(pos - right - up), color);
+            _colorBatch[offset + 1] = new VertexPositionColor(ToMono(pos - right + up), color);
+            _colorBatch[offset + 2] = new VertexPositionColor(ToMono(pos + right + up), color);
+            _colorBatch[offset + 3] = new VertexPositionColor(ToMono(pos + right - up), color);
+        }
+
         private static Microsoft.Xna.Framework.Vector3 ToMono(Vector3 v)
         {
             return new Microsoft.Xna.Framework.Vector3(v.X, v.Y, v.Z);
+        }
+
+        public void SetAtlasTexture(Texture2D atlas)
+        {
+            _atlasTexture = atlas;
+            _overlayEffect.Texture = atlas;
         }
 
         public void Dispose()

@@ -37,7 +37,6 @@ namespace Autonocraft.World
                     TryPlaceFlora(chunk, world, wx, wz, lx, lz, column);
                     TryPlaceBoulder(chunk, world, wx, wz, lx, lz, column);
                     TryPlaceAnimalFeature(chunk, world, wx, wz, lx, lz, column.SurfaceHeight);
-                    TryPlaceSmallStructure(chunk, world, wx, wz, lx, lz, column);
                 }
             }
         }
@@ -60,7 +59,17 @@ namespace Autonocraft.World
             BlockType logType = BlockType.OakLog;
             BlockType leafType = BlockType.OakLeaves;
 
-            if (column.Biome.Primary == BiomeType.SnowyPeaks || column.Biome.Temperature < -0.05f)
+            if (column.Biome.Primary == BiomeType.Swamp)
+            {
+                logType = BlockType.WillowLog;
+                leafType = BlockType.WillowLeaves;
+            }
+            else if (column.Biome.Primary is BiomeType.Desert or BiomeType.Beach)
+            {
+                logType = BlockType.PalmLog;
+                leafType = BlockType.PalmLeaves;
+            }
+            else if (column.Biome.Primary == BiomeType.SnowyPeaks || column.Biome.Temperature < -0.05f)
             {
                 logType = BlockType.PineLog;
                 leafType = BlockType.PineLeaves;
@@ -134,21 +143,24 @@ namespace Autonocraft.World
 
             if (column.Profile.AllowCactus && hash % 97 == 0)
             {
-                int height = 2 + hash % 3;
-                for (int dy = 1; dy <= height; dy++)
-                {
-                    SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + dy, BlockType.Cactus);
-                }
+                SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.Cactus);
                 return;
             }
 
-            if (column.Profile.AllowTallGrass && hash % 11 == 0)
+            if (column.Profile.AllowTallGrass && hash % 31 == 0)
             {
                 SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.TallGrass);
             }
-            else if (column.Profile.AllowFlowers && hash % 19 == 3)
+
+            if (column.Profile.AllowFlowers && hash % 53 == 0)
             {
-                SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.Flower);
+                BlockType flowerType = hash % 2 == 0 ? BlockType.Flower : BlockType.Sunflower;
+                SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, flowerType);
+            }
+
+            if (column.Biome.Primary == BiomeType.Swamp && hash % 71 == 0)
+            {
+                SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.Reed);
             }
         }
 
@@ -185,45 +197,13 @@ namespace Autonocraft.World
             }
         }
 
-        private void TryPlaceSmallStructure(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, TerrainColumn column)
-        {
-            if (column.Biome.Primary is BiomeType.Ocean or BiomeType.Mountains or BiomeType.SnowyPeaks)
-            {
-                return;
-            }
-
-            int hash = Hash(wx, wz, 89);
-            if (hash % 2500 != 37)
-            {
-                return;
-            }
-
-            int baseY = column.SurfaceHeight + 1;
-            for (int dx = 0; dx < 3; dx++)
-            {
-                for (int dz = 0; dz < 3; dz++)
-                {
-                    int y = baseY + (dx == 1 && dz == 1 ? 2 : 1);
-                    SetBlockIfAir(chunk, world, wx + dx - 1, wz + dz - 1, lx + dx - 1, lz + dz - 1, y, BlockType.OakLog);
-                }
-            }
-
-            for (int dx = -1; dx <= 1; dx++)
-            {
-                for (int dz = -1; dz <= 1; dz++)
-                {
-                    SetBlockIfAir(chunk, world, wx + dx, wz + dz, lx + dx, lz + dz, baseY + 3, BlockType.OakLeaves);
-                }
-            }
-        }
-
         private static void PlaceHayBale(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, int surfaceHeight)
         {
             for (int dy = 1; dy <= 2; dy++)
             {
                 int y = surfaceHeight + dy;
                 if (y >= Chunk.Height) return;
-                SetBlockIfAir(chunk, world, wx, wz, lx, lz, y, BlockType.Dirt);
+                SetBlockIfAir(chunk, world, wx, wz, lx, lz, y, BlockType.HayBale);
             }
         }
 
@@ -253,6 +233,21 @@ namespace Autonocraft.World
             if (logType == BlockType.PineLog)
             {
                 return layerFromBottom <= 1 ? 2 : 1;
+            }
+
+            if (logType == BlockType.WillowLog)
+            {
+                if (layerFromBottom >= totalLayers - 1)
+                {
+                    return 3;
+                }
+
+                return layerFromBottom <= 1 ? 2 : 3;
+            }
+
+            if (logType == BlockType.PalmLog)
+            {
+                return layerFromBottom >= totalLayers - 1 ? 2 : 0;
             }
 
             int peakLayer = totalLayers / 2;

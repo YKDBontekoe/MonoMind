@@ -1,0 +1,720 @@
+using System;
+using System.Numerics;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using Autonocraft.Core;
+using Autonocraft.Engine.Animation;
+using Autonocraft.Items;
+using Autonocraft.World;
+using Vector3 = System.Numerics.Vector3;
+using Matrix = Microsoft.Xna.Framework.Matrix;
+
+namespace Autonocraft.Engine
+{
+    public sealed class HudRenderer : IDisposable
+    {
+        private readonly GraphicsDevice _device;
+        private readonly BasicEffect _hudEffect;
+        private readonly SpriteBatch _spriteBatch;
+        private Texture2D _atlasTexture;
+        private readonly Texture2D _whiteTexture;
+
+        public HudRenderer(GraphicsDevice device, Texture2D atlas, Texture2D white)
+        {
+            _device = device;
+            _atlasTexture = atlas;
+            _whiteTexture = white;
+            _spriteBatch = new SpriteBatch(device);
+
+            _hudEffect = new BasicEffect(device)
+            {
+                TextureEnabled = true,
+                Texture = atlas,
+                VertexColorEnabled = true,
+                LightingEnabled = false
+            };
+        }
+
+        public void Draw(GameRenderContext ctx, float sw, float sh)
+        {
+            var layout = new UiLayout(sw, sh);
+            float cx = layout.CenterX;
+            float cy = layout.CenterY;
+            var player = ctx.Player;
+            var interaction = ctx.BlockInteraction;
+            var animator = ctx.InteractionAnimator;
+            int activeChunksCount = ctx.Grid.ActiveChunkCount;
+            float hotbarPulse = interaction.HotbarPulseScale * (player.SelectedSlot >= 0 ? animator.HotbarWiggleScale : 1f);
+
+            float slotSize = layout.S(46f);
+            float slotSpacing = layout.S(5f);
+            float totalWidth = (9 * slotSize) + (8 * slotSpacing);
+            float hotbarXMin = cx - totalWidth / 2f;
+            float hotbarYMin = layout.Height - layout.S(68f);
+            float hotbarPad = layout.S(12f);
+
+            _spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+
+            DrawHudBottomVignette(layout);
+            DrawHudCrosshair(layout, cx, cy, interaction, animator);
+            DrawHudCompass(layout, cx, player.Yaw);
+            DrawHudTimeBadge(layout, ctx.TimeOfDay);
+            DrawHudStatusCard(layout, player, activeChunksCount);
+            DrawHudModeBadge(layout, player);
+            ctx.HudToast?.Draw(_spriteBatch, _whiteTexture, layout, hotbarYMin - hotbarPad);
+
+            float plateX = hotbarXMin - hotbarPad;
+            float plateY = hotbarYMin - hotbarPad;
+            float plateW = totalWidth + hotbarPad * 2f;
+            float plateH = slotSize + hotbarPad * 2f;
+            DrawHudGlassPanel(_spriteBatch, plateX, plateY, plateW, plateH, new Color(0.0f, 0.75f, 1.0f), 0.82f);
+            _spriteBatch.Draw(
+                _whiteTexture,
+                new Rectangle((int)plateX, (int)plateY, (int)plateW, (int)Math.Max(1f, layout.S(2f))),
+                new Color(0.0f, 0.8f, 1.0f) * 0.45f);
+
+            for (int i = 0; i < 9; i++)
+            {
+                float slotXMin = hotbarXMin + i * (slotSize + slotSpacing);
+                bool selected = i == player.SelectedSlot;
+                Color slotFill = selected
+                    ? new Color(0.12f, 0.18f, 0.26f) * 0.92f
+                    : new Color(0.06f, 0.07f, 0.10f) * 0.88f;
+                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)slotXMin, (int)hotbarYMin, (int)slotSize, (int)slotSize), slotFill);
+
+                if (selected)
+                {
+                    float bracketPad = layout.S(2f) * hotbarPulse;
+                    float bracketSize = (slotSize + layout.S(4f)) * hotbarPulse;
+                    DrawCornerBrackets(
+                        _spriteBatch,
+                        slotXMin - bracketPad,
+                        hotbarYMin - bracketPad,
+                        bracketSize,
+                        bracketSize,
+                        layout.S(8f),
+                        layout.S(2f),
+                        new Color(0.0f, 0.85f, 1.0f),
+                        0.95f);
+                    _spriteBatch.Draw(
+                        _whiteTexture,
+                        new Rectangle((int)slotXMin, (int)hotbarYMin, (int)slotSize, (int)slotSize),
+                        new Color(0.0f, 0.65f, 0.9f) * 0.12f);
+                }
+                else
+                {
+                    DrawRectOutline(_spriteBatch, slotXMin, hotbarYMin, slotSize, slotSize, 1f, new Color(0.14f, 0.16f, 0.20f), 0.75f);
+                }
+            }
+
+            _spriteBatch.End();
+
+            _hudEffect.View = Matrix.CreateLookAt(new Microsoft.Xna.Framework.Vector3(0, 0, 1), Microsoft.Xna.Framework.Vector3.Zero, Microsoft.Xna.Framework.Vector3.Up);
+            _hudEffect.Projection = Matrix.CreateOrthographicOffCenter(0, sw, sh, 0, -1, 1);
+            _hudEffect.World = Matrix.Identity;
+            _device.DepthStencilState = DepthStencilState.None;
+            _device.RasterizerState = RasterizerState.CullNone;
+            _device.SamplerStates[0] = SamplerState.PointClamp;
+
+            for (int i = 0; i < 9; i++)
+            {
+                var slotItem = player.Hotbar[i];
+                if (slotItem.IsBlock())
+                {
+                    float slotXMin = hotbarXMin + i * (slotSize + slotSpacing);
+                    float slotCx = slotXMin + slotSize / 2f;
+                    float slotCy = hotbarYMin + slotSize / 2f;
+                    DrawIsometricBlock(slotCx, slotCy + layout.S(8f), layout.S(14f), slotItem.BlockType);
+                }
+            }
+
+            DrawHeldBlockItem(layout, sw, sh, player, animator);
+
+            _spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+
+            DrawHudStatusCardText(layout, player, activeChunksCount);
+            DrawHudModeBadgeText(layout, player);
+
+            if (!string.IsNullOrEmpty(ctx.NearbyClaimHint))
+            {
+                string claimHint = ctx.NearbyClaimHint!;
+                float claimSize = layout.S(0.9f);
+                float claimWidth = PixelFont.MeasureString(claimHint, claimSize);
+                PixelFont.DrawString(_spriteBatch, _whiteTexture, claimHint, cx - claimWidth / 2f, hotbarYMin - layout.S(52f), claimSize, new Color(0.75f, 0.82f, 0.55f), 0.9f);
+            }
+
+            var selectedStack = player.GetSelectedStack();
+            if (!selectedStack.IsEmpty)
+            {
+                string activeName = selectedStack.GetDisplayName().ToUpperInvariant();
+                string labelText = selectedStack.IsTool()
+                    ? activeName
+                    : $"{activeName} ({selectedStack.Count})";
+                float activeLabelSize = layout.S(1.1f);
+                float labelWidth = PixelFont.MeasureString(labelText, activeLabelSize);
+                float pillPadX = layout.S(10f);
+                float pillPadY = layout.S(5f);
+                float pillH = 7f * activeLabelSize + pillPadY * 2f;
+                float pillW = labelWidth + pillPadX * 2f;
+                float pillX = cx - pillW / 2f;
+                float pillY = hotbarYMin - layout.S(34f);
+                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)pillX, (int)pillY, (int)pillW, (int)pillH), new Color(0.04f, 0.06f, 0.09f) * 0.88f);
+                DrawRectOutline(_spriteBatch, pillX, pillY, pillW, pillH, 1f, new Color(0.2f, 0.32f, 0.42f), 0.7f);
+                PixelFont.DrawString(_spriteBatch, _whiteTexture, labelText, pillX + pillPadX, pillY + pillPadY, activeLabelSize, new Color(0.92f, 0.94f, 0.98f), 0.95f);
+            }
+            else if (ctx.ShowVillageHint)
+            {
+                string hint = "V — MANAGE SETTLEMENT  |  C — TALK TO STEWARD";
+                float hintSize = layout.S(0.95f);
+                float hintWidth = PixelFont.MeasureString(hint, hintSize);
+                PixelFont.DrawString(_spriteBatch, _whiteTexture, hint, cx - hintWidth / 2f, hotbarYMin - layout.S(30f), hintSize, new Color(0.55f, 0.82f, 0.65f), 0.85f);
+            }
+            else if (ctx.Crafting.ShowCraftingHint)
+            {
+                string hint = "BUILD PATTERNS  SHIFT+CLICK TO AWAKEN";
+                float hintSize = layout.S(0.95f);
+                float hintWidth = PixelFont.MeasureString(hint, hintSize);
+                PixelFont.DrawString(_spriteBatch, _whiteTexture, hint, cx - hintWidth / 2f, hotbarYMin - layout.S(30f), hintSize, new Color(0.55f, 0.72f, 0.85f), 0.8f);
+            }
+
+            float keyLabelSize = layout.S(0.85f);
+            float countLabelSize = layout.S(1.0f);
+            for (int i = 0; i < 9; i++)
+            {
+                float slotXMin = hotbarXMin + i * (slotSize + slotSpacing);
+                float slotXMax = slotXMin + slotSize;
+                float slotYMax = hotbarYMin + slotSize;
+
+                string keyLabel = (i + 1).ToString();
+                PixelFont.DrawString(_spriteBatch, _whiteTexture, keyLabel, slotXMin + layout.S(3f), hotbarYMin + layout.S(2f), keyLabelSize, new Color(0.45f, 0.5f, 0.58f), 0.7f);
+
+                var slotItem = player.Hotbar[i];
+                if (slotItem.IsEmpty)
+                {
+                    continue;
+                }
+
+                if (slotItem.IsTool())
+                {
+                    DrawToolIcon(slotXMin, hotbarYMin, slotSize, slotItem);
+                    float durRatio = slotItem.MaxDurability > 0
+                        ? Math.Clamp(slotItem.Durability / (float)slotItem.MaxDurability, 0f, 1f)
+                        : 0f;
+                    float durBarH = layout.S(3f);
+                    float durBarY = slotYMax - durBarH - layout.S(2f);
+                    float durBarW = slotSize - layout.S(4f);
+                    float durBarX = slotXMin + layout.S(2f);
+                    _spriteBatch.Draw(_whiteTexture, new Rectangle((int)durBarX, (int)durBarY, (int)durBarW, (int)durBarH), new Color(0.08f, 0.09f, 0.11f) * 0.95f);
+                    Color durabilityColor = durRatio > 0.5f
+                        ? new Color(0.2f, 0.85f, 0.35f)
+                        : durRatio > 0.2f
+                            ? new Color(0.95f, 0.75f, 0.15f)
+                            : new Color(0.95f, 0.25f, 0.2f);
+                    _spriteBatch.Draw(_whiteTexture, new Rectangle((int)durBarX, (int)durBarY, (int)(durBarW * durRatio), (int)durBarH), durabilityColor);
+                    continue;
+                }
+
+                string countStr = slotItem.Count.ToString();
+                float textX = slotXMax - PixelFont.MeasureString(countStr, countLabelSize) - layout.S(3f);
+                float textY = slotYMax - layout.S(10f);
+                PixelFont.DrawString(_spriteBatch, _whiteTexture, countStr, textX + 1f, textY + 1f, countLabelSize, Color.Black, 0.75f);
+                PixelFont.DrawString(_spriteBatch, _whiteTexture, countStr, textX, textY, countLabelSize, Color.White, 1.0f);
+            }
+
+            DrawHeldToolItem(layout, sw, sh, player, animator);
+            DrawDamageOverlay(layout, animator.DamageFlashAlpha);
+
+            _spriteBatch.End();
+        }
+
+        public void SetAtlasTexture(Texture2D atlas)
+        {
+            _atlasTexture = atlas;
+            _hudEffect.Texture = atlas;
+        }
+
+        public void Dispose()
+        {
+            _hudEffect.Dispose();
+            _spriteBatch.Dispose();
+        }
+
+        private void DrawHeldToolItem(UiLayout layout, float sw, float sh, Player player, InteractionAnimator animator)
+        {
+            var stack = player.GetSelectedStack();
+            if (stack.IsEmpty || !stack.IsTool())
+            {
+                return;
+            }
+
+            float itemSize = layout.S(72f);
+            float pivotX = sw - layout.S(24f);
+            float pivotY = sh - layout.S(24f);
+            float swingDeg = animator.GetHeldItemSwingDegrees();
+            float offsetY = animator.GetHeldItemOffsetY();
+            float rad = MathHelper.ToRadians(swingDeg);
+            float cos = MathF.Cos(rad);
+            float sin = MathF.Sin(rad);
+            float half = itemSize * 0.5f;
+
+            string tileId = ToolRegistry.GetAtlasTileId(stack.ToolId);
+            var tile = BlockAtlas.LayoutData.GetTile(tileId);
+            int atlasTileSize = BlockAtlas.LayoutData.TileSize;
+            var source = new Rectangle(tile.Col * atlasTileSize, tile.Row * atlasTileSize, atlasTileSize, atlasTileSize);
+            DrawRotatedSprite(source, pivotX, pivotY + offsetY, itemSize, rad, cos, sin, half);
+        }
+
+        private void DrawHeldBlockItem(UiLayout layout, float sw, float sh, Player player, InteractionAnimator animator)
+        {
+            var stack = player.GetSelectedStack();
+            if (stack.IsEmpty || !stack.IsBlock())
+            {
+                return;
+            }
+
+            float itemSize = layout.S(72f);
+            float pivotX = sw - layout.S(24f);
+            float pivotY = sh - layout.S(24f);
+            float offsetY = animator.GetHeldItemOffsetY();
+            float swingDeg = animator.GetHeldItemSwingDegrees();
+            float blockCx = pivotX - itemSize * 0.35f + MathF.Sin(MathHelper.ToRadians(swingDeg)) * layout.S(8f);
+            float blockCy = pivotY + offsetY - itemSize * 0.35f;
+            DrawIsometricBlock(blockCx, blockCy + layout.S(8f), itemSize * 0.22f, stack.BlockType);
+        }
+
+
+        private void DrawRotatedSprite(Rectangle source, float pivotX, float pivotY, float size, float rad, float cos, float sin, float half)
+        {
+            var dest = new Rectangle((int)(pivotX - half), (int)(pivotY - half), (int)size, (int)size);
+            _spriteBatch.Draw(_atlasTexture, dest, source, Color.White, rad, new Microsoft.Xna.Framework.Vector2(half, half), SpriteEffects.None, 0f);
+        }
+
+        private void DrawRotatedRect(float pivotX, float pivotY, float size, float rad, float cos, float sin, float half, Color color)
+        {
+            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(pivotX - half), (int)(pivotY - half), (int)size, (int)size), color);
+        }
+
+        private void DrawDamageOverlay(UiLayout layout, float alpha)
+        {
+            if (alpha <= 0.01f)
+            {
+                return;
+            }
+
+            float edge = layout.S(80f);
+            int strips = 6;
+            var damageColor = new Color(0.85f, 0.08f, 0.08f);
+
+            for (int i = 0; i < strips; i++)
+            {
+                float t = i / (float)(strips - 1);
+                float stripAlpha = alpha * (1f - t) * 0.55f;
+                float stripSize = edge / strips;
+                Color c = damageColor * stripAlpha;
+                _spriteBatch.Draw(_whiteTexture, new Rectangle(0, (int)(i * stripSize), (int)stripSize, (int)layout.Height), c);
+                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(layout.Width - stripSize), (int)(i * stripSize), (int)stripSize, (int)layout.Height), c);
+                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(i * stripSize), 0, (int)layout.Width, (int)stripSize), c);
+                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(i * stripSize), (int)(layout.Height - stripSize), (int)layout.Width, (int)stripSize), c);
+            }
+
+            _spriteBatch.Draw(_whiteTexture, new Rectangle(0, 0, (int)layout.Width, (int)layout.Height), damageColor * (alpha * 0.12f));
+        }
+
+        private void DrawHudBottomVignette(UiLayout layout)
+        {
+            float vignetteH = layout.S(140f);
+            int strips = 8;
+            for (int i = 0; i < strips; i++)
+            {
+                float t = i / (float)(strips - 1);
+                float alpha = 0.55f * t * t;
+                float stripH = vignetteH / strips;
+                float y = layout.Height - vignetteH + i * stripH;
+                _spriteBatch.Draw(
+                    _whiteTexture,
+                    new Rectangle(0, (int)y, (int)layout.Width, (int)Math.Ceiling(stripH) + 1),
+                    Color.Black * alpha);
+            }
+        }
+
+        private void DrawHudCrosshair(UiLayout layout, float cx, float cy, BlockInteractionSystem interaction, InteractionAnimator animator)
+        {
+            cx += animator.InvalidShakePhase * layout.S(6f);
+            cy += animator.InvalidShakePhase * layout.S(3f);
+
+            Color crosshairColor = interaction.Crosshair switch
+            {
+                CrosshairState.Mining => new Color(1.0f, 0.72f, 0.28f),
+                CrosshairState.Melee => new Color(1.0f, 0.45f, 0.22f),
+                CrosshairState.ValidPlace => new Color(0.35f, 1.0f, 0.45f),
+                CrosshairState.InvalidPlace => new Color(1.0f, 0.32f, 0.32f),
+                CrosshairState.InteractStation => new Color(0.45f, 0.85f, 1.0f),
+                CrosshairState.Flash => Color.White,
+                _ => new Color(0.92f, 0.94f, 0.98f)
+            };
+
+            float crosshairAlpha = 0.55f;
+            float crosshairArm = layout.S(9f);
+            float crosshairGap = layout.S(4f);
+            if (interaction.Crosshair == CrosshairState.Mining)
+            {
+                crosshairArm *= 1.12f;
+                crosshairAlpha = 0.85f;
+            }
+            else if (interaction.Crosshair == CrosshairState.Melee)
+            {
+                crosshairArm *= 1.08f;
+                crosshairAlpha = 0.75f + 0.25f * animator.MeleeCrosshairAlpha;
+            }
+            else if (interaction.Crosshair == CrosshairState.Flash)
+            {
+                crosshairAlpha = 0.45f + 0.55f * interaction.CrosshairFlashAlpha;
+            }
+
+            float ringR = layout.S(11f);
+            DrawRectOutline(_spriteBatch, cx - ringR, cy - ringR, ringR * 2f, ringR * 2f, 1f, crosshairColor, crosshairAlpha * 0.25f);
+
+            Color ch = crosshairColor * crosshairAlpha;
+            int dot = (int)Math.Max(1f, layout.S(2f));
+            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(cx - dot * 0.5f), (int)(cy - dot * 0.5f), dot, dot), ch);
+            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(cx - crosshairArm), (int)(cy - 0.5f), (int)layout.S(6f), 1), ch);
+            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(cx + crosshairGap), (int)(cy - 0.5f), (int)layout.S(6f), 1), ch);
+            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(cx - 0.5f), (int)(cy - crosshairArm), 1, (int)layout.S(6f)), ch);
+            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(cx - 0.5f), (int)(cy + crosshairGap), 1, (int)layout.S(6f)), ch);
+
+            if (interaction.IsMining && interaction.BreakProgress > 0.01f)
+            {
+                float progress = Math.Clamp(interaction.BreakProgress, 0f, 1f);
+                float arcR = layout.S(16f);
+                int segments = (int)(progress * 24f);
+                Color arcColor = new Color(1.0f, 0.75f, 0.25f) * 0.9f;
+                for (int s = 0; s < segments; s++)
+                {
+                    float angle = -MathF.PI / 2f + s * (MathF.PI * 2f / 24f);
+                    float px = cx + MathF.Cos(angle) * arcR;
+                    float py = cy + MathF.Sin(angle) * arcR;
+                    int sz = (int)Math.Max(1f, layout.S(2f));
+                    _spriteBatch.Draw(_whiteTexture, new Rectangle((int)px, (int)py, sz, sz), arcColor);
+                }
+            }
+
+            if (interaction.Crosshair == CrosshairState.InteractStation)
+            {
+                string prompt = "RIGHT-CLICK TO OPEN";
+                float promptSize = layout.S(0.95f);
+                float promptW = PixelFont.MeasureString(prompt, promptSize);
+                PixelFont.DrawString(
+                    _spriteBatch,
+                    _whiteTexture,
+                    prompt,
+                    cx - promptW / 2f,
+                    cy + layout.S(26f),
+                    promptSize,
+                    new Color(0.45f, 0.85f, 1.0f),
+                    0.9f);
+            }
+        }
+
+        private void DrawHudCompass(UiLayout layout, float cx, float yaw)
+        {
+            float compassW = layout.S(220f);
+            float compassH = layout.S(34f);
+            float compassX = cx - compassW / 2f;
+            float compassY = layout.Padding;
+            DrawHudGlassPanel(_spriteBatch, compassX, compassY, compassW, compassH, new Color(0.35f, 0.65f, 0.95f), 0.78f);
+
+            string facing = GetDirection(yaw);
+            string[] dirs = { "N", "E", "S", "W" };
+            string[] full = { "NORTH", "EAST", "SOUTH", "WEST" };
+            float markerX = compassX + compassW / 2f;
+
+            for (int i = 0; i < dirs.Length; i++)
+            {
+                bool active = full[i] == facing;
+                float dirX = compassX + compassW * (0.15f + i * 0.23f);
+                float dirSize = layout.S(active ? 1.15f : 0.95f);
+                Color dirColor = active
+                    ? new Color(0.0f, 0.85f, 1.0f)
+                    : new Color(0.55f, 0.6f, 0.68f);
+                PixelFont.DrawString(_spriteBatch, _whiteTexture, dirs[i], dirX, compassY + layout.S(10f), dirSize, dirColor, active ? 1f : 0.75f);
+                if (active)
+                {
+                    markerX = dirX + layout.S(8f);
+                }
+            }
+
+            float markerY = compassY + compassH - layout.S(6f);
+            int markerW = (int)layout.S(10f);
+            int markerH = (int)Math.Max(1f, layout.S(2f));
+            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(markerX - markerW / 2f), (int)markerY, markerW, markerH), new Color(0.0f, 0.85f, 1.0f));
+        }
+
+        private void DrawHudTimeBadge(UiLayout layout, float timeOfDay)
+        {
+            float badgeW = layout.S(118f);
+            float badgeH = layout.S(34f);
+            float badgeX = layout.Width - layout.Padding - badgeW;
+            float badgeY = layout.Padding;
+            bool isDay = timeOfDay > 0.22f && timeOfDay < 0.78f;
+            Color accent = isDay ? new Color(0.95f, 0.78f, 0.25f) : new Color(0.45f, 0.55f, 0.85f);
+            DrawHudGlassPanel(_spriteBatch, badgeX, badgeY, badgeW, badgeH, accent, 0.78f);
+
+            float iconR = layout.S(6f);
+            float iconCx = badgeX + layout.S(18f);
+            float iconCy = badgeY + badgeH / 2f;
+            _spriteBatch.Draw(
+                _whiteTexture,
+                new Rectangle((int)(iconCx - iconR), (int)(iconCy - iconR), (int)(iconR * 2f), (int)(iconR * 2f)),
+                accent * 0.95f);
+
+            string timeLabel = GetTimeLabel(timeOfDay);
+            float textSize = layout.S(0.95f);
+            PixelFont.DrawString(_spriteBatch, _whiteTexture, timeLabel, badgeX + layout.S(34f), badgeY + layout.S(10f), textSize, new Color(0.82f, 0.86f, 0.92f), 0.9f);
+        }
+
+        private void DrawHudStatusCard(UiLayout layout, Player player, int activeChunksCount)
+        {
+            float cardW = layout.S(168f);
+            float cardH = layout.S(108f);
+            float cardX = layout.Padding;
+            float cardY = layout.Height - layout.S(188f);
+            float hpRatio = Math.Clamp(player.Health / player.MaxHealth, 0f, 1f);
+            bool lowHealth = hpRatio < 0.25f && player.Health > 0f;
+
+            Color accent = lowHealth ? new Color(1.0f, 0.2f, 0.3f) : new Color(0.95f, 0.25f, 0.35f);
+            DrawHudGlassPanel(_spriteBatch, cardX, cardY, cardW, cardH, accent, 0.84f);
+
+            float barX = cardX + layout.S(14f);
+            float barY = cardY + layout.S(16f);
+            float barW = cardW - layout.S(28f);
+            float barH = layout.S(10f);
+            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(barX - 1), (int)(barY - 1), (int)(barW + 2), (int)(barH + 2)), Color.Black * 0.55f);
+            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)barY, (int)barW, (int)barH), new Color(0.12f, 0.05f, 0.06f) * 0.95f);
+            if (hpRatio > 0.01f)
+            {
+                Color fill = lowHealth ? new Color(1.0f, 0.18f, 0.28f) : new Color(0.92f, 0.18f, 0.32f);
+                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)barY, (int)(barW * hpRatio), (int)barH), fill);
+                float highlightH = Math.Max(1f, barH * 0.35f);
+                _spriteBatch.Draw(
+                    _whiteTexture,
+                    new Rectangle((int)barX, (int)barY, (int)(barW * hpRatio), (int)highlightH),
+                    Color.White * 0.18f);
+            }
+
+            DrawRectOutline(_spriteBatch, barX, barY, barW, barH, 1f, new Color(0.25f, 0.12f, 0.14f), 0.8f);
+
+            if (player.HeadUnderwater)
+            {
+                float o2Ratio = Math.Clamp(player.Oxygen / Player.MaxOxygen, 0f, 1f);
+                float o2Y = barY + barH + layout.S(8f);
+                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(barX - 1), (int)(o2Y - 1), (int)(barW + 2), (int)(barH + 2)), Color.Black * 0.55f);
+                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)o2Y, (int)barW, (int)barH), new Color(0.05f, 0.08f, 0.12f) * 0.95f);
+                if (o2Ratio > 0.01f)
+                {
+                    Color o2Fill = o2Ratio < 0.25f ? new Color(0.95f, 0.35f, 0.25f) : new Color(0.25f, 0.65f, 0.95f);
+                    _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)o2Y, (int)(barW * o2Ratio), (int)barH), o2Fill);
+                }
+
+                DrawRectOutline(_spriteBatch, barX, o2Y, barW, barH, 1f, new Color(0.12f, 0.18f, 0.24f), 0.8f);
+            }
+
+            float skillY = cardY + layout.S(44f);
+            float skillLineH = layout.S(18f);
+            DrawSkillBar(layout, "MIN", player.Skills.Mining, cardX + layout.S(14f), skillY, cardW - layout.S(28f), skillLineH);
+            DrawSkillBar(layout, "WDC", player.Skills.Woodcutting, cardX + layout.S(14f), skillY + skillLineH, cardW - layout.S(28f), skillLineH);
+            DrawSkillBar(layout, "CMB", player.Skills.Combat, cardX + layout.S(14f), skillY + skillLineH * 2f, cardW - layout.S(28f), skillLineH);
+        }
+
+        private void DrawHudStatusCardText(UiLayout layout, Player player, int activeChunksCount)
+        {
+            float cardW = layout.S(168f);
+            float cardH = layout.S(108f);
+            float cardX = layout.Padding;
+            float cardY = layout.Height - layout.S(188f);
+            float hpTextSize = layout.S(0.95f);
+            string hpText = $"{MathF.Round(player.Health)}/{MathF.Round(player.MaxHealth)}";
+            PixelFont.DrawString(_spriteBatch, _whiteTexture, "HEALTH", cardX + layout.S(14f), cardY + layout.S(4f), hpTextSize, new Color(0.75f, 0.78f, 0.84f), 0.85f);
+            if (player.HeadUnderwater)
+            {
+                PixelFont.DrawString(_spriteBatch, _whiteTexture, "O2", cardX + layout.S(14f), cardY + layout.S(28f), layout.S(0.75f), new Color(0.55f, 0.72f, 0.88f), 0.8f);
+            }
+            float hpTextW = PixelFont.MeasureString(hpText, hpTextSize);
+            PixelFont.DrawString(_spriteBatch, _whiteTexture, hpText, cardX + cardW - layout.S(14f) - hpTextW, cardY + layout.S(4f), hpTextSize, new Color(0.95f, 0.55f, 0.62f), 0.95f);
+
+            string posText = $"{player.Position.X:F0} {player.Position.Y:F0} {player.Position.Z:F0}";
+            float metaSize = layout.S(0.8f);
+            float metaY = cardY + cardH - layout.S(12f);
+            PixelFont.DrawString(_spriteBatch, _whiteTexture, posText, cardX + layout.S(14f), metaY, metaSize, new Color(0.42f, 0.48f, 0.55f), 0.65f);
+            string chunkText = $"{activeChunksCount} CHK";
+            float chunkW = PixelFont.MeasureString(chunkText, metaSize);
+            PixelFont.DrawString(_spriteBatch, _whiteTexture, chunkText, cardX + cardW - layout.S(14f) - chunkW, metaY, metaSize, new Color(0.42f, 0.48f, 0.55f), 0.65f);
+        }
+
+        private void DrawHudModeBadge(UiLayout layout, Player player)
+        {
+            float badgeW = layout.S(118f);
+            float badgeH = layout.S(34f);
+            float badgeX = layout.Width - layout.Padding - badgeW;
+            float badgeY = layout.Height - layout.S(188f);
+            Color accent = player.FlyingMode ? new Color(0.25f, 0.75f, 1.0f) : new Color(0.95f, 0.62f, 0.22f);
+            DrawHudGlassPanel(_spriteBatch, badgeX, badgeY, badgeW, badgeH, accent, 0.82f);
+        }
+
+        private void DrawHudModeBadgeText(UiLayout layout, Player player)
+        {
+            float badgeW = layout.S(118f);
+            float badgeH = layout.S(34f);
+            float badgeX = layout.Width - layout.Padding - badgeW;
+            float badgeY = layout.Height - layout.S(188f);
+            string modeLabel = player.FlyingMode ? "CREATIVE" : "SURVIVAL";
+            Color modeColor = player.FlyingMode ? new Color(0.45f, 0.85f, 1.0f) : new Color(0.98f, 0.72f, 0.35f);
+            float textSize = layout.S(0.95f);
+            float textW = PixelFont.MeasureString(modeLabel, textSize);
+            PixelFont.DrawString(_spriteBatch, _whiteTexture, modeLabel, badgeX + (badgeW - textW) / 2f, badgeY + layout.S(10f), textSize, modeColor, 0.95f);
+
+            string grounded = player.IsGrounded ? "GROUNDED" : "AIRBORNE";
+            float subSize = layout.S(0.75f);
+            float subW = PixelFont.MeasureString(grounded, subSize);
+            PixelFont.DrawString(_spriteBatch, _whiteTexture, grounded, badgeX + (badgeW - subW) / 2f, badgeY + badgeH + layout.S(4f), subSize, new Color(0.45f, 0.52f, 0.6f), 0.7f);
+        }
+
+        private void DrawHudGlassPanel(SpriteBatch sb, float x, float y, float w, float h, Color accent, float alpha)
+        {
+            sb.Draw(_whiteTexture, new Rectangle((int)x, (int)y, (int)w, (int)h), new Color(0.04f, 0.05f, 0.08f) * alpha);
+            float stripeW = Math.Max(2f, w * 0.018f);
+            sb.Draw(_whiteTexture, new Rectangle((int)x, (int)y, (int)stripeW, (int)h), accent * 0.8f);
+            DrawRectOutline(sb, x, y, w, h, 1f, new Color(0.18f, 0.28f, 0.38f), 0.55f);
+        }
+
+        private void DrawCornerBrackets(SpriteBatch sb, float x, float y, float w, float h, float armLen, float thickness, Color color, float alpha)
+        {
+            Color drawCol = color * alpha;
+            sb.Draw(_whiteTexture, new Rectangle((int)x, (int)y, (int)armLen, (int)thickness), drawCol);
+            sb.Draw(_whiteTexture, new Rectangle((int)x, (int)y, (int)thickness, (int)armLen), drawCol);
+            sb.Draw(_whiteTexture, new Rectangle((int)(x + w - armLen), (int)y, (int)armLen, (int)thickness), drawCol);
+            sb.Draw(_whiteTexture, new Rectangle((int)(x + w - thickness), (int)y, (int)thickness, (int)armLen), drawCol);
+            sb.Draw(_whiteTexture, new Rectangle((int)x, (int)(y + h - thickness), (int)armLen, (int)thickness), drawCol);
+            sb.Draw(_whiteTexture, new Rectangle((int)x, (int)(y + h - armLen), (int)thickness, (int)armLen), drawCol);
+            sb.Draw(_whiteTexture, new Rectangle((int)(x + w - armLen), (int)(y + h - thickness), (int)armLen, (int)thickness), drawCol);
+            sb.Draw(_whiteTexture, new Rectangle((int)(x + w - thickness), (int)(y + h - armLen), (int)thickness, (int)armLen), drawCol);
+        }
+
+        private void DrawSkillBar(UiLayout layout, string label, SkillProgress progress, float x, float y, float totalW, float lineH)
+        {
+            float labelSize = layout.S(0.82f);
+            PixelFont.DrawString(_spriteBatch, _whiteTexture, $"{label} {progress.Level}", x, y, labelSize, new Color(0.68f, 0.74f, 0.8f), 0.85f);
+            float barW = layout.S(72f);
+            float barH = layout.S(4f);
+            float barX = x + totalW - barW;
+            float barY = y + lineH - barH - layout.S(3f);
+            float ratio = progress.ProgressToNextLevel();
+            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)barY, (int)barW, (int)barH), new Color(0.07f, 0.09f, 0.12f) * 0.95f);
+            if (ratio > 0.01f)
+            {
+                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)barY, (int)(barW * ratio), (int)barH), new Color(0.3f, 0.62f, 0.92f));
+            }
+        }
+
+        private static string GetTimeLabel(float timeOfDay)
+        {
+            float t = timeOfDay - MathF.Floor(timeOfDay);
+            if (t < 0f) t += 1f;
+            if (t < 0.20f) return "NIGHT";
+            if (t < 0.28f) return "DAWN";
+            if (t < 0.42f) return "MORNING";
+            if (t < 0.55f) return "NOON";
+            if (t < 0.68f) return "DAY";
+            if (t < 0.78f) return "DUSK";
+            return "NIGHT";
+        }
+
+        private void DrawToolIcon(float slotXMin, float hotbarYMin, float slotSize, ItemStack tool)
+        {
+            if (!tool.IsTool())
+            {
+                return;
+            }
+
+            string tileId = ToolRegistry.GetAtlasTileId(tool.ToolId);
+            var tile = BlockAtlas.LayoutData.GetTile(tileId);
+            int atlasTileSize = BlockAtlas.LayoutData.TileSize;
+            var source = new Rectangle(tile.Col * atlasTileSize, tile.Row * atlasTileSize, atlasTileSize, atlasTileSize);
+
+            float pad = slotSize * 0.1f;
+            var dest = new Rectangle(
+                (int)(slotXMin + pad),
+                (int)(hotbarYMin + pad),
+                (int)(slotSize - pad * 2f),
+                (int)(slotSize - pad * 2f));
+
+            _spriteBatch.Draw(_atlasTexture, dest, source, Color.White);
+        }
+
+        private void DrawRectOutline(SpriteBatch sb, float x, float y, float w, float h, float thickness, Color color, float alpha)
+        {
+            Color drawCol = color * alpha;
+            sb.Draw(_whiteTexture, new Rectangle((int)x, (int)y, (int)w, (int)thickness), drawCol);
+            sb.Draw(_whiteTexture, new Rectangle((int)x, (int)(y + h - thickness), (int)w, (int)thickness), drawCol);
+            sb.Draw(_whiteTexture, new Rectangle((int)x, (int)(y + thickness), (int)thickness, (int)(h - 2 * thickness)), drawCol);
+            sb.Draw(_whiteTexture, new Rectangle((int)(x + w - thickness), (int)(y + thickness), (int)thickness, (int)(h - 2 * thickness)), drawCol);
+        }
+
+        private void DrawIsometricBlock(float cx, float cy, float r, BlockType type)
+        {
+            float h = r * 0.5f;
+            float w = r * 0.866f;
+
+            var pTop = new Microsoft.Xna.Framework.Vector3(cx, cy - r, 0f);
+            var pBottom = new Microsoft.Xna.Framework.Vector3(cx, cy + r, 0f);
+            var pLeft = new Microsoft.Xna.Framework.Vector3(cx - w, cy - h, 0f);
+            var pRight = new Microsoft.Xna.Framework.Vector3(cx + w, cy - h, 0f);
+            var pCenter = new Microsoft.Xna.Framework.Vector3(cx, cy, 0f);
+            var pBottomLeft = new Microsoft.Xna.Framework.Vector3(cx - w, cy + h, 0f);
+            var pBottomRight = new Microsoft.Xna.Framework.Vector3(cx + w, cy + h, 0f);
+
+            var uvTop = BlockAtlas.GetFaceUVs(type, new Vector3(0f, 1f, 0f));
+            var uvSide = BlockAtlas.GetFaceUVs(type, new Vector3(0f, 0f, 1f));
+
+            var vertices = new VertexPositionColorTexture[12];
+
+            vertices[0] = new VertexPositionColorTexture(pTop, Color.White, new Microsoft.Xna.Framework.Vector2(uvTop.uMin, uvTop.vMin));
+            vertices[1] = new VertexPositionColorTexture(pLeft, Color.White, new Microsoft.Xna.Framework.Vector2(uvTop.uMin, uvTop.vMax));
+            vertices[2] = new VertexPositionColorTexture(pCenter, Color.White, new Microsoft.Xna.Framework.Vector2(uvTop.uMax, uvTop.vMax));
+            vertices[3] = new VertexPositionColorTexture(pRight, Color.White, new Microsoft.Xna.Framework.Vector2(uvTop.uMax, uvTop.vMin));
+
+            var leftColor = new Color(0.8f, 0.8f, 0.8f, 1f);
+            vertices[4] = new VertexPositionColorTexture(pLeft, leftColor, new Microsoft.Xna.Framework.Vector2(uvSide.uMin, uvSide.vMin));
+            vertices[5] = new VertexPositionColorTexture(pBottomLeft, leftColor, new Microsoft.Xna.Framework.Vector2(uvSide.uMin, uvSide.vMax));
+            vertices[6] = new VertexPositionColorTexture(pBottom, leftColor, new Microsoft.Xna.Framework.Vector2(uvSide.uMax, uvSide.vMax));
+            vertices[7] = new VertexPositionColorTexture(pCenter, leftColor, new Microsoft.Xna.Framework.Vector2(uvSide.uMax, uvSide.vMin));
+
+            var rightColor = new Color(0.6f, 0.6f, 0.6f, 1f);
+            vertices[8] = new VertexPositionColorTexture(pCenter, rightColor, new Microsoft.Xna.Framework.Vector2(uvSide.uMin, uvSide.vMin));
+            vertices[9] = new VertexPositionColorTexture(pBottom, rightColor, new Microsoft.Xna.Framework.Vector2(uvSide.uMin, uvSide.vMax));
+            vertices[10] = new VertexPositionColorTexture(pBottomRight, rightColor, new Microsoft.Xna.Framework.Vector2(uvSide.uMax, uvSide.vMax));
+            vertices[11] = new VertexPositionColorTexture(pRight, rightColor, new Microsoft.Xna.Framework.Vector2(uvSide.uMax, uvSide.vMin));
+
+            var indices = new short[]
+            {
+                0, 1, 2, 0, 2, 3,
+                4, 5, 6, 4, 6, 7,
+                8, 9, 10, 8, 10, 11
+            };
+
+            foreach (var pass in _hudEffect.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                _device.DrawUserIndexedPrimitives(PrimitiveType.TriangleList, vertices, 0, 12, indices, 0, 6);
+            }
+        }
+
+        private static string GetDirection(float yaw)
+        {
+            float angle = (yaw % 360f + 360f) % 360f;
+            if (angle >= 45f && angle < 135f) return "SOUTH";
+            if (angle >= 135f && angle < 225f) return "WEST";
+            if (angle >= 225f && angle < 315f) return "NORTH";
+            return "EAST";
+        }
+    }
+}

@@ -60,6 +60,16 @@ namespace Autonocraft.Engine.Animation
             OffsetY = 0f;
         }
 
+        public void SnapHidden()
+        {
+            _mode = UiTransitionMode.None;
+            _elapsed = 0f;
+            Alpha = 0f;
+            OffsetY = 0f;
+        }
+
+        public bool IsAnimating => _mode != UiTransitionMode.None;
+
         public void Update(float dt)
         {
             if (_mode == UiTransitionMode.None)

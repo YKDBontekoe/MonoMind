@@ -1,0 +1,19 @@
+---
+description: Rendering change verification workflow
+globs: src/Autonocraft/Engine/**,src/Autonocraft/Content/**
+alwaysApply: false
+---
+
+# Autonocraft Rendering
+
+Key files: `Engine/WorldRenderer.cs`, `Engine/HudRenderer.cs`, `Engine/Renderer.cs`, `Content/BlockEffect.fx`.
+
+After rendering changes:
+1. Run `dotnet run --project src/Autonocraft -- --test`
+2. Visual check with screenshot workflow:
+   ```bash
+   dotnet run --project src/Autonocraft -- --skip-menu
+   python3 tests/interact.py screenshot render_check.png
+   ```
+
+Regenerate atlas after texture changes: `python3 scripts/build_atlas.py`

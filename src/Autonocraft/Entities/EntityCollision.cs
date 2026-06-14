@@ -9,6 +9,9 @@ namespace Autonocraft.Entities
         public Vector3 Position;
         public Vector3 Velocity;
         public bool IsGrounded;
+        public bool InWater;
+        public bool HeadUnderwater;
+        public bool OnWaterSurface;
     }
 
     public static class EntityCollision
@@ -16,6 +19,13 @@ namespace Autonocraft.Entities
         public const float Gravity = -32f;
         public const float TerminalVelocity = -50f;
         public const float Damping = 0.15f;
+
+        public const float SwimSpeedScale = 1.4f;
+        public const float SwimUpForce = 6f;
+        public const float SwimDownForce = 5f;
+        public const float WaterGravityScale = 0.15f;
+        public const float WaterTerminalVelocity = -8f;
+        public const float WaterHorizontalDamping = 0.35f;
 
         public static void ResolveAxis(
             ref EntityCollisionState state,
@@ -46,7 +56,7 @@ namespace Autonocraft.Entities
                 {
                     for (int x = startX; x <= endX; x++)
                     {
-                        if (world.GetBlock(x, y, z) == BlockType.Air)
+                        if (!world.GetBlock(x, y, z).IsCollidable())
                         {
                             continue;
                         }
@@ -112,16 +122,55 @@ namespace Autonocraft.Entities
             float deltaTime,
             float width,
             float height,
-            Vector3 horizontalVelocity)
+            float eyeHeight,
+            Vector3 horizontalVelocity,
+            bool swimUp,
+            bool swimDown)
         {
-            state.Velocity.Y += Gravity * deltaTime;
-            if (state.Velocity.Y < TerminalVelocity)
+            var water = WaterQuery.GetBodyState(world, state.Position, width, height, eyeHeight);
+            state.InWater = water.InWater;
+            state.HeadUnderwater = water.HeadUnderwater;
+            state.OnWaterSurface = water.OnSurface;
+
+            float gravity = Gravity;
+            float terminalVelocity = TerminalVelocity;
+
+            if (water.InWater)
             {
-                state.Velocity.Y = TerminalVelocity;
+                gravity *= WaterGravityScale;
+                terminalVelocity = WaterTerminalVelocity;
+                horizontalVelocity *= SwimSpeedScale;
+
+                if (swimUp)
+                {
+                    state.Velocity.Y += SwimUpForce * deltaTime;
+                }
+
+                if (swimDown)
+                {
+                    state.Velocity.Y -= SwimDownForce * deltaTime;
+                }
+
+                if (horizontalVelocity == Vector3.Zero)
+                {
+                    state.Velocity.X *= MathF.Pow(WaterHorizontalDamping, deltaTime * 10f);
+                    state.Velocity.Z *= MathF.Pow(WaterHorizontalDamping, deltaTime * 10f);
+                    if (MathF.Abs(state.Velocity.X) < 0.01f) state.Velocity.X = 0;
+                    if (MathF.Abs(state.Velocity.Z) < 0.01f) state.Velocity.Z = 0;
+                }
             }
 
-            state.Velocity.X = horizontalVelocity.X;
-            state.Velocity.Z = horizontalVelocity.Z;
+            state.Velocity.Y += gravity * deltaTime;
+            if (state.Velocity.Y < terminalVelocity)
+            {
+                state.Velocity.Y = terminalVelocity;
+            }
+
+            if (horizontalVelocity != Vector3.Zero)
+            {
+                state.Velocity.X = horizontalVelocity.X;
+                state.Velocity.Z = horizontalVelocity.Z;
+            }
 
             state.Position.X += state.Velocity.X * deltaTime;
             ResolveAxis(ref state, world, 0, width, height);
@@ -130,8 +179,24 @@ namespace Autonocraft.Entities
             state.IsGrounded = false;
             ResolveAxis(ref state, world, 1, width, height);
 
+            // Surface float: resist sinking only — never push upward or you can walk up water columns.
+            if (water.InWater && !water.HeadUnderwater && !swimDown)
+            {
+                if (state.Velocity.Y < 0f)
+                {
+                    state.Velocity.Y = MathF.Min(state.Velocity.Y + 10f * deltaTime, -0.05f);
+                }
+                else if (state.Velocity.Y > 0.25f)
+                {
+                    state.Velocity.Y *= MathF.Pow(0.35f, deltaTime * 10f);
+                }
+            }
+
             state.Position.Z += state.Velocity.Z * deltaTime;
             ResolveAxis(ref state, world, 2, width, height);
+
+            // Grounded only on solid blocks, never on water surface.
+            state.OnWaterSurface = water.InWater && !water.HeadUnderwater;
         }
 
         public static bool IsSpaceClearAt(VoxelWorld world, Vector3 position, float width, float height)
@@ -156,7 +221,7 @@ namespace Autonocraft.Entities
                 {
                     for (int bx = startX; bx <= endX; bx++)
                     {
-                        if (world.GetBlock(bx, by, bz) != BlockType.Air)
+                        if (world.GetBlock(bx, by, bz).IsCollidable())
                         {
                             return false;
                         }

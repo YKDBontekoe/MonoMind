@@ -28,7 +28,7 @@ namespace Autonocraft.World
             _terrainNoise = new NoiseStack(seed + 505);
         }
 
-        public TerrainColumn BuildColumn(int wx, int wz)
+        public (float height, TerrainColumn draft) BuildBaseColumn(int wx, int wz)
         {
             const int biomeBlendStep = 5;
             var center = _biomeMap.Sample(wx, wz);
@@ -42,39 +42,33 @@ namespace Autonocraft.World
             var southWest = _biomeMap.Sample(wx - biomeBlendStep, wz + biomeBlendStep);
             var profile = _biomeMap.BlendProfiles(center, north, south, east, west, northEast, northWest, southEast, southWest);
 
-            float broad = _terrainNoise.Fbm(wx * 0.006f, wz * 0.006f, 4);
-            float detail = _terrainNoise.Fbm(wx * 0.018f, wz * 0.018f, 4);
-            float micro = _terrainNoise.Fbm(wx * 0.045f, wz * 0.045f, 2);
-            float ridge = _terrainNoise.Ridged(wx * 0.01f, wz * 0.01f, 4);
+            float broad = _terrainNoise.Fbm(wx * 0.0045f, wz * 0.0045f, 4);
+            float detail = _terrainNoise.Fbm(wx * 0.012f, wz * 0.012f, 3);
+            float ridge = _terrainNoise.Ridged(wx * 0.009f, wz * 0.009f, 4);
             float ruggedness = SmoothStep(0.1f, 0.55f, center.Erosion) * _params.MountainWeight;
+            bool isMountain = center.Primary is BiomeType.Mountains or BiomeType.SnowyPeaks;
 
             float height = profile.BaseHeight
-                + broad * profile.HeightAmplitude * _params.HeightScale * 0.72f
-                + detail * profile.HeightAmplitude * _params.HeightScale * 0.32f
-                + micro * profile.HeightAmplitude * _params.HeightScale * 0.08f
-                + ridge * profile.RidgeWeight * profile.HeightAmplitude * _params.HeightScale * (0.35f + ruggedness * 0.25f)
+                + broad * profile.HeightAmplitude * _params.HeightScale * 0.68f
+                + detail * profile.HeightAmplitude * _params.HeightScale * (isMountain ? 0.18f : 0.07f)
+                + ridge * profile.RidgeWeight * profile.HeightAmplitude * _params.HeightScale * (isMountain ? (0.35f + ruggedness * 0.3f) : 0f)
                 + _params.HeightOffset;
 
             if (center.Primary == BiomeType.Ocean)
             {
-                float shelf = SmoothStep(-0.55f, -0.2f, center.Continentalness);
-                float oceanFloor = Lerp(WorldConstants.SeaLevel - 28, WorldConstants.SeaLevel - 7, shelf)
-                    + detail * 3.5f
-                    + micro * 1.5f;
+                float depthFactor = SmoothStep(-0.55f, -0.24f, center.Continentalness);
+                float coastalFloor = WorldConstants.SeaLevel - 3f;
+                float deepFloor = WorldConstants.SeaLevel - 24f;
+                float oceanFloor = Lerp(deepFloor, coastalFloor, depthFactor)
+                    + detail * Lerp(1.2f, 0.35f, depthFactor);
                 height = MathF.Min(height, oceanFloor);
             }
 
             if (center.Primary == BiomeType.Beach)
             {
-                float beachRise = SmoothStep(-0.06f, 0.04f, center.Continentalness);
-                height = Lerp(WorldConstants.SeaLevel - 1, WorldConstants.SeaLevel + 2.5f, beachRise) + detail * 1.25f;
-            }
-
-            var river = _biomeMap.SampleRiver(wx, wz, center, height);
-            if (river.BankStrength > 0f)
-            {
-                float riverBed = WorldConstants.SeaLevel - 2.5f - river.Strength * 1.75f;
-                height = Lerp(height, riverBed, Math.Clamp(river.BankStrength, 0f, 1f));
+                float beachRise = SmoothStep(-0.16f, -0.06f, center.Continentalness);
+                height = Lerp(WorldConstants.SeaLevel + 0.5f, WorldConstants.SeaLevel + 3f, beachRise)
+                    + detail * 0.2f;
             }
 
             bool isLake = center.Primary == BiomeType.Swamp && center.Moisture > 0.32f && broad < -0.16f;
@@ -83,45 +77,37 @@ namespace Autonocraft.World
                 height = MathF.Min(height, WorldConstants.SeaLevel - 1);
             }
 
-            int surfaceHeight = Math.Clamp((int)MathF.Round(height), 1, Chunk.Height - 12);
-
             BlockType surface = profile.SurfaceBlock;
             BlockType subsurface = profile.SubsurfaceBlock;
 
-            if (center.Primary == BiomeType.Ocean && surfaceHeight < WorldConstants.SeaLevel - 10 && detail < -0.04f)
+            if (center.Primary == BiomeType.Ocean && height < WorldConstants.SeaLevel - 10 && detail < -0.04f)
             {
                 surface = BlockType.Gravel;
                 subsurface = BlockType.Gravel;
             }
-            else if (river.IsRiver)
-            {
-                surface = river.Strength > 0.72f ? BlockType.Gravel : BlockType.Sand;
-                subsurface = surface;
-            }
-            else if (center.Primary == BiomeType.Beach || (surfaceHeight <= WorldConstants.BeachMaxHeight && center.Continentalness < 0.12f))
+            else if (center.Primary == BiomeType.Beach || (height <= WorldConstants.BeachMaxHeight && center.Continentalness < 0.05f))
             {
                 surface = BlockType.Sand;
                 subsurface = BlockType.Sand;
             }
 
-            if (surfaceHeight > WorldConstants.SeaLevel + 55 && surface != BlockType.Snow)
+            if (height > WorldConstants.SeaLevel + 55 && surface != BlockType.Snow)
             {
                 surface = BlockType.Snow;
                 subsurface = BlockType.Stone;
             }
 
-            return new TerrainColumn
+            var draft = new TerrainColumn
             {
-                SurfaceHeight = surfaceHeight,
                 Biome = center,
                 Profile = profile,
-                RiverStrength = river.Strength,
-                IsRiver = river.IsRiver,
                 IsLake = isLake,
                 SurfaceBlock = surface,
                 SubsurfaceBlock = subsurface,
                 FillerBlock = profile.FillerBlock
             };
+
+            return (height, draft);
         }
 
         public void FillColumn(Chunk chunk, int lx, int lz, TerrainColumn column)
@@ -133,9 +119,13 @@ namespace Autonocraft.World
                 BlockType block;
                 if (y > height)
                 {
-                    if (y <= WorldConstants.SeaLevel && (column.Biome.Primary == BiomeType.Ocean || column.IsRiver || column.IsLake || y <= WorldConstants.SeaLevel - 2))
+                    if (y <= WorldConstants.SeaLevel && (column.Biome.Primary == BiomeType.Ocean || column.IsRiver || column.IsLake))
                     {
-                        block = BlockType.Water;
+                        bool freezeSurface = column.Biome.Primary == BiomeType.SnowyPeaks
+                            || column.Biome.Temperature < -0.08f;
+                        block = y == WorldConstants.SeaLevel && freezeSurface
+                            ? BlockType.Ice
+                            : BlockType.Water;
                     }
                     else
                     {
