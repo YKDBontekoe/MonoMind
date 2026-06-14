@@ -491,24 +491,7 @@ namespace Autonocraft.Village
 
         public void UpdateTier()
         {
-            VillageTier target = Population switch
-            {
-                >= 13 => VillageTier.Town,
-                >= 5 => VillageTier.Village,
-                _ => VillageTier.Hamlet
-            };
-
-            while (target > VillageTier.Hamlet && !MeetsTierRequirements(target))
-            {
-                target = target switch
-                {
-                    VillageTier.Town => VillageTier.Village,
-                    VillageTier.Village => VillageTier.Hamlet,
-                    _ => VillageTier.Hamlet
-                };
-            }
-
-            Tier = target;
+            Tier = VillageTierProgression.EvaluateTier(this);
         }
 
         public void AddFarmFood(float amount) => FoodStock += amount;
@@ -522,6 +505,60 @@ namespace Autonocraft.Village
                 VillageTier.Town => houses >= 4 && _buildings.Exists(b => b.Kind == BuildingKind.Workshop),
                 _ => true
             };
+        }
+
+        public List<OutputChestSaveData> ExportOutputChests()
+        {
+            var result = new List<OutputChestSaveData>();
+            foreach (var chest in _outputChests)
+            {
+                var buffer = new List<InventorySlotSaveData>();
+                for (int i = 0; i < chest.Buffer.SlotCount; i++)
+                {
+                    buffer.Add(WorldSaveManager.SerializeItemStack(chest.Buffer.GetSlot(i)));
+                }
+
+                result.Add(new OutputChestSaveData
+                {
+                    Id = chest.Id,
+                    BuildingId = chest.BuildingId,
+                    Kind = (int)chest.BuildingKind,
+                    PosX = chest.Position.X,
+                    PosY = chest.Position.Y,
+                    PosZ = chest.Position.Z,
+                    Buffer = buffer
+                });
+            }
+
+            return result;
+        }
+
+        public void RestoreOutputChests(List<OutputChestSaveData>? entries)
+        {
+            if (entries == null || entries.Count == 0)
+            {
+                return;
+            }
+
+            int maxId = 0;
+            foreach (var entry in entries)
+            {
+                maxId = Math.Max(maxId, entry.Id);
+                var chest = new OutputChest(
+                    entry.BuildingId,
+                    (BuildingKind)entry.Kind,
+                    new Vector3(entry.PosX, entry.PosY, entry.PosZ),
+                    entry.Id);
+                for (int i = 0; i < entry.Buffer.Count && i < chest.Buffer.SlotCount; i++)
+                {
+                    chest.Buffer.SetSlot(i, WorldSaveManager.DeserializeItemStack(entry.Buffer[i]));
+                }
+
+                _outputChests.Add(chest);
+                _outputChestsByBuildingId[chest.BuildingId] = chest;
+            }
+
+            OutputChest.ResetIdCounter(maxId + 1);
         }
     }
 }

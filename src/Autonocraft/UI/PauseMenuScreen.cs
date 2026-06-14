@@ -415,6 +415,8 @@ namespace Autonocraft.UI
                 "LEFT CLICK - MINE / ATTACK",
                 "RIGHT CLICK - PLACE / OPEN STATION",
                 "SHIFT+RIGHT CLICK - AWAKEN SIGIL",
+                "V - TOWN BOARD (RECRUIT & BUILD)",
+                "C - VILLAGE STEWARD CHAT",
                 "J - DISCOVERY JOURNAL",
                 "1-9 / SCROLL - HOTBAR",
                 "ESC - PAUSE MENU",

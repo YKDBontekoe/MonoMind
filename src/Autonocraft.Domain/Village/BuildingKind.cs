@@ -8,6 +8,9 @@ namespace Autonocraft.Domain.Village
         LumberCamp = 3,
         Storage = 4,
         Workshop = 5,
-        Quarry = 6
+        Quarry = 6,
+        Kitchen = 7,
+        Well = 8,
+        Market = 9
     }
 }

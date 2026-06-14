@@ -10,6 +10,7 @@ namespace Autonocraft.Entities
     public sealed class VillagerManager
     {
         private readonly List<Villager> _villagers = new();
+        private readonly Dictionary<int, Villager> _villagerIndex = new();
         private readonly List<Villager> _rangeScratch = new();
 
         public VoxelWorld? World { get; private set; }
@@ -20,23 +21,12 @@ namespace Autonocraft.Entities
         {
             var villager = new Villager(villageId, position, seed);
             _villagers.Add(villager);
+            _villagerIndex[villager.Id] = villager;
             return villager;
         }
 
-        public bool TryGet(int id, out Villager villager)
-        {
-            foreach (var entry in _villagers)
-            {
-                if (entry.Id == id)
-                {
-                    villager = entry;
-                    return true;
-                }
-            }
-
-            villager = null!;
-            return false;
-        }
+        public bool TryGet(int id, out Villager villager) =>
+            _villagerIndex.TryGetValue(id, out villager!);
 
         public List<Villager> GetVillagersInRange(Vector3 position, float range)
         {
@@ -73,24 +63,12 @@ namespace Autonocraft.Entities
         public void Update(float deltaTime, VoxelWorld world, IReadOnlyList<Village.Village> villages)
         {
             World = world;
-            for (int i = _villagers.Count - 1; i >= 0; i--)
-            {
-                var villager = _villagers[i];
-                var prevX = villager.Position.X;
-                var prevZ = villager.Position.Z;
-
-                if (!villager.IsGrounded && villager.Velocity.X == 0f && villager.Velocity.Z == 0f &&
-                    (MathF.Abs(villager.Position.X - prevX) < 0.001f && MathF.Abs(villager.Position.Z - prevZ) < 0.001f) &&
-                    villager.WanderDirection != Vector3.Zero)
-                {
-                    villager.OnBlocked();
-                }
-            }
         }
 
         public void LoadVillagers(IEnumerable<VillagerSaveData> data)
         {
             _villagers.Clear();
+            _villagerIndex.Clear();
             foreach (var entry in data)
             {
                 var villager = new Villager(
@@ -107,6 +85,23 @@ namespace Autonocraft.Entities
                 }
 
                 villager.AssignJob(job, null, entry.BuildingSiteId, entry.AssignedBuildingId);
+                villager.RestoreHaulState(entry.HaulSourceChestId, entry.HaulSourceVillagerId, entry.HaulIsDelivering);
+                villager.RestoreAiPhase((VillagerAiPhase)entry.AiPhase);
+                villager.Yaw = entry.Yaw;
+                villager.HomeBuildingId = entry.HomeBuildingId;
+                if (entry.MarkedResourceX.HasValue && entry.MarkedResourceY.HasValue && entry.MarkedResourceZ.HasValue)
+                {
+                    villager.MarkedResource = new Vector3(
+                        entry.MarkedResourceX.Value,
+                        entry.MarkedResourceY.Value,
+                        entry.MarkedResourceZ.Value);
+                }
+
+                if (entry.EquippedTool != null)
+                {
+                    villager.SetEquippedTool(WorldSaveManager.DeserializeItemStack(entry.EquippedTool));
+                }
+
                 villager.Happiness = entry.Happiness;
                 villager.RestorePersona(entry.Trait);
                 villager.RestoreSkills(
@@ -126,6 +121,7 @@ namespace Autonocraft.Entities
                 }
 
                 _villagers.Add(villager);
+                _villagerIndex[villager.Id] = villager;
             }
         }
 
@@ -160,6 +156,18 @@ namespace Autonocraft.Entities
                     FarmingXp = villager.Skills.Farming.Xp,
                     BuildingSiteId = villager.AssignedBuildingSiteId,
                     AssignedBuildingId = villager.AssignedBuildingId,
+                    HaulSourceChestId = villager.HaulSourceChestId,
+                    HaulSourceVillagerId = villager.HaulSourceVillagerId,
+                    HaulIsDelivering = villager.HaulIsDelivering,
+                    MarkedResourceX = villager.MarkedResource?.X,
+                    MarkedResourceY = villager.MarkedResource?.Y,
+                    MarkedResourceZ = villager.MarkedResource?.Z,
+                    HomeBuildingId = villager.HomeBuildingId,
+                    Yaw = villager.Yaw,
+                    AiPhase = (int)villager.AiPhase,
+                    EquippedTool = villager.EquippedTool.IsEmpty
+                        ? null
+                        : WorldSaveManager.SerializeItemStack(villager.EquippedTool),
                     Inventory = inventory
                 });
             }

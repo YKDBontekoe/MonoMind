@@ -8,6 +8,9 @@ namespace Autonocraft.Domain.Village
         Farmer = 3,
         Smith = 4,
         Miner = 5,
-        Hauler = 6
+        Hauler = 6,
+        Hunter = 7,
+        Mason = 8,
+        Cook = 9
     }
 }

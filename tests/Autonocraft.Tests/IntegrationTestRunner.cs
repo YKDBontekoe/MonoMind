@@ -38,6 +38,8 @@ public static class IntegrationTestRunner
             VillageTests.RunVillageAiToolsMock();
             VillageTests.RunVillageNumericGoals();
             VillageTests.RunPlayerWorkQueue();
+            VillageTests.RunVillageGuidanceHints();
+            VillageTests.RunVillageEventsNotifier();
 
             using (var game = new AutonocraftGame(runTests: true))
             {
@@ -81,6 +83,7 @@ public static class IntegrationTestRunner
                 VillageTests.RunStarterSettlementOnNewWorld(game);
                 VillageTests.RunVillageFoundAndRecruit(game);
                 VillageTests.RunVillageSaveRoundTripV6(game);
+                VillageTests.RunVillageSaveRoundTripV7(game);
             }
 
             WorldGenTests.RunBiomeTreeSpecies();

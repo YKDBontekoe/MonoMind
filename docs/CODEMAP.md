@@ -147,6 +147,24 @@ Agent-oriented navigation index. Pair with [AGENTS.md](../AGENTS.md) for build/t
 | `EntityCollision.cs` | Animal-world collision |
 | `EntityRaycast.cs` | Raycast against animals |
 
+### `Village/` — settlements, jobs, economy
+
+| File | Description |
+|------|-------------|
+| `VillageManager.cs` | Facade: founding, recruit, assign, update, save |
+| `VillageFoundingService.cs` | Starter settlement, claim structures |
+| `JobDispatcher.cs` | Job assignment, blueprint queue |
+| `HaulCoordinator.cs` | Hauler pickup/delivery dispatch |
+| `VillageSimulation.cs` | Per-frame village tick |
+| `VillagePersistence.cs` | Save v7 export/load |
+| `Village/Jobs/*.cs` | Per-job AI (`IVillagerJob`, `JobRegistry`) |
+| `VillageEvents.cs` | Toast feedback for recruit/build/tier |
+| `VillageGuidance.cs` | Next-best-action HUD hints |
+| `VillageEconomy.cs` | Supply/demand ledger, tier thresholds |
+| `Entities/Villager.cs` | Villager entity state |
+| `UI/VillageScreen.cs` | Town board (V key) |
+| `UI/Village/VillageViewModel.cs` | UI snapshot with plain-language activity |
+
 ### `UI/` — screens and overlays
 
 | File | Description |

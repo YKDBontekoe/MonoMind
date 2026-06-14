@@ -173,6 +173,9 @@ Tests instantiate `AutonocraftGame(runTests: true)` without calling `Run()`, so 
 | Starter Settlement On New World | Town Heart placed, 2 villagers, seeded storage |
 | Village Found And Recruit | Found village, storage rations, recruit peasant |
 | Village Save Round-Trip V6 | Buildings, sites, caps, villager jobs persist (save v6) |
+| Village Save Round-Trip V7 | Extended villager haul/tool state, output chests, village radius (save v7) |
+| Village Guidance Hints | Next-best-action HUD hint selection |
+| Village Events Notifier | Recruit/build/tier toast events |
 | Village AI Tools | Mock LLM tool `get_village_summary` |
 
 ### Expected output

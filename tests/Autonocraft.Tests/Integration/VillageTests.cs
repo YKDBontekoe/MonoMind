@@ -890,10 +890,12 @@ public static class VillageTests
     public static void RunVillageScreenInputLayout()
     {
         Console.Write("Running Village Screen Input Layout Test... ");
-        const float panelWidth = 640f;
-        const float panelHeight = 520f;
-        const float buttonWidth = 140f;
+        const float panelWidth = 900f;
+        const float panelHeight = 600f;
+        const float buttonWidth = 148f;
         const float buttonHeight = 34f;
+        const float contentTop = 98f;
+        const float footerHeight = 74f;
 
         var layout = new Autonocraft.Engine.UiLayout(1280, 720);
         float panelW = layout.S(panelWidth);
@@ -901,7 +903,7 @@ public static class VillageTests
         float panelX = layout.CenterX - panelW / 2f;
         float panelY = layout.CenterY - panelH / 2f;
         float left = panelX + layout.S(20f);
-        float footerY = panelY + panelH - layout.S(72f);
+        float footerY = panelY + panelH - layout.S(footerHeight);
         float buttonW = layout.S(buttonWidth);
         float buttonH = layout.S(buttonHeight);
 
@@ -913,7 +915,7 @@ public static class VillageTests
 
         var closeRect = new Microsoft.Xna.Framework.Rectangle(
             (int)(panelX + panelW - layout.S(20f) - buttonW),
-            (int)(panelY + panelH - layout.S(28f)),
+            (int)(panelY + panelH - layout.S(30f)),
             (int)buttonW,
             (int)buttonH);
         if (!closeRect.Contains(closeRect.Center.X, closeRect.Center.Y))
@@ -921,13 +923,84 @@ public static class VillageTests
             throw new Exception("Close button center must be inside close hit box.");
         }
 
-        float detailX = panelX + panelW / 2f;
-        float jobY = panelY + panelH - layout.S(120f);
-        float talkY = jobY - layout.S(34f) - layout.S(16f);
-        var talkRect = new Microsoft.Xna.Framework.Rectangle((int)detailX, (int)talkY, (int)layout.S(90f), (int)layout.S(34f));
+        float contentY = panelY + layout.S(contentTop);
+        float listW = layout.S(300f);
+        float detailX = left + listW + layout.S(14f);
+        float pad = layout.S(16f);
+        float talkY = contentY + pad + layout.S(152f);
+        var talkRect = new Microsoft.Xna.Framework.Rectangle(
+            (int)(detailX + pad),
+            (int)talkY,
+            (int)layout.S(96f),
+            (int)layout.S(buttonHeight));
         if (!talkRect.Contains(talkRect.Center.X, talkRect.Center.Y))
         {
             throw new Exception("Talk button center must be inside talk hit box.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunVillageSaveRoundTripV7(AutonocraftGame game)
+    {
+        Console.Write("Running Village Save Round-Trip V7 Test... ");
+        var session = game.Session;
+        int ax = (int)session.Player.Position.X + 12;
+        int az = (int)session.Player.Position.Z + 12;
+        session.Villages.TryFoundVillage(session.Grid, "V7 Test", ax, az, out var village);
+        if (village == null)
+        {
+            throw new Exception("Failed to found village for v7 test.");
+        }
+
+        village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 8));
+        session.Villages.TryRecruit(village);
+        if (village.VillagerIds.Count > 0 &&
+            session.Villagers.TryGet(village.VillagerIds[0], out var villager))
+        {
+            villager.AssignHaulJob(village.Center, 1, null);
+            villager.SetEquippedTool(ToolRegistry.CreateStack(ToolType.Axe, ToolTier.Wood));
+        }
+
+        village.Radius = 40f;
+        var exported = session.Villages.ExportVillages().Find(v => v.Id == village.Id);
+        if (exported == null || MathF.Abs(exported.Radius - 40f) > 0.01f)
+        {
+            throw new Exception("V7 export missing radius.");
+        }
+
+        var exportedVillager = session.Villagers.ExportVillagers().Find(v => v.VillageId == village.Id);
+        if (exportedVillager == null || exportedVillager.HaulSourceChestId != 1)
+        {
+            throw new Exception("V7 export missing haul state.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunVillageGuidanceHints()
+    {
+        Console.Write("Running Village Guidance Hints Test... ");
+        var villagers = new Autonocraft.Entities.VillagerManager();
+        var village = new Autonocraft.Village.Village("Hint Test", 0, 64, 0);
+        string hint = Autonocraft.Village.VillageGuidance.GetNextBestAction(village, villagers);
+        if (!hint.Contains("Recruit", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new Exception("Expected recruit hint for empty village.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunVillageEventsNotifier()
+    {
+        Console.Write("Running Village Events Notifier Test... ");
+        string? last = null;
+        var events = new Autonocraft.Village.VillageEvents { ShowToast = msg => last = msg };
+        events.OnRecruit(new Autonocraft.Entities.Villager(1, System.Numerics.Vector3.Zero, 42, "Test"));
+        if (string.IsNullOrEmpty(last) || !last.Contains("joined", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new Exception("Recruit event did not fire toast.");
         }
 
         Console.WriteLine("PASSED");

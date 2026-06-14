@@ -33,8 +33,7 @@ namespace Autonocraft.Core
         public VillagerManager Villagers { get; private set; }
         public VillageManager Villages { get; private set; }
         public HudToast HudToast => _hudToast;
-        public bool ShowVillageOnboarding { get; set; }
-        public bool ShowVillageHint { get; set; } = true;
+        public string? VillageHudHint { get; set; }
         public string? NearbyClaimHint { get; set; }
         private Vector3 _lastClaimHintScanPos = new(float.MinValue, 0f, float.MinValue);
         public BlockInteractionSystem BlockInteraction => _blockInteraction;
@@ -42,6 +41,8 @@ namespace Autonocraft.Core
         public ParticleSystem Particles => _particles;
         public InteractionAnimator InteractionAnimator => _interactionAnimator;
         public CraftingSystem Crafting => _craftingSystem;
+        public Ai.VillageAiOrchestrator VillageAi { get; private set; }
+        public VillageEvents VillageEvents { get; } = new();
 
         public GameSession(int seed, WorldGenParams? parameters = null)
         {
@@ -51,9 +52,13 @@ namespace Autonocraft.Core
             Villagers = new VillagerManager();
             Villages = new VillageManager(Villagers);
             Villages.SetWorldSeed(seed);
+            VillageAi = new Ai.VillageAiOrchestrator(settings: GameSettingsManager.Load());
             _blockInteraction.BindAnimator(_interactionAnimator);
             WireNotifications();
         }
+
+        public void RefreshVillageAi(GameSettings settings) =>
+            VillageAi = new Ai.VillageAiOrchestrator(settings: settings);
 
         public void BindAudio(AudioManager? audio)
         {
@@ -67,6 +72,8 @@ namespace Autonocraft.Core
             _blockInteraction.ShowToast = msg => _hudToast.Show(msg);
             _combatSystem.ShowToast = msg => _hudToast.Show(msg);
             Villages.ShowToast = msg => _hudToast.Show(msg);
+            VillageEvents.ShowToast = msg => _hudToast.Show(msg);
+            Villages.SetVillageEvents(VillageEvents);
             _craftingSystem.OnDiscoveryUnlocked = msg =>
             {
                 _hudToast.Show(msg, new Microsoft.Xna.Framework.Color(0.45f, 0.95f, 0.72f));
@@ -146,6 +153,24 @@ namespace Autonocraft.Core
         public void PopulateAnimals(int renderDistance, int spawnX = GameConstants.DefaultSpawnX, int spawnZ = GameConstants.DefaultSpawnZ)
         {
             Animals.PopulateAroundSpawn(Grid, spawnX, spawnZ, renderDistance);
+        }
+
+        public void UpdateVillageHudHint(bool playerCreative)
+        {
+            if (NearbyClaimHint != null)
+            {
+                VillageHudHint = null;
+                return;
+            }
+
+            var village = Villages.GetPrimaryVillage() ?? Villages.GetVillageAt(Player.Position);
+            if (village == null)
+            {
+                VillageHudHint = "V — Start a settlement here";
+                return;
+            }
+
+            VillageHudHint = "V — " + VillageGuidance.GetNextBestAction(village, Villagers);
         }
 
         public void UpdateNearbyClaimHint()
@@ -396,7 +421,7 @@ namespace Autonocraft.Core
             _renderContext.InteractionAnimator = InteractionAnimator;
             _renderContext.Crafting = Crafting;
             _renderContext.HudToast = _hudToast;
-            _renderContext.ShowVillageHint = ShowVillageHint;
+            _renderContext.VillageHudHint = VillageHudHint;
             _renderContext.NearbyClaimHint = NearbyClaimHint;
             _renderContext.TimeOfDay = timeOfDay;
             _renderContext.WaterAnimTime = waterAnimTime;

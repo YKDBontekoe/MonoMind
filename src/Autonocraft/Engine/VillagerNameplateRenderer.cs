@@ -61,9 +61,12 @@ namespace Autonocraft.Engine
                 }
 
                 string line1 = villager.Name.ToUpperInvariant();
-                string line2 = villager.CurrentJob is JobType.Idle or JobType.Sleep
-                    ? villager.Role.ToString().ToUpperInvariant()
-                    : $"{villager.Role} · {villager.CurrentJob}".ToUpperInvariant();
+                string line2 = UI.Village.VillagerActivityText.Describe(villager).ToUpperInvariant();
+                string line3 = UI.Village.VillagerActivityText.DescribeProgress(villager);
+                if (!string.IsNullOrEmpty(line3))
+                {
+                    line2 += $" · {line3.ToUpperInvariant()}";
+                }
 
                 float pixelSize = 0.95f;
                 float line1Width = PixelFont.MeasureString(line1, pixelSize);

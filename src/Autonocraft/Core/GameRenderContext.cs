@@ -22,7 +22,7 @@ namespace Autonocraft.Core
         public InteractionAnimator InteractionAnimator { get; set; } = null!;
         public CraftingSystem Crafting { get; set; } = null!;
         public HudToast HudToast { get; set; } = null!;
-        public bool ShowVillageHint { get; set; }
+        public string? VillageHudHint { get; set; }
         public string? NearbyClaimHint { get; set; }
         public string? HudPlacementHint { get; set; }
         public bool VillageUiOpen { get; set; }

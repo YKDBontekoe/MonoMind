@@ -198,23 +198,23 @@ namespace Autonocraft.Village
             return true;
         }
 
-        public bool TryApplyGoal(Village village, VoxelWorld world, VillageManager manager, VillageGoal goal)
+        public bool TryApplyGoal(Village village, VoxelWorld world, IJobAssignment assignment, VillageGoal goal)
         {
             switch (goal.Kind)
             {
                 case VillageGoalKind.Stock:
                     return false;
                 case VillageGoalKind.Build:
-                    return TryApplyBuildGoal(village, world, manager, goal);
+                    return TryApplyBuildGoal(village, world, assignment, goal);
                 default:
-                    return TryApplyGenericGoal(village, world, manager, goal);
+                    return TryApplyGenericGoal(village, world, assignment, goal);
             }
         }
 
         public bool TryAssignForGoal(
             Village village,
             VoxelWorld world,
-            VillageManager manager,
+            IJobAssignment assignment,
             VillageGoal goal,
             Villager villager)
         {
@@ -232,19 +232,19 @@ namespace Autonocraft.Village
                         return false;
                     }
 
-                    return manager.TryAssignStockGoalWorker(village, world, villager, goal.StockBlock.Value);
+                    return assignment.TryAssignStockGoalWorker(village, world, villager, goal.StockBlock.Value);
                 case VillageGoalKind.Build:
                     var site = village.GetNearestPendingSite(villager.Position);
                     if (site != null &&
                         !string.IsNullOrEmpty(goal.BlueprintId) &&
                         string.Equals(site.BlueprintId, goal.BlueprintId, StringComparison.OrdinalIgnoreCase))
                     {
-                        return manager.TryAssignJob(village, villager, JobType.Build, null, site.Id);
+                        return assignment.TryAssignJob(village, villager, JobType.Build, null, site.Id);
                     }
 
                     if (site != null && string.IsNullOrEmpty(goal.BlueprintId))
                     {
-                        return manager.TryAssignJob(village, villager, JobType.Build, null, site.Id);
+                        return assignment.TryAssignJob(village, villager, JobType.Build, null, site.Id);
                     }
 
                     return false;
@@ -253,7 +253,7 @@ namespace Autonocraft.Village
             }
         }
 
-        private bool TryApplyBuildGoal(Village village, VoxelWorld world, VillageManager manager, VillageGoal goal)
+        private bool TryApplyBuildGoal(Village village, VoxelWorld world, IJobAssignment assignment, VillageGoal goal)
         {
             if (goal.BuildQueued || string.IsNullOrEmpty(goal.BlueprintId))
             {
@@ -278,7 +278,7 @@ namespace Autonocraft.Village
                 {
                     int ax = village.AnchorX + dx;
                     int az = village.AnchorZ + dz;
-                    if (manager.TryQueueBlueprint(world, village, goal.BlueprintId, ax, az, village.Storage))
+                    if (assignment.TryQueueBlueprint(world, village, goal.BlueprintId, ax, az, village.Storage))
                     {
                         goal.BuildQueued = true;
                         return true;
@@ -289,39 +289,39 @@ namespace Autonocraft.Village
             return false;
         }
 
-        private static bool TryApplyGenericGoal(Village village, VoxelWorld world, VillageManager manager, VillageGoal goal)
+        private static bool TryApplyGenericGoal(Village village, VoxelWorld world, IJobAssignment assignment, VillageGoal goal)
         {
             string description = goal.Description.ToLowerInvariant();
             if (description.Contains("storage") || description.Contains("expand_storage"))
             {
                 if (PlayerStructureRegistry.TryGet("storage_crate", out var blueprint) &&
-                    (manager.CreativeMode || blueprint.CanAfford(village.Storage)))
+                    (assignment.CreativeMode || blueprint.CanAfford(village.Storage)))
                 {
                     int ax = village.AnchorX + 6;
                     int az = village.AnchorZ;
-                    return manager.TryQueueBlueprint(world, village, "storage_crate", ax, az, village.Storage);
+                    return assignment.TryQueueBlueprint(world, village, "storage_crate", ax, az, village.Storage);
                 }
             }
 
             if (description.Contains("farm") || description.Contains("food"))
             {
                 if (PlayerStructureRegistry.TryGet("farm_plot", out var farm) &&
-                    (manager.CreativeMode || farm.CanAfford(village.Storage)))
+                    (assignment.CreativeMode || farm.CanAfford(village.Storage)))
                 {
                     int ax = village.AnchorX - 6;
                     int az = village.AnchorZ;
-                    return manager.TryQueueBlueprint(world, village, "farm_plot", ax, az, village.Storage);
+                    return assignment.TryQueueBlueprint(world, village, "farm_plot", ax, az, village.Storage);
                 }
             }
 
             if (description.Contains("mine") || description.Contains("quarry") || description.Contains("ore"))
             {
                 if (PlayerStructureRegistry.TryGet("quarry", out var quarry) &&
-                    (manager.CreativeMode || quarry.CanAfford(village.Storage)))
+                    (assignment.CreativeMode || quarry.CanAfford(village.Storage)))
                 {
                     int ax = village.AnchorX + 6;
                     int az = village.AnchorZ + 6;
-                    return manager.TryQueueBlueprint(world, village, "quarry", ax, az, village.Storage);
+                    return assignment.TryQueueBlueprint(world, village, "quarry", ax, az, village.Storage);
                 }
             }
 
@@ -329,7 +329,7 @@ namespace Autonocraft.Village
             {
                 if (PlayerStructureRegistry.TryGet("peasant_house", out _))
                 {
-                    return manager.TryQueueBlueprint(world, village, "peasant_house", village.AnchorX + 3, village.AnchorZ + 3, village.Storage);
+                    return assignment.TryQueueBlueprint(world, village, "peasant_house", village.AnchorX + 3, village.AnchorZ + 3, village.Storage);
                 }
             }
 

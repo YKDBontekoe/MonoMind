@@ -1,5 +1,4 @@
 using System;
-using System;
 using System.Collections.Generic;
 using Autonocraft.Domain.Village;
 using Autonocraft.World;
@@ -118,6 +117,39 @@ namespace Autonocraft.Village
                         new BlockCost(BlockType.Cobblestone, 16),
                         new BlockCost(BlockType.OakPlank, 8)
                     }
+                },
+                new BuildingBlueprint
+                {
+                    Id = "kitchen",
+                    Kind = BuildingKind.Kitchen,
+                    DisplayName = "Kitchen",
+                    Template = BuildKitchen(),
+                    Costs = new[]
+                    {
+                        new BlockCost(BlockType.OakPlank, 16),
+                        new BlockCost(BlockType.Cobblestone, 8)
+                    }
+                },
+                new BuildingBlueprint
+                {
+                    Id = "well",
+                    Kind = BuildingKind.Well,
+                    DisplayName = "Village Well",
+                    Template = BuildWell(),
+                    Costs = new[] { new BlockCost(BlockType.Cobblestone, 12) }
+                },
+                new BuildingBlueprint
+                {
+                    Id = "market",
+                    Kind = BuildingKind.Market,
+                    DisplayName = "Market Stall",
+                    Template = BuildMarket(),
+                    Costs = new[]
+                    {
+                        new BlockCost(BlockType.OakPlank, 20),
+                        new BlockCost(BlockType.Cobblestone, 4)
+                    },
+                    StorageSlots = 9
                 }
             };
         }
@@ -237,6 +269,46 @@ namespace Autonocraft.Village
 
             blocks.Add(new StructureBlock(0, 1, 0, BlockType.OakLog));
             return new StructureTemplate { FootprintRadius = 2, Blocks = blocks.ToArray() };
+        }
+
+        private static StructureTemplate BuildKitchen()
+        {
+            var blocks = new List<StructureBlock>();
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                for (int dz = -1; dz <= 1; dz++)
+                {
+                    blocks.Add(new StructureBlock(dx, 0, dz, BlockType.OakPlank));
+                }
+            }
+
+            blocks.Add(new StructureBlock(0, 1, 0, BlockType.StationBench));
+            return new StructureTemplate { FootprintRadius = 1, Blocks = blocks.ToArray() };
+        }
+
+        private static StructureTemplate BuildWell()
+        {
+            return new StructureTemplate
+            {
+                FootprintRadius = 1,
+                Blocks = new[]
+                {
+                    new StructureBlock(0, 0, 0, BlockType.Cobblestone),
+                    new StructureBlock(0, 1, 0, BlockType.Cobblestone)
+                }
+            };
+        }
+
+        private static StructureTemplate BuildMarket()
+        {
+            var blocks = new List<StructureBlock>();
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                blocks.Add(new StructureBlock(dx, 0, 0, BlockType.OakPlank));
+            }
+
+            blocks.Add(new StructureBlock(0, 1, 0, BlockType.OakPlank));
+            return new StructureTemplate { FootprintRadius = 1, Blocks = blocks.ToArray() };
         }
     }
 }

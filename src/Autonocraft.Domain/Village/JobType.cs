@@ -10,6 +10,9 @@ namespace Autonocraft.Domain.Village
         Sleep = 5,
         Mine = 6,
         Lumber = 7,
-        Farm = 8
+        Farm = 8,
+        Hunt = 9,
+        Mason = 10,
+        Cook = 11
     }
 }

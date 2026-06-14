@@ -24,6 +24,9 @@ namespace Autonocraft.Ai
         public string? PendingConfirmation { get; private set; }
         public string? PendingToolName { get; private set; }
         public string? PendingToolArgs { get; private set; }
+        public IReadOnlyList<string> LastExecutedActions => _lastExecutedActions;
+
+        private readonly List<string> _lastExecutedActions = new();
 
         public VillageAiOrchestrator(IOpenRouterClient? client = null, GameSettings? settings = null)
         {
@@ -91,6 +94,9 @@ namespace Autonocraft.Ai
                         village,
                         GetPlayerContainer(session.Player));
 
+                    _lastExecutedActions.Clear();
+                    _lastExecutedActions.Add($"{toolName}: {toolMessage}");
+
                     reply = success
                         ? AppendToolResult(reply, toolMessage)
                         : AppendToolResult(reply, toolMessage);
@@ -113,6 +119,21 @@ namespace Autonocraft.Ai
             PendingConfirmation = null;
             PendingToolName = null;
             PendingToolArgs = null;
+        }
+
+        public async Task<string> ConfirmPendingAsync(GameSession session, bool confirmed, string target = "mayor")
+        {
+            var village = session.Villages.GetPrimaryVillage();
+            if (village == null)
+            {
+                return "No village has been founded yet.";
+            }
+
+            return await HandleConfirmationAsync(
+                confirmed ? "yes" : "no",
+                target,
+                session,
+                village).ConfigureAwait(false);
         }
 
         private async Task<string> HandleConfirmationAsync(
@@ -151,6 +172,9 @@ namespace Autonocraft.Ai
                 session.Villagers,
                 village,
                 GetPlayerContainer(session.Player));
+
+            _lastExecutedActions.Clear();
+            _lastExecutedActions.Add($"{toolName}: {toolMessage}");
 
             string reply = success ? toolMessage : $"Failed: {toolMessage}";
             _conversation.AddMessage(target, "assistant", reply);

@@ -785,15 +785,16 @@ namespace Autonocraft.Core
 
             string message = ExtractJsonString(body, "message") ?? request.QueryString["message"] ?? string.Empty;
             string target = ExtractJsonString(body, "target") ?? request.QueryString["target"] ?? "mayor";
-            var orchestrator = new VillageAiOrchestrator(settings: settings);
-            var chatTcs = new TaskCompletionSource<string>();
+            var chatTcs = new TaskCompletionSource<(string reply, string actionsJson)>();
 
             _bridge.PendingActions.Enqueue(() =>
             {
                 try
                 {
+                    var orchestrator = _bridge.Host.Session.VillageAi;
                     string reply = orchestrator.HandleChatAsync(message, target, _bridge.Host.Session).GetAwaiter().GetResult();
-                    chatTcs.SetResult(reply);
+                    string actions = SerializeActions(orchestrator.LastExecutedActions);
+                    chatTcs.SetResult((reply, actions));
                 }
                 catch (Exception ex)
                 {
@@ -809,8 +810,9 @@ namespace Autonocraft.Core
                     return;
                 }
 
-                string reply = chatTcs.Task.Result.Replace("\"", "\\\"");
-                SendResponse(response, HttpStatusCode.OK, $"{{\"reply\": \"{reply}\", \"actions\": []}}", "application/json");
+                var (reply, actionsJson) = chatTcs.Task.Result;
+                string escapedReply = reply.Replace("\"", "\\\"");
+                SendResponse(response, HttpStatusCode.OK, $"{{\"reply\": \"{escapedReply}\", \"actions\": {actionsJson}}}", "application/json");
             }
             catch (Exception ex)
             {
@@ -820,7 +822,71 @@ namespace Autonocraft.Core
 
         private static void HandlePostVillageChatConfirm(HttpListenerRequest request, HttpListenerResponse response)
         {
-            SendResponse(response, HttpStatusCode.OK, "{\"success\": true, \"message\": \"Confirmation queued\"}", "application/json");
+            if (_bridge == null || _bridge.CurrentGameState != GameState.Playing)
+            {
+                SendResponse(response, HttpStatusCode.ServiceUnavailable, "{\"error\": \"Game not ready\"}", "application/json");
+                return;
+            }
+
+            string body;
+            using (var reader = new StreamReader(request.InputStream, request.ContentEncoding))
+            {
+                body = reader.ReadToEnd();
+            }
+
+            bool confirmed = string.Equals(
+                ExtractJsonString(body, "confirm") ?? request.QueryString["confirm"],
+                "true",
+                StringComparison.OrdinalIgnoreCase);
+            string target = ExtractJsonString(body, "target") ?? request.QueryString["target"] ?? "mayor";
+            var confirmTcs = new TaskCompletionSource<string>();
+
+            _bridge.PendingActions.Enqueue(() =>
+            {
+                try
+                {
+                    string reply = _bridge.Host.Session.VillageAi
+                        .ConfirmPendingAsync(_bridge.Host.Session, confirmed, target)
+                        .GetAwaiter().GetResult();
+                    confirmTcs.SetResult(reply);
+                }
+                catch (Exception ex)
+                {
+                    confirmTcs.SetException(ex);
+                }
+            });
+
+            try
+            {
+                if (!confirmTcs.Task.Wait(TimeSpan.FromSeconds(15)))
+                {
+                    SendResponse(response, HttpStatusCode.RequestTimeout, "{\"error\": \"Confirm timed out\"}", "application/json");
+                    return;
+                }
+
+                string reply = confirmTcs.Task.Result.Replace("\"", "\\\"");
+                SendResponse(response, HttpStatusCode.OK, $"{{\"success\": true, \"reply\": \"{reply}\"}}", "application/json");
+            }
+            catch (Exception ex)
+            {
+                SendResponse(response, HttpStatusCode.InternalServerError, $"{{\"error\": \"{ex.Message}\"}}", "application/json");
+            }
+        }
+
+        private static string SerializeActions(IReadOnlyList<string> actions)
+        {
+            if (actions.Count == 0)
+            {
+                return "[]";
+            }
+
+            var parts = new List<string>();
+            foreach (var action in actions)
+            {
+                parts.Add($"\"{action.Replace("\"", "\\\"")}\"");
+            }
+
+            return $"[{string.Join(",", parts)}]";
         }
 
         private static string? ExtractJsonString(string json, string key)

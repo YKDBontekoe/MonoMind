@@ -7,7 +7,7 @@ namespace Autonocraft.World
 {
     public sealed class WorldSaveData
     {
-        public int Version { get; set; } = 6;
+        public int Version { get; set; } = 7;
         public string SlotId { get; set; } = string.Empty;
         public string SlotName { get; set; } = string.Empty;
         public int Seed { get; set; } = 1337;
@@ -21,6 +21,7 @@ namespace Autonocraft.World
         public List<VillageSaveData> Villages { get; set; } = new();
         public List<VillagerSaveData> Villagers { get; set; } = new();
         public List<ClaimedAnchorSaveData> ClaimedAnchors { get; set; } = new();
+        public bool VillageOnboardingComplete { get; set; }
     }
 
     public sealed class SpawnSaveData
@@ -124,6 +125,7 @@ namespace Autonocraft.World
         public int Tier { get; set; }
         public float FoodStock { get; set; }
         public float Happiness { get; set; } = 1f;
+        public float Radius { get; set; } = 32f;
         public int StorageSlots { get; set; } = 9;
         public int PopulationCap { get; set; } = 2;
         public int HousingCapacity { get; set; }
@@ -133,6 +135,18 @@ namespace Autonocraft.World
         public List<BuildingSiteSaveData> BuildingSites { get; set; } = new();
         public List<WorkQueueBlockSaveData> WorkQueue { get; set; } = new();
         public List<VillageGoalSaveData> Goals { get; set; } = new();
+        public List<OutputChestSaveData> OutputChests { get; set; } = new();
+    }
+
+    public sealed class OutputChestSaveData
+    {
+        public int Id { get; set; }
+        public int BuildingId { get; set; }
+        public int Kind { get; set; }
+        public float PosX { get; set; }
+        public float PosY { get; set; }
+        public float PosZ { get; set; }
+        public List<InventorySlotSaveData> Buffer { get; set; } = new();
     }
 
     public sealed class VillageGoalSaveData
@@ -203,6 +217,16 @@ namespace Autonocraft.World
         public float FarmingXp { get; set; }
         public int? BuildingSiteId { get; set; }
         public int? AssignedBuildingId { get; set; }
+        public int? HaulSourceChestId { get; set; }
+        public int? HaulSourceVillagerId { get; set; }
+        public bool HaulIsDelivering { get; set; }
+        public float? MarkedResourceX { get; set; }
+        public float? MarkedResourceY { get; set; }
+        public float? MarkedResourceZ { get; set; }
+        public int? HomeBuildingId { get; set; }
+        public float Yaw { get; set; }
+        public int AiPhase { get; set; }
+        public InventorySlotSaveData? EquippedTool { get; set; }
         public List<InventorySlotSaveData> Inventory { get; set; } = new();
     }
 }

@@ -144,7 +144,7 @@ namespace Autonocraft.World
         {
             return new WorldSaveData
             {
-                Version = 6,
+                Version = 7,
                 SlotId = snapshot.SlotId,
                 SlotName = snapshot.SlotName,
                 Seed = snapshot.Seed,
@@ -600,6 +600,20 @@ namespace Autonocraft.World
                 }
 
                 data.Version = 6;
+            }
+
+            if (data.Version < 7)
+            {
+                foreach (var village in data.Villages)
+                {
+                    village.OutputChests ??= new List<OutputChestSaveData>();
+                    if (village.Radius <= 0f)
+                    {
+                        village.Radius = 32f;
+                    }
+                }
+
+                data.Version = 7;
             }
         }
 

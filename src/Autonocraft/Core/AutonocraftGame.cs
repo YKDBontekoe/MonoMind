@@ -535,9 +535,9 @@ namespace Autonocraft.Core
             _deathScreen = new DeathScreen(_ui);
             _crucibleScreen = new CrucibleScreen(_ui);
             _journalScreen = new JournalScreen(_ui);
-            _villageAiOrchestrator = new VillageAiOrchestrator(settings: _settings);
+            _villageAiOrchestrator = _session.VillageAi;
             _villageScreen = new VillageScreen(_ui, _session.Villagers);
-            _villageChatScreen = new VillageChatScreen(_ui, _villageAiOrchestrator);
+            _villageChatScreen = new VillageChatScreen(_ui, _session.VillageAi);
 
             _audio = new AudioManager(enabled: true);
             _audio.Initialize();
@@ -564,7 +564,7 @@ namespace Autonocraft.Core
             _worldSpawnZ = spawnZ;
             _session.PlacePlayerOnSurface(_worldSpawnX, _worldSpawnZ);
             SyncCameraFromPlayer();
-            _session.ShowVillageHint = true;
+            _session.VillageHudHint = "V — Town board · Recruit villagers and queue buildings";
             _session.Crafting.ShowCraftingHint = false;
         }
 
@@ -575,7 +575,7 @@ namespace Autonocraft.Core
             bool fromSave = _loadingFromSave;
             if (!fromSave)
             {
-                _session.ShowVillageHint = true;
+                _session.VillageHudHint = "V — Town board · Recruit villagers and queue buildings";
                 _session.Crafting.ShowCraftingHint = false;
             }
             else
@@ -594,7 +594,9 @@ namespace Autonocraft.Core
 
             if (!fromSave)
             {
-                _session.HudToast.Show("Welcome to Founder's Hamlet — press V to manage your settlement");
+                _session.HudToast.Show(
+                    "Your settlement is ready. Press V for the town board — recruit villagers, queue buildings, assign jobs.",
+                    durationSeconds: 6f);
             }
 
             _isMouseLocked = true;
@@ -1203,8 +1205,9 @@ namespace Autonocraft.Core
                 return;
             }
 
-            _villageAiOrchestrator = new VillageAiOrchestrator(settings: _settings);
-            _villageChatScreen = new VillageChatScreen(_ui, _villageAiOrchestrator);
+            _session.RefreshVillageAi(_settings);
+            _villageAiOrchestrator = _session.VillageAi;
+            _villageChatScreen = new VillageChatScreen(_ui, _session.VillageAi);
         }
 
         private void UpdateNewWorldSetup(KeyboardState kbState, MouseState mouseState, float deltaTime)
@@ -2103,6 +2106,8 @@ namespace Autonocraft.Core
                     _claimHintTimer = 0f;
                     _session.UpdateNearbyClaimHint();
                 }
+
+                _session.UpdateVillageHudHint(_session.Player.CreativeMode);
             }
 
             _autosaveTimer += deltaTime;
@@ -2304,6 +2309,7 @@ namespace Autonocraft.Core
 
         private void OpenVillageUi()
         {
+            string? openingNote = null;
             var village = _session.Villages.GetPrimaryVillage() ?? _session.Villages.GetVillageAt(_session.Player.Position);
             if (village == null)
             {
@@ -2319,6 +2325,8 @@ namespace Autonocraft.Core
                     {
                         return;
                     }
+
+                    openingNote = "Outpost claimed! Press Recruit below, then assign jobs on the People tab.";
                 }
                 else
                 {
@@ -2327,12 +2335,21 @@ namespace Autonocraft.Core
                     if (_session.Villages.TryFoundVillage(_session.Grid, "New Settlement", fx, fz, out village))
                     {
                         _session.Villages.TryQueueBlueprint(_session.Grid, village!, "town_heart", fx, fz, new PlayerHotbarAdapter(_session.Player));
+                        openingNote = "Settlement started! Builders will place the Town Heart — recruit on the Overview tab (1).";
                     }
                     else
                     {
-                        _session.HudToast.Show("Could not found village here.");
+                        _session.HudToast.Show("Need flat open ground here to start a settlement.");
                         return;
                     }
+                }
+            }
+            else if (village.Population == 0)
+            {
+                openingNote = "No villagers yet. Click Recruit (or press R) — costs 4 oak planks from storage.";
+                if (_session.Player.CreativeMode)
+                {
+                    openingNote = "No villagers yet. Click Recruit (or press R) — free in creative mode.";
                 }
             }
 
@@ -2345,7 +2362,8 @@ namespace Autonocraft.Core
                 _session.Grid,
                 _session.Player.Position,
                 new PlayerHotbarAdapter(_session.Player),
-                _session.Player.CreativeMode);
+                _session.Player.CreativeMode,
+                openingNote);
         }
 
         private IItemContainer WrapPlayerHotbar() => new PlayerHotbarAdapter(_session.Player);

@@ -163,9 +163,9 @@ namespace Autonocraft.Engine
                 DrawRectOutline(_spriteBatch, pillX, pillY, pillW, pillH, 1f, new Color(0.2f, 0.32f, 0.42f), 0.7f);
                 PixelFont.DrawString(_spriteBatch, _whiteTexture, labelText, pillX + pillPadX, pillY + pillPadY, activeLabelSize, new Color(0.92f, 0.94f, 0.98f), 0.95f);
             }
-            else if (ctx.ShowVillageHint)
+            else if (!string.IsNullOrEmpty(ctx.VillageHudHint))
             {
-                string hint = "V — MANAGE SETTLEMENT  |  C — TALK TO STEWARD";
+                string hint = ctx.VillageHudHint!;
                 float hintSize = layout.S(0.95f);
                 float hintWidth = PixelFont.MeasureString(hint, hintSize);
                 PixelFont.DrawString(_spriteBatch, _whiteTexture, hint, cx - hintWidth / 2f, hotbarYMin - layout.S(30f), hintSize, new Color(0.55f, 0.82f, 0.65f), 0.85f);
