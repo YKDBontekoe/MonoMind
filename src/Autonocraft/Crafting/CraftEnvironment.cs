@@ -1,15 +1,8 @@
+using Autonocraft.Domain.Core;
 using Autonocraft.World;
 
 namespace Autonocraft.Crafting
 {
-    public enum TimePhase
-    {
-        Night,
-        Dawn,
-        Day,
-        Dusk
-    }
-
     public sealed class CraftEnvironment
     {
         public BiomeType Biome { get; init; }
@@ -24,22 +17,11 @@ namespace Autonocraft.Crafting
             return new CraftEnvironment
             {
                 Biome = biomeSample.Primary,
-                TimePhase = GetTimePhase(timeOfDay),
+                TimePhase = DayNightCycle.GetTimePhase(timeOfDay),
                 HasAdjacentWater = HasBlockNearby(world, wx, wy, wz, BlockType.Water, radius: 2),
                 HasAdjacentHeat = HasHeatNearby(world, wx, wy, wz),
                 HasFuelInInputs = fuelInInputs
             };
-        }
-
-        public static TimePhase GetTimePhase(float timeOfDay)
-        {
-            float t = timeOfDay - MathF.Floor(timeOfDay);
-            if (t < 0f) t += 1f;
-
-            if (t >= 0.2f && t < 0.3f) return TimePhase.Dawn;
-            if (t >= 0.3f && t < 0.7f) return TimePhase.Day;
-            if (t >= 0.7f && t < 0.82f) return TimePhase.Dusk;
-            return TimePhase.Night;
         }
 
         private static bool HasBlockNearby(VoxelWorld world, int wx, int wy, int wz, BlockType target, int radius)

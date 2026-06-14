@@ -1,4 +1,5 @@
 using Autonocraft.Items;
+using Autonocraft.Domain.Core;
 using Autonocraft.World;
 
 namespace Autonocraft.Crafting

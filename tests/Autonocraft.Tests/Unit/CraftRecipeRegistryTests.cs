@@ -1,4 +1,5 @@
 using Autonocraft.Crafting;
+using Autonocraft.Domain.Core;
 using Autonocraft.Items;
 using Autonocraft.World;
 using Xunit;
@@ -37,11 +38,25 @@ public class CraftRecipeRegistryTests
     }
 
     [Fact]
-    public void PlankRecipeProducesTwoPlanksFromOneLog()
+    public void GoldBlockRecipeRequiresNightPhase()
     {
-        var plank = CraftRecipeRegistry.All.Single(r => r.Id == "recipe:plank");
-        Assert.Equal(BlockType.OakLog, plank.Inputs[0].ExactBlock);
-        Assert.Equal(BlockType.OakPlank, plank.Output);
-        Assert.Equal(2, plank.OutputCount);
+        var recipe = CraftRecipeRegistry.All.Single(r => r.Id == "recipe:gold_block");
+        var nightEnv = new CraftEnvironment
+        {
+            Biome = BiomeType.Plains,
+            TimePhase = TimePhase.Night,
+            HasAdjacentHeat = true,
+            HasFuelInInputs = true
+        };
+        var dayEnv = new CraftEnvironment
+        {
+            Biome = BiomeType.Plains,
+            TimePhase = TimePhase.Day,
+            HasAdjacentHeat = true,
+            HasFuelInInputs = true
+        };
+
+        Assert.True(recipe.EnvironmentMatches(nightEnv));
+        Assert.False(recipe.EnvironmentMatches(dayEnv));
     }
 }

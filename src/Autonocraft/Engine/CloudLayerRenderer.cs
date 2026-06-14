@@ -9,6 +9,8 @@ namespace Autonocraft.Engine
     public sealed class CloudLayerRenderer : IDisposable
     {
         private readonly Texture2D _cloudTexture;
+        private readonly short[] _quadIndices = { 0, 1, 2, 0, 2, 3 };
+        private readonly VertexPositionColorTexture[] _layerVertices = new VertexPositionColorTexture[4];
 
         private readonly struct CloudLayerSpec
         {
@@ -71,18 +73,17 @@ namespace Autonocraft.Engine
 
                 skyEffect.ApplyCloudLayer(world, view, projection, cloudColor, _cloudTexture);
 
-                var vertices = BuildLayerVertices(layer, cloudColor);
-                var indices = new short[] { 0, 1, 2, 0, 2, 3 };
+                FillLayerVertices(layer, cloudColor);
 
                 foreach (var pass in skyEffect.GetCloudLayerPasses())
                 {
                     pass.Apply();
                     device.DrawUserIndexedPrimitives(
                         PrimitiveType.TriangleList,
-                        vertices,
+                        _layerVertices,
                         0,
                         4,
-                        indices,
+                        _quadIndices,
                         0,
                         2);
                 }
@@ -96,19 +97,16 @@ namespace Autonocraft.Engine
             return Matrix.CreateTranslation(scrollX, y + curve, scrollZ);
         }
 
-        private static VertexPositionColorTexture[] BuildLayerVertices(CloudLayerSpec layer, Color cloudColor)
+        private void FillLayerVertices(CloudLayerSpec layer, Color cloudColor)
         {
             float hw = layer.Width * 0.5f;
             float hd = layer.Depth * 0.5f;
             float bow = layer.Elevation * 16f;
 
-            return new[]
-            {
-                new VertexPositionColorTexture(new Vector3(-hw, bow, -hd), cloudColor, new Vector2(0f, 1f)),
-                new VertexPositionColorTexture(new Vector3(hw, bow, -hd), cloudColor, new Vector2(1f, 1f)),
-                new VertexPositionColorTexture(new Vector3(hw, -bow, hd), cloudColor, new Vector2(1f, 0f)),
-                new VertexPositionColorTexture(new Vector3(-hw, -bow, hd), cloudColor, new Vector2(0f, 0f)),
-            };
+            _layerVertices[0] = new VertexPositionColorTexture(new Vector3(-hw, bow, -hd), cloudColor, new Vector2(0f, 1f));
+            _layerVertices[1] = new VertexPositionColorTexture(new Vector3(hw, bow, -hd), cloudColor, new Vector2(1f, 1f));
+            _layerVertices[2] = new VertexPositionColorTexture(new Vector3(hw, -bow, hd), cloudColor, new Vector2(1f, 0f));
+            _layerVertices[3] = new VertexPositionColorTexture(new Vector3(-hw, -bow, hd), cloudColor, new Vector2(0f, 0f));
         }
 
         private static Texture2D CreateCloudTexture(GraphicsDevice device)

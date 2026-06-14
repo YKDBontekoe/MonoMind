@@ -11,10 +11,14 @@ namespace Autonocraft.Engine
         private const int Slices = 24;
         private const int Stacks = 12;
         private const float Radius = 480f;
+        private const float TimeOfDayCacheEpsilon = 1f / 240f;
 
         private readonly VertexPositionColor[] _vertices;
         private readonly short[] _indices;
         private readonly int _indexCount;
+        private float _cachedTimeOfDay = float.NaN;
+        private int _cachedWorldSeed = int.MinValue;
+        private SceneLighting _cachedLighting;
 
         public SkyDomeRenderer(GraphicsDevice device)
         {
@@ -67,6 +71,11 @@ namespace Autonocraft.Engine
 
         private void FillSkyColors(SceneLighting lighting, float timeOfDay, int worldSeed)
         {
+            if (ShouldReuseCachedColors(lighting, timeOfDay, worldSeed))
+            {
+                return;
+            }
+
             for (int i = 0; i < _vertices.Length; i++)
             {
                 var dir = new System.Numerics.Vector3(
@@ -76,6 +85,34 @@ namespace Autonocraft.Engine
                 var rgb = SkyColor.Compute(dir, lighting, timeOfDay, worldSeed);
                 _vertices[i].Color = new Color(rgb.X, rgb.Y, rgb.Z);
             }
+
+            _cachedLighting = lighting;
+            _cachedTimeOfDay = timeOfDay;
+            _cachedWorldSeed = worldSeed;
+        }
+
+        private bool ShouldReuseCachedColors(SceneLighting lighting, float timeOfDay, int worldSeed)
+        {
+            if (worldSeed != _cachedWorldSeed)
+            {
+                return false;
+            }
+
+            if (float.IsNaN(_cachedTimeOfDay))
+            {
+                return false;
+            }
+
+            if (MathF.Abs(timeOfDay - _cachedTimeOfDay) > TimeOfDayCacheEpsilon)
+            {
+                return false;
+            }
+
+            return _cachedLighting.DayLight == lighting.DayLight
+                && _cachedLighting.SunsetFactor == lighting.SunsetFactor
+                && _cachedLighting.TwilightFactor == lighting.TwilightFactor
+                && _cachedLighting.SkyHorizon == lighting.SkyHorizon
+                && _cachedLighting.SkyZenith == lighting.SkyZenith;
         }
 
         private static void BuildHemisphereMesh(

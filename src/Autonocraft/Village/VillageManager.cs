@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Autonocraft.Domain.Core;
 using Autonocraft.Domain.Village;
 using Autonocraft.Entities;
 using Autonocraft.Items;
@@ -345,7 +346,7 @@ namespace Autonocraft.Village
 
         public void Update(float deltaTime, VoxelWorld world, float timeOfDay)
         {
-            bool isNight = timeOfDay < 0.2f || timeOfDay > 0.8f;
+            bool isNight = DayNightCycle.IsNight(timeOfDay);
             bool morning = _wasNight && !isNight;
             _wasNight = isNight;
 
