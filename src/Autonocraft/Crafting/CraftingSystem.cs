@@ -210,6 +210,7 @@ namespace Autonocraft.Crafting
 
                 Journal.Unlock(recipe.Id);
                 UnlockRecipesForCraft(recipe.Id);
+                player.Stats.RecordItemCrafted();
                 OnDiscoveryUnlocked?.Invoke($"Unlocked {recipe.DisplayName}");
                 return CraftAttemptResult.Success(recipe);
             }

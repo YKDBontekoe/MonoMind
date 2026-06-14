@@ -46,6 +46,16 @@ public class ChunkLodTests
     }
 
     [Fact]
+    public void TryGetRenderableDetailAllowsPlayableShellWhileFullTargetPending()
+    {
+        var chunk = new Chunk(0, 0);
+        chunk.EnsureMeshForTest(ChunkMeshDetail.Shell);
+
+        Assert.True(ChunkLod.TryGetRenderableDetail(chunk, ChunkMeshDetail.Full, out var actual));
+        Assert.Equal(ChunkMeshDetail.Shell, actual);
+    }
+
+    [Fact]
     public void NeedsHigherDetailBuildFalseWhenTargetMet()
     {
         var chunk = new Chunk(0, 0);

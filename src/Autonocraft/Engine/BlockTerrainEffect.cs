@@ -10,20 +10,25 @@ namespace Autonocraft.Engine
     {
         private readonly BasicEffect _effect;
 
-        public BlockTerrainEffect(GraphicsDevice device, Texture2D atlas)
+        public BlockTerrainEffect(GraphicsDevice device, Texture2D atlas, bool highQualityLighting = false)
         {
             _effect = new BasicEffect(device)
             {
                 TextureEnabled = true,
                 Texture = atlas,
                 VertexColorEnabled = true,
-                PreferPerPixelLighting = true,
+                PreferPerPixelLighting = highQualityLighting,
                 LightingEnabled = true,
                 FogEnabled = true
             };
         }
 
         public EffectTechnique CurrentTechnique => _effect.CurrentTechnique;
+
+        public void SetPreferPerPixelLighting(bool enabled)
+        {
+            _effect.PreferPerPixelLighting = enabled;
+        }
 
         public void SetAtlas(Texture2D atlas)
         {

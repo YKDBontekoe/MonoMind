@@ -298,6 +298,46 @@ namespace Autonocraft.World
             }
         }
 
+        public static bool TryRenameSlot(string slotId, string newName, out string error)
+        {
+            error = string.Empty;
+            newName = newName.Trim();
+            if (string.IsNullOrWhiteSpace(newName))
+            {
+                error = "World name cannot be empty.";
+                return false;
+            }
+
+            if (newName.Length > 32)
+            {
+                error = "World name must be 32 characters or fewer.";
+                return false;
+            }
+
+            foreach (var slot in ListSlots())
+            {
+                if (slot.SlotId != slotId
+                    && string.Equals(slot.SlotName, newName, StringComparison.OrdinalIgnoreCase))
+                {
+                    error = "A world with that name already exists.";
+                    return false;
+                }
+            }
+
+            try
+            {
+                var data = Load(slotId);
+                data.SlotName = newName;
+                Save(data);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
         public static PlayerSaveData BuildPlayerSaveData(Player player)
         {
             return new PlayerSaveData
@@ -320,7 +360,8 @@ namespace Autonocraft.World
                 WoodcuttingLevel = player.Skills.Woodcutting.Level,
                 WoodcuttingXp = player.Skills.Woodcutting.Xp,
                 CombatLevel = player.Skills.Combat.Level,
-                CombatXp = player.Skills.Combat.Xp
+                CombatXp = player.Skills.Combat.Xp,
+                Statistics = BuildStatisticsSaveData(player.Stats)
             };
         }
 
@@ -345,6 +386,97 @@ namespace Autonocraft.World
             player.Skills.Mining = new SkillProgress { Level = data.MiningLevel > 0 ? data.MiningLevel : 1, Xp = data.MiningXp };
             player.Skills.Woodcutting = new SkillProgress { Level = data.WoodcuttingLevel > 0 ? data.WoodcuttingLevel : 1, Xp = data.WoodcuttingXp };
             player.Skills.Combat = new SkillProgress { Level = data.CombatLevel > 0 ? data.CombatLevel : 1, Xp = data.CombatXp };
+            ApplyStatisticsSaveData(player.Stats, data.Statistics);
+        }
+
+        public static bool TryLoadPlayerStatistics(string slotId, out PlayerStatistics stats, out WorldSaveData? saveData)
+        {
+            stats = new PlayerStatistics();
+            saveData = null;
+            try
+            {
+                saveData = Load(slotId);
+                ApplyStatisticsSaveData(stats, saveData.Player.Statistics);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Save] Failed to load stats for slot '{slotId}': {ex.Message}");
+                return false;
+            }
+        }
+
+        public static (PlayerStatistics Lifetime, int WorldCount) AggregateLifetimeStatistics()
+        {
+            var allStats = new List<PlayerStatistics>();
+            foreach (var slot in ListSlots())
+            {
+                if (slot.IsCorrupt)
+                {
+                    continue;
+                }
+
+                if (TryLoadPlayerStatistics(slot.SlotId, out var stats, out _))
+                {
+                    allStats.Add(stats);
+                }
+            }
+
+            return (PlayerStatistics.Aggregate(allStats), allStats.Count);
+        }
+
+        private static PlayerStatisticsSaveData BuildStatisticsSaveData(PlayerStatistics stats)
+        {
+            return new PlayerStatisticsSaveData
+            {
+                TotalPlayTimeSeconds = stats.TotalPlayTimeSeconds,
+                SessionCount = stats.SessionCount,
+                DistanceWalked = stats.DistanceWalked,
+                StepsWalked = stats.StepsWalked,
+                MaxAltitude = stats.MaxAltitude,
+                DistanceFlown = stats.DistanceFlown,
+                AnimalsKilled = stats.AnimalsKilled,
+                SheepKilled = stats.SheepKilled,
+                PigKilled = stats.PigKilled,
+                ChickenKilled = stats.ChickenKilled,
+                DamageDealt = stats.DamageDealt,
+                DamageTaken = stats.DamageTaken,
+                PlayerDeaths = stats.PlayerDeaths,
+                BlocksBroken = stats.BlocksBroken,
+                BlocksPlaced = stats.BlocksPlaced,
+                ToolsBroken = stats.ToolsBroken,
+                FallDamageEvents = stats.FallDamageEvents,
+                TimesDrowned = stats.TimesDrowned,
+                ItemsCrafted = stats.ItemsCrafted
+            };
+        }
+
+        private static void ApplyStatisticsSaveData(PlayerStatistics stats, PlayerStatisticsSaveData? data)
+        {
+            if (data == null)
+            {
+                return;
+            }
+
+            stats.TotalPlayTimeSeconds = data.TotalPlayTimeSeconds;
+            stats.SessionCount = data.SessionCount;
+            stats.DistanceWalked = data.DistanceWalked;
+            stats.StepsWalked = data.StepsWalked;
+            stats.MaxAltitude = data.MaxAltitude;
+            stats.DistanceFlown = data.DistanceFlown;
+            stats.AnimalsKilled = data.AnimalsKilled;
+            stats.SheepKilled = data.SheepKilled;
+            stats.PigKilled = data.PigKilled;
+            stats.ChickenKilled = data.ChickenKilled;
+            stats.DamageDealt = data.DamageDealt;
+            stats.DamageTaken = data.DamageTaken;
+            stats.PlayerDeaths = data.PlayerDeaths;
+            stats.BlocksBroken = data.BlocksBroken;
+            stats.BlocksPlaced = data.BlocksPlaced;
+            stats.ToolsBroken = data.ToolsBroken;
+            stats.FallDamageEvents = data.FallDamageEvents;
+            stats.TimesDrowned = data.TimesDrowned;
+            stats.ItemsCrafted = data.ItemsCrafted;
         }
 
         private static List<InventorySlotSaveData> SerializeHotbar(Player player)

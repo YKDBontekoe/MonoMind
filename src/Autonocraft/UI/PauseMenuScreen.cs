@@ -40,11 +40,15 @@ namespace Autonocraft.UI
         public bool SaveNowRequested { get; private set; }
         public bool MainMenuRequested { get; private set; }
         public bool QuitRequested { get; private set; }
-        public int RenderDistance { get; private set; } = GameSettings.DefaultRenderDistance;
+        public int RenderDistance { get; private set; } = GameSettings.GetDefaultRenderDistance();
         public bool MuteAudio { get; private set; }
+        public bool VSync { get; private set; } = true;
+        public bool HighQualityLighting { get; private set; } = GameSettings.GetDefaultHighQualityLighting();
 
         public event Action<int>? RenderDistanceChanged;
         public event Action<bool>? MuteAudioChanged;
+        public event Action<bool>? VSyncChanged;
+        public event Action<bool>? HighQualityLightingChanged;
 
         public PauseMenuScreen(UiRenderer ui)
         {
@@ -59,6 +63,13 @@ namespace Autonocraft.UI
         public void ApplyAudioSettings(GameSettings settings)
         {
             MuteAudio = settings.MuteAudio;
+        }
+
+        public void ApplyGraphicsSettings(GameSettings settings)
+        {
+            RenderDistance = Math.Clamp(settings.RenderDistance, GameSettings.MinRenderDistance, GameSettings.MaxRenderDistance);
+            VSync = settings.VSync;
+            HighQualityLighting = settings.HighQualityLighting;
         }
 
         public void Open()
@@ -172,10 +183,14 @@ namespace Autonocraft.UI
             float cx = layout.CenterX;
             float sliderX = cx - sliderW / 2f;
             float sliderY = layout.CenterY - layout.S(24f);
-            float muteY = sliderY + thumbSize + layout.S(42f);
+            float vsyncY = sliderY + thumbSize + layout.S(42f);
+            float lightingY = vsyncY + layout.S(30f);
+            float muteY = lightingY + layout.S(30f);
             float backY = muteY + layout.S(48f);
 
             var sliderRect = UiRenderer.GetSliderTrackRect(sliderX, sliderY, sliderW, trackH, thumbSize);
+            var vsyncRect = new Rectangle((int)(cx - buttonW / 2f), (int)vsyncY, (int)buttonW, (int)layout.S(28f));
+            var lightingRect = new Rectangle((int)(cx - buttonW / 2f), (int)lightingY, (int)buttonW, (int)layout.S(28f));
             var muteRect = new Rectangle((int)(cx - buttonW / 2f), (int)muteY, (int)buttonW, (int)layout.S(28f));
             var backRect = GetButtonRect(cx, backY, buttonW, buttonH);
 
@@ -212,6 +227,16 @@ namespace Autonocraft.UI
             {
                 MuteAudio = !MuteAudio;
                 MuteAudioChanged?.Invoke(MuteAudio);
+            }
+            else if (click && vsyncRect.Contains(mouse.X, mouse.Y))
+            {
+                VSync = !VSync;
+                VSyncChanged?.Invoke(VSync);
+            }
+            else if (click && lightingRect.Contains(mouse.X, mouse.Y))
+            {
+                HighQualityLighting = !HighQualityLighting;
+                HighQualityLightingChanged?.Invoke(HighQualityLighting);
             }
             else if (click && _hoveredButton == 0)
             {
@@ -304,7 +329,9 @@ namespace Autonocraft.UI
             float thumbSize = layout.S(SliderThumbSize);
             float sliderX = cx - sliderW / 2f;
             float sliderY = layout.CenterY - layout.S(24f) + offsetY;
-            float muteY = sliderY + thumbSize + layout.S(42f);
+            float vsyncY = sliderY + thumbSize + layout.S(42f);
+            float lightingY = vsyncY + layout.S(30f);
+            float muteY = lightingY + layout.S(30f);
             float backY = muteY + layout.S(48f);
 
             int blockRadius = RenderDistance * 16;
@@ -339,6 +366,8 @@ namespace Autonocraft.UI
                 new Color(0.45f, 0.5f, 0.58f),
                 0.85f * panelAlpha);
 
+            _ui.DrawCenteredText($"VSYNC: {(VSync ? "ON" : "OFF")} (click)", vsyncY, layout.S(1.0f), new Color(0.72f, 0.78f, 0.86f), 0.95f * panelAlpha);
+            _ui.DrawCenteredText($"HQ LIGHTING: {(HighQualityLighting ? "ON" : "OFF")} (click)", lightingY, layout.S(1.0f), new Color(0.72f, 0.78f, 0.86f), 0.95f * panelAlpha);
             _ui.DrawCenteredText($"MUTE AUDIO: {(MuteAudio ? "ON" : "OFF")} (click)", muteY, layout.S(1.0f), new Color(0.72f, 0.78f, 0.86f), 0.95f * panelAlpha);
 
             DrawButton(cx, backY, buttonW, buttonH, "BACK", 0, layout.S(1.4f), panelAlpha);

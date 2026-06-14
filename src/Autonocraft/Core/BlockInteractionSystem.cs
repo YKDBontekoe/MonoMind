@@ -359,6 +359,7 @@ namespace Autonocraft.Core
             Console.WriteLine($"[Mining] Mined block {blockType} at ({bx}, {by}, {bz}).");
             world.SetBlock(bx, by, bz, BlockType.Air, device);
             player.AddToInventory(blockType);
+            player.Stats.RecordBlockBroken();
             player.DamageSelectedTool(1);
             GrantSkillXp(player, MiningCalculator.GetSkillForBlock(blockType), MiningCalculator.GetXpForBlock(blockType));
             SpawnBreakEffects(particles, hitBlockPos.Value + new Vector3(0.5f, 0.5f, 0.5f), blockType, player.GetSelectedStack(), null);
@@ -400,6 +401,7 @@ namespace Autonocraft.Core
 
             Console.WriteLine($"[Building] Placed {toPlace} at ({px}, {py}, {pz}).");
             world.SetBlock(px, py, pz, toPlace, device);
+            player.Stats.RecordBlockPlaced();
             TriggerPlacePop(placePos, toPlace);
             particles.SpawnBlockPlace(placePos + new Vector3(0.5f, 0.5f, 0.5f), toPlace);
             TriggerCrosshairFlash();
@@ -419,6 +421,7 @@ namespace Autonocraft.Core
             Console.WriteLine($"[Mining] Mined block {_miningBlockType} at ({bx}, {by}, {bz}).");
             world.SetBlock(bx, by, bz, BlockType.Air, device);
             player.AddToInventory(_miningBlockType);
+            player.Stats.RecordBlockBroken();
             bool toolBroke = player.DamageSelectedTool(1);
             GrantSkillXp(player, MiningCalculator.GetSkillForBlock(_miningBlockType), MiningCalculator.GetXpForBlock(_miningBlockType));
             SpawnBreakEffects(
@@ -523,6 +526,7 @@ namespace Autonocraft.Core
 
             Console.WriteLine($"[Building] Placed {toPlace} at ({px}, {py}, {pz}).");
             world.SetBlock(px, py, pz, toPlace, device);
+            player.Stats.RecordBlockPlaced();
             TriggerPlacePop(GhostBlockPos.Value, toPlace);
             particles.SpawnBlockPlace(GhostBlockPos.Value + new Vector3(0.5f, 0.5f, 0.5f), toPlace);
             PlaySfx?.Invoke(SfxKind.Place, toPlace);

@@ -15,6 +15,7 @@ namespace Autonocraft
             Console.WriteLine("  --test        Run headless integration tests and exit");
             Console.WriteLine("  --skip-menu   Skip main menu and load a world immediately");
             Console.WriteLine("  --agent-port  Agent HTTP API port (default: 5001; macOS often blocks 5000)");
+            Console.WriteLine("  --render-distance  Override render distance for this session (2-12)");
             Console.WriteLine("  --debug-input Trace mouse/focus/streaming to input_debug.log");
             Console.WriteLine("  --debug-metrics Write CPU/memory/frame metrics to metrics.log + /metrics API");
             Console.WriteLine("  --help        Show this help text");
@@ -27,6 +28,7 @@ namespace Autonocraft
             bool debugInput = false;
             bool debugMetrics = false;
             int agentPort = 5001;
+            int? renderDistanceOverride = null;
 
             CrashLog.InstallGlobalHandlers();
             InputDebugTrace.EnableFromEnvironment();
@@ -59,6 +61,22 @@ namespace Autonocraft
                         Environment.Exit(1);
                     }
                 }
+                else if (arg == "--render-distance")
+                {
+                    if (i + 1 >= args.Length)
+                    {
+                        Console.WriteLine("Error: --render-distance requires a number between 2 and 12.");
+                        Environment.Exit(1);
+                    }
+
+                    if (!int.TryParse(args[++i], out int parsedRenderDistance))
+                    {
+                        Console.WriteLine("Error: --render-distance requires a number between 2 and 12.");
+                        Environment.Exit(1);
+                    }
+
+                    renderDistanceOverride = parsedRenderDistance;
+                }
                 else if (arg is "--help" or "-h" or "/?")
                 {
                     PrintHelp();
@@ -87,7 +105,7 @@ namespace Autonocraft
                 RuntimeMetrics.EnableFileLogging(fromCli: true);
             }
 
-            using (var game = new AutonocraftGame(skipMenu: skipMenu, agentPort: agentPort, debugMetrics: debugMetrics))
+            using (var game = new AutonocraftGame(skipMenu: skipMenu, agentPort: agentPort, debugMetrics: debugMetrics, renderDistanceOverride: renderDistanceOverride))
             {
                 game.Run();
             }

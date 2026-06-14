@@ -9,9 +9,9 @@ namespace Autonocraft.Engine
     /// </summary>
     internal static class ProceduralTextureSynth
     {
-        private const int CellOrganic = 6;
-        private const int CellEarth = 8;
-        private const int CellWood = 4;
+        private const int CellOrganic = 3;
+        private const int CellEarth = 3;
+        private const int CellWood = 2;
 
         /// <summary>Standard grounded surface — pixel clusters, scatter, rim shading.</summary>
         public static Color[] Surface(int tileSize, string name, Color[] palette, int scatterCount = 18)
@@ -24,29 +24,39 @@ namespace Autonocraft.Engine
 
         public static Color[] GrassTop(int tileSize, string name, Color[] palette)
         {
-            var pixels = PixelCluster(tileSize, name, palette[1], palette, CellOrganic, 14);
+            var pixels = PixelCluster(tileSize, name, palette[1], palette, CellOrganic, 12);
             var image = new TileImage(pixels, tileSize);
 
-            for (int i = 0; i < 48; i++)
+            // Scatter lush grass blade clumps
+            for (int i = 0; i < 35; i++)
             {
-                int x = Noise(name, i, 3, 7) % tileSize;
-                int yBase = tileSize - 2 - Noise(name, i, 5, 9) % 6;
-                int tipX = x + (Noise(name, i, 11, 13) % 15) - 7;
-                int tipY = Noise(name, i, 17, 19) % (tileSize / 2);
-                Color blade = palette[Noise(name, i, 23, 29) % palette.Length];
-                DrawBlade(image, x, yBase, tipX, tipY, blade, 2);
-                SetPixel(image, tipX, tipY, Lighten(blade, 10));
+                int cx = Noise(name, i, 3, 7) % tileSize;
+                int cy = Noise(name, i, 5, 9) % tileSize;
+                Color bladeColor = palette[Noise(name, i, 11, 13) % palette.Length];
+                // Y-shape tuft
+                SetPixelWrapped(image, cx, cy, Lighten(bladeColor, 12));
+                SetPixelWrapped(image, cx - 1, cy - 1, bladeColor);
+                SetPixelWrapped(image, cx + 1, cy - 1, bladeColor);
+                SetPixelWrapped(image, cx, cy + 1, Darken(bladeColor, 8));
             }
 
-            ScatterRects(image, name + "_tuft", palette, 18, 2);
-            for (int i = 0; i < 3; i++)
+            // Scatter small colorful flowers
+            Color[] flowerColors = { new Color(240, 90, 120), new Color(240, 210, 60), new Color(90, 180, 240) };
+            for (int i = 0; i < 8; i++)
             {
-                int x = Noise(name, i, 41, 43) % tileSize;
-                int y = Noise(name, i, 47, 49) % tileSize;
-                SetPixel(image, x, y, new Color(88, 108, 52));
+                int cx = Noise(name, i, 23, 31) % tileSize;
+                int cy = Noise(name, i, 27, 37) % tileSize;
+                Color petal = flowerColors[Noise(name, i, 41, 43) % flowerColors.Length];
+                Color center = new Color(250, 240, 160);
+
+                SetPixelWrapped(image, cx, cy, center);
+                SetPixelWrapped(image, cx - 1, cy, petal);
+                SetPixelWrapped(image, cx + 1, cy, petal);
+                SetPixelWrapped(image, cx, cy - 1, petal);
+                SetPixelWrapped(image, cx, cy + 1, petal);
             }
 
-            ApplyCellRims(image, CellOrganic, -16, 4);
+            ApplyCellRims(image, CellOrganic, -10, 4);
             return image.Pixels;
         }
 
@@ -74,25 +84,46 @@ namespace Autonocraft.Engine
 
         public static Color[] Dirt(int tileSize, string name, Color[] palette)
         {
-            var image = new TileImage(PixelCluster(tileSize, name, palette[1], palette, CellEarth, 22), tileSize);
-            ScatterRects(image, name, palette, 22, 3);
+            var image = new TileImage(PixelCluster(tileSize, name, palette[1], palette, CellEarth, 16), tileSize);
 
-            for (int i = 0; i < 10; i++)
+            // Draw organic dirt clods
+            for (int i = 0; i < 12; i++)
             {
-                int x = Noise(name, i, 31, 33) % tileSize;
-                int y = Noise(name, i, 35, 37) % tileSize;
-                int r = 3 + Noise(name, i, 39, 41) % 5;
-                FillEllipse(image, x - r, y - r, x + r, y + r, Darken(palette[0], 18));
+                int cx = Noise(name, i, 31, 33) % tileSize;
+                int cy = Noise(name, i, 35, 37) % tileSize;
+                int rx = 4 + Noise(name, i, 39, 41) % 5;
+                int ry = 3 + Noise(name, i, 43, 47) % 4;
+                Color clodColor = Darken(palette[0], 14 + i % 6);
+                FillEllipse(image, cx - rx, cy - ry, cx + rx, cy + ry, clodColor);
+                // Highlight on top of clod
+                for (int hx = cx - rx + 1; hx < cx + rx; hx++)
+                {
+                    SetPixel(image, hx, cy - ry + 1, Lighten(clodColor, 8));
+                }
             }
 
-            ApplyCellRims(image, CellEarth, -12, 6);
+            // Scatter some small gray/beige pebbles
+            Color[] pebbleColors = { new Color(140, 135, 130), new Color(165, 155, 145) };
+            for (int i = 0; i < 15; i++)
+            {
+                int px = Noise(name, i, 53, 59) % (tileSize - 4);
+                int py = Noise(name, i, 61, 67) % (tileSize - 4);
+                Color pebble = pebbleColors[i % 2];
+                // 2x2 pebble with a tiny shadow and highlight
+                SetPixel(image, px, py, pebble);
+                SetPixel(image, px + 1, py, Lighten(pebble, 14));
+                SetPixel(image, px, py + 1, Darken(pebble, 10));
+                SetPixel(image, px + 1, py + 1, Darken(pebble, 16));
+            }
+
+            ApplyCellRims(image, CellEarth, -10, 4);
             return image.Pixels;
         }
 
         public static Color[] MossStone(int tileSize, string name, Color[] stonePalette, Color grout, Color[] mossPalette)
         {
-            var image = new TileImage(Stone(tileSize, name, stonePalette, grout), tileSize);
-            PaintBlobs(image, name + "_moss", mossPalette, 22, 4, 10);
+            var image = new TileImage(Cobble(tileSize, name, stonePalette, grout), tileSize);
+            PaintBlobs(image, name + "_moss", mossPalette, 18, 4, 10);
             return image.Pixels;
         }
 
@@ -189,68 +220,142 @@ namespace Autonocraft.Engine
 
         public static Color[] GlassTile(int tileSize, string name)
         {
-            var palette = new[]
-            {
-                new Color(168, 208, 228),
-                new Color(180, 220, 240),
-                new Color(196, 232, 248)
-            };
-            var image = new TileImage(PixelCluster(tileSize, name, palette[1], palette, CellOrganic, 8), tileSize);
-            DrawLine(image, 0, 0, tileSize - 1, tileSize - 1, new Color(220, 240, 255, 180), 2);
-            DrawLine(image, tileSize - 1, 0, 0, tileSize - 1, new Color(140, 190, 220, 140), 2);
-            ApplyCellRims(image, CellOrganic, -8, 10);
+            var baseColor = new Color(180, 220, 240, 32); // semi-transparent
+            var pixels = new Color[tileSize * tileSize];
+            Array.Fill(pixels, baseColor);
+            var image = new TileImage(pixels, tileSize);
+
+            Color frameLight = new Color(240, 250, 255, 180);
+            Color frameDark = new Color(110, 150, 180, 140);
+            Color reflection = new Color(255, 255, 255, 150);
+
+            // Draw frame outline
+            DrawRectOutline(image, 0, 0, tileSize - 1, tileSize - 1, frameDark, 2);
+            DrawLine(image, 0, 0, tileSize - 1, 0, frameLight, 2);
+            DrawLine(image, 0, 0, 0, tileSize - 1, frameLight, 2);
+
+            // Draw diagonal glints/glare highlights in the center
+            int cx = tileSize / 2;
+            int cy = tileSize / 2;
+            DrawLine(image, cx - 16, cy - 8, cx - 4, cy + 4, reflection, 2);
+            DrawLine(image, cx + 4, cy - 8, cx + 16, cy + 4, reflection, 2);
+
             return image.Pixels;
         }
 
         public static Color[] IceTile(int tileSize, string name)
         {
-            var palette = new[]
-            {
-                new Color(156, 200, 228),
-                new Color(168, 212, 238),
-                new Color(188, 228, 248)
-            };
-            var image = new TileImage(PixelCluster(tileSize, name, palette[1], palette, CellOrganic, 8), tileSize);
-            DrawLine(image, 0, tileSize / 4, tileSize - 1, tileSize / 4 + 6, new Color(200, 232, 248, 200), 2);
-            DrawLine(image, tileSize / 3, 0, tileSize / 3 + 8, tileSize - 1, new Color(140, 190, 228, 160), 2);
-            ApplyCellRims(image, CellOrganic, -6, 12);
+            var baseColor = new Color(168, 212, 238);
+            var palette = new[] { baseColor, Lighten(baseColor, 12), Darken(baseColor, 10) };
+            var image = new TileImage(PixelCluster(tileSize, name, baseColor, palette, CellOrganic, 8), tileSize);
+
+            // Draw frosty highlights and fractures
+            Color iceCrack = new Color(220, 240, 255, 220);
+            Color iceShadow = new Color(130, 180, 215, 180);
+
+            // Jagged crack 1
+            DrawLine(image, 10, tileSize / 4, tileSize / 2, tileSize / 4 + 8, iceCrack, 2);
+            DrawLine(image, tileSize / 2, tileSize / 4 + 8, tileSize - 15, tileSize / 4 - 2, iceCrack, 1);
+            DrawLine(image, tileSize / 2, tileSize / 4 + 8, tileSize / 2 - 4, tileSize * 3 / 4, iceShadow, 1);
+
+            // Jagged crack 2
+            DrawLine(image, tileSize * 3 / 4, 15, tileSize * 2 / 3, tileSize * 2 / 3, iceCrack, 1);
+            DrawLine(image, tileSize * 2 / 3, tileSize * 2 / 3, tileSize / 3, tileSize - 10, iceShadow, 2);
+
+            ApplyCellRims(image, CellOrganic, -6, 10);
             return image.Pixels;
         }
 
         public static Color[] HayBale(int tileSize, string name, Color[] palette, Color seam, Color border)
         {
             var image = new TileImage(PixelCluster(tileSize, name, palette[1], palette, CellEarth, 14), tileSize);
-            for (int y = tileSize / 8; y < tileSize; y += tileSize / 6)
+
+            // Draw straw grain lines
+            for (int y = 4; y < tileSize; y += 6)
             {
-                DrawLine(image, 0, y, tileSize - 1, y, seam, 2);
+                int len = tileSize / 2 + Noise(name, y, 11) % (tileSize / 2);
+                DrawLine(image, 0, y, len, y, Lighten(palette[0], 12), 1);
+                DrawLine(image, len + 2, y, tileSize - 1, y, Darken(palette[2], 12), 1);
             }
 
-            int inset = tileSize / 6;
-            DrawRectOutline(image, inset, inset, tileSize - inset, tileSize - inset, border, 3);
+            // Draw ropes wrapped vertically around the bale
+            Color ropeColor = new Color(158, 88, 48); // red/brown twine
+            Color ropeHi = new Color(208, 128, 68);
+            Color ropeShadow = new Color(108, 58, 28);
+
+            int rope1 = tileSize / 4;
+            int rope2 = tileSize * 3 / 4;
+
+            // Draw rope 1
+            FillRect(image, rope1 - 3, 0, 6, tileSize, ropeShadow);
+            FillRect(image, rope1 - 2, 0, 4, tileSize, ropeColor);
+            FillRect(image, rope1 - 1, 0, 2, tileSize, ropeHi);
+
+            // Draw rope 2
+            FillRect(image, rope2 - 3, 0, 6, tileSize, ropeShadow);
+            FillRect(image, rope2 - 2, 0, 4, tileSize, ropeColor);
+            FillRect(image, rope2 - 1, 0, 2, tileSize, ropeHi);
+
             ApplyCellRims(image, CellEarth, -10, 5);
             return image.Pixels;
         }
 
         public static Color[] ForgeStation(int tileSize, string name, Color[] palette, Color frame, Color ember)
         {
-            var image = new TileImage(Surface(tileSize, name, palette, 10), tileSize);
-            for (int i = 0; i < 6; i++)
+            // Background is a nice brick/stone pattern
+            var basePalette = new[] { new Color(100, 100, 105), new Color(120, 120, 125), new Color(80, 80, 84) };
+            var image = new TileImage(Brick(tileSize, name, basePalette[0], Darken(basePalette[2], 16), basePalette[1], basePalette[2]), tileSize);
+
+            // Center furnace opening
+            int cx = tileSize / 2;
+            int cy = tileSize / 2;
+            int size = tileSize / 2;
+            int x = cx - size / 2;
+            int y = cy - size / 2;
+
+            // Black firebox
+            FillRect(image, x, y, size, size, new Color(24, 24, 26));
+
+            // Stone arch/frame
+            DrawRectOutline(image, x - 2, y - 2, x + size + 2, y + size + 2, frame, 3);
+            DrawRectOutline(image, x - 1, y - 1, x + size + 1, y + size + 1, Lighten(frame, 16), 1);
+
+            // Glowing hot embers and fire inside the box
+            for (int i = 0; i < 15; i++)
             {
-                int x = tileSize / 4 + i * 8;
-                FillRect(image, x, tileSize / 3, 6, tileSize / 3, new Color(42, 42, 44));
+                int ex = x + 3 + Noise(name, i, 3, 11) % (size - 6);
+                int ey = y + size - 8 - Noise(name, i, 7, 13) % 10;
+                int r = 2 + Noise(name, i, 11, 17) % 3;
+
+                Color col = i % 3 == 0 ? new Color(255, 230, 60) : (i % 2 == 0 ? new Color(255, 110, 30) : new Color(220, 40, 20));
+                FillEllipse(image, ex - r, ey - r, ex + r, ey + r, col);
             }
 
-            DrawRectOutline(image, tileSize / 4, tileSize / 4, tileSize * 3 / 4, tileSize * 3 / 4, ember, 4);
-            DrawLine(image, tileSize / 4, tileSize / 4, tileSize * 3 / 4, tileSize / 4, frame, 2);
             return image.Pixels;
         }
 
         public static Color[] CrucibleStation(int tileSize, string name, Color[] palette, Color rim, Color liquid)
         {
-            var image = new TileImage(Surface(tileSize, name, palette, 8), tileSize);
-            int inset = tileSize / 5;
-            DrawRectOutline(image, inset, inset, tileSize - inset, tileSize - inset, rim, 4);
-            FillEllipse(image, tileSize / 3, tileSize / 3, tileSize * 2 / 3, tileSize * 2 / 3, liquid);
+            var basePalette = new[] { new Color(110, 110, 114), new Color(130, 130, 135), new Color(90, 90, 94) };
+            var image = new TileImage(Voronoi(tileSize, name, basePalette, Darken(basePalette[2], 12), 14, 2.5f), tileSize);
+
+            int cx = tileSize / 2;
+            int cy = tileSize / 2;
+            int r = tileSize / 3;
+
+            // Outer dark metal rim
+            FillEllipse(image, cx - r - 4, cy - r - 4, cx + r + 4, cy + r + 4, new Color(48, 48, 52));
+            FillEllipse(image, cx - r, cy - r, cx + r, cy + r, rim);
+
+            // Glowing liquid core
+            FillEllipse(image, cx - r + 5, cy - r + 5, cx + r - 5, cy + r - 5, liquid);
+
+            // Add magic energy rings / runic glints inside the pool
+            Color runeColor = Lighten(liquid, 40);
+            FillEllipse(image, cx - r + 9, cy - r + 9, cx + r - 9, cy + r - 9, Darken(liquid, 16));
+            FillEllipse(image, cx - r + 13, cy - r + 13, cx + r - 13, cy + r - 13, runeColor);
+            FillEllipse(image, cx - r + 16, cy - r + 16, cx + r - 16, cy + r - 16, liquid);
+
             return image.Pixels;
         }
 
@@ -265,15 +370,162 @@ namespace Autonocraft.Engine
             return image.Pixels;
         }
 
+        public static Color[] SheepBody(int tileSize, string name, Color baseColor, Color accent)
+        {
+            var image = new TileImage(FillSolid(tileSize, new Color(210, 210, 210)), tileSize);
+
+            for (int i = 0; i < 28; i++)
+            {
+                int cx = Noise(name, i, 3, 7) % tileSize;
+                int cy = Noise(name, i, 5, 9) % tileSize;
+                int r = 10 + Noise(name, i, 11, 13) % 8;
+
+                Color woolColor = i % 2 == 0 ? new Color(245, 245, 245) : new Color(230, 230, 230);
+
+                FillEllipse(image, cx - r, cy - r, cx + r, cy + r, Darken(woolColor, 20));
+                FillEllipse(image, cx - r + 1, cy - r + 1, cx + r - 1, cy + r - 1, woolColor);
+                FillEllipse(image, cx - r + 2, cy - r + 2, cx + r / 4, cy + r / 4, new Color(255, 255, 255));
+            }
+
+            return image.Pixels;
+        }
+
+        public static Color[] ChickenBody(int tileSize, string name, Color baseColor, Color accent)
+        {
+            var image = new TileImage(FillSolid(tileSize, baseColor), tileSize);
+
+            int rowSpacing = tileSize / 8;
+            for (int y = 4; y < tileSize; y += rowSpacing)
+            {
+                int offset = (y / rowSpacing % 2) * (tileSize / 16);
+                for (int x = -10; x < tileSize + 10; x += tileSize / 6)
+                {
+                    int cx = x + offset;
+                    int cy = y;
+                    int r = tileSize / 10;
+
+                    Color featherColor = Lighten(baseColor, (y / rowSpacing) * 3 - 8);
+
+                    FillEllipse(image, cx - r, cy - r, cx + r, cy + r, Darken(featherColor, 18));
+                    FillEllipse(image, cx - r + 1, cy - r + 1, cx + r - 1, cy + r - 1, featherColor);
+                    for (int tx = cx - r + 2; tx <= cx + r - 2; tx++)
+                    {
+                        SetPixel(image, tx, cy + r - 1, Lighten(featherColor, 22));
+                    }
+                }
+            }
+
+            return image.Pixels;
+        }
+
+        public static Color[] PigBody(int tileSize, string name, Color baseColor, Color accent)
+        {
+            var palette = ExpandPalette(baseColor, Darken(baseColor, 12), Lighten(baseColor, 12));
+            var image = new TileImage(PixelCluster(tileSize, name, baseColor, palette, CellOrganic, 8), tileSize);
+
+            Color spotColor = new Color(110, 80, 65);
+            Color spotPink = Darken(baseColor, 26);
+            for (int i = 0; i < 4; i++)
+            {
+                int cx = Noise(name, i, 11, 13) % tileSize;
+                int cy = Noise(name, i, 17, 19) % tileSize;
+                int r = 6 + Noise(name, i, 23, 29) % 8;
+
+                Color color = i % 2 == 0 ? spotColor : spotPink;
+                FillEllipse(image, cx - r, cy - r, cx + r, cy + r, color);
+                FillEllipse(image, cx - r + 2, cy - r + 1, cx + r - 1, cy + r - 1, Lighten(color, 8));
+            }
+
+            ApplyCellRims(image, CellOrganic, -8, 6);
+            return image.Pixels;
+        }
+
+        public static Color[] AnimalHead(int tileSize, string name, Color baseColor, Color accent, string animalType)
+        {
+            var palette = ExpandPalette(baseColor, Darken(baseColor, 14), Lighten(baseColor, 12));
+            var image = new TileImage(PixelCluster(tileSize, name, baseColor, palette, CellOrganic, 8), tileSize);
+            int margin = tileSize / 8;
+            DrawRectOutline(image, margin, margin, tileSize - margin, tileSize - margin, Darken(accent, 20), 2);
+
+            int cx = tileSize / 2;
+            int cy = tileSize / 2;
+
+            if (animalType == "sheep")
+            {
+                int eyeY = cy - tileSize / 16;
+                int eyeOffset = tileSize / 4;
+                FillRect(image, cx - eyeOffset - 4, eyeY - 2, 8, 5, new Color(255, 255, 255));
+                FillRect(image, cx - eyeOffset - 2, eyeY - 2, 4, 5, new Color(0, 0, 0));
+                FillRect(image, cx + eyeOffset - 4, eyeY - 2, 8, 5, new Color(255, 255, 255));
+                FillRect(image, cx + eyeOffset - 2, eyeY - 2, 4, 5, new Color(0, 0, 0));
+
+                FillRect(image, cx - 6, cy + tileSize / 8, 13, 7, new Color(240, 150, 160));
+                SetPixel(image, cx - 2, cy + tileSize / 8 + 2, new Color(80, 30, 40));
+                SetPixel(image, cx + 2, cy + tileSize / 8 + 2, new Color(80, 30, 40));
+
+                for (int x = margin; x < tileSize - margin; x += 6)
+                {
+                    int r = 5 + Noise(name, x, 73) % 4;
+                    FillEllipse(image, x - r, margin - r + 3, x + r, margin + r, new Color(245, 245, 245));
+                }
+            }
+            else if (animalType == "pig")
+            {
+                int eyeY = cy - tileSize / 12;
+                int eyeOffset = tileSize / 5;
+                FillRect(image, cx - eyeOffset - 3, eyeY - 2, 6, 5, new Color(255, 255, 255));
+                FillRect(image, cx - eyeOffset - 1, eyeY - 2, 3, 5, new Color(0, 0, 0));
+                FillRect(image, cx + eyeOffset - 3, eyeY - 2, 6, 5, new Color(255, 255, 255));
+                FillRect(image, cx + eyeOffset - 1, eyeY - 2, 3, 5, new Color(0, 0, 0));
+
+                int snoutW = tileSize / 3;
+                int snoutH = tileSize / 5;
+                Color snoutColor = Darken(baseColor, 22);
+                FillRect(image, cx - snoutW / 2, cy + 2, snoutW, snoutH, snoutColor);
+                DrawRectOutline(image, cx - snoutW / 2, cy + 2, cx + snoutW / 2, cy + 2 + snoutH, Darken(snoutColor, 20), 1);
+
+                FillRect(image, cx - snoutW / 4 - 1, cy + 2 + snoutH / 2 - 1, 3, 3, new Color(60, 20, 20));
+                FillRect(image, cx + snoutW / 4 - 2, cy + 2 + snoutH / 2 - 1, 3, 3, new Color(60, 20, 20));
+            }
+            else if (animalType == "chicken")
+            {
+                int eyeY = cy - tileSize / 8;
+                int eyeOffset = tileSize / 4;
+                FillRect(image, cx - eyeOffset - 3, eyeY - 2, 6, 5, new Color(255, 255, 255));
+                FillRect(image, cx - eyeOffset - 1, eyeY - 2, 3, 5, new Color(0, 0, 0));
+                FillRect(image, cx + eyeOffset - 3, eyeY - 2, 6, 5, new Color(255, 255, 255));
+                FillRect(image, cx + eyeOffset - 1, eyeY - 2, 3, 5, new Color(0, 0, 0));
+
+                int beakSize = tileSize / 6;
+                Color beakColor = new Color(255, 170, 30);
+                FillEllipse(image, cx - beakSize, cy - 2, cx + beakSize, cy + beakSize + 2, beakColor);
+                DrawLine(image, cx - beakSize + 1, cy + 2, cx + beakSize - 1, cy + 2, Darken(beakColor, 24), 1);
+
+                FillRect(image, cx - 4, margin - 6, 9, 8, new Color(220, 30, 30));
+                FillRect(image, cx - 3, cy + beakSize + 1, 6, 7, new Color(220, 30, 30));
+            }
+
+            ApplyCellRims(image, CellOrganic, -8, 6);
+            return image.Pixels;
+        }
+
         public static Color[] Stone(int tileSize, string name, Color[] palette, Color grout)
         {
-            var image = new TileImage(Voronoi(tileSize, name, palette, grout, 16, 2.8f), tileSize);
+            var image = new TileImage(Voronoi(tileSize, name, palette, grout, 18, 2.4f), tileSize);
 
-            for (int i = 0; i < 10; i++)
+            for (int i = 0; i < 8; i++)
             {
-                int x0 = Noise(name, i, 3, 17) % (tileSize - 20);
-                int y0 = Noise(name, i, 7, 19) % (tileSize - 20);
-                DrawLine(image, x0, y0, x0 + 14 + Noise(name, i, 11, 21) % 12, y0 + Noise(name, i, 13, 23) % 4, Darken(grout, 28), 1);
+                int x0 = Noise(name, i, 3, 17) % (tileSize - 30) + 15;
+                int y0 = Noise(name, i, 7, 19) % (tileSize - 30) + 15;
+                int len = 12 + Noise(name, i, 11, 23) % 16;
+                int dx = Noise(name, i, 13, 29) % 2 == 0 ? len : -len;
+                int dy = 4 + Noise(name, i, 17, 31) % 8;
+
+                Color crackColor = Darken(grout, 36);
+                Color highlightColor = Lighten(palette[2], 24);
+
+                DrawLine(image, x0, y0, x0 + dx, y0 + dy, crackColor, 1);
+                DrawLine(image, x0, y0 - 1, x0 + dx, y0 + dy - 1, highlightColor, 1);
             }
 
             return image.Pixels;
@@ -373,21 +625,24 @@ namespace Autonocraft.Engine
         public static Color[] Ore(int tileSize, string name, Color stone, Color ore, Color oreHi)
         {
             var stonePalette = ExpandPalette(stone, Darken(stone, 18), Lighten(stone, 14));
-            var image = new TileImage(PixelCluster(tileSize, name, stone, stonePalette, CellEarth, 18), tileSize);
+            var image = new TileImage(Stone(tileSize, name, stonePalette, Darken(stone, 24)), tileSize);
 
             for (int cluster = 0; cluster < 6; cluster++)
             {
-                int cx = Noise(name, cluster, 3, 7) % (tileSize - 16) + 8;
-                int cy = Noise(name, cluster, 5, 9) % (tileSize - 16) + 8;
-                int pieces = 3 + Noise(name, cluster, 11, 13) % 4;
+                int cx = Noise(name, cluster, 3, 7) % (tileSize - 24) + 12;
+                int cy = Noise(name, cluster, 5, 9) % (tileSize - 24) + 12;
+                int pieces = 4 + Noise(name, cluster, 11, 13) % 4;
+
                 for (int p = 0; p < pieces; p++)
                 {
-                    int x = cx + (Noise(name, cluster, p, 17) % 10) - 5;
-                    int y = cy + (Noise(name, cluster, p, 19) % 10) - 5;
-                    int s = 4 + Noise(name, cluster, p, 21) % 4;
-                    FillRect(image, x, y, s, s, ore);
-                    SetPixel(image, x + 1, y + 1, oreHi);
-                    SetPixel(image, x + s - 1, y, Darken(ore, 20));
+                    int x = cx + (Noise(name, cluster, p, 17) % 14) - 7;
+                    int y = cy + (Noise(name, cluster, p, 19) % 14) - 7;
+                    int r = 3 + Noise(name, cluster, p, 21) % 4;
+
+                    Color darkOutline = Darken(ore, 30);
+                    FillEllipse(image, x - r - 1, y - r - 1, x + r + 1, y + r + 1, darkOutline);
+                    FillEllipse(image, x - r, y - r, x + r, y + r, ore);
+                    FillEllipse(image, x - r / 2, y - r / 2, x + r / 4, y + r / 4, oreHi);
                 }
             }
 
@@ -469,14 +724,23 @@ namespace Autonocraft.Engine
 
             for (int row = 0; row < 5; row++)
             {
-                int offset = (row % 2) * (tileSize / 10);
+                int offset = (row % 2) * (tileSize / 8);
                 int y = row * rowH;
                 for (int col = 0; col < 4; col++)
                 {
                     int x = offset + col * (tileSize / 4);
-                    Color tone = (row + col) % 2 == 0 ? brickHi : brickLo;
-                    FillRect(image, x + 3, y + 3, tileSize / 4 - 5, rowH - 5, tone);
-                    DrawRectOutline(image, x + 2, y + 2, x + tileSize / 4 - 2, y + rowH - 2, Darken(brick, 24), 1);
+                    Color baseColor = (row + col) % 2 == 0 ? brickHi : brickLo;
+                    FillRectWrapped(image, x + 2, y + 2, tileSize / 4 - 3, rowH - 3, baseColor);
+                    for (int bx = x + 2; bx < x + tileSize / 4 - 1; bx++)
+                    {
+                        SetPixelWrapped(image, bx, y + 2, Lighten(baseColor, 18));
+                        SetPixelWrapped(image, bx, y + rowH - 2, Darken(baseColor, 18));
+                    }
+                    for (int by = y + 2; by < y + rowH - 1; by++)
+                    {
+                        SetPixelWrapped(image, x + 2, by, Lighten(baseColor, 14));
+                        SetPixelWrapped(image, x + tileSize / 4 - 2, by, Darken(baseColor, 22));
+                    }
                 }
             }
 
@@ -564,6 +828,7 @@ namespace Autonocraft.Engine
                     float d1 = float.MaxValue;
                     float d2 = float.MaxValue;
                     Color nearest = cellColors[0];
+                    int nearestIdx = 0;
                     for (int i = 0; i < seedCount; i++)
                     {
                         float dx = x - seeds[i].x;
@@ -574,6 +839,7 @@ namespace Autonocraft.Engine
                             d2 = d1;
                             d1 = d;
                             nearest = seeds[i].color;
+                            nearestIdx = i;
                         }
                         else if (d < d2)
                         {
@@ -595,7 +861,19 @@ namespace Autonocraft.Engine
                     else
                     {
                         float shade = MathF.Min(1f, MathF.Sqrt(d1) / (tileSize * 0.42f));
-                        pixels[y * tileSize + x] = Lerp(Lighten(nearest, 12), Darken(nearest, 16), shade);
+                        Color c = Lerp(Lighten(nearest, 12), Darken(nearest, 16), shade);
+
+                        float angleX = (x - seeds[nearestIdx].x);
+                        float angleY = (y - seeds[nearestIdx].y);
+                        if (angleX < -1f && angleY < -1f)
+                        {
+                            c = Lighten(c, 16);
+                        }
+                        else if (angleX > 1f && angleY > 1f)
+                        {
+                            c = Darken(c, 18);
+                        }
+                        pixels[y * tileSize + x] = c;
                     }
                 }
             }
@@ -730,6 +1008,76 @@ namespace Autonocraft.Engine
             }
         }
 
+        public static Color[] WoodLogTop(int tileSize, string name, Color barkBase, Color barkDark, Color woodBase, Color woodRing)
+        {
+            var pixels = new Color[tileSize * tileSize];
+            float cx = tileSize / 2f;
+            float cy = tileSize / 2f;
+            for (int y = 0; y < tileSize; y++)
+            {
+                for (int x = 0; x < tileSize; x++)
+                {
+                    float dx = x - cx + 0.5f;
+                    float dy = y - cy + 0.5f;
+                    float dist = MathF.Sqrt(dx * dx + dy * dy);
+                    float theta = MathF.Atan2(dy, dx);
+
+                    int angleIdx = (int)MathF.Round((theta + MathF.PI) / (2f * MathF.PI) * 32f) % 32;
+                    int wobble = (Noise(name, angleIdx, 0, 45) % 6) - 3;
+
+                    float adjustedDist = dist + wobble;
+                    Color c;
+
+                    if (adjustedDist > (tileSize / 2f) - 5f)
+                    {
+                        int barkNoise = Noise(name, x, y, 77) % 3;
+                        if (barkNoise == 0)
+                        {
+                            c = barkDark;
+                        }
+                        else if (barkNoise == 1)
+                        {
+                            c = barkBase;
+                        }
+                        else
+                        {
+                            c = Darken(barkBase, 12);
+                        }
+                    }
+                    else
+                    {
+                        float woodNoise = (Noise(name, x, y, 99) % 3 - 1) * 0.5f;
+                        float adjustedDistWood = adjustedDist + woodNoise;
+
+                        float t;
+                        if (adjustedDistWood < 5f)
+                        {
+                            t = 0.8f;
+                        }
+                        else
+                        {
+                            float ringPhase = adjustedDistWood % 10f;
+                            if (ringPhase < 2.5f)
+                            {
+                                t = 0.7f + 0.3f * (1f - ringPhase / 2.5f);
+                            }
+                            else
+                            {
+                                t = 0.2f * (ringPhase - 2.5f) / 7.5f;
+                            }
+                        }
+
+                        c = Lerp(woodBase, woodRing, t);
+                        int grainNoise = (Noise(name, x, y, 123) % 15) - 7;
+                        c = Lighten(c, grainNoise);
+                    }
+
+                    pixels[y * tileSize + x] = c;
+                }
+            }
+            return pixels;
+        }
+
         private static void SetPixel(TileImage image, int x, int y, Color color)
         {
             if (x >= 0 && x < image.Size && y >= 0 && y < image.Size)
@@ -783,6 +1131,24 @@ namespace Autonocraft.Engine
 
             public Color[] Pixels { get; }
             public int Size { get; }
+        }
+
+        private static void SetPixelWrapped(TileImage image, int x, int y, Color color)
+        {
+            int wx = (x % image.Size + image.Size) % image.Size;
+            int wy = (y % image.Size + image.Size) % image.Size;
+            image.Pixels[wy * image.Size + wx] = color;
+        }
+
+        private static void FillRectWrapped(TileImage image, int x, int y, int w, int h, Color color)
+        {
+            for (int py = y; py < y + h; py++)
+            {
+                for (int px = x; px < x + w; px++)
+                {
+                    SetPixelWrapped(image, px, py, color);
+                }
+            }
         }
     }
 }

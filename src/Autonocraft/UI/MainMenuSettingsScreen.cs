@@ -20,7 +20,7 @@ namespace Autonocraft.UI
         }
 
         private const float PanelWidth = 560f;
-        private const float PanelHeight = 640f;
+        private const float PanelHeight = 700f;
         private const float ButtonWidth = 160f;
         private const float ButtonHeight = 38f;
         private const float SliderWidth = 320f;
@@ -40,6 +40,7 @@ namespace Autonocraft.UI
         private readonly UiRenderer _ui;
         private readonly MenuBackdrop _backdrop = new MenuBackdrop(24);
         private readonly UiTransition _transition = new UiTransition();
+        private readonly float[] _buttonHoverT = new float[2];
         private GameSettings _working = new();
         private EditField _activeField = EditField.None;
         private string _openRouterKey = string.Empty;
@@ -74,7 +75,9 @@ namespace Autonocraft.UI
                 SfxVolume = current.SfxVolume,
                 AmbientVolume = current.AmbientVolume,
                 MusicVolume = current.MusicVolume,
-                MuteAudio = current.MuteAudio
+                MuteAudio = current.MuteAudio,
+                VSync = current.VSync,
+                HighQualityLighting = current.HighQualityLighting
             };
             _openRouterKey = current.OpenRouterApiKey ?? string.Empty;
             _openRouterModel = current.OpenRouterModel;
@@ -107,6 +110,12 @@ namespace Autonocraft.UI
             _transition.Update(deltaTime);
             _backdrop.Update(deltaTime);
 
+            for (int i = 0; i < _buttonHoverT.Length; i++)
+            {
+                float target = _hoveredButton == i ? 1f : 0f;
+                _buttonHoverT[i] = Tween.SmoothDamp(_buttonHoverT[i], target, 10f, deltaTime);
+            }
+
             if (kb.IsKeyDown(Keys.Escape) && !prevKb.IsKeyDown(Keys.Escape))
             {
                 CancelRequested = true;
@@ -128,7 +137,9 @@ namespace Autonocraft.UI
             float y = panelY + layout.S(72f);
             float rowH = layout.S(34f);
             float renderSliderY = y + rowH * 1.1f;
-            float audioHeaderY = y + rowH * 3.2f;
+            float vsyncY = renderSliderY + rowH * 1.8f;
+            float lightingY = vsyncY + rowH * 1.0f;
+            float audioHeaderY = lightingY + rowH * 1.6f;
             float masterSliderY = audioHeaderY + rowH * 1.1f;
             float sfxSliderY = masterSliderY + rowH * 1.2f;
             float ambientSliderY = sfxSliderY + rowH * 1.2f;
@@ -142,6 +153,8 @@ namespace Autonocraft.UI
             var playAiRect = new Rectangle((int)left, (int)toggleY, (int)layout.S(220f), (int)layout.S(28f));
             var providerRect = new Rectangle((int)left, (int)providerY, (int)layout.S(320f), (int)layout.S(28f));
             var muteRect = new Rectangle((int)left, (int)muteY, (int)layout.S(220f), (int)layout.S(28f));
+            var vsyncRect = new Rectangle((int)left, (int)vsyncY, (int)layout.S(260f), (int)layout.S(28f));
+            var lightingRect = new Rectangle((int)left, (int)lightingY, (int)layout.S(320f), (int)layout.S(28f));
             var saveRect = GetButtonRect(cx - buttonW - layout.S(8f), panelY + panelH - layout.S(52f), buttonW, buttonH);
             var cancelRect = GetButtonRect(cx + layout.S(8f), panelY + panelH - layout.S(52f), buttonW, buttonH);
 
@@ -161,6 +174,14 @@ namespace Autonocraft.UI
                 if (muteRect.Contains(mouse.X, mouse.Y))
                 {
                     _working.MuteAudio = !_working.MuteAudio;
+                }
+                else if (vsyncRect.Contains(mouse.X, mouse.Y))
+                {
+                    _working.VSync = !_working.VSync;
+                }
+                else if (lightingRect.Contains(mouse.X, mouse.Y))
+                {
+                    _working.HighQualityLighting = !_working.HighQualityLighting;
                 }
                 else if (playAiRect.Contains(mouse.X, mouse.Y))
                 {
@@ -221,20 +242,24 @@ namespace Autonocraft.UI
             float rowH = layout.S(34f);
 
             _backdrop.Draw(_ui, viewport, alpha * 0.85f);
-            _ui.DrawFilledRect(0, 0, viewport.Width, viewport.Height, Color.Black * (0.35f * alpha));
+            UiTheme.DrawMenuScrim(_ui, viewport, alpha);
 
-            _ui.DrawFramedPanel(panelX, panelY, panelW, panelH, new Color(0.04f, 0.06f, 0.1f) * 0.96f, new Color(0.2f, 0.45f, 0.65f), alpha);
-            _ui.DrawCenteredTitle("SETTINGS", panelY + layout.S(16f), layout.S(1.9f), new Color(0.82f, 0.92f, 1.0f), alpha);
-            _ui.DrawHorizontalRule(panelX + layout.S(20f), panelY + layout.S(48f), panelW - layout.S(40f), new Color(0.16f, 0.32f, 0.48f), 1f, alpha * 0.7f);
+            _ui.DrawFramedPanel(panelX, panelY, panelW, panelH, UiTheme.PanelFill * 0.96f, UiTheme.PanelBorder, alpha);
+            _ui.DrawCenteredTitle("SETTINGS", panelY + layout.S(16f), layout.S(1.9f), UiTheme.Title, alpha);
+            _ui.DrawHorizontalRule(panelX + layout.S(20f), panelY + layout.S(48f), panelW - layout.S(40f), UiTheme.Rule, 1f, alpha * 0.7f);
 
             float y = panelY + layout.S(72f);
-            _ui.DrawString("GRAPHICS", left, y, layout.S(1.2f), new Color(0.55f, 0.72f, 0.88f) * alpha);
+            UiTheme.DrawSectionHeader(_ui, "GRAPHICS", left, y, layout, alpha);
             y += rowH;
             _ui.DrawString($"Render distance: {_working.RenderDistance}", left, y, layout.S(1.05f), Color.White * alpha);
             DrawSlider(left, y + layout.S(22f), layout, alpha, SliderTarget.RenderDistance, _working.RenderDistance, GameSettings.MinRenderDistance, GameSettings.MaxRenderDistance);
+            y += rowH * 1.8f;
+            _ui.DrawString($"VSync: {(_working.VSync ? "ON" : "OFF")} (click)", left, y, layout.S(1.05f), Color.White * alpha);
+            y += rowH;
+            _ui.DrawString($"High quality lighting: {(_working.HighQualityLighting ? "ON" : "OFF")} (click)", left, y, layout.S(1.05f), Color.White * alpha);
 
-            y += rowH * 3.2f;
-            _ui.DrawString("AUDIO", left, y, layout.S(1.2f), new Color(0.55f, 0.72f, 0.88f) * alpha);
+            y += rowH * 1.6f;
+            UiTheme.DrawSectionHeader(_ui, "AUDIO", left, y, layout, alpha);
             y += rowH;
             DrawVolumeSlider(left, y, layout, alpha, SliderTarget.MasterVolume, "Master", _working.MasterVolume);
             y += rowH * 1.2f;
@@ -247,7 +272,7 @@ namespace Autonocraft.UI
             _ui.DrawString($"Mute audio: {(_working.MuteAudio ? "ON" : "OFF")} (click)", left, y, layout.S(1.05f), Color.White * alpha);
 
             y += rowH * 1.6f;
-            _ui.DrawString("VILLAGE AI", left, y, layout.S(1.2f), new Color(0.55f, 0.72f, 0.88f) * alpha);
+            UiTheme.DrawSectionHeader(_ui, "VILLAGE AI", left, y, layout, alpha);
             y += rowH;
             _ui.DrawString($"Play with AI: {(_working.PlayWithAi ? "ON" : "OFF")} (click)", left, y, layout.S(1.05f), Color.White * alpha);
             y += rowH * 1.2f;
@@ -263,10 +288,10 @@ namespace Autonocraft.UI
             DrawField(left, y, "llama.cpp model", _llamaCppModel, EditField.LlamaCppModel, layout, alpha);
 
             y = panelY + panelH - layout.S(52f);
-            DrawButton(cx - buttonW - layout.S(8f), y, buttonW, buttonH, "SAVE", _hoveredButton == 0, layout.S(1.4f), alpha);
-            DrawButton(cx + layout.S(8f), y, buttonW, buttonH, "BACK", _hoveredButton == 1, layout.S(1.4f), alpha);
+            DrawButton(cx - buttonW - layout.S(8f), y, buttonW, buttonH, "SAVE", _hoveredButton == 0, layout.S(1.4f), alpha, _buttonHoverT[0]);
+            DrawButton(cx + layout.S(8f), y, buttonW, buttonH, "BACK", _hoveredButton == 1, layout.S(1.4f), alpha, _buttonHoverT[1]);
 
-            _ui.DrawCenteredText("Run: llama-server -m model.gguf --port 8080", panelY + panelH - layout.S(18f), layout.S(0.95f), new Color(0.45f, 0.5f, 0.55f) * alpha, 0.85f);
+            _ui.DrawCenteredText("Run: llama-server -m model.gguf --port 8080", panelY + panelH - layout.S(18f), layout.S(0.95f), UiTheme.Hint, 0.85f * alpha);
         }
 
         private GameSettings ApplyEditsToSettings()
@@ -359,7 +384,7 @@ namespace Autonocraft.UI
         private void DrawField(float x, float y, string label, string value, EditField field, UiLayout layout, float alpha)
         {
             bool active = _activeField == field;
-            _ui.DrawString(label.ToUpperInvariant(), x, y, layout.S(0.95f), new Color(0.5f, 0.6f, 0.65f) * alpha);
+            _ui.DrawString(label.ToUpperInvariant(), x, y, layout.S(0.95f), UiTheme.Meta * alpha);
             string display = active ? value + "_" : value;
             _ui.DrawString(display, x, y + layout.S(16f), layout.S(1.0f), (active ? new Color(0.9f, 0.95f, 1f) : Color.White) * alpha);
         }
@@ -471,9 +496,9 @@ namespace Autonocraft.UI
             };
         }
 
-        private void DrawButton(float x, float y, float w, float h, string label, bool hovered, float textSize, float alpha)
+        private void DrawButton(float x, float y, float w, float h, string label, bool hovered, float textSize, float alpha, float hoverT = 1f)
         {
-            _ui.DrawButton(x, y, w, h, label, hovered, false, textSize, alpha);
+            _ui.DrawButton(x, y, w, h, label, hovered, false, textSize, alpha, hoverT);
         }
 
         private static Rectangle GetButtonRect(float x, float y, float w, float h) => new((int)x, (int)y, (int)w, (int)h);

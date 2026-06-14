@@ -44,6 +44,7 @@ namespace Autonocraft.Core
         public Action<string>? ShowToast { get; set; }
 
         public PlayerSkills Skills { get; } = new();
+        public PlayerStatistics Stats { get; } = new();
 
         private void Notify(string message) => ShowToast?.Invoke(message);
 
@@ -135,6 +136,7 @@ namespace Autonocraft.Core
             {
                 string toolName = slot.GetDisplayName();
                 slot = ItemStack.Empty;
+                Stats.RecordToolBroken();
                 Notify($"{toolName} broke!");
                 return true;
             }
@@ -280,6 +282,7 @@ namespace Autonocraft.Core
             Health = Math.Max(0f, Health - amount);
             _invulnerabilityTimer = InvulnerabilityDuration;
             tookDamage = true;
+            Stats.RecordDamageTaken(amount);
             return true;
         }
 
@@ -305,6 +308,7 @@ namespace Autonocraft.Core
         {
             JustLanded = false;
             FallDistance = 0f;
+            Vector3 prevPos = Position;
 
             if (FlyingMode)
             {
@@ -369,7 +373,12 @@ namespace Autonocraft.Core
 
                 if (HeadUnderwater)
                 {
+                    float prevOxygen = Oxygen;
                     Oxygen = MathF.Max(0f, Oxygen - deltaTime);
+                    if (prevOxygen > 0f && Oxygen <= 0f)
+                    {
+                        Stats.RecordDrowning();
+                    }
                 }
                 else
                 {
@@ -398,6 +407,8 @@ namespace Autonocraft.Core
                 _wasGrounded = IsGrounded;
                 _wasInWater = InWater;
             }
+
+            Stats.RecordMovement(prevPos, Position, FlyingMode, IsGrounded);
         }
 
         public void Jump()

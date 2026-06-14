@@ -33,11 +33,26 @@ namespace Autonocraft.Core
         private static int _pendingMesh;
         private static float _meshBuildMs;
         private static float _spawnWarmupRemaining;
+        private static float _lastUpdateMs;
+        private static float _lastDrawMs;
+        private static int _lastTerrainDrawCalls;
         private static TimeSpan _lastCpuTime;
         private static double _lastCpuSampleSeconds;
         private static float _cpuPercent;
 
         public static bool FileLoggingEnabled => _fileLoggingEnabled;
+
+        public static float RollingFps
+        {
+            get
+            {
+                lock (Gate)
+                {
+                    float avgFrameMs = _frameHistoryCount > 0 ? _ringSum / _frameHistoryCount : 0f;
+                    return avgFrameMs > 0f ? 1000f / avgFrameMs : 0f;
+                }
+            }
+        }
 
         public static string LogPath => Path.Combine(GetAppDataDir(), "Autonocraft", "metrics.log");
 
@@ -77,7 +92,10 @@ namespace Autonocraft.Core
             int activeChunks,
             int pendingMesh,
             float meshBuildMs,
-            float spawnWarmupRemaining)
+            float spawnWarmupRemaining,
+            float updateMs = 0f,
+            float drawMs = 0f,
+            int terrainDrawCalls = 0)
         {
             float frameMs = Math.Max(0f, deltaTime * 1000f);
 
@@ -85,6 +103,9 @@ namespace Autonocraft.Core
             {
                 _lastFrameMs = frameMs;
                 _peakFrameMs = Math.Max(_peakFrameMs, frameMs);
+                _lastUpdateMs = updateMs;
+                _lastDrawMs = drawMs;
+                _lastTerrainDrawCalls = terrainDrawCalls;
 
                 if (_frameHistoryCount < FrameHistorySize)
                 {
@@ -169,6 +190,11 @@ namespace Autonocraft.Core
                 AppendJsonNumber(sb, "activeChunks", _activeChunks);
                 AppendJsonNumber(sb, "pendingMesh", _pendingMesh);
                 AppendJsonNumber(sb, "meshBuildMs", _meshBuildMs);
+                AppendJsonNumber(sb, "updateMs", _lastUpdateMs);
+                AppendJsonNumber(sb, "drawMs", _lastDrawMs);
+                AppendJsonNumber(sb, "terrainDrawCalls", _lastTerrainDrawCalls);
+                AppendJsonNumber(sb, "peakUpdateMs", PerfCounters.PeakUpdateMs);
+                AppendJsonNumber(sb, "peakDrawMs", PerfCounters.PeakDrawMs);
                 AppendJsonNumber(sb, "spawnWarmupRemaining", _spawnWarmupRemaining);
                 AppendJsonNumber(sb, "peakMeshBuildMs", PerfCounters.PeakMeshBuildMs);
                 AppendJsonString(sb, "metricsLogPath", _fileLoggingEnabled ? LogPath : "");

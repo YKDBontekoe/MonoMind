@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -10,6 +11,18 @@ using Matrix = Microsoft.Xna.Framework.Matrix;
 
 namespace Autonocraft.Engine
 {
+    public readonly struct VisibleChunkDrawInfo
+    {
+        public Chunk Chunk { get; }
+        public ChunkMeshDetail RenderDetail { get; }
+
+        public VisibleChunkDrawInfo(Chunk chunk, ChunkMeshDetail renderDetail)
+        {
+            Chunk = chunk;
+            RenderDetail = renderDetail;
+        }
+    }
+
     public sealed class WorldRenderer : IDisposable
     {
         private readonly GraphicsDevice _device;
@@ -24,8 +37,22 @@ namespace Autonocraft.Engine
         private readonly Texture2D _whiteTexture;
         private readonly SpriteBatch _spriteBatch;
         private readonly Microsoft.Xna.Framework.Vector4[] _frustumPlanes = new Microsoft.Xna.Framework.Vector4[6];
+        private readonly List<VisibleChunkDrawInfo> _visibleChunksScratch = new();
 
-        public WorldRenderer(GraphicsDevice device, Texture2D atlas, Texture2D white, BlockTerrainEffect blockTerrainEffect, SkyEffect skyEffect)
+        private static readonly Vertex[] TexturedBoxVertices = new Vertex[24];
+        private static readonly short[] TexturedBoxIndices = BuildBoxIndices();
+        private static readonly VertexPositionColor[] ColoredBoxVertices = new VertexPositionColor[8];
+        private static readonly short[] ColoredBoxIndices =
+        {
+            0, 1, 2, 0, 2, 3,
+            1, 5, 6, 1, 6, 2,
+            5, 4, 7, 5, 7, 6,
+            4, 0, 3, 4, 3, 7,
+            3, 2, 6, 3, 6, 7,
+            4, 5, 1, 4, 1, 0
+        };
+
+        public WorldRenderer(GraphicsDevice device, Texture2D atlas, Texture2D white, BlockTerrainEffect blockTerrainEffect, SkyEffect skyEffect, bool highQualityLighting = false)
         {
             _device = device;
             _atlasTexture = atlas;
@@ -44,9 +71,14 @@ namespace Autonocraft.Engine
                 TextureEnabled = true,
                 Texture = atlas,
                 VertexColorEnabled = true,
-                PreferPerPixelLighting = true,
+                PreferPerPixelLighting = highQualityLighting,
                 LightingEnabled = true
             };
+        }
+
+        public void SetPreferPerPixelLighting(bool enabled)
+        {
+            _worldEffect.PreferPerPixelLighting = enabled;
         }
 
         public void Draw(GameRenderContext ctx)
@@ -99,6 +131,7 @@ namespace Autonocraft.Engine
 
             var viewProjection = monoView * monoProj;
             ExtractFrustumPlanes(viewProjection, _frustumPlanes);
+            BuildVisibleChunkList(ctx.Grid, agentChunkX, agentChunkZ, renderDistance, _frustumPlanes);
 
             DrawSkyBox(monoView, monoProj, lighting, ctx.TimeOfDay, ctx.Grid.Seed);
             _cloudLayerRenderer.Draw(_device, _skyEffect, monoView, monoProj, ctx.TimeOfDay, lighting);
@@ -120,7 +153,6 @@ namespace Autonocraft.Engine
             }
 
             DrawTerrainChunks(
-                ctx,
                 monoWorld,
                 monoView,
                 monoProj,
@@ -132,16 +164,12 @@ namespace Autonocraft.Engine
                 monoMoonDir,
                 monoMoonLight,
                 lighting.MoonEnabled,
-                agentChunkX,
-                agentChunkZ,
                 renderDistance,
-                _frustumPlanes,
                 blendState: BlendState.Opaque,
                 depthState: DepthStencilState.Default,
                 twilightFactor: twilightFactor);
 
             DrawTerrainChunks(
-                ctx,
                 monoWorld,
                 monoView,
                 monoProj,
@@ -153,17 +181,13 @@ namespace Autonocraft.Engine
                 monoMoonDir,
                 monoMoonLight,
                 lighting.MoonEnabled,
-                agentChunkX,
-                agentChunkZ,
                 renderDistance,
-                _frustumPlanes,
                 blendState: BlendState.AlphaBlend,
                 depthState: DepthStencilState.DepthRead,
                 twilightFactor: twilightFactor,
                 waterOnly: true);
 
             DrawTerrainChunks(
-                ctx,
                 monoWorld,
                 monoView,
                 monoProj,
@@ -175,10 +199,7 @@ namespace Autonocraft.Engine
                 monoMoonDir,
                 monoMoonLight,
                 lighting.MoonEnabled,
-                agentChunkX,
-                agentChunkZ,
                 renderDistance,
-                _frustumPlanes,
                 blendState: BlendState.AlphaBlend,
                 depthState: DepthStencilState.DepthRead,
                 twilightFactor: twilightFactor);
@@ -186,15 +207,13 @@ namespace Autonocraft.Engine
             var floraFogStart = ChunkLod.GetFogStart(renderDistance);
             var floraFogEnd = ChunkLod.GetFogEnd(renderDistance, twilightFactor);
             _floraRenderer.Draw(
-                ctx.Grid,
+                _visibleChunksScratch,
                 monoView,
                 monoProj,
-                ctx.Camera.Position,
                 lighting,
                 floraFogStart,
                 floraFogEnd,
-                _atlasTexture,
-                _frustumPlanes);
+                _atlasTexture);
 
             DrawAnimals(ctx, monoView, monoProj, renderDistance, lighting);
             DrawVillagers(ctx, monoView, monoProj, renderDistance, lighting);
@@ -404,61 +423,47 @@ namespace Autonocraft.Engine
             var p7 = new Vector3(x0, y1, z0);
 
             var colVec = Vector3.One;
-            var vertices = new Vertex[24];
 
             var nFront = new Vector3(0, 0, 1);
-            vertices[0] = new Vertex(p0, colVec, nFront, new System.Numerics.Vector2(frontUV.uMin, frontUV.vMax));
-            vertices[1] = new Vertex(p1, colVec, nFront, new System.Numerics.Vector2(frontUV.uMax, frontUV.vMax));
-            vertices[2] = new Vertex(p2, colVec, nFront, new System.Numerics.Vector2(frontUV.uMax, frontUV.vMin));
-            vertices[3] = new Vertex(p3, colVec, nFront, new System.Numerics.Vector2(frontUV.uMin, frontUV.vMin));
+            TexturedBoxVertices[0] = new Vertex(p0, colVec, nFront, new System.Numerics.Vector2(frontUV.uMin, frontUV.vMax));
+            TexturedBoxVertices[1] = new Vertex(p1, colVec, nFront, new System.Numerics.Vector2(frontUV.uMax, frontUV.vMax));
+            TexturedBoxVertices[2] = new Vertex(p2, colVec, nFront, new System.Numerics.Vector2(frontUV.uMax, frontUV.vMin));
+            TexturedBoxVertices[3] = new Vertex(p3, colVec, nFront, new System.Numerics.Vector2(frontUV.uMin, frontUV.vMin));
 
             var nRight = new Vector3(1, 0, 0);
-            vertices[4] = new Vertex(p1, colVec, nRight, new System.Numerics.Vector2(bodyUV.uMin, bodyUV.vMax));
-            vertices[5] = new Vertex(p5, colVec, nRight, new System.Numerics.Vector2(bodyUV.uMax, bodyUV.vMax));
-            vertices[6] = new Vertex(p6, colVec, nRight, new System.Numerics.Vector2(bodyUV.uMax, bodyUV.vMin));
-            vertices[7] = new Vertex(p2, colVec, nRight, new System.Numerics.Vector2(bodyUV.uMin, bodyUV.vMin));
+            TexturedBoxVertices[4] = new Vertex(p1, colVec, nRight, new System.Numerics.Vector2(bodyUV.uMin, bodyUV.vMax));
+            TexturedBoxVertices[5] = new Vertex(p5, colVec, nRight, new System.Numerics.Vector2(bodyUV.uMax, bodyUV.vMax));
+            TexturedBoxVertices[6] = new Vertex(p6, colVec, nRight, new System.Numerics.Vector2(bodyUV.uMax, bodyUV.vMin));
+            TexturedBoxVertices[7] = new Vertex(p2, colVec, nRight, new System.Numerics.Vector2(bodyUV.uMin, bodyUV.vMin));
 
             var nBack = new Vector3(0, 0, -1);
-            vertices[8] = new Vertex(p5, colVec, nBack, new System.Numerics.Vector2(bodyUV.uMin, bodyUV.vMax));
-            vertices[9] = new Vertex(p4, colVec, nBack, new System.Numerics.Vector2(bodyUV.uMax, bodyUV.vMax));
-            vertices[10] = new Vertex(p7, colVec, nBack, new System.Numerics.Vector2(bodyUV.uMax, bodyUV.vMin));
-            vertices[11] = new Vertex(p6, colVec, nBack, new System.Numerics.Vector2(bodyUV.uMin, bodyUV.vMin));
+            TexturedBoxVertices[8] = new Vertex(p5, colVec, nBack, new System.Numerics.Vector2(bodyUV.uMin, bodyUV.vMax));
+            TexturedBoxVertices[9] = new Vertex(p4, colVec, nBack, new System.Numerics.Vector2(bodyUV.uMax, bodyUV.vMax));
+            TexturedBoxVertices[10] = new Vertex(p7, colVec, nBack, new System.Numerics.Vector2(bodyUV.uMax, bodyUV.vMin));
+            TexturedBoxVertices[11] = new Vertex(p6, colVec, nBack, new System.Numerics.Vector2(bodyUV.uMin, bodyUV.vMin));
 
             var nLeft = new Vector3(-1, 0, 0);
-            vertices[12] = new Vertex(p4, colVec, nLeft, new System.Numerics.Vector2(bodyUV.uMin, bodyUV.vMax));
-            vertices[13] = new Vertex(p0, colVec, nLeft, new System.Numerics.Vector2(bodyUV.uMax, bodyUV.vMax));
-            vertices[14] = new Vertex(p3, colVec, nLeft, new System.Numerics.Vector2(bodyUV.uMax, bodyUV.vMin));
-            vertices[15] = new Vertex(p7, colVec, nLeft, new System.Numerics.Vector2(bodyUV.uMin, bodyUV.vMin));
+            TexturedBoxVertices[12] = new Vertex(p4, colVec, nLeft, new System.Numerics.Vector2(bodyUV.uMin, bodyUV.vMax));
+            TexturedBoxVertices[13] = new Vertex(p0, colVec, nLeft, new System.Numerics.Vector2(bodyUV.uMax, bodyUV.vMax));
+            TexturedBoxVertices[14] = new Vertex(p3, colVec, nLeft, new System.Numerics.Vector2(bodyUV.uMax, bodyUV.vMin));
+            TexturedBoxVertices[15] = new Vertex(p7, colVec, nLeft, new System.Numerics.Vector2(bodyUV.uMin, bodyUV.vMin));
 
             var nTop = new Vector3(0, 1, 0);
-            vertices[16] = new Vertex(p3, colVec, nTop, new System.Numerics.Vector2(bodyUV.uMin, bodyUV.vMax));
-            vertices[17] = new Vertex(p2, colVec, nTop, new System.Numerics.Vector2(bodyUV.uMax, bodyUV.vMax));
-            vertices[18] = new Vertex(p6, colVec, nTop, new System.Numerics.Vector2(bodyUV.uMax, bodyUV.vMin));
-            vertices[19] = new Vertex(p7, colVec, nTop, new System.Numerics.Vector2(bodyUV.uMin, bodyUV.vMin));
+            TexturedBoxVertices[16] = new Vertex(p3, colVec, nTop, new System.Numerics.Vector2(bodyUV.uMin, bodyUV.vMax));
+            TexturedBoxVertices[17] = new Vertex(p2, colVec, nTop, new System.Numerics.Vector2(bodyUV.uMax, bodyUV.vMax));
+            TexturedBoxVertices[18] = new Vertex(p6, colVec, nTop, new System.Numerics.Vector2(bodyUV.uMax, bodyUV.vMin));
+            TexturedBoxVertices[19] = new Vertex(p7, colVec, nTop, new System.Numerics.Vector2(bodyUV.uMin, bodyUV.vMin));
 
             var nBottom = new Vector3(0, -1, 0);
-            vertices[20] = new Vertex(p4, colVec, nBottom, new System.Numerics.Vector2(bodyUV.uMin, bodyUV.vMax));
-            vertices[21] = new Vertex(p5, colVec, nBottom, new System.Numerics.Vector2(bodyUV.uMax, bodyUV.vMax));
-            vertices[22] = new Vertex(p1, colVec, nBottom, new System.Numerics.Vector2(bodyUV.uMax, bodyUV.vMin));
-            vertices[23] = new Vertex(p0, colVec, nBottom, new System.Numerics.Vector2(bodyUV.uMin, bodyUV.vMin));
-
-            var indices = new short[36];
-            for (int f = 0; f < 6; f++)
-            {
-                int vOffset = f * 4;
-                int iOffset = f * 6;
-                indices[iOffset + 0] = (short)(vOffset + 0);
-                indices[iOffset + 1] = (short)(vOffset + 1);
-                indices[iOffset + 2] = (short)(vOffset + 2);
-                indices[iOffset + 3] = (short)(vOffset + 0);
-                indices[iOffset + 4] = (short)(vOffset + 2);
-                indices[iOffset + 5] = (short)(vOffset + 3);
-            }
+            TexturedBoxVertices[20] = new Vertex(p4, colVec, nBottom, new System.Numerics.Vector2(bodyUV.uMin, bodyUV.vMax));
+            TexturedBoxVertices[21] = new Vertex(p5, colVec, nBottom, new System.Numerics.Vector2(bodyUV.uMax, bodyUV.vMax));
+            TexturedBoxVertices[22] = new Vertex(p1, colVec, nBottom, new System.Numerics.Vector2(bodyUV.uMax, bodyUV.vMin));
+            TexturedBoxVertices[23] = new Vertex(p0, colVec, nBottom, new System.Numerics.Vector2(bodyUV.uMin, bodyUV.vMin));
 
             foreach (var pass in _worldEffect.CurrentTechnique.Passes)
             {
                 pass.Apply();
-                _device.DrawUserIndexedPrimitives(PrimitiveType.TriangleList, vertices, 0, 24, indices, 0, 12);
+                _device.DrawUserIndexedPrimitives(PrimitiveType.TriangleList, TexturedBoxVertices, 0, 24, TexturedBoxIndices, 0, 12);
             }
         }
 
@@ -482,32 +487,63 @@ namespace Autonocraft.Engine
             float z0 = -halfDepth;
             float z1 = halfDepth;
 
-            var vertices = new[]
-            {
-                new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x0, y0, z1), color),
-                new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x1, y0, z1), color),
-                new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x1, y1, z1), color),
-                new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x0, y1, z1), color),
-                new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x0, y0, z0), color),
-                new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x1, y0, z0), color),
-                new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x1, y1, z0), color),
-                new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x0, y1, z0), color),
-            };
-
-            var indices = new short[]
-            {
-                0, 1, 2, 0, 2, 3,
-                1, 5, 6, 1, 6, 2,
-                5, 4, 7, 5, 7, 6,
-                4, 0, 3, 4, 3, 7,
-                3, 2, 6, 3, 6, 7,
-                4, 5, 1, 4, 1, 0
-            };
+            ColoredBoxVertices[0] = new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x0, y0, z1), color);
+            ColoredBoxVertices[1] = new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x1, y0, z1), color);
+            ColoredBoxVertices[2] = new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x1, y1, z1), color);
+            ColoredBoxVertices[3] = new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x0, y1, z1), color);
+            ColoredBoxVertices[4] = new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x0, y0, z0), color);
+            ColoredBoxVertices[5] = new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x1, y0, z0), color);
+            ColoredBoxVertices[6] = new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x1, y1, z0), color);
+            ColoredBoxVertices[7] = new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x0, y1, z0), color);
 
             foreach (var pass in _worldEffect.CurrentTechnique.Passes)
             {
                 pass.Apply();
-                _device.DrawUserIndexedPrimitives(PrimitiveType.TriangleList, vertices, 0, 8, indices, 0, 12);
+                _device.DrawUserIndexedPrimitives(PrimitiveType.TriangleList, ColoredBoxVertices, 0, 8, ColoredBoxIndices, 0, 12);
+            }
+        }
+
+        private static short[] BuildBoxIndices()
+        {
+            var indices = new short[36];
+            for (int f = 0; f < 6; f++)
+            {
+                int vOffset = f * 4;
+                int iOffset = f * 6;
+                indices[iOffset + 0] = (short)(vOffset + 0);
+                indices[iOffset + 1] = (short)(vOffset + 1);
+                indices[iOffset + 2] = (short)(vOffset + 2);
+                indices[iOffset + 3] = (short)(vOffset + 0);
+                indices[iOffset + 4] = (short)(vOffset + 2);
+                indices[iOffset + 5] = (short)(vOffset + 3);
+            }
+
+            return indices;
+        }
+
+        private void BuildVisibleChunkList(
+            VoxelWorld grid,
+            int agentChunkX,
+            int agentChunkZ,
+            int renderDistance,
+            Microsoft.Xna.Framework.Vector4[] frustumPlanes)
+        {
+            _visibleChunksScratch.Clear();
+            foreach (var chunk in grid.ActiveChunks)
+            {
+                if (!IsChunkVisible(chunk, frustumPlanes))
+                {
+                    continue;
+                }
+
+                int chunkDistance = ChunkLod.GetChunkDistance(chunk.ChunkX, chunk.ChunkZ, agentChunkX, agentChunkZ);
+                var desiredDetail = ChunkLod.SelectDetail(chunkDistance, renderDistance);
+                if (!ChunkLod.TryGetRenderableDetail(chunk, desiredDetail, out var renderDetail))
+                {
+                    continue;
+                }
+
+                _visibleChunksScratch.Add(new VisibleChunkDrawInfo(chunk, renderDetail));
             }
         }
 
@@ -577,7 +613,6 @@ namespace Autonocraft.Engine
         }
 
         private void DrawTerrainChunks(
-            GameRenderContext ctx,
             Matrix monoWorld,
             Matrix monoView,
             Matrix monoProj,
@@ -589,10 +624,7 @@ namespace Autonocraft.Engine
             Microsoft.Xna.Framework.Vector3 monoMoonDir,
             Microsoft.Xna.Framework.Vector3 monoMoonLight,
             bool moonEnabled,
-            int agentChunkX,
-            int agentChunkZ,
             int renderDistance,
-            Microsoft.Xna.Framework.Vector4[] frustumPlanes,
             BlendState blendState,
             DepthStencilState depthState,
             float twilightFactor,
@@ -627,26 +659,19 @@ namespace Autonocraft.Engine
                 var (fogStart, detailFogEnd) = ChunkLod.GetFogRange(renderDistance, bandDetail, twilightFactor);
                 _blockTerrainEffect.SetFogRange(fogStart, detailFogEnd);
 
-                foreach (var chunk in ctx.Grid.ActiveChunks)
+                foreach (var entry in _visibleChunksScratch)
                 {
-                    if (waterOnly && !chunk.HasWaterBlocks)
+                    if (waterOnly && !entry.Chunk.HasWaterBlocks)
                     {
                         continue;
                     }
 
-                    if (!IsChunkVisible(chunk, frustumPlanes))
+                    if (entry.RenderDetail != bandDetail)
                     {
                         continue;
                     }
 
-                    int chunkDistance = ChunkLod.GetChunkDistance(chunk.ChunkX, chunk.ChunkZ, agentChunkX, agentChunkZ);
-                    var desiredDetail = ChunkLod.SelectDetail(chunkDistance, renderDistance);
-                    if (!ChunkLod.TryGetRenderableDetail(chunk, desiredDetail, out var detail) || detail != bandDetail)
-                    {
-                        continue;
-                    }
-
-                    var (vb, ib, count) = chunk.GetMesh(detail);
+                    var (vb, ib, count) = entry.Chunk.GetMesh(entry.RenderDetail);
                     if (vb == null || ib == null || count <= 0)
                     {
                         continue;

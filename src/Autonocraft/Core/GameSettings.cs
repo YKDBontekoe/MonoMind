@@ -10,7 +10,17 @@ namespace Autonocraft.Core
 
         public const string DefaultLlamaCppBaseUrl = "http://127.0.0.1:8080";
 
-        public int RenderDistance { get; set; } = DefaultRenderDistance;
+        public static int GetDefaultRenderDistance() =>
+            OperatingSystem.IsMacOS() ? 6 : DefaultRenderDistance;
+
+        public static bool GetDefaultHighQualityLighting() =>
+            !OperatingSystem.IsMacOS();
+
+        public int RenderDistance { get; set; } = GetDefaultRenderDistance();
+
+        public bool VSync { get; set; } = true;
+
+        public bool HighQualityLighting { get; set; } = GetDefaultHighQualityLighting();
 
         /// <summary>When true, village steward chat and HTTP /village/chat are enabled.</summary>
         public bool PlayWithAi { get; set; } = true;

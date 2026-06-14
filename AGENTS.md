@@ -84,7 +84,7 @@ bash scripts/ci_e2e.sh   # macOS/Linux full E2E
 
 Tests instantiate `AutonocraftGame(runTests: true)` without calling `Run()`, so no MonoGame window is created. Graphics device may be `null` for chunk updates in test mode.
 
-### Covered areas (39 tests)
+### Covered areas (40 tests)
 
 #### Settings & world generation
 
@@ -140,7 +140,8 @@ Tests instantiate `AutonocraftGame(runTests: true)` without calling `Run()`, so 
 
 | Test | What it verifies |
 |------|------------------|
-| World Save Round-Trip | Serialize/deserialize `world.json` v5 (includes villages/villagers) |
+| World Save Round-Trip | Serialize/deserialize `world.json` v6 (includes villages/villagers) |
+| Player Statistics Round-Trip | Per-world stats counters persist in `world.json` |
 
 #### Animals & combat
 
@@ -374,7 +375,7 @@ For multi-step flows, JSON scenarios, and a reusable Python client, see `.cursor
 | Concern | Primary files |
 |---------|---------------|
 | Game loop & state machine | `Core/AutonocraftGame.cs`, `Core/GameSession.cs`, `Core/GameState.cs` |
-| Player physics & inventory | `Core/Player.cs` |
+| Player physics & inventory | `Core/Player.cs`, `Core/PlayerStatistics.cs` |
 | Block mine/place | `Core/BlockInteractionSystem.cs` |
 | Combat | `Core/CombatSystem.cs` |
 | HTTP agent API | `Core/AgentHttpServer.cs` |
@@ -394,6 +395,7 @@ For multi-step flows, JSON scenarios, and a reusable Python client, see `.cursor
 | Crafting UI | `UI/CrucibleScreen.cs`, `UI/JournalScreen.cs` |
 | Animals | `Entities/AnimalManager.cs`, `Entities/Animal.cs`, `Entities/EntityCollision.cs` |
 | UI screens | `UI/*.cs` |
+| Player stats dashboard | `Core/PlayerStatistics.cs`, `UI/PlayerDashboardScreen.cs`, `UI/SaveSlotScreen.cs` |
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/CODEMAP.md](docs/CODEMAP.md) for deeper navigation.
 

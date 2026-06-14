@@ -84,7 +84,7 @@ namespace Autonocraft.UI
 
             _elapsedTime += deltaTime;
 
-            if (_world.AdvanceInitialLoad(_device, _chunksPerFrame, VoxelWorld.LoadingMeshChunksPerFrame, _renderDistance, out _progress, out _status))
+            if (_world.AdvanceInitialLoad(_device, _chunksPerFrame, VoxelWorld.GetLoadingMeshChunksPerFrame(_renderDistance), _renderDistance, out _progress, out _status))
             {
                 _complete = true;
                 _progress = 1f;
