@@ -24,8 +24,9 @@ namespace Autonocraft.World
         public int ChunkZ { get; }
 
         private readonly BlockType[] _blocks;
-        // Cached highest solid Y per column (lx + lz * Width). -1 = no solid block.
+        // Cached highest/lowest solid Y per column (lx + lz * Width). -1 = no solid block.
         private readonly short[] _columnHighestSolid = new short[Width * Depth];
+        private readonly short[] _columnLowestSolid = new short[Width * Depth];
         private bool _columnHeightsBuilt;
 
         private VertexBuffer? _fullVertexBuffer;
@@ -43,6 +44,9 @@ namespace Autonocraft.World
         private FloraVertex[]? _floraVertices;
         private uint[]? _floraIndices;
         private int _floraIndexCount;
+        private IndexBuffer? _floraIndexBuffer;
+        private DynamicVertexBuffer? _floraVertexBuffer;
+        private int _floraGpuVertexCapacity;
 
         private bool _fullMeshBuilt;
         private bool _surfaceMeshBuilt;
@@ -98,6 +102,7 @@ namespace Autonocraft.World
             ChunkZ = chunkZ;
             _blocks = new BlockType[Width * Height * Depth];
             Array.Fill(_columnHighestSolid, (short)-1);
+            Array.Fill(_columnLowestSolid, (short)-1);
         }
 
         /// <summary>Rebuilds per-column height cache after terrain generation or bulk edits.</summary>
@@ -107,21 +112,38 @@ namespace Autonocraft.World
             {
                 for (int lx = 0; lx < Width; lx++)
                 {
-                    int best = -1;
-                    for (int y = Height - 1; y >= 0; y--)
+                    int lowest = -1;
+                    int highest = -1;
+                    for (int y = 0; y < Height; y++)
                     {
                         if (_blocks[GetIndex(lx, y, lz)].IsSolidForSpawn())
                         {
-                            best = y;
-                            break;
+                            if (lowest < 0)
+                            {
+                                lowest = y;
+                            }
+
+                            highest = y;
                         }
                     }
 
-                    _columnHighestSolid[lz * Width + lx] = (short)best;
+                    int idx = lz * Width + lx;
+                    _columnLowestSolid[idx] = (short)lowest;
+                    _columnHighestSolid[idx] = (short)highest;
                 }
             }
 
             _columnHeightsBuilt = true;
+        }
+
+        internal int GetCachedLowestSolidY(int lx, int lz)
+        {
+            if (!_columnHeightsBuilt)
+            {
+                RebuildColumnHeights();
+            }
+
+            return _columnLowestSolid[lz * Width + lx];
         }
 
         internal int GetCachedHighestSolidY(int lx, int lz)
@@ -169,28 +191,47 @@ namespace Autonocraft.World
         private void UpdateColumnHeightCache(int lx, int y, int lz, BlockType type)
         {
             int idx = lz * Width + lx;
-            int current = _columnHighestSolid[idx];
+            int currentHigh = _columnHighestSolid[idx];
+            int currentLow = _columnLowestSolid[idx];
             bool solid = type.IsSolidForSpawn();
 
-            if (solid && y >= current)
+            if (solid)
             {
-                _columnHighestSolid[idx] = (short)y;
+                if (currentHigh < 0 || y > currentHigh)
+                {
+                    _columnHighestSolid[idx] = (short)y;
+                }
+
+                if (currentLow < 0 || y < currentLow)
+                {
+                    _columnLowestSolid[idx] = (short)y;
+                }
+
                 return;
             }
 
-            if (!solid && y == current)
+            if (y != currentHigh && y != currentLow)
             {
-                for (int scanY = y - 1; scanY >= 0; scanY--)
-                {
-                    if (_blocks[GetIndex(lx, scanY, lz)].IsSolidForSpawn())
-                    {
-                        _columnHighestSolid[idx] = (short)scanY;
-                        return;
-                    }
-                }
-
-                _columnHighestSolid[idx] = -1;
+                return;
             }
+
+            int lowest = -1;
+            int highest = -1;
+            for (int scanY = 0; scanY < Height; scanY++)
+            {
+                if (_blocks[GetIndex(lx, scanY, lz)].IsSolidForSpawn())
+                {
+                    if (lowest < 0)
+                    {
+                        lowest = scanY;
+                    }
+
+                    highest = scanY;
+                }
+            }
+
+            _columnLowestSolid[idx] = (short)lowest;
+            _columnHighestSolid[idx] = (short)highest;
         }
 
         public void GenerateAllMeshes(GraphicsDevice device, VoxelWorld world)
@@ -212,7 +253,49 @@ namespace Autonocraft.World
             return (_floraVertices, _floraIndices, _floraIndexCount);
         }
 
-        public void EnsureFloraMesh(int seed)
+        public (DynamicVertexBuffer? vertexBuffer, IndexBuffer? indexBuffer, int indexCount, FloraVertex[]? sourceVertices)
+            GetFloraGpuDrawInfo()
+        {
+            return (_floraVertexBuffer, _floraIndexBuffer, _floraIndexCount, _floraVertices);
+        }
+
+        public void EnsureFloraGpuBuffers(GraphicsDevice device)
+        {
+            if (!_floraMeshBuilt || _floraIndexCount <= 0 || _floraIndices == null)
+            {
+                return;
+            }
+
+            if (_floraIndexBuffer == null || _floraIndexBuffer.IndexCount < _floraIndexCount)
+            {
+                _floraIndexBuffer?.Dispose();
+                _floraIndexBuffer = new IndexBuffer(
+                    device,
+                    IndexElementSize.ThirtyTwoBits,
+                    _floraIndexCount,
+                    BufferUsage.WriteOnly);
+                _floraIndexBuffer.SetData(_floraIndices, 0, _floraIndexCount);
+            }
+
+            int vertexCount = _floraVertices?.Length ?? 0;
+            if (vertexCount <= 0)
+            {
+                return;
+            }
+
+            if (_floraVertexBuffer == null || _floraGpuVertexCapacity < vertexCount)
+            {
+                _floraVertexBuffer?.Dispose();
+                _floraGpuVertexCapacity = Math.Max(vertexCount, _floraGpuVertexCapacity < 1 ? vertexCount : _floraGpuVertexCapacity * 2);
+                _floraVertexBuffer = new DynamicVertexBuffer(
+                    device,
+                    VertexPositionColorTexture.VertexDeclaration,
+                    _floraGpuVertexCapacity,
+                    BufferUsage.WriteOnly);
+            }
+        }
+
+        public void EnsureFloraMesh(int seed, BiomeMap? biomeMap = null)
         {
             if (_floraMeshBuilt)
             {
@@ -221,7 +304,7 @@ namespace Autonocraft.World
 
             var vertices = new List<FloraVertex>(1024);
             var indices = new List<uint>(1536);
-            FloraMeshBuilder.Build(this, seed, vertices, indices);
+            FloraMeshBuilder.Build(this, biomeMap, vertices, indices);
 
             _floraIndexCount = indices.Count;
             if (_floraIndexCount > 0)
@@ -313,7 +396,8 @@ namespace Autonocraft.World
 
             if (buildFlora)
             {
-                EnsureFloraMesh(context.Seed);
+                EnsureFloraMesh(context.Seed, context.BiomeMap);
+                EnsureFloraGpuBuffers(device);
             }
         }
 
@@ -339,7 +423,7 @@ namespace Autonocraft.World
             {
                 var fvList = new List<FloraVertex>(1024);
                 var fiList = new List<uint>(1536);
-                FloraMeshBuilder.Build(this, context.Seed, fvList, fiList);
+                FloraMeshBuilder.Build(this, context.BiomeMap, fvList, fiList);
                 if (fvList.Count > 0) { fv = fvList.ToArray(); fi = fiList.ToArray(); }
             }
 
@@ -439,6 +523,8 @@ namespace Autonocraft.World
                 _floraIndices = data.FloraIndices;
                 _floraIndexCount = data.FloraIndices.Length;
                 _floraMeshBuilt = true;
+                DisposeFloraGpuBuffers();
+                EnsureFloraGpuBuffers(device);
             }
         }
 
@@ -520,10 +606,20 @@ namespace Autonocraft.World
 
         public void InvalidateFloraMesh()
         {
+            DisposeFloraGpuBuffers();
             _floraVertices = null;
             _floraIndices = null;
             _floraIndexCount = 0;
             _floraMeshBuilt = false;
+        }
+
+        private void DisposeFloraGpuBuffers()
+        {
+            _floraVertexBuffer?.Dispose();
+            _floraIndexBuffer?.Dispose();
+            _floraVertexBuffer = null;
+            _floraIndexBuffer = null;
+            _floraGpuVertexCapacity = 0;
         }
 
         private void DisposeMeshBuffers()
@@ -544,6 +640,7 @@ namespace Autonocraft.World
             _shellVertexBuffer = null;
             _shellIndexBuffer = null;
             _shellIndexCount = 0;
+            DisposeFloraGpuBuffers();
             _floraVertices = null;
             _floraIndices = null;
             _floraIndexCount = 0;
@@ -662,14 +759,25 @@ namespace Autonocraft.World
             int worldOffsetX = ChunkX * Width;
             int worldOffsetZ = ChunkZ * Depth;
 
-            for (int y = 0; y < Height; y++)
+            for (int z = 0; z < Depth; z++)
             {
-                for (int z = 0; z < Depth; z++)
+                for (int x = 0; x < Width; x++)
                 {
-                    for (int x = 0; x < Width; x++)
+                    int yMin = GetCachedLowestSolidY(x, z);
+                    int yMax = GetCachedHighestSolidY(x, z);
+                    if (yMin < 0 || yMax < 0)
+                    {
+                        continue;
+                    }
+
+                    for (int y = yMin; y <= yMax; y++)
                     {
                         BlockType type = _blocks[GetIndex(x, y, z)];
-                        if (type == BlockType.Air) continue;
+                        if (type == BlockType.Air)
+                        {
+                            continue;
+                        }
+
                         NoteBlockType(type);
 
                         int wx = worldOffsetX + x;

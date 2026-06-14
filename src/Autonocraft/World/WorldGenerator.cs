@@ -17,6 +17,7 @@ namespace Autonocraft.World
 
         public int Seed => _seed;
         public WorldGenParams Parameters => _params;
+        internal BiomeMap BiomeMap => _biomeMap;
 
         public WorldGenerator(int seed = WorldConstants.DefaultSeed, WorldGenParams? parameters = null)
         {

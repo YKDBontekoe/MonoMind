@@ -8,11 +8,11 @@ namespace Autonocraft.Engine
 {
     internal static class FloraMeshBuilder
     {
-        public static void Build(Chunk chunk, int seed, List<FloraVertex> vertices, List<uint> indices)
+        public static void Build(Chunk chunk, BiomeMap? biomeMap, List<FloraVertex> vertices, List<uint> indices)
         {
             int worldOffsetX = chunk.ChunkX * Chunk.Width;
             int worldOffsetZ = chunk.ChunkZ * Chunk.Depth;
-            var biomeMap = new BiomeMap(seed, WorldGenParams.ForType(WorldType.Default));
+            biomeMap ??= new BiomeMap(chunk.ChunkX * 997 + chunk.ChunkZ * 131, WorldGenParams.ForType(WorldType.Default));
 
             for (int x = 0; x < Chunk.Width; x++)
             {
@@ -100,8 +100,8 @@ namespace Autonocraft.Engine
             {
                 BlockType.Sunflower or BlockType.Reed => 3,
                 BlockType.Flower or BlockType.Cactus => 2,
-                BlockType.TallGrass when biome.Primary == BiomeType.Forest => 2,
-                _ => 3
+                BlockType.TallGrass => 2,
+                _ => 2
             };
 
             var bottomTint = new Vector3(0.86f, 0.90f, 0.86f);

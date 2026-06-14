@@ -12,6 +12,7 @@ namespace Autonocraft.World
         private readonly Chunk? _posZ;
 
         public int Seed { get; }
+        public BiomeMap? BiomeMap { get; }
 
         public MeshBuildContext(
             Chunk center,
@@ -19,7 +20,8 @@ namespace Autonocraft.World
             Chunk? posX,
             Chunk? negZ,
             Chunk? posZ,
-            int seed)
+            int seed,
+            BiomeMap? biomeMap = null)
         {
             _center = center;
             _negX = negX;
@@ -27,6 +29,7 @@ namespace Autonocraft.World
             _negZ = negZ;
             _posZ = posZ;
             Seed = seed;
+            BiomeMap = biomeMap;
         }
 
         public BlockType GetBlock(int wx, int wy, int wz)
