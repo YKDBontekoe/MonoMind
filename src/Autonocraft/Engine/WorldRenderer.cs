@@ -64,7 +64,7 @@ namespace Autonocraft.Engine
             _skyDomeRenderer = new SkyDomeRenderer(device);
 
             _overlayRenderer = new BlockOverlayRenderer(device, atlas);
-            _floraRenderer = new FloraRenderer(device, blockTerrainEffect);
+            _floraRenderer = new FloraRenderer(device, atlas);
 
             _worldEffect = new BasicEffect(device)
             {
@@ -214,6 +214,7 @@ namespace Autonocraft.Engine
                 lighting,
                 floraFogStart,
                 floraFogEnd,
+                ctx.WaterAnimTime,
                 _atlasTexture);
 
             DrawAnimals(ctx, monoView, monoProj, renderDistance, lighting);
@@ -238,6 +239,7 @@ namespace Autonocraft.Engine
             _atlasTexture = atlas;
             _worldEffect.Texture = atlas;
             _blockTerrainEffect.SetAtlas(atlas);
+            _floraRenderer.SetAtlas(atlas);
             _overlayRenderer.SetAtlasTexture(atlas);
         }
 

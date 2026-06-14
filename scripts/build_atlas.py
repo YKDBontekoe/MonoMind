@@ -392,6 +392,81 @@ def make_flora_sprite_tile(name: str, tile: int, palette: list[tuple[int, int, i
             set_pixel(pixels, tile, tip_x, y1 - 1, (72, 142, 58))
     return img
 
+def make_tall_grass_clump(name: str, tile: int, palette: list[tuple[int, int, int]]) -> Image.Image:
+    return make_flora_sprite_tile(name, tile, palette, 34)
+
+def make_short_grass_sprite(name: str, tile: int, palette: list[tuple[int, int, int]]) -> Image.Image:
+    img = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    pixels = img.load()
+    for i in range(22):
+        x = noise_value(name, i, 11, 17) % tile
+        y1 = tile * 2 // 3 + noise_value(name, i, 19, 21) % (tile // 4)
+        blade = palette[noise_value(name, i, 23, 29) % len(palette)]
+        tip_x = max(0, min(tile - 1, x + (noise_value(name, i, 31, 33) % 9) - 4))
+        draw.line((x, tile - 2, tip_x, y1), fill=blade + (255,), width=2)
+        set_pixel(pixels, tile, tip_x, y1, shade(blade, 18))
+    return img
+
+def make_flower_stem_sprite(name: str, tile: int, stem: tuple[int, int, int], petal_colors: list[tuple[int, int, int]], center: tuple[int, int, int]) -> Image.Image:
+    img = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    cx = tile // 2 + (noise_value(name, 0, 3, 5) % 7) - 3
+    bloom_y = tile // 4 + noise_value(name, 1, 7, 11) % (tile // 6)
+    draw.line((cx, tile - 2, cx + (noise_value(name, 2, 13, 17) % 5) - 2, bloom_y + 10), fill=stem + (255,), width=2)
+    petal = petal_colors[noise_value(name, 3, 19, 23) % len(petal_colors)]
+    petal_count = 5 + noise_value(name, 4, 29, 31) % 2
+    for i in range(petal_count):
+        rad = i * (6.28318 / petal_count) + noise_value(name, i, 37, 41) * 0.08
+        px = int(cx + math.cos(rad) * (tile / 7))
+        py = int(bloom_y + math.sin(rad) * (tile / 9))
+        draw.ellipse((px - 4, py - 3, px + 4, py + 3), fill=petal + (255,))
+    draw.ellipse((cx - 4, bloom_y - 3, cx + 4, bloom_y + 3), fill=center + (255,))
+    draw.line((cx - 6, tile // 2, cx - 10, tile // 2 + 6), fill=shade(stem, 8) + (255,), width=1)
+    return img
+
+def make_reed_sprite(name: str, tile: int, palette: list[tuple[int, int, int]], head: tuple[int, int, int]) -> Image.Image:
+    img = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    pixels = img.load()
+    for i in range(10):
+        x = tile // 4 + noise_value(name, i, 11, 17) % (tile // 2)
+        top = tile // 6 + noise_value(name, i, 19, 21) % (tile // 3)
+        stalk = palette[noise_value(name, i, 23, 29) % len(palette)]
+        draw.line((x, tile - 2, x + (noise_value(name, i, 31, 33) % 5) - 2, top), fill=stalk + (255,), width=2)
+        for seg in range(top, tile - 4, 8):
+            set_pixel(pixels, tile, x, seg, shade(stalk, 10))
+        if i % 2 == 0:
+            draw.ellipse((x - 3, top - 4, x + 3, top + 2), fill=head + (255,))
+    return img
+
+def make_sunflower_sprite(name: str, tile: int, stem: tuple[int, int, int], petal: tuple[int, int, int], center: tuple[int, int, int]) -> Image.Image:
+    img = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    cx, cy = tile // 2, tile // 3
+    draw.line((cx, tile - 3, cx, cy + 18), fill=stem + (255,), width=3)
+    draw.line((cx - 5, tile // 2, cx - 9, tile // 2 + 8), fill=shade(stem, 10) + (255,), width=2)
+    for ring in range(2):
+        radius_x = 20 - ring * 4
+        radius_y = 14 - ring * 3
+        ring_petal = petal if ring == 0 else shade(petal, 12)
+        for step in range(12):
+            x2, y2 = radial_offset(cx, cy, radius_x, radius_y, step)
+            draw.ellipse((x2 - 6, y2 - 5, x2 + 6, y2 + 5), fill=ring_petal + (255,))
+    draw.ellipse((cx - 12, cy - 10, cx + 12, cy + 10), fill=center + (255,))
+    draw.ellipse((cx - 6, cy - 5, cx + 2, cy + 1), fill=shade(center, 16) + (255,))
+    return img
+
+def pack_flora_variants(tile: int, generator) -> Image.Image:
+    half = tile // 2
+    img = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
+    for variant in range(4):
+        variant_img = generator(half, variant)
+        ox = (variant % 2) * half
+        oy = (variant // 2) * half
+        img.paste(variant_img, (ox, oy))
+    return img
+
 def fill_rect_wrapped(draw, tile_size, x, y, w, h, color):
     for dy in (-tile_size, 0, tile_size):
         for dx in (-tile_size, 0, tile_size):
@@ -674,26 +749,14 @@ def make_procedural_tile(name: str, tile: int) -> Optional[Image.Image]:
         return img
 
     if name == "tall_grass.png":
-        img = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(img)
-        for i in range(28):
-            x = noise_value(name, i, 11, 17) % tile
-            y0 = tile - 2
-            y1 = tile // 5 + noise_value(name, i, 19, 21) % (tile // 2)
-            draw.line((x, y0, max(0, x - 6 + i % 13), y1), fill=(48, 112, 42, 255), width=3)
-            draw.line((x, y0, min(tile - 1, x + 4 - i % 11), y1 + 8), fill=(72, 142, 52, 220), width=2)
-        return img
+        palette = [(48, 112, 42), (62, 138, 52), (78, 158, 58)]
+        return pack_flora_variants(tile, lambda half, variant: make_tall_grass_clump(f"tall_grass_v{variant}", half, palette))
 
     if name == "flower.png":
-        img = fill_noisy_tile(name, tile, (64, 130, 50), 14)
-        draw = ImageDraw.Draw(img)
-        for i in range(11):
-            x = 10 + noise_value(name, i, 5, 25) % (tile - 20)
-            y = 16 + noise_value(name, i, 7, 27) % (tile - 30)
-            color = [(214, 76, 106), (238, 208, 72), (220, 120, 214)][i % 3]
-            draw.rectangle((x - 2, y - 2, x + 2, y + 2), fill=color + (255,))
-            draw.point((x, y), fill=(246, 236, 180, 255))
-        return img
+        petal_colors = [(214, 76, 106), (238, 208, 72), (220, 120, 214), (120, 160, 230)]
+        stem = (42, 98, 38)
+        center = (246, 236, 180)
+        return pack_flora_variants(tile, lambda half, variant: make_flower_stem_sprite(f"flower_v{variant}", half, stem, petal_colors, center))
 
     if name == "station_bench.png":
         img = make_wood_plank_tile(name, tile, (118, 92, 58), (88, 64, 38), (104, 78, 48))
@@ -821,19 +884,15 @@ def make_procedural_tile(name: str, tile: int) -> Optional[Image.Image]:
         return make_dirt_tile(name, tile, palette)
 
     if name == "reed.png":
-        palette = [(38, 98, 48), (48, 112, 52), (62, 138, 58)]
-        return make_flora_sprite_tile(name, tile, palette, 32, add_heads=True)
+        palette = [(88, 98, 48), (98, 112, 52), (112, 128, 58)]
+        head = (148, 128, 62)
+        return pack_flora_variants(tile, lambda half, variant: make_reed_sprite(f"reed_v{variant}", half, palette, head))
 
     if name == "sunflower.png":
-        img = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(img)
-        cx, cy = tile // 2, tile // 3
-        draw.line((cx, tile - 3, cx, cy + 18), fill=(42, 98, 38, 255), width=3)
-        for step in range(12):
-            x2, y2 = radial_offset(cx, cy, 22, 16, step)
-            draw.ellipse((x2 - 6, y2 - 6, x2 + 6, y2 + 6), fill=(238, 198, 42, 255))
-        draw.ellipse((cx - 12, cy - 10, cx + 12, cy + 10), fill=(68, 48, 28, 255))
-        return img
+        stem = (42, 98, 38)
+        petal = (238, 198, 42)
+        center = (68, 48, 28)
+        return pack_flora_variants(tile, lambda half, variant: make_sunflower_sprite(f"sunflower_v{variant}", half, stem, petal, center))
 
     if name == "hay_bale.png":
         palette = [(168, 138, 58), (188, 158, 68), (208, 178, 78)]
