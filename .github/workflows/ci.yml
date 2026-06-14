@@ -142,7 +142,7 @@ jobs:
 
       - name: Run headless integration suite
         run: |
-          dotnet run --project src/Autonocraft --configuration Release --no-build -- --test 2>&1 | Tee-Object -FilePath integration-output.log
+          dotnet exec src/Autonocraft/bin/Release/net10.0/Autonocraft.dll -- --test 2>&1 | Tee-Object -FilePath integration-output.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         shell: pwsh
         if: runner.os == 'Windows'
@@ -152,7 +152,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          dotnet run --project src/Autonocraft --configuration Release --no-build -- --test 2>&1 | tee integration-output.log
+          dotnet exec src/Autonocraft/bin/Release/net10.0/Autonocraft.dll -- --test 2>&1 | tee integration-output.log
           exit "${PIPESTATUS[0]}"
 
       - name: Upload integration log
