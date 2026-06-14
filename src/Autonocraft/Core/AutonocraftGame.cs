@@ -69,6 +69,7 @@ namespace Autonocraft.Core
         private bool _skipMenu;
         private bool _agentServerStarted;
         private int _agentPort = 5001;
+        private int? _renderDistanceOverride;
         private string? _activeSlotId;
         private string? _activeSlotName;
         private WorldSaveData? _pendingSaveData;
@@ -98,7 +99,6 @@ namespace Autonocraft.Core
         private bool _wasActive = true;
         private bool _skipMouseLookFrame;
         private bool _deferPrevMouseReset;
-        private bool _deferAgentServerStart;
         private float _spawnWarmupRemaining;
         private float _inactiveTimer;
         private float _claimHintTimer = 10f;
@@ -212,11 +212,12 @@ namespace Autonocraft.Core
         public const int DefaultSpawnX = GameConstants.DefaultSpawnX;
         public const int DefaultSpawnZ = GameConstants.DefaultSpawnZ;
 
-        public AutonocraftGame(bool runTests = false, bool skipMenu = false, int agentPort = 5001, bool debugMetrics = false)
+        public AutonocraftGame(bool runTests = false, bool skipMenu = false, int agentPort = 5001, bool debugMetrics = false, int? renderDistanceOverride = null)
         {
             _runTests = runTests;
             _skipMenu = skipMenu;
             _agentPort = agentPort;
+            _renderDistanceOverride = renderDistanceOverride;
             if (debugMetrics && !RuntimeMetrics.FileLoggingEnabled)
             {
                 RuntimeMetrics.EnableFileLogging(fromCli: true);
@@ -231,6 +232,18 @@ namespace Autonocraft.Core
             }
 
             _settings = GameSettingsManager.Load();
+            if (_renderDistanceOverride.HasValue)
+            {
+                _settings.RenderDistance = Math.Clamp(
+                    _renderDistanceOverride.Value,
+                    GameSettings.MinRenderDistance,
+                    GameSettings.MaxRenderDistance);
+            }
+            else if (_skipMenu && IsCiEnvironment())
+            {
+                _settings.RenderDistance = Math.Min(_settings.RenderDistance, 4);
+            }
+
             _camera = new Camera();
             _session = new GameSession(DefaultSeed);
             _hostContext = new GameHostContext(_session, _settings.RenderDistance, _settings)
@@ -269,11 +282,6 @@ namespace Autonocraft.Core
             }
 
             _settings.VSync = false;
-            if (IsCiEnvironment())
-            {
-                _settings.RenderDistance = Math.Min(_settings.RenderDistance, 4);
-            }
-
             ApplyFastLoadingGraphics();
         }
 
@@ -569,7 +577,6 @@ namespace Autonocraft.Core
 
             _loadingFromSave = false;
             _spawnWarmupRemaining = SpawnWarmupSeconds;
-            _deferAgentServerStart = true;
 
             _session.BlockInteraction.BindAnimator(_session.InteractionAnimator);
 
@@ -705,6 +712,10 @@ namespace Autonocraft.Core
             _loadingScreen!.Begin(_camera.Position, _settings.RenderDistance, _pendingSaveData);
             _state = GameState.WorldLoading;
             Window.Title = "Autonocraft | Loading World...";
+            if (_skipMenu)
+            {
+                TryStartAgentServer();
+            }
         }
 
         private void OnGameExiting(object? sender, EventArgs e)
@@ -1391,12 +1402,10 @@ namespace Autonocraft.Core
 
         private void TryStartAgentServer()
         {
-            if (_agentServerStarted || !_deferAgentServerStart)
+            if (_agentServerStarted)
             {
                 return;
             }
-
-            _deferAgentServerStart = false;
 
             try
             {

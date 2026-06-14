@@ -23,13 +23,40 @@ namespace Autonocraft.Core
 
             _bridge = bridge;
             _listener = new HttpListener();
-            _listener.Prefixes.Add($"http://localhost:{port}/");
+            AddListenPrefixes(_listener, port);
             _listener.Start();
             _isRunning = true;
 
-            Console.WriteLine($"[Agent HTTP Server] Started and listening on http://localhost:{port}/");
+            Console.WriteLine($"[Agent HTTP Server] Started and listening on http://127.0.0.1:{port}/");
 
             Task.Run(ListenLoop);
+        }
+
+        private static void AddListenPrefixes(HttpListener listener, int port)
+        {
+            string[] prefixes =
+            [
+                $"http://127.0.0.1:{port}/",
+                $"http://[::1]:{port}/",
+                $"http://localhost:{port}/"
+            ];
+
+            foreach (string prefix in prefixes)
+            {
+                try
+                {
+                    listener.Prefixes.Add(prefix);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Agent HTTP Server] Skipped prefix {prefix}: {ex.Message}");
+                }
+            }
+
+            if (listener.Prefixes.Count == 0)
+            {
+                throw new InvalidOperationException($"No HTTP listener prefixes could be registered for port {port}.");
+            }
         }
 
         private static async Task ListenLoop()

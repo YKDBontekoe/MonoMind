@@ -74,5 +74,6 @@ jobs:
           name: e2e-artifacts-${{ matrix.os }}
           path: |
             test_output/game.log
+            test_output/game.err.log
             test_output/live_api/
             test_output/scenarios/
