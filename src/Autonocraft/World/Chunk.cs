@@ -853,7 +853,7 @@ namespace Autonocraft.World
 
         private static float ComputeCornerAO(MeshBuildContext context, Vector3 vertexPos, Vector3 normal)
         {
-            Vector3 up    = Math.Abs(normal.Y) < 0.9f ? Vector3.UnitY : Vector3.UnitX;
+            Vector3 up = Math.Abs(normal.Y) < 0.9f ? Vector3.UnitY : Vector3.UnitX;
             Vector3 tang1 = Vector3.Normalize(Vector3.Cross(normal, up));
             Vector3 tang2 = Vector3.Cross(normal, tang1);
 

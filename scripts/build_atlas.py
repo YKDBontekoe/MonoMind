@@ -609,8 +609,35 @@ def load_tile(filename: str, tile: int) -> Image.Image:
     return img
 
 
-def main() -> None:
-    layout = load_layout()
+def validate_layout(layout: dict) -> None:
+    required_keys = ("gridCols", "gridRows", "tileSize", "tiles")
+    for key in required_keys:
+        if key not in layout:
+            raise ValueError(f"atlas_layout.json missing required key: {key}")
+
+    if layout["gridCols"] <= 0 or layout["gridRows"] <= 0 or layout["tileSize"] <= 0:
+        raise ValueError("gridCols, gridRows, and tileSize must be positive")
+
+    tiles = layout["tiles"]
+    if not isinstance(tiles, dict) or not tiles:
+        raise ValueError("tiles must be a non-empty object")
+
+    seen_slots: set[tuple[int, int]] = set()
+    for tile_id, slot in tiles.items():
+        if not isinstance(slot, dict):
+            raise ValueError(f"tile '{tile_id}' must be an object")
+        for field in ("file", "col", "row"):
+            if field not in slot:
+                raise ValueError(f"tile '{tile_id}' missing '{field}'")
+        coord = (int(slot["col"]), int(slot["row"]))
+        if coord in seen_slots:
+            raise ValueError(f"duplicate atlas slot at {coord}")
+        seen_slots.add(coord)
+        if coord[0] >= layout["gridCols"] or coord[1] >= layout["gridRows"]:
+            raise ValueError(f"tile '{tile_id}' slot {coord} is outside grid bounds")
+
+
+def build_atlas(layout: dict, output_path: Path) -> tuple[int, int]:
     cols = layout["gridCols"]
     rows = layout["gridRows"]
     tile = layout["tileSize"]
@@ -623,9 +650,59 @@ def main() -> None:
         image = load_tile(filename, tile)
         atlas.paste(image, (slot["col"] * tile, slot["row"] * tile))
 
-    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    atlas.save(OUTPUT, format="PNG", optimize=True)
-    print(f"Wrote {OUTPUT} ({width}x{height}, {cols}x{rows} tiles @ {tile}px)")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    atlas.save(output_path, format="PNG", optimize=True)
+    return width, height
+
+
+def check_atlas() -> None:
+    import argparse
+    import hashlib
+    import tempfile
+
+    parser = argparse.ArgumentParser(description="Build or validate Autonocraft texture atlas")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Validate atlas_layout.json and ensure generation succeeds; compare atlas.png if present",
+    )
+    args = parser.parse_args()
+
+    layout = load_layout()
+    validate_layout(layout)
+
+    if args.check:
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as handle:
+            temp_path = Path(handle.name)
+        try:
+            width, height = build_atlas(layout, temp_path)
+            print(
+                f"Atlas generation OK ({width}x{height}, "
+                f"{layout['gridCols']}x{layout['gridRows']} tiles @ {layout['tileSize']}px)"
+            )
+            if OUTPUT.exists():
+                committed = OUTPUT.read_bytes()
+                generated = temp_path.read_bytes()
+                if committed != generated:
+                    committed_hash = hashlib.sha256(committed).hexdigest()[:12]
+                    generated_hash = hashlib.sha256(generated).hexdigest()[:12]
+                    raise SystemExit(
+                        f"atlas.png is out of date (committed={committed_hash}, generated={generated_hash}). "
+                        "Run: python3 scripts/build_atlas.py"
+                    )
+                print(f"Committed atlas matches generated output ({OUTPUT})")
+            else:
+                print("No committed atlas.png; layout and generation checks passed")
+        finally:
+            temp_path.unlink(missing_ok=True)
+        return
+
+    width, height = build_atlas(layout, OUTPUT)
+    print(f"Wrote {OUTPUT} ({width}x{height}, {layout['gridCols']}x{layout['gridRows']} tiles @ {layout['tileSize']}px)")
+
+
+def main() -> None:
+    check_atlas()
 
 
 if __name__ == "__main__":

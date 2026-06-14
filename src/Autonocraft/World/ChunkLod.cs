@@ -40,22 +40,14 @@ namespace Autonocraft.World
 
         public static ChunkMeshDetail SelectRenderTarget(int chunkDistance, int renderDistance, bool restrictLod)
         {
-            if (!restrictLod)
+            var detail = SelectDetail(chunkDistance, renderDistance);
+            if (!restrictLod || chunkDistance <= 1)
             {
-                return SelectDetail(chunkDistance, renderDistance);
+                return detail;
             }
 
-            if (chunkDistance <= 1)
-            {
-                return SelectDetail(chunkDistance, renderDistance);
-            }
-
-            if (chunkDistance <= 2)
-            {
-                return ChunkMeshDetail.Surface;
-            }
-
-            return ChunkMeshDetail.Shell;
+            // Fast travel: keep Full only in the immediate ring; mid/far bands unchanged.
+            return detail == ChunkMeshDetail.Full ? ChunkMeshDetail.Surface : detail;
         }
 
         private static ChunkMeshDetail SelectBuildDetailToward(Chunk chunk, ChunkMeshDetail target)

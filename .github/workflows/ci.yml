@@ -5,10 +5,26 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * *'
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  checks: write
 
 jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
 
@@ -17,11 +33,131 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Build
-        run: dotnet build src/Autonocraft --configuration Release
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/dotnet-tools.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
 
-      - name: Build tests
-        run: dotnet build tests/Autonocraft.Tests --configuration Release
+      - name: Build solution
+        run: dotnet build Autonocraft.slnx --configuration Release
 
-      - name: Run unit and integration tests
-        run: dotnet test tests/Autonocraft.Tests --configuration Release --no-build --verbosity normal
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnet-build-${{ matrix.os }}
+          path: |
+            src/**/bin/
+            src/**/obj/
+            tests/**/bin/
+            tests/**/obj/
+          if-no-files-found: error
+
+  unit-tests:
+    name: Unit tests (${{ matrix.os }})
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/dotnet-tools.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Download build output
+        uses: actions/download-artifact@v4
+        with:
+          name: dotnet-build-${{ matrix.os }}
+
+      - name: Run unit tests
+        run: >
+          dotnet test tests/Autonocraft.Tests
+          --configuration Release
+          --no-build
+          --verbosity normal
+          --filter "FullyQualifiedName~Autonocraft.Tests.Unit"
+          --logger "trx;LogFileName=unit-results.trx"
+          --results-directory TestResults
+
+      - name: Publish unit test report
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Unit Tests (${{ matrix.os }})
+          path: TestResults/**/*.trx
+          reporter: dotnet-trx
+          fail-on-error: true
+
+      - name: Upload unit test artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-results-${{ matrix.os }}
+          path: TestResults/
+
+  integration-tests:
+    name: Integration tests (${{ matrix.os }})
+    needs: build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/dotnet-tools.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Download build output
+        uses: actions/download-artifact@v4
+        with:
+          name: dotnet-build-${{ matrix.os }}
+
+      - name: Run headless integration suite
+        run: |
+          dotnet run --project src/Autonocraft --configuration Release --no-build -- --test 2>&1 | Tee-Object -FilePath integration-output.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        shell: pwsh
+        if: runner.os == 'Windows'
+
+      - name: Run headless integration suite
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -o pipefail
+          dotnet run --project src/Autonocraft --configuration Release --no-build -- --test 2>&1 | tee integration-output.log
+          exit "${PIPESTATUS[0]}"
+
+      - name: Upload integration log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-log-${{ matrix.os }}
+          path: integration-output.log

@@ -6,6 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Accepted for faster local/CI builds; MGCB content pipeline is not wired in this repo. -->
+    <SkipMonoGameContent Condition="'$(SkipMonoGameContent)' == ''">false</SkipMonoGameContent>
   </PropertyGroup>
 
   <ItemGroup>

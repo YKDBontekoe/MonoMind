@@ -66,7 +66,7 @@ namespace Autonocraft.Core
                 response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
                 response.Headers.Add("Access-Control-Allow-Headers", "Content-Type");
             }
-            catch {}
+            catch { }
 
             if (request.HttpMethod == "OPTIONS")
             {
@@ -549,7 +549,7 @@ namespace Autonocraft.Core
                     break;
 
                 case "shutdown":
-                        _bridge.PendingActions.Enqueue(() => _bridge.RequestExit());
+                    _bridge.PendingActions.Enqueue(() => _bridge.RequestExit());
                     message = "Shutdown command received";
                     break;
 
@@ -587,38 +587,38 @@ namespace Autonocraft.Core
                     break;
 
                 case "open_crucible":
-                {
-                    var openTcs = new TaskCompletionSource<bool>();
-                    _bridge.PendingActions.Enqueue(() =>
                     {
-                        var interaction = _bridge.Host.Session.BlockInteraction;
-                        if (interaction.TargetBlockPos.HasValue && interaction.TargetBlockType.IsStation())
+                        var openTcs = new TaskCompletionSource<bool>();
+                        _bridge.PendingActions.Enqueue(() =>
                         {
-                            var pos = interaction.TargetBlockPos.Value;
-                            _bridge.OpenCrucibleAt(
-                                (int)pos.X,
-                                (int)pos.Y,
-                                (int)pos.Z,
-                                interaction.TargetBlockType);
-                            openTcs.SetResult(true);
+                            var interaction = _bridge.Host.Session.BlockInteraction;
+                            if (interaction.TargetBlockPos.HasValue && interaction.TargetBlockType.IsStation())
+                            {
+                                var pos = interaction.TargetBlockPos.Value;
+                                _bridge.OpenCrucibleAt(
+                                    (int)pos.X,
+                                    (int)pos.Y,
+                                    (int)pos.Z,
+                                    interaction.TargetBlockType);
+                                openTcs.SetResult(true);
+                            }
+                            else
+                            {
+                                openTcs.SetResult(false);
+                            }
+                        });
+
+                        if (openTcs.Task.Wait(2000) && openTcs.Task.Result)
+                        {
+                            message = "Station UI opened for targeted station";
                         }
                         else
                         {
-                            openTcs.SetResult(false);
+                            success = false;
+                            message = "No crafting station targeted";
                         }
-                    });
-
-                    if (openTcs.Task.Wait(2000) && openTcs.Task.Result)
-                    {
-                        message = "Station UI opened for targeted station";
+                        break;
                     }
-                    else
-                    {
-                        success = false;
-                        message = "No crafting station targeted";
-                    }
-                    break;
-                }
 
                 case "dev":
                     string? devCmd = request.QueryString["cmd_line"];
@@ -650,52 +650,52 @@ namespace Autonocraft.Core
                     break;
 
                 case "recruit_villager":
-                {
-                    var recruitTcs = new TaskCompletionSource<bool>();
-                    _bridge.PendingActions.Enqueue(() =>
                     {
-                        var v = _bridge.Host.Session.Villages.GetPrimaryVillage();
-                        recruitTcs.SetResult(v != null && _bridge.Host.Session.Villages.TryRecruit(v));
-                    });
-                    success = recruitTcs.Task.Wait(2000) && recruitTcs.Task.Result;
-                    message = success ? "Recruited villager" : "Recruit failed";
-                    break;
-                }
-
-                case "assign_job":
-                {
-                    if (!int.TryParse(request.QueryString["villager_id"], out int vid) ||
-                        !Enum.TryParse<JobType>(request.QueryString["job"], true, out var jobType))
-                    {
-                        success = false;
-                        message = "Need villager_id and job params";
+                        var recruitTcs = new TaskCompletionSource<bool>();
+                        _bridge.PendingActions.Enqueue(() =>
+                        {
+                            var v = _bridge.Host.Session.Villages.GetPrimaryVillage();
+                            recruitTcs.SetResult(v != null && _bridge.Host.Session.Villages.TryRecruit(v));
+                        });
+                        success = recruitTcs.Task.Wait(2000) && recruitTcs.Task.Result;
+                        message = success ? "Recruited villager" : "Recruit failed";
                         break;
                     }
 
-                    float? tgx = float.TryParse(request.QueryString["target_x"], out float tfx) ? tfx : null;
-                    float? tgy = float.TryParse(request.QueryString["target_y"], out float tfy) ? tfy : null;
-                    float? tgz = float.TryParse(request.QueryString["target_z"], out float tfz) ? tfz : null;
-                    System.Numerics.Vector3? target = tgx.HasValue && tgy.HasValue && tgz.HasValue
-                        ? new System.Numerics.Vector3(tgx.Value, tgy.Value, tgz.Value)
-                        : null;
-
-                    var assignTcs = new TaskCompletionSource<bool>();
-                    _bridge.PendingActions.Enqueue(() =>
+                case "assign_job":
                     {
-                        var session = _bridge.Host.Session;
-                        var village = session.Villages.GetPrimaryVillage();
-                        if (village == null || !session.Villagers.TryGet(vid, out var villager))
+                        if (!int.TryParse(request.QueryString["villager_id"], out int vid) ||
+                            !Enum.TryParse<JobType>(request.QueryString["job"], true, out var jobType))
                         {
-                            assignTcs.SetResult(false);
-                            return;
+                            success = false;
+                            message = "Need villager_id and job params";
+                            break;
                         }
 
-                        assignTcs.SetResult(session.Villages.TryAssignJob(village, villager, jobType, target));
-                    });
-                    success = assignTcs.Task.Wait(2000) && assignTcs.Task.Result;
-                    message = success ? $"Assigned {jobType}" : "Assign failed";
-                    break;
-                }
+                        float? tgx = float.TryParse(request.QueryString["target_x"], out float tfx) ? tfx : null;
+                        float? tgy = float.TryParse(request.QueryString["target_y"], out float tfy) ? tfy : null;
+                        float? tgz = float.TryParse(request.QueryString["target_z"], out float tfz) ? tfz : null;
+                        System.Numerics.Vector3? target = tgx.HasValue && tgy.HasValue && tgz.HasValue
+                            ? new System.Numerics.Vector3(tgx.Value, tgy.Value, tgz.Value)
+                            : null;
+
+                        var assignTcs = new TaskCompletionSource<bool>();
+                        _bridge.PendingActions.Enqueue(() =>
+                        {
+                            var session = _bridge.Host.Session;
+                            var village = session.Villages.GetPrimaryVillage();
+                            if (village == null || !session.Villagers.TryGet(vid, out var villager))
+                            {
+                                assignTcs.SetResult(false);
+                                return;
+                            }
+
+                            assignTcs.SetResult(session.Villages.TryAssignJob(village, villager, jobType, target));
+                        });
+                        success = assignTcs.Task.Wait(2000) && assignTcs.Task.Result;
+                        message = success ? $"Assigned {jobType}" : "Assign failed";
+                        break;
+                    }
 
                 case "open_village":
                     message = "Use in-game V key or POST /village/chat for steward";
@@ -831,7 +831,7 @@ namespace Autonocraft.Core
                 response.OutputStream.Write(bytes, 0, bytes.Length);
                 response.OutputStream.Close();
             }
-            catch {}
+            catch { }
         }
 
         public static void Stop()
@@ -844,7 +844,7 @@ namespace Autonocraft.Core
                 _listener?.Stop();
                 _listener?.Close();
             }
-            catch {}
+            catch { }
             _listener = null;
             Console.WriteLine("[Agent HTTP Server] Stopped.");
         }

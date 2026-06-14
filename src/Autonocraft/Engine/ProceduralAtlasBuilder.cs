@@ -156,63 +156,63 @@ namespace Autonocraft.Engine
             switch (name.Split('.')[0])
             {
                 case "grass_top":
-                {
-                    var palette = new[]
                     {
+                        var palette = new[]
+                        {
                         ShiftColor(new Color(38, 92, 34), seedShift),
                         ShiftColor(new Color(50, 114, 42), seedShift),
                         ShiftColor(new Color(60, 128, 48), seedShift),
                         ShiftColor(new Color(32, 82, 30), seedShift),
                         ShiftColor(new Color(70, 138, 52), seedShift)
                     };
-                    return FromSynth(ProceduralTextureSynth.GrassTop(_tileSize, name, palette));
-                }
+                        return FromSynth(ProceduralTextureSynth.GrassTop(_tileSize, name, palette));
+                    }
                 case "dirt":
-                {
-                    var palette = new[]
                     {
+                        var palette = new[]
+                        {
                         ShiftColor(new Color(88, 64, 40), seedShift),
                         ShiftColor(new Color(108, 80, 50), seedShift),
                         ShiftColor(new Color(128, 96, 62), seedShift),
                         ShiftColor(new Color(78, 56, 34), seedShift)
                     };
-                    return FromSynth(ProceduralTextureSynth.Dirt(_tileSize, name, palette));
-                }
+                        return FromSynth(ProceduralTextureSynth.Dirt(_tileSize, name, palette));
+                    }
                 case "grass_side":
-                {
-                    var dirtPalette = new[]
                     {
+                        var dirtPalette = new[]
+                        {
                         ShiftColor(new Color(88, 64, 40), seedShift),
                         ShiftColor(new Color(108, 80, 50), seedShift),
                         ShiftColor(new Color(128, 96, 62), seedShift),
                         ShiftColor(new Color(78, 56, 34), seedShift)
                     };
-                    var fringePalette = new[]
-                    {
+                        var fringePalette = new[]
+                        {
                         ShiftColor(new Color(46, 106, 40), seedShift),
                         ShiftColor(new Color(58, 124, 46), seedShift),
                         ShiftColor(new Color(68, 134, 50), seedShift)
                     };
-                    var dirt = ProceduralTextureSynth.Dirt(_tileSize, SeedName("dirt.png", seedShift), dirtPalette);
-                    var fringe = ProceduralTextureSynth.GrassFringe(_tileSize, name + "_fringe", fringePalette);
-                    return ComposeGrassSide(new Image(dirt), new Image(fringe));
-                }
+                        var dirt = ProceduralTextureSynth.Dirt(_tileSize, SeedName("dirt.png", seedShift), dirtPalette);
+                        var fringe = ProceduralTextureSynth.GrassFringe(_tileSize, name + "_fringe", fringePalette);
+                        return ComposeGrassSide(new Image(dirt), new Image(fringe));
+                    }
                 case "stone":
-                {
-                    var palette = new[]
                     {
+                        var palette = new[]
+                        {
                         ShiftColor(new Color(96, 96, 100), seedShift),
                         ShiftColor(new Color(118, 118, 122), seedShift),
                         ShiftColor(new Color(142, 142, 148), seedShift),
                         ShiftColor(new Color(108, 108, 112), seedShift),
                         ShiftColor(new Color(84, 84, 88), seedShift)
                     };
-                    return FromSynth(ProceduralTextureSynth.Stone(
-                        _tileSize,
-                        name,
-                        palette,
-                        ShiftColor(new Color(72, 72, 76), seedShift)));
-                }
+                        return FromSynth(ProceduralTextureSynth.Stone(
+                            _tileSize,
+                            name,
+                            palette,
+                            ShiftColor(new Color(72, 72, 76), seedShift)));
+                    }
                 case "oak_log":
                     return FromSynth(ProceduralTextureSynth.WoodLog(
                         _tileSize,
@@ -222,25 +222,25 @@ namespace Autonocraft.Engine
                         ShiftColor(new Color(124, 96, 64), seedShift),
                         12));
                 case "birch_log":
-                {
-                    var pixels = ProceduralTextureSynth.WoodLog(
-                        _tileSize,
-                        name,
-                        ShiftColor(new Color(210, 205, 188), seedShift),
-                        ShiftColor(new Color(184, 178, 162), seedShift),
-                        ShiftColor(new Color(236, 232, 218), seedShift),
-                        14);
-                    var image = new Image(pixels);
-                    for (int i = 0; i < 16; i++)
                     {
-                        int x = NoiseValue(name, i, 3, 11) % _tileSize;
-                        int y = NoiseValue(name, i, 7, 13) % _tileSize;
-                        FillRect(image, x, y, 3, 9, new Color(42, 38, 34));
-                        SetPixel(image, x + 1, y + 2, new Color(28, 24, 22));
-                    }
+                        var pixels = ProceduralTextureSynth.WoodLog(
+                            _tileSize,
+                            name,
+                            ShiftColor(new Color(210, 205, 188), seedShift),
+                            ShiftColor(new Color(184, 178, 162), seedShift),
+                            ShiftColor(new Color(236, 232, 218), seedShift),
+                            14);
+                        var image = new Image(pixels);
+                        for (int i = 0; i < 16; i++)
+                        {
+                            int x = NoiseValue(name, i, 3, 11) % _tileSize;
+                            int y = NoiseValue(name, i, 7, 13) % _tileSize;
+                            FillRect(image, x, y, 3, 9, new Color(42, 38, 34));
+                            SetPixel(image, x + 1, y + 2, new Color(28, 24, 22));
+                        }
 
-                    return image;
-                }
+                        return image;
+                    }
                 case "pine_log":
                     return FromSynth(ProceduralTextureSynth.WoodLog(
                         _tileSize,
@@ -287,33 +287,33 @@ namespace Autonocraft.Engine
                 case "water_side":
                     return FromSynth(ProceduralTextureSynth.WaterSide(_tileSize, name));
                 case "sand":
-                {
-                    var palette = new[]
                     {
+                        var palette = new[]
+                        {
                         ShiftColor(new Color(180, 162, 102), seedShift),
                         ShiftColor(new Color(210, 196, 132), seedShift),
                         ShiftColor(new Color(236, 222, 158), seedShift),
                         ShiftColor(new Color(194, 176, 118), seedShift)
                     };
-                    return FromSynth(ProceduralTextureSynth.Sand(_tileSize, name, palette));
-                }
+                        return FromSynth(ProceduralTextureSynth.Sand(_tileSize, name, palette));
+                    }
                 case "snow":
                     return FromSynth(ProceduralTextureSynth.Snow(_tileSize, name));
                 case "gravel":
-                {
-                    var palette = new[]
                     {
+                        var palette = new[]
+                        {
                         ShiftColor(new Color(88, 86, 82), seedShift),
                         ShiftColor(new Color(118, 116, 110), seedShift),
                         ShiftColor(new Color(148, 146, 140), seedShift),
                         ShiftColor(new Color(104, 102, 98), seedShift)
                     };
-                    return FromSynth(ProceduralTextureSynth.Gravel(
-                        _tileSize,
-                        name,
-                        palette,
-                        ShiftColor(new Color(68, 66, 62), seedShift)));
-                }
+                        return FromSynth(ProceduralTextureSynth.Gravel(
+                            _tileSize,
+                            name,
+                            palette,
+                            ShiftColor(new Color(68, 66, 62), seedShift)));
+                    }
                 case "coal_ore":
                     return FromSynth(ProceduralTextureSynth.Ore(
                         _tileSize,
@@ -344,77 +344,77 @@ namespace Autonocraft.Engine
                         ShiftColor(new Color(78, 154, 76), seedShift),
                         new Color(228, 236, 214)));
                 case "tall_grass":
-                {
-                    var palette = new[]
                     {
+                        var palette = new[]
+                        {
                         ShiftColor(new Color(48, 112, 42), seedShift),
                         ShiftColor(new Color(62, 138, 52), seedShift),
                         ShiftColor(new Color(78, 158, 58), seedShift)
                     };
-                    return FromSynth(ProceduralTextureSynth.FloraSprite(_tileSize, name, palette, 30));
-                }
+                        return FromSynth(ProceduralTextureSynth.FloraSprite(_tileSize, name, palette, 30));
+                    }
                 case "flower":
-                {
-                    var grassPalette = new[]
                     {
+                        var grassPalette = new[]
+                        {
                         ShiftColor(new Color(58, 132, 48), seedShift),
                         ShiftColor(new Color(74, 158, 56), seedShift),
                         ShiftColor(new Color(88, 172, 64), seedShift)
                     };
-                    return FromSynth(ProceduralTextureSynth.FlowerPatch(
-                        _tileSize,
-                        name,
-                        grassPalette,
-                        new[]
-                        {
+                        return FromSynth(ProceduralTextureSynth.FlowerPatch(
+                            _tileSize,
+                            name,
+                            grassPalette,
+                            new[]
+                            {
                             new Color(214, 76, 106),
                             new Color(238, 208, 72),
                             new Color(220, 120, 214)
-                        }));
-                }
+                            }));
+                    }
                 case "station_bench":
-                {
-                    var image = FromSynth(ProceduralTextureSynth.WoodPlank(
-                        _tileSize,
-                        name,
-                        ShiftColor(new Color(118, 92, 58), seedShift),
-                        ShiftColor(new Color(88, 64, 38), seedShift),
-                        ShiftColor(new Color(104, 78, 48), seedShift)));
-                    int margin = _tileSize / 6;
-                    DrawRectOutline(image, margin, margin, _tileSize - margin, _tileSize - margin, ShiftColor(new Color(72, 52, 34), seedShift), 4);
-                    DrawHorizontalLine(image, margin, _tileSize / 2, _tileSize - margin, _tileSize / 2, ShiftColor(new Color(148, 112, 72), seedShift), 3);
-                    return image;
-                }
-                case "station_forge":
-                {
-                    var palette = new[]
                     {
+                        var image = FromSynth(ProceduralTextureSynth.WoodPlank(
+                            _tileSize,
+                            name,
+                            ShiftColor(new Color(118, 92, 58), seedShift),
+                            ShiftColor(new Color(88, 64, 38), seedShift),
+                            ShiftColor(new Color(104, 78, 48), seedShift)));
+                        int margin = _tileSize / 6;
+                        DrawRectOutline(image, margin, margin, _tileSize - margin, _tileSize - margin, ShiftColor(new Color(72, 52, 34), seedShift), 4);
+                        DrawHorizontalLine(image, margin, _tileSize / 2, _tileSize - margin, _tileSize / 2, ShiftColor(new Color(148, 112, 72), seedShift), 3);
+                        return image;
+                    }
+                case "station_forge":
+                    {
+                        var palette = new[]
+                        {
                         ShiftColor(new Color(78, 42, 34), seedShift),
                         ShiftColor(new Color(88, 48, 38), seedShift),
                         ShiftColor(new Color(102, 58, 46), seedShift)
                     };
-                    return FromSynth(ProceduralTextureSynth.ForgeStation(
-                        _tileSize,
-                        name,
-                        palette,
-                        ShiftColor(new Color(58, 38, 30), seedShift),
-                        new Color(224, 120, 48)));
-                }
+                        return FromSynth(ProceduralTextureSynth.ForgeStation(
+                            _tileSize,
+                            name,
+                            palette,
+                            ShiftColor(new Color(58, 38, 30), seedShift),
+                            new Color(224, 120, 48)));
+                    }
                 case "station_crucible":
-                {
-                    var palette = new[]
                     {
+                        var palette = new[]
+                        {
                         ShiftColor(new Color(88, 96, 108), seedShift),
                         ShiftColor(new Color(96, 104, 118), seedShift),
                         ShiftColor(new Color(108, 116, 128), seedShift)
                     };
-                    return FromSynth(ProceduralTextureSynth.CrucibleStation(
-                        _tileSize,
-                        name,
-                        palette,
-                        new Color(58, 132, 176),
-                        new Color(42, 98, 176, 200)));
-                }
+                        return FromSynth(ProceduralTextureSynth.CrucibleStation(
+                            _tileSize,
+                            name,
+                            palette,
+                            new Color(58, 132, 176),
+                            new Color(42, 98, 176, 200)));
+                    }
                 case "oak_plank":
                     return FromSynth(ProceduralTextureSynth.WoodPlank(
                         _tileSize,
@@ -425,16 +425,16 @@ namespace Autonocraft.Engine
                 case "glass":
                     return FromSynth(ProceduralTextureSynth.GlassTile(_tileSize, name));
                 case "clay":
-                {
-                    var palette = new[]
                     {
+                        var palette = new[]
+                        {
                         ShiftColor(new Color(148, 96, 72), seedShift),
                         ShiftColor(new Color(168, 112, 88), seedShift),
                         ShiftColor(new Color(188, 128, 98), seedShift),
                         ShiftColor(new Color(132, 86, 64), seedShift)
                     };
-                    return FromSynth(ProceduralTextureSynth.Dirt(_tileSize, name, palette));
-                }
+                        return FromSynth(ProceduralTextureSynth.Dirt(_tileSize, name, palette));
+                    }
                 case "iron_block":
                     return FromSynth(ProceduralTextureSynth.MetalBlock(
                         _tileSize,
@@ -474,33 +474,33 @@ namespace Autonocraft.Engine
                             ShiftColor(new Color(74, 128, 68), seedShift)
                         }));
                 case "palm_log":
-                {
-                    var pixels = ProceduralTextureSynth.WoodLog(
-                        _tileSize,
-                        name,
-                        ShiftColor(new Color(168, 138, 88), seedShift),
-                        ShiftColor(new Color(138, 108, 68), seedShift),
-                        ShiftColor(new Color(198, 168, 118), seedShift),
-                        14);
-                    var image = new Image(pixels);
-                    for (int y = 6; y < _tileSize; y += 14)
                     {
-                        DrawHorizontalLine(image, _tileSize / 3, y, _tileSize * 2 / 3, y + 4, ShiftColor(new Color(128, 98, 58), seedShift), 2);
-                    }
+                        var pixels = ProceduralTextureSynth.WoodLog(
+                            _tileSize,
+                            name,
+                            ShiftColor(new Color(168, 138, 88), seedShift),
+                            ShiftColor(new Color(138, 108, 68), seedShift),
+                            ShiftColor(new Color(198, 168, 118), seedShift),
+                            14);
+                        var image = new Image(pixels);
+                        for (int y = 6; y < _tileSize; y += 14)
+                        {
+                            DrawHorizontalLine(image, _tileSize / 3, y, _tileSize * 2 / 3, y + 4, ShiftColor(new Color(128, 98, 58), seedShift), 2);
+                        }
 
-                    return image;
-                }
+                        return image;
+                    }
                 case "palm_leaves":
-                {
-                    var palette = new[]
                     {
+                        var palette = new[]
+                        {
                         ShiftColor(new Color(42, 98, 38), seedShift),
                         ShiftColor(new Color(58, 118, 48), seedShift),
                         ShiftColor(new Color(72, 142, 52), seedShift),
                         ShiftColor(new Color(36, 88, 34), seedShift)
                     };
-                    return FromSynth(ProceduralTextureSynth.PalmLeaves(_tileSize, name, palette));
-                }
+                        return FromSynth(ProceduralTextureSynth.PalmLeaves(_tileSize, name, palette));
+                    }
                 case "birch_plank":
                     return FromSynth(ProceduralTextureSynth.WoodPlank(
                         _tileSize,
@@ -516,20 +516,20 @@ namespace Autonocraft.Engine
                         ShiftColor(new Color(92, 68, 40), seedShift),
                         ShiftColor(new Color(108, 82, 50), seedShift)));
                 case "cobblestone":
-                {
-                    var stones = new[]
                     {
+                        var stones = new[]
+                        {
                         ShiftColor(new Color(96, 96, 100), seedShift),
                         ShiftColor(new Color(118, 118, 122), seedShift),
                         ShiftColor(new Color(88, 88, 92), seedShift),
                         ShiftColor(new Color(132, 132, 136), seedShift)
                     };
-                    return FromSynth(ProceduralTextureSynth.Cobble(
-                        _tileSize,
-                        name,
-                        stones,
-                        ShiftColor(new Color(64, 64, 68), seedShift)));
-                }
+                        return FromSynth(ProceduralTextureSynth.Cobble(
+                            _tileSize,
+                            name,
+                            stones,
+                            ShiftColor(new Color(64, 64, 68), seedShift)));
+                    }
                 case "brick":
                     return FromSynth(ProceduralTextureSynth.Brick(
                         _tileSize,
@@ -539,47 +539,47 @@ namespace Autonocraft.Engine
                         ShiftColor(new Color(168, 88, 62), seedShift),
                         ShiftColor(new Color(128, 58, 42), seedShift)));
                 case "moss_stone":
-                {
-                    var stonePalette = new[]
                     {
+                        var stonePalette = new[]
+                        {
                         ShiftColor(new Color(92, 98, 86), seedShift),
                         ShiftColor(new Color(108, 114, 100), seedShift),
                         ShiftColor(new Color(84, 90, 78), seedShift)
                     };
-                    var mossPalette = new[]
-                    {
+                        var mossPalette = new[]
+                        {
                         ShiftColor(new Color(48, 98, 42), seedShift),
                         ShiftColor(new Color(62, 118, 52), seedShift),
                         ShiftColor(new Color(38, 84, 36), seedShift)
                     };
-                    return FromSynth(ProceduralTextureSynth.MossStone(
-                        _tileSize,
-                        name,
-                        stonePalette,
-                        ShiftColor(new Color(68, 72, 62), seedShift),
-                        mossPalette));
-                }
+                        return FromSynth(ProceduralTextureSynth.MossStone(
+                            _tileSize,
+                            name,
+                            stonePalette,
+                            ShiftColor(new Color(68, 72, 62), seedShift),
+                            mossPalette));
+                    }
                 case "mud":
-                {
-                    var palette = new[]
                     {
+                        var palette = new[]
+                        {
                         ShiftColor(new Color(58, 46, 34), seedShift),
                         ShiftColor(new Color(72, 58, 42), seedShift),
                         ShiftColor(new Color(88, 72, 52), seedShift),
                         ShiftColor(new Color(64, 50, 38), seedShift)
                     };
-                    return FromSynth(ProceduralTextureSynth.Dirt(_tileSize, name, palette));
-                }
+                        return FromSynth(ProceduralTextureSynth.Dirt(_tileSize, name, palette));
+                    }
                 case "reed":
-                {
-                    var palette = new[]
                     {
+                        var palette = new[]
+                        {
                         ShiftColor(new Color(38, 98, 48), seedShift),
                         ShiftColor(new Color(48, 112, 52), seedShift),
                         ShiftColor(new Color(62, 138, 58), seedShift)
                     };
-                    return FromSynth(ProceduralTextureSynth.FloraSprite(_tileSize, name, palette, 32, addHeads: true));
-                }
+                        return FromSynth(ProceduralTextureSynth.FloraSprite(_tileSize, name, palette, 32, addHeads: true));
+                    }
                 case "sunflower":
                     return FromSynth(ProceduralTextureSynth.SunflowerSprite(
                         _tileSize,
@@ -588,20 +588,20 @@ namespace Autonocraft.Engine
                         new Color(238, 198, 42),
                         new Color(68, 48, 28)));
                 case "hay_bale":
-                {
-                    var palette = new[]
                     {
+                        var palette = new[]
+                        {
                         ShiftColor(new Color(168, 138, 58), seedShift),
                         ShiftColor(new Color(188, 158, 68), seedShift),
                         ShiftColor(new Color(208, 178, 78), seedShift)
                     };
-                    return FromSynth(ProceduralTextureSynth.HayBale(
-                        _tileSize,
-                        name,
-                        palette,
-                        ShiftColor(new Color(158, 128, 48), seedShift),
-                        ShiftColor(new Color(138, 108, 38), seedShift)));
-                }
+                        return FromSynth(ProceduralTextureSynth.HayBale(
+                            _tileSize,
+                            name,
+                            palette,
+                            ShiftColor(new Color(158, 128, 48), seedShift),
+                            ShiftColor(new Color(138, 108, 38), seedShift)));
+                    }
                 case "ice":
                     return FromSynth(ProceduralTextureSynth.IceTile(_tileSize, name));
                 case "sheep_body":
@@ -617,15 +617,15 @@ namespace Autonocraft.Engine
                 case "chicken_head":
                     return FromSynth(ProceduralTextureSynth.AnimalHide(_tileSize, name, new Color(230, 210, 110), new Color(190, 150, 50)));
                 default:
-                {
-                    string stem = name.Split('.')[0];
-                    if (stem.StartsWith("tool_", StringComparison.Ordinal))
                     {
-                        return MakeToolIcon(stem);
-                    }
+                        string stem = name.Split('.')[0];
+                        if (stem.StartsWith("tool_", StringComparison.Ordinal))
+                        {
+                            return MakeToolIcon(stem);
+                        }
 
-                    return null;
-                }
+                        return null;
+                    }
             }
         }
 

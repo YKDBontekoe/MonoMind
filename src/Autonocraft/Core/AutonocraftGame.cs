@@ -2051,10 +2051,10 @@ namespace Autonocraft.Core
 
             int w = GraphicsDevice.PresentationParameters.BackBufferWidth;
             int h = GraphicsDevice.PresentationParameters.BackBufferHeight;
-            
+
             Color[] backBuffer = new Color[w * h];
             GraphicsDevice.GetBackBufferData(backBuffer);
-            
+
             using (var texture = new Texture2D(GraphicsDevice, w, h))
             {
                 texture.SetData(backBuffer);

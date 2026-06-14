@@ -1,5 +1,9 @@
 # Autonocraft
 
+[![CI](https://github.com/YKDBontekoe/MonoMind/actions/workflows/ci.yml/badge.svg)](https://github.com/YKDBontekoe/MonoMind/actions/workflows/ci.yml)
+[![E2E](https://github.com/YKDBontekoe/MonoMind/actions/workflows/e2e.yml/badge.svg)](https://github.com/YKDBontekoe/MonoMind/actions/workflows/e2e.yml)
+[![CodeQL](https://github.com/YKDBontekoe/MonoMind/actions/workflows/codeql.yml/badge.svg)](https://github.com/YKDBontekoe/MonoMind/actions/workflows/codeql.yml)
+
 A 3D voxel sandbox built with **MonoGame** (DesktopGL) on **.NET 10**. Explore procedurally generated biomes, mine and place blocks, fight animals, craft stations via sigil patterns, use tools and skills, and save worlds to disk. An HTTP agent API lets automated tools drive the game while it runs.
 
 > **Repo:** MonoMind · **Game:** Autonocraft
@@ -7,15 +11,14 @@ A 3D voxel sandbox built with **MonoGame** (DesktopGL) on **.NET 10**. Explore p
 ## Requirements
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- **MonoGame content pipeline** — installed automatically via `dotnet tool restore` (see `dotnet-tools.json`)
 - **macOS (optional):** Homebrew OpenGL libs; `run.sh` and `start.command` set `DYLD_LIBRARY_PATH=/opt/homebrew/lib`
-- **Python 3** (optional) — for `tests/interact.py` and `scripts/build_atlas.py`
+- **Python 3** (optional) — for `tests/interact.py`, E2E scripts, and `scripts/build_atlas.py`
 
 ## Quick Start
 
 ```bash
-# Restore MonoGame MGCB tool (first time)
-dotnet tool restore
+# Restore dependencies (first time)
+dotnet build Autonocraft.slnx
 
 # Run the game (main menu → new world or load save)
 dotnet run --project src/Autonocraft
@@ -105,7 +108,36 @@ The C# runtime also has `ProceduralAtlasBuilder` as a fallback when the PNG is m
 
 ## Agent HTTP API
 
-When gameplay starts, a local server listens on **http://localhost:5000/**. Use it to query state, capture screenshots, and queue input actions. See [AGENTS.md](AGENTS.md) for the full API reference and [tests/interact.py](tests/interact.py) for a Python CLI wrapper.
+When gameplay starts, a local server listens on **http://localhost:5001/** (override with `--agent-port`). Use it to query state, capture screenshots, and queue input actions. See [AGENTS.md](AGENTS.md) for the full API reference and [tests/interact.py](tests/interact.py) for a Python CLI wrapper.
+
+## Continuous Integration
+
+GitHub Actions runs on every push and pull request to `main`/`master`, plus a nightly schedule at 06:00 UTC.
+
+| Workflow | What it runs |
+|----------|----------------|
+| [CI](.github/workflows/ci.yml) | Build + unit tests + headless integration (`--test`) on Ubuntu, Windows, and macOS |
+| [E2E](.github/workflows/e2e.yml) | Live HTTP API tests + JSON scenarios on all three OSes |
+| [Quality](.github/workflows/quality.yml) | `dotnet format`, atlas validation, unit-test code coverage |
+| [CodeQL](.github/workflows/codeql.yml) | C# security analysis |
+| [Release](.github/workflows/release.yml) | Multi-platform publish on version tags (`v*.*.*`) |
+
+Reproduce CI locally:
+
+```bash
+# Unit tests (same filter as CI)
+dotnet test tests/Autonocraft.Tests -c Release --filter "FullyQualifiedName~Unit"
+
+# Headless integration (same as CI integration job)
+dotnet run --project src/Autonocraft -c Release -- --test
+
+# Full E2E (same as CI e2e.yml on macOS/Linux)
+bash scripts/ci_e2e.sh
+
+# Format and atlas checks
+dotnet format Autonocraft.slnx --verify-no-changes
+python3 scripts/build_atlas.py --check
+```
 
 ## OpenRouter (planned)
 
@@ -120,14 +152,17 @@ When gameplay starts, a local server listens on **http://localhost:5000/**. Use 
 ## Development
 
 ```bash
-# Build without recompiling MonoGame content (faster iteration)
+# Build entire solution
+dotnet build Autonocraft.slnx -c Release
+
+# Faster iteration (SkipMonoGameContent is a no-op; no MGCB step in this repo)
 dotnet build src/Autonocraft -p:SkipMonoGameContent=true
 
-# Full build with shader/content pipeline
-dotnet build src/Autonocraft
+# Run unit tests only
+dotnet test tests/Autonocraft.Tests -c Release --filter "FullyQualifiedName~Unit"
 
-# Run test project directly
-dotnet test tests/Autonocraft.Tests
+# Run headless integration suite
+dotnet run --project src/Autonocraft -c Release -- --test
 ```
 
 When changing player physics, world generation, chunking, blocks, inventory, tools, crafting, fluids, animals, combat, or saves, always run `--test` before finishing. See AGENTS.md for the required test areas and HTTP verification workflow.
