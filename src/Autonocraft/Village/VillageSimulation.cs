@@ -33,7 +33,8 @@ namespace Autonocraft.Village
             HashSet<int> finalizedSites,
             float deltaTime,
             VoxelWorld world,
-            float timeOfDay)
+            float timeOfDay,
+            AnimalManager animalManager)
         {
             bool isNight = DayNightCycle.IsNight(timeOfDay);
             bool morning = _wasNight && !isNight;
@@ -41,7 +42,41 @@ namespace Autonocraft.Village
 
             foreach (var village in villages)
             {
+                VillageSettlementHealth.SyncPopulationRegistry(village, _villagers);
+                village.Economy.Clear();
+                village.Economy.SyncFromStorage(village.Storage);
+                foreach (var site in village.BuildingSites)
+                {
+                    if (!site.IsComplete)
+                    {
+                        foreach (var block in site.PendingBlocks)
+                        {
+                            village.Economy.RecordDemand(block.Type, 1);
+                        }
+                    }
+                }
+
                 village.UpdateSimulation(deltaTime, timeOfDay);
+                if (village.DailyNeedsSimulatedThisFrame)
+                {
+                if (village.ConsecutiveDaysWithoutFood >= 4 && VillageSettlementHealth.GetLivePopulation(village, _villagers) > 0)
+                {
+                    Villager? starveling = null;
+                    foreach (var citizen in VillageSettlementHealth.EnumerateLiveCitizens(village, _villagers))
+                    {
+                        starveling = citizen;
+                        break;
+                    }
+
+                    if (starveling != null)
+                    {
+                        _events?.ShowToast?.Invoke($"{starveling.Name} left the village (starving)");
+                        _events?.PlaySfx?.Invoke("food");
+                        village.UnregisterVillager(starveling.Id);
+                        _villagers.Despawn(starveling.Id);
+                    }
+                }
+                }
                 FarmCropGrowth.Advance(world, village, deltaTime, timeOfDay);
                 village.WorkQueue.SyncWithWorld(world);
                 FinalizeCompletedSites(village, world, finalizedSites);
@@ -53,15 +88,11 @@ namespace Autonocraft.Village
                     _dispatcher.AutoAssignIdleWorkers(village, world);
                 }
 
-                var context = BuildContext(village);
+                var context = BuildContext(village, animalManager);
 
-                foreach (var villagerId in village.VillagerIds)
+                foreach (var villager in VillageSettlementHealth.EnumerateLiveCitizens(village, _villagers))
                 {
-                    if (!_villagers.TryGet(villagerId, out var villager))
-                    {
-                        continue;
-                    }
-
+                    VillagerNeedsTracker.ApplyNeeds(villager, villager.Needs, deltaTime, isNight);
                     villager.DriftHappinessToward(village.Happiness, deltaTime);
                     villager.RefreshWorkSpeed(village.GetWorkSpeedMultiplier());
                     ApplyBuildingWorkBonuses(village, villager);
@@ -104,7 +135,7 @@ namespace Autonocraft.Village
             }
         }
 
-        private VillageContext BuildContext(Village village)
+        private VillageContext BuildContext(Village village, AnimalManager animalManager)
         {
             return new VillageContext
             {
@@ -116,7 +147,9 @@ namespace Autonocraft.Village
                 Storage = village.Storage,
                 ResolveBuildingSite = id => village.TryGetBuildingSite(id, out var site) ? site : null,
                 ResolveBuilding = id => village.TryGetBuilding(id, out var building) ? building : null,
-                ResolveVillager = id => _villagers.TryGet(id, out var villager) ? villager : null
+                ResolveVillager = id => _villagers.TryGet(id, out var villager) ? villager : null,
+                Animals = animalManager,
+                Events = _events
             };
         }
 

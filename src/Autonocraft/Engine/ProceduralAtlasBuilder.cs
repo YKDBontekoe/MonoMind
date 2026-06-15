@@ -80,7 +80,11 @@ namespace Autonocraft.Engine
                 for (int x = 0; x < _tileSize; x++)
                 {
                     int srcY = y * grassFringe.Height / fringeHeight;
-                    result.Pixels[y * _tileSize + x] = grassFringe.Pixels[srcY * _tileSize + x];
+                    Color fringeColor = grassFringe.Pixels[srcY * grassFringe.Width + x];
+                    if (fringeColor.A > 0)
+                    {
+                        result.Pixels[y * _tileSize + x] = fringeColor;
+                    }
                 }
             }
 
@@ -393,6 +397,76 @@ namespace Autonocraft.Engine
                         };
                         return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
                             ProceduralTextureSynth.TallGrassClump(half, $"tall_grass_v{variant}", palette)));
+                    }
+                case "fern":
+                    {
+                        var palette = new[]
+                        {
+                            ShiftColor(new Color(34, 82, 30), seedShift),
+                            ShiftColor(new Color(46, 106, 40), seedShift),
+                            ShiftColor(new Color(58, 122, 50), seedShift)
+                        };
+                        return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                            ProceduralTextureSynth.FernSprite(half, $"fern_v{variant}", palette)));
+                    }
+                case "mushroom_red":
+                    {
+                        return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                            ProceduralTextureSynth.MushroomSprite(half, $"mush_r_v{variant}", ShiftColor(new Color(220, 40, 40), seedShift), new Color(255, 255, 255))));
+                    }
+                case "mushroom_brown":
+                    {
+                        return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                            ProceduralTextureSynth.MushroomSprite(half, $"mush_b_v{variant}", ShiftColor(new Color(150, 110, 80), seedShift), null)));
+                    }
+                case "dead_bush":
+                    {
+                        var palette = new[]
+                        {
+                            ShiftColor(new Color(130, 100, 70), seedShift),
+                            ShiftColor(new Color(150, 120, 90), seedShift),
+                            ShiftColor(new Color(110, 80, 50), seedShift)
+                        };
+                        return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                            ProceduralTextureSynth.DeadBushSprite(half, $"dead_bush_v{variant}", palette)));
+                    }
+                case "lily_pad":
+                    {
+                        return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                            ProceduralTextureSynth.LilyPadSprite(half, $"lily_pad_v{variant}")));
+                    }
+                case "vine":
+                    {
+                        var palette = new[]
+                        {
+                            ShiftColor(new Color(48, 102, 38), seedShift),
+                            ShiftColor(new Color(62, 122, 48), seedShift),
+                            ShiftColor(new Color(76, 142, 58), seedShift)
+                        };
+                        return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                            ProceduralTextureSynth.VineSprite(half, $"vine_v{variant}", palette)));
+                    }
+                case "berry_bush":
+                    {
+                        var palette = new[]
+                        {
+                            ShiftColor(new Color(42, 92, 34), seedShift),
+                            ShiftColor(new Color(56, 114, 46), seedShift),
+                            ShiftColor(new Color(70, 134, 58), seedShift)
+                        };
+                        return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                            ProceduralTextureSynth.BerryBushSprite(half, $"berry_bush_v{variant}", palette)));
+                    }
+                case "seagrass":
+                    {
+                        var palette = new[]
+                        {
+                            ShiftColor(new Color(32, 102, 90), seedShift),
+                            ShiftColor(new Color(42, 122, 110), seedShift),
+                            ShiftColor(new Color(52, 142, 130), seedShift)
+                        };
+                        return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                            ProceduralTextureSynth.SeagrassSprite(half, $"seagrass_v{variant}", palette)));
                     }
                 case "flower":
                     {
@@ -987,6 +1061,7 @@ namespace Autonocraft.Engine
             public Color[] Pixels { get; }
             public int Size { get; }
             public int Height => Size;
+            public int Width => Size;
 
             public Image Clone()
             {

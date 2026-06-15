@@ -27,7 +27,10 @@ namespace Autonocraft.Items
                     or BlockType.Flower or BlockType.Reed or BlockType.Sunflower
                     or BlockType.Mud or BlockType.HayBale or BlockType.Ice
                     or BlockType.WheatSprout or BlockType.Wheat
-                    or BlockType.CarrotSprout or BlockType.Carrot => BlockHarvestCategory.Earth,
+                    or BlockType.CarrotSprout or BlockType.Carrot
+                    or BlockType.Fern or BlockType.MushroomRed or BlockType.MushroomBrown
+                    or BlockType.DeadBush or BlockType.LilyPad or BlockType.Vine
+                    or BlockType.BerryBush or BlockType.Seagrass => BlockHarvestCategory.Earth,
                 BlockType.Cobblestone or BlockType.Brick or BlockType.MossStone => BlockHarvestCategory.Stone,
                 _ => BlockHarvestCategory.Stone
             };

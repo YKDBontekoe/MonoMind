@@ -5,13 +5,12 @@ namespace Autonocraft.Core
     public sealed class GameSettings
     {
         public const int MinRenderDistance = 2;
-        public const int MaxRenderDistance = 12;
-        public const int DefaultRenderDistance = 8;
+        public const int MaxRenderDistance = 48;
+        public const int DefaultRenderDistance = 24;
 
         public const string DefaultLlamaCppBaseUrl = "http://127.0.0.1:8080";
 
-        public static int GetDefaultRenderDistance() =>
-            OperatingSystem.IsMacOS() ? 6 : DefaultRenderDistance;
+        public static int GetDefaultRenderDistance() => DefaultRenderDistance;
 
         public static bool GetDefaultHighQualityLighting() =>
             !OperatingSystem.IsMacOS();

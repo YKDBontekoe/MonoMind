@@ -15,7 +15,8 @@ namespace Autonocraft.World
     {
         public static bool IsBlockWater(VoxelWorld world, int x, int y, int z)
         {
-            return world.GetBlock(x, y, z).IsWater();
+            var type = world.GetBlock(x, y, z);
+            return type.IsWater() || type == BlockType.Seagrass;
         }
 
         public static WaterBodyState GetBodyState(

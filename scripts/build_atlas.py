@@ -467,6 +467,140 @@ def pack_flora_variants(tile: int, generator) -> Image.Image:
         img.paste(variant_img, (ox, oy))
     return img
 
+
+def make_fern_sprite(name: str, tile: int, palette: list[tuple[int, int, int]]) -> Image.Image:
+    img = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    pixels = img.load()
+    cx = tile // 2
+    draw.line((cx, tile - 2, cx, tile // 3), fill=palette[0] + (255,), width=2)
+    for i in range(12):
+        y = tile - 4 - i * (tile // 16)
+        left = i % 2 == 0
+        length = max(4, tile // 3 - i * (tile // 30))
+        frond_color = palette[noise_value(name, i, 5, 7) % len(palette)]
+        dx = -length if left else length
+        dy = -length // 2
+        draw.line((cx, y, cx + dx, y + dy), fill=frond_color + (255,), width=2)
+        set_pixel(pixels, tile, cx + dx, y + dy, shade(frond_color, 15))
+    return img
+
+
+def make_mushroom_sprite(name: str, tile: int, cap_color: tuple[int, int, int], spot_color: Optional[tuple[int, int, int]] = None) -> Image.Image:
+    img = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    pixels = img.load()
+    cx = tile // 2 + (noise_value(name, 0, 1) % 5) - 2
+    stem_color = (230, 225, 220)
+    draw.rectangle((cx - 1, tile - tile // 3, cx + 1, tile - 2), fill=stem_color + (255,))
+    cap_y = tile - tile // 3
+    cap_r = tile // 4 + 1
+    draw.ellipse((cx - cap_r, cap_y - cap_r // 2, cx + cap_r, cap_y + cap_r // 2), fill=cap_color + (255,))
+    draw.ellipse((cx - cap_r, cap_y - cap_r // 2, cx + cap_r, cap_y + cap_r // 2), outline=darken(cap_color, 20) + (255,), width=1)
+    if spot_color:
+        for i in range(5):
+            sx = cx - cap_r + 2 + noise_value(name, i, 9) % (cap_r * 2 - 3)
+            sy = cap_y - cap_r // 2 + 1 + noise_value(name, i, 13) % (cap_r - 2)
+            set_pixel(pixels, tile, sx, sy, spot_color)
+    return img
+
+
+def make_dead_bush_sprite(name: str, tile: int, palette: list[tuple[int, int, int]]) -> Image.Image:
+    img = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    for i in range(10):
+        x1 = tile // 2
+        y1 = tile - 2
+        branch_color = palette[noise_value(name, i, 1) % len(palette)]
+        x2 = noise_value(name, i, 3) % tile
+        y2 = tile // 3 + noise_value(name, i, 5) % (tile // 3)
+        draw.line((x1, y1, x2, y2), fill=branch_color + (255,), width=1)
+        if i % 2 == 0:
+            bx = (x1 + x2) // 2
+            by = (y1 + y2) // 2
+            bx2 = bx + (noise_value(name, i, 7) % (tile // 3)) - tile // 6
+            by2 = by - (noise_value(name, i, 9) % (tile // 4))
+            draw.line((bx, by, bx2, by2), fill=darken(branch_color, 10) + (255,), width=1)
+    return img
+
+
+def make_lily_pad_tile(name: str, tile: int) -> Image.Image:
+    img = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    cx, cy = tile // 2, tile // 2
+    r = tile // 2 - 6
+    color = (58, 128, 48)
+    draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=color + (255,))
+    pixels = img.load()
+    for y in range(tile):
+        for x in range(cx, tile):
+            dy = y - cy
+            dx = x - cx
+            if dx > 0 and abs(dy) <= dx * 0.58:
+                pixels[x, y] = (0, 0, 0, 0)
+    vein_color = (78, 158, 58)
+    for i in range(8):
+        if i == 0:
+            continue
+        rad = i * (6.28318 / 8)
+        tx = int(cx + math.cos(rad) * r)
+        ty = int(cy + math.sin(rad) * r)
+        draw.line((cx, cy, tx, ty), fill=vein_color + (255,), width=1)
+    return img
+
+
+def make_vine_sprite(name: str, tile: int, palette: list[tuple[int, int, int]]) -> Image.Image:
+    img = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    for i in range(3):
+        cx = tile // 4 + i * (tile // 4) + (noise_value(name, i, 3) % 7) - 3
+        color = palette[noise_value(name, i, 5) % len(palette)]
+        length = tile - 2 - (noise_value(name, i, 7) % (tile // 3))
+        draw.line((cx, 0, cx, length), fill=darken(color, 10) + (255,), width=2)
+        for y in range(2, length, 4):
+            leaf_color = palette[noise_value(name, i, y) % len(palette)]
+            left = noise_value(name, i, y, 1) % 2 == 0
+            lx = cx - 2 if left else cx + 2
+            draw.rectangle((lx - 1, y - 1, lx + 1, y + 1), fill=leaf_color + (255,))
+    return img
+
+
+def make_berry_bush_sprite(name: str, tile: int, palette: list[tuple[int, int, int]]) -> Image.Image:
+    img = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    cx, cy = tile // 2, tile // 2 + 4
+    r = tile // 3
+    draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=palette[1] + (255,))
+    for i in range(6):
+        offsetX = (noise_value(name, i, 3) % (r * 2)) - r
+        offsetY = (noise_value(name, i, 5) % (r * 2)) - r
+        cr = r // 2 + noise_value(name, i, 7) % (r // 3)
+        leaf_color = palette[noise_value(name, i, 9) % len(palette)]
+        draw.ellipse((cx + offsetX - cr, cy + offsetY - cr, cx + offsetX + cr, cy + offsetY + cr), fill=leaf_color + (255,))
+    berry_color = (220, 40, 40)
+    for i in range(8):
+        bx = cx - r + 3 + noise_value(name, i, 11) % (r * 2 - 6)
+        by = cy - r + 3 + noise_value(name, i, 13) % (r * 2 - 6)
+        draw.ellipse((bx - 1, by - 1, bx + 1, by + 1), fill=berry_color + (255,))
+    return img
+
+
+def make_seagrass_sprite(name: str, tile: int, palette: list[tuple[int, int, int]]) -> Image.Image:
+    img = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    for i in range(6):
+        x = tile // 4 + i * (tile // 8) + (noise_value(name, i, 3) % 5) - 2
+        color = palette[noise_value(name, i, 5) % len(palette)]
+        prev_x = x
+        height = tile // 2 + noise_value(name, i, 7) % (tile // 3)
+        for step in range(height):
+            curr_y = tile - 2 - step
+            wave = int(math.sin(step * 0.3 + i) * 3)
+            curr_x = x + wave
+            draw.line((prev_x, curr_y + 1, curr_x, curr_y), fill=color + (255,), width=2)
+            prev_x = curr_x
+    return img
+
 def fill_rect_wrapped(draw, tile_size, x, y, w, h, color):
     for dy in (-tile_size, 0, tile_size):
         for dx in (-tile_size, 0, tile_size):
@@ -757,6 +891,35 @@ def make_procedural_tile(name: str, tile: int) -> Optional[Image.Image]:
         stem = (42, 98, 38)
         center = (246, 236, 180)
         return pack_flora_variants(tile, lambda half, variant: make_flower_stem_sprite(f"flower_v{variant}", half, stem, petal_colors, center))
+
+    if name == "fern.png":
+        palette = [(34, 82, 30), (46, 106, 40), (58, 122, 50)]
+        return pack_flora_variants(tile, lambda half, variant: make_fern_sprite(f"fern_v{variant}", half, palette))
+
+    if name == "mushroom_red.png":
+        return pack_flora_variants(tile, lambda half, variant: make_mushroom_sprite(f"mush_r_v{variant}", half, (220, 40, 40), (255, 255, 255)))
+
+    if name == "mushroom_brown.png":
+        return pack_flora_variants(tile, lambda half, variant: make_mushroom_sprite(f"mush_b_v{variant}", half, (150, 110, 80)))
+
+    if name == "dead_bush.png":
+        palette = [(130, 100, 70), (150, 120, 90), (110, 80, 50)]
+        return pack_flora_variants(tile, lambda half, variant: make_dead_bush_sprite(f"dead_bush_v{variant}", half, palette))
+
+    if name == "lily_pad.png":
+        return pack_flora_variants(tile, lambda half, variant: make_lily_pad_tile(f"lily_pad_v{variant}", half))
+
+    if name == "vine.png":
+        palette = [(48, 102, 38), (62, 122, 48), (76, 142, 58)]
+        return pack_flora_variants(tile, lambda half, variant: make_vine_sprite(f"vine_v{variant}", half, palette))
+
+    if name == "berry_bush.png":
+        palette = [(42, 92, 34), (56, 114, 46), (70, 134, 58)]
+        return pack_flora_variants(tile, lambda half, variant: make_berry_bush_sprite(f"berry_bush_v{variant}", half, palette))
+
+    if name == "seagrass.png":
+        palette = [(32, 102, 90), (42, 122, 110), (52, 142, 130)]
+        return pack_flora_variants(tile, lambda half, variant: make_seagrass_sprite(f"seagrass_v{variant}", half, palette))
 
     if name == "station_bench.png":
         img = make_wood_plank_tile(name, tile, (118, 92, 58), (88, 64, 38), (104, 78, 48))

@@ -17,6 +17,13 @@ namespace Autonocraft.Village
             int? buildingSiteId = null,
             int? buildingId = null);
         bool TryAssignStockGoalWorker(Village village, VoxelWorld world, Villager villager, BlockType blockType);
-        bool TryQueueBlueprint(VoxelWorld world, Village village, string blueprintId, int anchorX, int anchorZ, IItemContainer payer);
+        bool TryQueueBlueprint(
+            VoxelWorld world,
+            Village village,
+            string blueprintId,
+            int anchorX,
+            int anchorZ,
+            IItemContainer payer,
+            int anchorY = -1);
     }
 }

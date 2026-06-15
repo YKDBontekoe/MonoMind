@@ -34,6 +34,7 @@ namespace Autonocraft.Entities
         public bool IsGrounded { get; set; }
         public float Happiness { get; set; } = 1f;
         public float WorkSpeedMultiplier { get; set; } = 1f;
+        public VillagerNeeds Needs { get; } = new VillagerNeeds();
 
         public Vector3? JobTarget { get; private set; }
         public int? AssignedBuildingSiteId { get; private set; }
@@ -95,6 +96,13 @@ namespace Autonocraft.Entities
             Skills.Mining = new SkillProgress { Level = miningLevel > 0 ? miningLevel : 1, Xp = miningXp };
             Skills.Woodcutting = new SkillProgress { Level = woodcuttingLevel > 0 ? woodcuttingLevel : 1, Xp = woodcuttingXp };
             Skills.Farming = new SkillProgress { Level = farmingLevel > 0 ? farmingLevel : 1, Xp = farmingXp };
+        }
+
+        public void RestoreNeeds(float food, float rest, float social)
+        {
+            Needs.Food = food;
+            Needs.Rest = rest;
+            Needs.Social = social;
         }
 
         public void DriftHappinessToward(float villageHappiness, float deltaTime)
@@ -286,6 +294,8 @@ namespace Autonocraft.Entities
         public Func<int, Village.BuildingSite?>? ResolveBuildingSite { get; init; }
         public Func<int, Village.VillageBuilding?>? ResolveBuilding { get; init; }
         public Func<int, Villager?>? ResolveVillager { get; init; }
+        public AnimalManager? Animals { get; init; }
+        public VillageEvents? Events { get; init; }
 
         public bool TryGetBuildingSite(int id, out Village.BuildingSite site)
         {

@@ -12,7 +12,7 @@ namespace Autonocraft.Village.Jobs
             var target = villager.JobTarget ?? context.VillageCenter;
             if (villager.AiPhase == VillagerAiPhase.PathTo)
             {
-                if (VillagerMovementHelper.TryMoveToward(villager, deltaTime, world, target))
+                if (!context.CreativeMode && VillagerMovementHelper.TryMoveToward(villager, deltaTime, world, target))
                 {
                     return;
                 }
@@ -37,8 +37,11 @@ namespace Autonocraft.Village.Jobs
                 GrantFarmYield(villager, context, 0.5f);
                 villager.Skills.AddXp(VillagerSkill.Farming, 1f);
             }
-            else if (villager.Role == VillagerRole.Smith &&
-                     !VillageWorkshopCrafting.TrySmithWork(context.Storage, context.CreativeMode))
+            else if (!VillageWorkshopCrafting.TrySmithWork(
+                         context.Storage,
+                         context.CreativeMode,
+                         itemName => context.Events?.OnWorkshopCraft(itemName),
+                         toolName => context.Events?.OnWorkshopRepair(toolName)))
             {
                 villager.AssignJob(JobType.Idle, null, null);
                 return;

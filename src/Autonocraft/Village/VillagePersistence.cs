@@ -71,6 +71,7 @@ namespace Autonocraft.Village
                 village.Tier = (VillageTier)entry.Tier;
                 village.FoodStock = entry.FoodStock;
                 village.Happiness = entry.Happiness;
+                village.ConsecutiveDaysWithoutFood = entry.ConsecutiveDaysWithoutFood;
                 village.PopulationCap = entry.PopulationCap > 0 ? entry.PopulationCap : village.PopulationCap;
                 village.HousingCapacity = entry.HousingCapacity;
                 if (entry.Radius > 0f)
@@ -196,6 +197,7 @@ namespace Autonocraft.Village
                     AnchorZ = village.AnchorZ,
                     Tier = (int)village.Tier,
                     FoodStock = village.FoodStock,
+                    ConsecutiveDaysWithoutFood = village.ConsecutiveDaysWithoutFood,
                     Happiness = village.Happiness,
                     Radius = village.Radius,
                     StorageSlots = village.Storage.SlotCount,

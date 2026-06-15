@@ -20,6 +20,7 @@ namespace Autonocraft.Core
         private readonly BlockInteractionSystem _blockInteraction = new();
         private readonly CombatSystem _combatSystem = new();
         private readonly ParticleSystem _particles = new();
+        private readonly WeatherSystem _weather = new();
         private readonly InteractionAnimator _interactionAnimator = new();
         private CraftingSystem _craftingSystem = new();
         private readonly HudToast _hudToast = new();
@@ -39,6 +40,7 @@ namespace Autonocraft.Core
         public BlockInteractionSystem BlockInteraction => _blockInteraction;
         public CombatSystem Combat => _combatSystem;
         public ParticleSystem Particles => _particles;
+        public WeatherSystem Weather => _weather;
         public InteractionAnimator InteractionAnimator => _interactionAnimator;
         public CraftingSystem Crafting => _craftingSystem;
         public Ai.VillageAiOrchestrator VillageAi { get; private set; }
@@ -52,6 +54,7 @@ namespace Autonocraft.Core
             Villagers = new VillagerManager();
             Villages = new VillageManager(Villagers);
             Villages.SetWorldSeed(seed);
+            Villagers.Update(0f, Grid, Villages.Villages);
             VillageAi = new Ai.VillageAiOrchestrator(settings: GameSettingsManager.Load());
             _blockInteraction.BindAnimator(_interactionAnimator);
             WireNotifications();
@@ -123,6 +126,7 @@ namespace Autonocraft.Core
             Villagers = new VillagerManager();
             Villages = new VillageManager(Villagers);
             Villages.SetWorldSeed(seed);
+            Villagers.Update(0f, Grid, Villages.Villages);
             WireNotifications();
         }
 
@@ -163,14 +167,26 @@ namespace Autonocraft.Core
                 return;
             }
 
-            var village = Villages.GetPrimaryVillage() ?? Villages.GetVillageAt(Player.Position);
+            var village = Villages.GetActiveVillage(Player.Position);
             if (village == null)
             {
-                VillageHudHint = "V — Start a settlement here";
+                VillageHudHint = "V — Place Town Heart (your first settler joins automatically)";
                 return;
             }
 
-            VillageHudHint = "V — " + VillageGuidance.GetNextBestAction(village, Villagers);
+            if (Villages.GetVillageAt(Player.Position) == null
+                && !VillageSettlementHealth.IsPlayerNearTownHeart(village, Player.Position))
+            {
+                float dx = Player.Position.X - village.Center.X;
+                float dz = Player.Position.Z - village.Center.Z;
+                int dist = (int)MathF.Round(MathF.Sqrt(dx * dx + dz * dz));
+                VillageHudHint = dist > 8
+                    ? $"V — Return to {village.Name} (~{dist} blocks away)"
+                    : "V — " + VillageGuidance.GetNextBestAction(village, Villagers, Player.Position);
+                return;
+            }
+
+            VillageHudHint = "V — " + VillageGuidance.GetNextBestAction(village, Villagers, Player.Position);
         }
 
         public void UpdateNearbyClaimHint()
@@ -246,7 +262,7 @@ namespace Autonocraft.Core
             }
 
             _interactionAnimator.Update(deltaTime, Player);
-            _particles.Update(deltaTime);
+            _particles.Update(deltaTime, Grid);
         }
 
         public void PlayJumpSound() => _audio?.PlaySfx(SfxKind.Jump);
@@ -390,7 +406,8 @@ namespace Autonocraft.Core
         public void UpdateVillages(float deltaTime, float timeOfDay)
         {
             Villages.CreativeMode = Player.CreativeMode;
-            Villages.Update(deltaTime, Grid, timeOfDay);
+            Villages.Update(deltaTime, Grid, timeOfDay, Animals);
+            Villages.RepairNearbySettlements(Grid, Player.Position, deltaTime);
         }
 
         public void LoadVillageSave(
@@ -402,6 +419,7 @@ namespace Autonocraft.Core
                 villages ?? Array.Empty<VillageSaveData>(),
                 villagers ?? Array.Empty<VillagerSaveData>(),
                 claimedAnchors);
+            Villages.RepairAllVillages(Grid);
         }
 
         public GameRenderContext PrepareRenderContext(Camera camera, float timeOfDay, float waterAnimTime, int renderDistance)
@@ -416,6 +434,7 @@ namespace Autonocraft.Core
             _renderContext.Grid = Grid;
             _renderContext.Animals = Animals;
             _renderContext.Villagers = Villagers;
+            _renderContext.Villages = Villages;
             _renderContext.BlockInteraction = BlockInteraction;
             _renderContext.Particles = Particles;
             _renderContext.InteractionAnimator = InteractionAnimator;
@@ -426,6 +445,7 @@ namespace Autonocraft.Core
             _renderContext.TimeOfDay = timeOfDay;
             _renderContext.WaterAnimTime = waterAnimTime;
             _renderContext.RenderDistance = renderDistance;
+            _renderContext.Weather = Weather;
             return _renderContext;
         }
 

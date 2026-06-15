@@ -349,6 +349,16 @@ namespace Autonocraft.Village
             return goal.Id;
         }
 
+        public void ClearGoals()
+        {
+            _goals.Clear();
+        }
+
+        public void RemoveGoal(int id)
+        {
+            _goals.RemoveAll(g => g.Id == id);
+        }
+
         private void InsertGoal(VillageGoal goal)
         {
             _goals.Add(goal);

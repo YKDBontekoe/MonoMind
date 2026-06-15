@@ -22,6 +22,7 @@ namespace Autonocraft.Village
         private readonly VillagePersistence _persistence;
         private VillageEvents? _events;
         private int _worldSeed;
+        private float _repairScanCooldown;
 
         public Action<string>? ShowToast
         {
@@ -64,20 +65,117 @@ namespace Autonocraft.Village
 
         public Village? GetPrimaryVillage() => _villages.Count > 0 ? _villages[0] : null;
 
+        public Village? GetActiveVillage(Vector3 playerPos)
+        {
+            var atPlayer = GetVillageAt(playerPos);
+            if (atPlayer != null)
+            {
+                VillageSettlementHealth.AdoptNearbyOrphanedCitizens(atPlayer, _villagers, _villages);
+                VillageSettlementHealth.SyncPopulationRegistry(atPlayer, _villagers);
+                return atPlayer;
+            }
+
+            Village? best = null;
+            int bestPopulation = -1;
+            float bestDist = float.MaxValue;
+            foreach (var village in _villages)
+            {
+                if (!VillageSettlementHealth.HasEstablishedSettlement(village))
+                {
+                    continue;
+                }
+
+                VillageSettlementHealth.AdoptNearbyOrphanedCitizens(village, _villagers, _villages);
+                int population = VillageSettlementHealth.GetLivePopulation(village, _villagers);
+                float dist = HorizontalDistanceSquared(playerPos, village);
+                if (population > bestPopulation || (population == bestPopulation && dist < bestDist))
+                {
+                    bestPopulation = population;
+                    bestDist = dist;
+                    best = village;
+                }
+            }
+
+            if (best != null && bestPopulation > 0 && bestDist <= 48f * 48f)
+            {
+                VillageSettlementHealth.SyncPopulationRegistry(best, _villagers);
+                return best;
+            }
+
+            Village? nearestHeart = null;
+            bestDist = float.MaxValue;
+            foreach (var village in _villages)
+            {
+                if (!VillageSettlementHealth.HasEstablishedSettlement(village))
+                {
+                    continue;
+                }
+
+                float dist = HorizontalDistanceSquared(playerPos, village);
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    nearestHeart = village;
+                }
+            }
+
+            if (nearestHeart != null && bestDist <= 48f * 48f)
+            {
+                VillageSettlementHealth.AdoptNearbyOrphanedCitizens(nearestHeart, _villagers, _villages);
+                VillageSettlementHealth.SyncPopulationRegistry(nearestHeart, _villagers);
+                return nearestHeart;
+            }
+
+            var primary = GetPrimaryVillage();
+            if (primary != null)
+            {
+                VillageSettlementHealth.AdoptNearbyOrphanedCitizens(primary, _villagers, _villages);
+                VillageSettlementHealth.SyncPopulationRegistry(primary, _villagers);
+            }
+
+            return primary;
+        }
+
+        public void SyncCitizensForVillage(Village village)
+        {
+            VillageSettlementHealth.AdoptNearbyOrphanedCitizens(village, _villagers, _villages);
+            VillageSettlementHealth.SyncPopulationRegistry(village, _villagers);
+        }
+
         public Village? GetVillage(int id) =>
             _villageIndex.TryGetValue(id, out var village) ? village : null;
 
         public Village? GetVillageAt(Vector3 position)
         {
+            Village? best = null;
+            int bestPopulation = -1;
+            float bestDist = float.MaxValue;
+
             foreach (var village in _villages)
             {
-                if (village.Contains(position))
+                if (!village.Contains(position))
                 {
-                    return village;
+                    continue;
+                }
+
+                int population = VillageSettlementHealth.GetLivePopulation(village, _villagers);
+                float dist = HorizontalDistanceSquared(position, village);
+                if (population > bestPopulation || (population == bestPopulation && dist < bestDist))
+                {
+                    bestPopulation = population;
+                    bestDist = dist;
+                    best = village;
                 }
             }
 
-            return null;
+            return best;
+        }
+
+        private static float HorizontalDistanceSquared(Vector3 position, Village village)
+        {
+            float dx = position.X - (village.AnchorX + 0.5f);
+            float dz = position.Z - (village.AnchorZ + 0.5f);
+            return dx * dx + dz * dz;
         }
 
         public (int spawnX, int spawnZ) InitializeStarterSettlement(VoxelWorld world, int nearX, int nearZ)
@@ -87,12 +185,111 @@ namespace Autonocraft.Village
             return result;
         }
 
-        public bool TryFoundVillage(VoxelWorld world, string name, int anchorX, int anchorZ, out Village? village)
+        public void EnsureStarterSettlement(VoxelWorld world, int nearX, int nearZ)
         {
-            var ok = _founding.TryFoundVillage(_villages, world, name, anchorX, anchorZ, out village);
-            if (ok)
+            var primary = GetPrimaryVillage();
+            if (primary == null)
+            {
+                InitializeStarterSettlement(world, nearX, nearZ);
+                return;
+            }
+
+            RepairVillageCitizens(primary, world);
+        }
+
+        public bool RepairVillageCitizens(Village village, VoxelWorld world)
+        {
+            VillageSettlementHealth.SyncPopulationRegistry(village, _villagers);
+            if (!VillageSettlementHealth.NeedsCitizenRepair(village, _villagers))
+            {
+                return false;
+            }
+
+            int before = VillageSettlementHealth.GetLivePopulation(village, _villagers);
+            if (before > 0)
+            {
+                return false;
+            }
+
+            VillageSettlementHealth.EnsureVillageChunksLoaded(world, village);
+            int after = _founding.SpawnStarterCitizens(village, world, _dispatcher);
+            VillageSettlementHealth.SyncPopulationRegistry(village, _villagers);
+            after = VillageSettlementHealth.GetLivePopulation(village, _villagers);
+            if (after > before)
+            {
+                ShowToast?.Invoke($"{after} settler(s) arrived at {village.Name}. Open PEOPLE tab to assign jobs.");
+                return true;
+            }
+
+            return false;
+        }
+
+        public void RepairNearbySettlements(VoxelWorld world, Vector3 playerPos, float deltaTime)
+        {
+            _repairScanCooldown -= deltaTime;
+            if (_repairScanCooldown > 0f)
+            {
+                return;
+            }
+
+            _repairScanCooldown = 1f;
+            foreach (var village in _villages)
+            {
+                if (!VillageSettlementHealth.IsPlayerNearTownHeart(village, playerPos))
+                {
+                    continue;
+                }
+
+                RepairVillageCitizens(village, world);
+            }
+        }
+
+        public void RepairAllVillages(VoxelWorld world)
+        {
+            foreach (var village in _villages)
+            {
+                RepairVillageCitizens(village, world);
+            }
+        }
+
+        public bool CanPlaceTownHeart(
+            VoxelWorld world,
+            int anchorX,
+            int anchorY,
+            int anchorZ,
+            IItemContainer payer) =>
+            _founding.CanPlaceTownHeart(world, anchorX, anchorY, anchorZ, payer, CreativeMode);
+
+        public bool TryFoundVillage(
+            VoxelWorld world,
+            string name,
+            int anchorX,
+            int anchorZ,
+            out Village? village,
+            int anchorY = -1)
+        {
+            var ok = _founding.TryFoundVillage(_villages, world, name, anchorX, anchorZ, out village, anchorY);
+            if (ok && village != null)
             {
                 RebuildIndex();
+                Villager? founder = null;
+                foreach (var citizen in VillageSettlementHealth.EnumerateLiveCitizens(village, _villagers))
+                {
+                    founder = citizen;
+                    break;
+                }
+
+                if (founder != null)
+                {
+                    foreach (var site in village.BuildingSites)
+                    {
+                        if (!site.IsComplete)
+                        {
+                            _dispatcher.TryAssignJob(village, founder, JobType.Build, null, site.Id);
+                            break;
+                        }
+                    }
+                }
             }
 
             return ok;
@@ -122,8 +319,28 @@ namespace Autonocraft.Village
         public bool TryClaimAtBlock(VoxelWorld world, int blockX, int blockY, int blockZ) =>
             _founding.TryClaimAtBlock(_villages, world, blockX, blockY, blockZ);
 
-        public bool TryQueueBlueprint(VoxelWorld world, Village village, string blueprintId, int anchorX, int anchorZ, IItemContainer payer) =>
-            _dispatcher.TryQueueBlueprint(world, village, blueprintId, anchorX, anchorZ, payer);
+        public bool TryQueueBlueprint(
+            VoxelWorld world,
+            Village village,
+            string blueprintId,
+            int anchorX,
+            int anchorZ,
+            IItemContainer payer,
+            int anchorY = -1)
+        {
+            if (!_dispatcher.TryQueueBlueprint(world, village, blueprintId, anchorX, anchorZ, payer, anchorY))
+            {
+                return false;
+            }
+
+            var site = village.BuildingSites[^1];
+            if (!site.IsComplete)
+            {
+                _dispatcher.TryAssignBuilderToSite(village, site);
+            }
+
+            return true;
+        }
 
         public bool CanPlaceBlueprint(
             VoxelWorld world,
@@ -131,8 +348,9 @@ namespace Autonocraft.Village
             BuildingBlueprint blueprint,
             int anchorX,
             int anchorZ,
-            IItemContainer payer) =>
-            _dispatcher.CanPlaceBlueprint(world, village, blueprint, anchorX, anchorZ, payer);
+            IItemContainer payer,
+            int anchorY = -1) =>
+            _dispatcher.CanPlaceBlueprint(world, village, blueprint, anchorX, anchorZ, payer, anchorY);
 
         public Village? GetVillageForBlock(int x, int y, int z) =>
             GetVillageAt(new Vector3(x + 0.5f, y, z + 0.5f));
@@ -191,8 +409,20 @@ namespace Autonocraft.Village
             return village.Contains(center);
         }
 
-        public bool TryRecruit(Village village)
+        public bool TryRecruit(Village village, VoxelWorld world)
         {
+            VillageSettlementHealth.SyncPopulationRegistry(village, _villagers);
+            if (VillageSettlementHealth.GetLivePopulation(village, _villagers) == 0)
+            {
+                if (RepairVillageCitizens(village, world))
+                {
+                    return true;
+                }
+
+                ShowToast?.Invoke("Stand at the Town Heart and click SUMMON SETTLERS, or found a new settlement.");
+                return false;
+            }
+
             if (!village.CanRecruit(CreativeMode))
             {
                 if (village.Population >= village.PopulationCap)
@@ -212,8 +442,9 @@ namespace Autonocraft.Village
                 return false;
             }
 
-            var spawn = village.Center + new Vector3(0.5f, 0f, 0.5f);
+            var spawn = VillageSpawnHelper.FindSpawnPosition(world, village, _worldSeed ^ village.Population);
             var villager = _villagers.Spawn(village.Id, spawn, _worldSeed ^ village.Population);
+            villager.IsGrounded = true;
             village.RegisterVillager(villager.Id);
             _events?.OnRecruit(villager);
             ShowToast?.Invoke($"{villager.Name} joined! Assign a job on the Villagers tab.");
@@ -235,8 +466,11 @@ namespace Autonocraft.Village
         public void AutoAssignIdleWorkers(Village village, VoxelWorld world) =>
             _dispatcher.AutoAssignIdleWorkers(village, world);
 
-        public void Update(float deltaTime, VoxelWorld world, float timeOfDay) =>
-            _simulation.Update(_villages, _finalizedSites, deltaTime, world, timeOfDay);
+        public void Update(float deltaTime, VoxelWorld world, float timeOfDay, AnimalManager animalManager)
+        {
+            _villagers.Update(deltaTime, world, _villages);
+            _simulation.Update(_villages, _finalizedSites, deltaTime, world, timeOfDay, animalManager);
+        }
 
         public void SetVillageEvents(VillageEvents events)
         {
@@ -257,6 +491,12 @@ namespace Autonocraft.Village
         public List<VillageSaveData> ExportVillages() => _persistence.ExportVillages(_villages);
 
         public List<ClaimedAnchorSaveData> ExportClaimedAnchors() => _founding.ExportClaimedAnchors();
+
+        public void RegisterVillageForTest(Village village)
+        {
+            _villages.Add(village);
+            RebuildIndex();
+        }
 
         private void RebuildIndex()
         {

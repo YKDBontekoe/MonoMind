@@ -218,9 +218,9 @@ namespace Autonocraft.Village
                 village.Scheduler.TryApplyGoal(village, world, this, goal);
             }
 
-            foreach (var villagerId in village.VillagerIds)
+            foreach (var villager in VillageSettlementHealth.EnumerateLiveCitizens(village, _villagers))
             {
-                if (!_villagers.TryGet(villagerId, out var villager) || villager.CurrentJob != JobType.Idle)
+                if (villager.CurrentJob != JobType.Idle)
                 {
                     continue;
                 }
@@ -275,6 +275,30 @@ namespace Autonocraft.Village
                 if (_haulCoordinator.TryAssignHaulWork(village, villager))
                 {
                     continue;
+                }
+
+                var highestDemandBlock = village.Economy.GetHighestDemandBlock();
+                if (highestDemandBlock.HasValue && GatherBlockClassifier.CanGather(villager.Role, highestDemandBlock.Value))
+                {
+                    var stockTarget = JobTargetScanner.FindNearbyStockTarget(world, village, highestDemandBlock.Value);
+                    if (stockTarget.HasValue)
+                    {
+                        var category = GatherBlockClassifier.GetCategory(highestDemandBlock.Value);
+                        var job = category == GatherCategory.Mine ? JobType.Mine : JobType.Lumber;
+                        int? buildingId = null;
+                        if (category == GatherCategory.Mine && village.HasBuilding(BuildingKind.Quarry))
+                        {
+                            buildingId = village.GetNearestBuilding(BuildingKind.Quarry, villager.Position)?.Id;
+                        }
+                        else if (category == GatherCategory.Lumber && village.HasBuilding(BuildingKind.LumberCamp))
+                        {
+                            buildingId = village.GetNearestBuilding(BuildingKind.LumberCamp, villager.Position)?.Id;
+                        }
+                        if (TryAssignJob(village, villager, job, stockTarget, buildingId: buildingId))
+                        {
+                            continue;
+                        }
+                    }
                 }
 
                 if (village.HasBuilding(BuildingKind.LumberCamp) &&
@@ -350,9 +374,9 @@ namespace Autonocraft.Village
 
         public void AssignIdleWorkersFromQueue(Village village, VoxelWorld world)
         {
-            foreach (var villagerId in village.VillagerIds)
+            foreach (var villager in VillageSettlementHealth.EnumerateLiveCitizens(village, _villagers))
             {
-                if (!_villagers.TryGet(villagerId, out var villager) || villager.CurrentJob != JobType.Idle)
+                if (villager.CurrentJob != JobType.Idle)
                 {
                     continue;
                 }
@@ -361,7 +385,14 @@ namespace Autonocraft.Village
             }
         }
 
-        public bool TryQueueBlueprint(VoxelWorld world, Village village, string blueprintId, int anchorX, int anchorZ, IItemContainer payer)
+        public bool TryQueueBlueprint(
+            VoxelWorld world,
+            Village village,
+            string blueprintId,
+            int anchorX,
+            int anchorZ,
+            IItemContainer payer,
+            int anchorY = -1)
         {
             if (!PlayerStructureRegistry.TryGet(blueprintId, out var blueprint))
             {
@@ -369,21 +400,42 @@ namespace Autonocraft.Village
                 return false;
             }
 
-            if (!CanPlaceBlueprint(world, village, blueprint, anchorX, anchorZ, payer))
+            int resolvedY = anchorY >= 0
+                ? anchorY
+                : StructureFingerprint.FindSurfaceAnchorY(world, anchorX, anchorZ);
+
+            if (!CanPlaceBlueprint(world, village, blueprint, anchorX, anchorZ, payer, resolvedY))
             {
                 ShowToast?.Invoke($"Cannot place {blueprint.DisplayName} here.");
                 return false;
             }
 
-            int anchorY = StructureFingerprint.FindSurfaceAnchorY(world, anchorX, anchorZ);
             if (!CreativeMode)
             {
                 blueprint.TryConsumeCosts(payer);
             }
 
-            village.QueueBuild(blueprint, anchorX, anchorY, anchorZ);
+            village.QueueBuild(blueprint, anchorX, resolvedY, anchorZ);
             ShowToast?.Invoke($"Queued {blueprint.DisplayName} for construction.");
             return true;
+        }
+
+        public bool TryAssignBuilderToSite(Village village, BuildingSite site)
+        {
+            foreach (var villager in VillageSettlementHealth.EnumerateLiveCitizens(village, _villagers))
+            {
+                if (villager.CurrentJob != JobType.Idle)
+                {
+                    continue;
+                }
+
+                if (TryAssignJob(village, villager, JobType.Build, null, site.Id))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public bool CanPlaceBlueprint(
@@ -392,7 +444,8 @@ namespace Autonocraft.Village
             BuildingBlueprint blueprint,
             int anchorX,
             int anchorZ,
-            IItemContainer payer)
+            IItemContainer payer,
+            int anchorY = -1)
         {
             if (!CreativeMode && !blueprint.CanAfford(payer))
             {
@@ -406,11 +459,13 @@ namespace Autonocraft.Village
                 return false;
             }
 
-            int anchorY = StructureFingerprint.FindSurfaceAnchorY(world, anchorX, anchorZ);
+            int resolvedY = anchorY >= 0
+                ? anchorY
+                : StructureFingerprint.FindSurfaceAnchorY(world, anchorX, anchorZ);
             foreach (var block in blueprint.Template.Blocks)
             {
                 int wx = anchorX + block.Dx;
-                int wy = anchorY + block.Dy;
+                int wy = resolvedY + block.Dy;
                 int wz = anchorZ + block.Dz;
                 if (wy <= 0 || wy >= Chunk.Height)
                 {
@@ -458,9 +513,9 @@ namespace Autonocraft.Village
             float bestSpecialistDist = float.MaxValue;
             float bestPeasantDist = float.MaxValue;
 
-            foreach (var villagerId in village.VillagerIds)
+            foreach (var villager in VillageSettlementHealth.EnumerateLiveCitizens(village, _villagers))
             {
-                if (!_villagers.TryGet(villagerId, out var villager) || villager.CurrentJob != JobType.Idle)
+                if (villager.CurrentJob != JobType.Idle)
                 {
                     continue;
                 }
@@ -500,24 +555,7 @@ namespace Autonocraft.Village
         private static JobType NormalizeJob(JobType job) =>
             job == JobType.Gather ? JobType.Lumber : job;
 
-        private static bool CanAcceptBlueprintBlock(BlockType current)
-        {
-            if (current == BlockType.Air)
-            {
-                return true;
-            }
-
-            if (current.IsTransparent())
-            {
-                return true;
-            }
-
-            return current is BlockType.Grass
-                or BlockType.Dirt
-                or BlockType.Sand
-                or BlockType.Snow
-                or BlockType.Gravel
-                or BlockType.Mud;
-        }
+        private static bool CanAcceptBlueprintBlock(BlockType current) =>
+            current == BlockType.Air || BlueprintPlacementHelper.IsNaturalTerrainBlock(current);
     }
 }

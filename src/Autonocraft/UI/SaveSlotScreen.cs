@@ -346,14 +346,14 @@ namespace Autonocraft.UI
             float subtitleY = titleY + layout.S(40f);
             float accentY = subtitleY + layout.S(20f);
 
-            Color titleColor = Color.Lerp(new Color(0.78f, 0.9f, 1.0f), new Color(0.92f, 0.96f, 1.0f), Tween.Pulse(_animTime, 0.2f) * 0.5f);
+            Color titleColor = Color.Lerp(UiTheme.Subtitle, UiTheme.Title, Tween.Pulse(_animTime, 0.2f) * 0.5f);
             _ui.DrawCenteredTitle("AUTONOCRAFT", titleY, layout.S(2.8f), titleColor * titlePulse, alpha);
-            _ui.DrawCenteredText("BUILD  EXPLORE  THRIVE", subtitleY, layout.S(1.1f), new Color(0.48f, 0.6f, 0.72f), alpha * 0.92f);
+            _ui.DrawCenteredText("BUILD  EXPLORE  THRIVE", subtitleY, layout.S(UiTheme.ScaleNormal), UiTheme.Subtitle, alpha * 0.92f);
 
             float accentW = layout.S(200f) * (0.85f + 0.15f * Tween.Pulse(_animTime, 0.25f));
             float accentX = layout.CenterX - accentW / 2f;
-            _ui.DrawSoftGlow(accentX, accentY, accentW, layout.S(2f), new Color(0.15f, 0.7f, 1.0f), alpha * 0.5f, 2);
-            _ui.DrawFilledRect(accentX, accentY, accentW, layout.S(2f), new Color(0.2f, 0.72f, 1.0f) * (0.85f * alpha));
+            _ui.DrawSoftGlow(accentX, accentY, accentW, layout.S(2f), UiTheme.AccentGlow, alpha * 0.5f, 2);
+            _ui.DrawFilledRect(accentX, accentY, accentW, layout.S(2f), UiTheme.Accent * (0.85f * alpha));
 
             DrawLifetimeStrip(layout, accentY, alpha, offsetY);
 
@@ -378,8 +378,8 @@ namespace Autonocraft.UI
                 _ui.DrawCenteredText(
                     Truncate(_loadErrorMessage, 52),
                     metrics.PanelY + metrics.PanelH + layout.S(14f) + offsetY,
-                    layout.S(1.0f),
-                    new Color(0.95f, 0.35f, 0.35f) * flash,
+                    layout.S(UiTheme.ScaleNormal),
+                    UiTheme.Danger * flash,
                     alpha);
             }
 
@@ -426,7 +426,7 @@ namespace Autonocraft.UI
             float stripW = metrics.PanelW - layout.S(36f);
             float stripH = layout.S(22f);
 
-            _ui.DrawPanel(stripX, stripY, stripW, stripH, new Color(0.03f, 0.05f, 0.08f) * 0.9f, new Color(0.14f, 0.22f, 0.3f), 0.6f, alpha);
+            _ui.DrawPanel(stripX, stripY, stripW, stripH, UiTheme.PanelBgMuted * 0.9f, UiTheme.Rule, 0.6f, alpha);
 
             if (_renaming)
             {
@@ -448,29 +448,29 @@ namespace Autonocraft.UI
             float slotListHeight = rowH * MaxVisibleSlots;
             float slideOffset = (1f - _scrollOffsetT) * layout.S(6f);
 
-            _ui.DrawPanel(slotListX, slotListTop, slotListW, slotListHeight, new Color(0.02f, 0.03f, 0.05f) * 0.96f, new Color(0.14f, 0.22f, 0.3f), 0.75f, alpha);
+            _ui.DrawPanel(slotListX, slotListTop, slotListW, slotListHeight, UiTheme.PanelBgMuted * 0.96f, UiTheme.Rule, 0.75f, alpha);
 
             if (_slots.Count > MaxVisibleSlots)
             {
                 if (_scrollOffset > 0)
                 {
                     _ui.DrawFilledRect(slotListX, slotListTop, slotListW, layout.S(10f), Color.Black * (0.35f * alpha));
-                    _ui.DrawCenteredText("^", slotListTop + layout.S(1f), layout.S(0.85f), UiTheme.Accent * 0.7f, alpha * 0.75f);
+                    _ui.DrawCenteredText("^", slotListTop + layout.S(1f), layout.S(UiTheme.ScaleSmall), UiTheme.Accent * 0.7f, alpha * 0.75f);
                 }
 
                 if (_scrollOffset < _slots.Count - MaxVisibleSlots)
                 {
                     _ui.DrawFilledRect(slotListX, slotListTop + slotListHeight - layout.S(10f), slotListW, layout.S(10f), Color.Black * (0.35f * alpha));
-                    _ui.DrawCenteredText("V", slotListTop + slotListHeight - layout.S(9f), layout.S(0.85f), UiTheme.Accent * 0.7f, alpha * 0.75f);
+                    _ui.DrawCenteredText("V", slotListTop + slotListHeight - layout.S(9f), layout.S(UiTheme.ScaleSmall), UiTheme.Accent * 0.7f, alpha * 0.75f);
                 }
             }
 
             if (_slots.Count == 0)
             {
                 float emptyY = slotListTop + slotListHeight / 2f - layout.S(24f);
-                _ui.DrawCenteredText("NO SAVED WORLDS YET", emptyY, layout.S(1.25f), new Color(0.48f, 0.56f, 0.64f), alpha);
+                _ui.DrawCenteredText("NO SAVED WORLDS YET", emptyY, layout.S(UiTheme.ScaleSection), UiTheme.Subtitle, alpha);
                 float pulse = 0.55f + 0.45f * Tween.Pulse(_animTime, 0.45f);
-                _ui.DrawCenteredText("HIT NEW WORLD TO START", emptyY + layout.S(30f), layout.S(1.05f), new Color(0.28f, 0.68f, 0.95f) * pulse, alpha);
+                _ui.DrawCenteredText("HIT NEW WORLD TO START", emptyY + layout.S(30f), layout.S(UiTheme.ScaleNormal), UiTheme.Accent * pulse, alpha);
                 return;
             }
 
@@ -487,9 +487,9 @@ namespace Autonocraft.UI
                 float staggerT = Math.Clamp((_animTime - staggerDelay) / 0.2f, 0f, 1f);
                 float rowAlpha = alpha * Tween.EaseOut(staggerT);
 
-                Color baseColor = new Color(0.05f, 0.07f, 0.1f);
-                Color hoverColor = new Color(0.09f, 0.13f, 0.19f);
-                Color selectedColor = Color.Lerp(new Color(0.08f, 0.12f, 0.18f), new Color(0.11f, 0.22f, 0.34f), _selectedBorderT);
+                Color baseColor = UiTheme.PanelBgMuted;
+                Color hoverColor = UiTheme.PanelBgHighlight;
+                Color selectedColor = Color.Lerp(UiTheme.PanelBgMuted, UiTheme.PanelBgHighlight, _selectedBorderT);
                 Color rowColor = Color.Lerp(
                     selected ? selectedColor : baseColor,
                     hoverColor,
@@ -501,36 +501,34 @@ namespace Autonocraft.UI
 
                 if (selected)
                 {
-                    _ui.DrawSoftGlow(rowX, rowY, rowW, rowInnerH, new Color(0.15f, 0.55f, 0.9f), rowAlpha * 0.35f, 2);
+                    _ui.DrawSoftGlow(rowX, rowY, rowW, rowInnerH, UiTheme.AccentGlow, rowAlpha * 0.35f, 2);
                 }
 
-                _ui.DrawPanel(rowX, rowY, rowW, rowInnerH, rowColor, selected ? new Color(0.18f, 0.58f, 0.88f) : new Color(0.16f, 0.26f, 0.36f), selected ? 0.95f : 0.55f, rowAlpha);
+                _ui.DrawPanel(rowX, rowY, rowW, rowInnerH, rowColor, selected ? UiTheme.Accent : UiTheme.Rule, selected ? 0.95f : 0.55f, rowAlpha);
 
                 if (selected)
                 {
-                    _ui.DrawFilledRect(rowX, rowY, layout.S(4f), rowInnerH, new Color(0.25f, 0.78f, 1.0f) * rowAlpha);
+                    _ui.DrawFilledRect(rowX, rowY, layout.S(4f), rowInnerH, UiTheme.Accent * rowAlpha);
                 }
 
                 float swatch = layout.S(22f);
                 float swatchX = rowX + layout.S(12f);
                 float swatchY = rowY + (rowInnerH - swatch) / 2f;
-                Color swatchColor = slot.IsCorrupt ? new Color(0.7f, 0.25f, 0.25f) : SeedToColor(slot.Seed);
+                Color swatchColor = slot.IsCorrupt ? UiTheme.Danger : SeedToColor(slot.Seed);
                 _ui.DrawPanel(swatchX, swatchY, swatch, swatch, swatchColor, Color.Black * 0.4f, 0.5f, rowAlpha);
                 _ui.DrawFilledRect(swatchX, swatchY, swatch, Math.Max(1f, swatch * 0.22f), Color.Lerp(swatchColor, Color.White, 0.35f) * rowAlpha);
 
                 float textX = swatchX + swatch + layout.S(10f);
                 string title = Truncate(slot.SlotName, 20);
                 string meta = slot.IsCorrupt ? "CORRUPT SAVE" : $"SEED {slot.Seed}  {FormatRelative(slot.SavedAt)}";
-                Color titleColor = slot.IsCorrupt
-                    ? new Color(0.95f, 0.45f, 0.45f)
-                    : new Color(0.88f, 0.93f, 1.0f);
-                _ui.DrawString(title, textX, rowY + layout.S(9f), layout.S(1.2f), titleColor, rowAlpha);
-                _ui.DrawString(meta, textX, rowY + layout.S(27f), layout.S(0.95f), UiTheme.Meta, rowAlpha * 0.95f);
+                Color titleColor = slot.IsCorrupt ? UiTheme.Danger : UiTheme.Title;
+                _ui.DrawString(title, textX, rowY + layout.S(9f), layout.S(UiTheme.ScaleNormal), titleColor, rowAlpha);
+                _ui.DrawString(meta, textX, rowY + layout.S(27f), layout.S(UiTheme.ScaleSmall), UiTheme.Meta, rowAlpha * 0.95f);
 
                 if (selected)
                 {
                     string marker = ">";
-                    _ui.DrawString(marker, rowX + rowW - layout.S(18f), rowY + rowInnerH / 2f - layout.S(5f), layout.S(1.1f), new Color(0.35f, 0.78f, 1.0f), rowAlpha * _selectedBorderT);
+                    _ui.DrawString(marker, rowX + rowW - layout.S(18f), rowY + rowInnerH / 2f - layout.S(5f), layout.S(UiTheme.ScaleNormal), UiTheme.Accent, rowAlpha * _selectedBorderT);
                 }
             }
         }
@@ -540,7 +538,7 @@ namespace Autonocraft.UI
             float y = metrics.PanelY + metrics.PanelH - layout.S(118f);
             float x = metrics.PanelX + layout.S(22f);
             float w = metrics.PanelW - layout.S(44f);
-            _ui.DrawHorizontalRule(x, y, w, new Color(0.16f, 0.28f, 0.4f), 1f, alpha * 0.65f);
+            _ui.DrawHorizontalRule(x, y, w, UiTheme.Rule, 1f, alpha * 0.65f);
         }
 
         private void DrawActionButtons(MenuMetrics metrics, UiLayout layout, float alpha)

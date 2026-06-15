@@ -252,7 +252,8 @@ namespace Autonocraft.Core
             CraftingSystem? crafting,
             ParticleSystem particles,
             GraphicsDevice? device,
-            BlockRaycastHit? solidRayHit = null)
+            BlockRaycastHit? solidRayHit = null,
+            bool suppressBlockGhost = false)
         {
             _animTime += deltaTime;
             PendingStationOpen = null;
@@ -272,7 +273,16 @@ namespace Autonocraft.Core
             TargetNormal = normal;
             TargetBlockType = blockType;
 
-            UpdateGhostPreview(world, player, hitBlockPos, normal);
+            if (!suppressBlockGhost)
+            {
+                UpdateGhostPreview(world, player, hitBlockPos, normal);
+            }
+            else
+            {
+                GhostBlockPos = null;
+                GhostValid = false;
+                GhostBlockType = BlockType.Air;
+            }
 
             if (leftHeld && hitBlockPos.HasValue && blockType != BlockType.Air)
             {

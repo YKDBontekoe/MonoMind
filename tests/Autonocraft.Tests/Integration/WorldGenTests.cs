@@ -60,16 +60,25 @@ public static class WorldGenTests
         Console.Write("Running Chunk LOD Band Test... ");
 
         AssertLodDetail(4, 1, ChunkMeshDetail.Full);
-        AssertLodDetail(4, 2, ChunkMeshDetail.Surface);
-        AssertLodDetail(4, 4, ChunkMeshDetail.Shell);
+        AssertLodDetail(4, 2, ChunkMeshDetail.Full);
+        AssertLodDetail(4, 3, ChunkMeshDetail.Surface);
+        AssertLodDetail(4, 4, ChunkMeshDetail.Surface);
 
         AssertLodDetail(6, 2, ChunkMeshDetail.Full);
-        AssertLodDetail(6, 4, ChunkMeshDetail.Surface);
+        AssertLodDetail(6, 3, ChunkMeshDetail.Surface);
         AssertLodDetail(6, 6, ChunkMeshDetail.Shell);
 
-        AssertLodDetail(10, 3, ChunkMeshDetail.Full);
-        AssertLodDetail(10, 6, ChunkMeshDetail.Surface);
+        AssertLodDetail(10, 2, ChunkMeshDetail.Full);
+        AssertLodDetail(10, 4, ChunkMeshDetail.Surface);
         AssertLodDetail(10, 10, ChunkMeshDetail.Shell);
+
+        AssertLodDetail(20, 5, ChunkMeshDetail.Full);
+        AssertLodDetail(20, 12, ChunkMeshDetail.Surface);
+        AssertLodDetail(20, 20, ChunkMeshDetail.Shell);
+
+        AssertLodDetail(32, 8, ChunkMeshDetail.Full);
+        AssertLodDetail(32, 20, ChunkMeshDetail.Surface);
+        AssertLodDetail(32, 32, ChunkMeshDetail.Shell);
 
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine("PASSED");
@@ -101,6 +110,78 @@ public static class WorldGenTests
         if (fullCount <= 0)
         {
             throw new Exception("Expected full mesh to contain indices.");
+        }
+
+        int leafX = chunk.ChunkX * Chunk.Width + 4;
+        int leafZ = chunk.ChunkZ * Chunk.Depth + 4;
+        int leafY = Math.Min(Chunk.Height - 2, world.GetHighestSolidY(leafX, leafZ) + 8);
+        world.SetBlock(leafX, leafY, leafZ, BlockType.OakLeaves);
+        chunk.RebuildColumnHeights();
+        chunk.InvalidateMeshes();
+        _ = chunk.GetMeshIndexCount(world, ChunkMeshDetail.Shell);
+        if (!chunk.HasAlphaCutoutBlocks)
+        {
+            throw new Exception("Expected shell LOD to include alpha-cutout leaf canopy geometry.");
+        }
+
+        chunk.InvalidateMeshes();
+        int surfaceBefore = chunk.GetMeshIndexCount(world, ChunkMeshDetail.Surface);
+        int trunkY = world.GetHighestSolidY(leafX, leafZ);
+        for (int dy = 1; dy <= 3; dy++)
+        {
+            world.SetBlock(leafX, trunkY + dy, leafZ, BlockType.OakLeaves);
+        }
+
+        chunk.RebuildColumnHeights();
+        chunk.InvalidateMeshes();
+        int surfaceAfter = chunk.GetMeshIndexCount(world, ChunkMeshDetail.Surface);
+        if (surfaceAfter <= surfaceBefore)
+        {
+            throw new Exception($"Expected surface LOD to include leaf blocks above trunk, indices {surfaceBefore} -> {surfaceAfter}.");
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
+    public static void RunOceanShellMeshSurfaces()
+    {
+        Console.Write("Running Ocean Shell Mesh Test... ");
+
+        var generator = new WorldGenerator(1337, WorldGenParams.ForType(WorldType.Default));
+        var oceanCoord = FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Ocean, 512, 8);
+        if (oceanCoord == null)
+        {
+            throw new Exception("Expected at least one ocean biome within preview range.");
+        }
+
+        int wx = oceanCoord.Value.x;
+        int wz = oceanCoord.Value.z;
+        using var world = new VoxelWorld(1337);
+        world.UpdateChunksAround(null, new Vector3(wx, 64f, wz), 1);
+
+        VoxelWorld.GetChunkCoords(wx, wz, out int cx, out int cz, out _, out _);
+        var chunks = world.GetActiveChunks();
+        Chunk? chunk = null;
+        foreach (var candidate in chunks)
+        {
+            if (candidate.ChunkX == cx && candidate.ChunkZ == cz)
+            {
+                chunk = candidate;
+                break;
+            }
+        }
+
+        if (chunk == null)
+        {
+            throw new Exception("Expected ocean chunk to load for shell mesh test.");
+        }
+
+        chunk.InvalidateMeshes();
+        _ = chunk.GetMeshIndexCount(world, ChunkMeshDetail.Shell);
+        if (!chunk.HasWaterBlocks)
+        {
+            throw new Exception("Expected ocean shell LOD to include water surface geometry.");
         }
 
         Console.ForegroundColor = ConsoleColor.Green;

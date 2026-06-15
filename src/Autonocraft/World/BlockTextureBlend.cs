@@ -132,9 +132,15 @@ namespace Autonocraft.World
             float smoothedVariation,
             float ao)
         {
-            Vector3 tintSum = GetTint(blockType);
+            BlockType effectiveType = blockType;
+            if (blockType == BlockType.Grass && System.MathF.Abs(normal.Y) < 0.1f)
+            {
+                effectiveType = cy == 1 ? BlockType.Grass : BlockType.Dirt;
+            }
+
+            Vector3 tintSum = GetTint(effectiveType);
             int tintCount = 1;
-            AccumulateNeighborTints(context, wx, wy, wz, blockType, cx, cy, cz, normal, ref tintSum, ref tintCount);
+            AccumulateNeighborTints(context, wx, wy, wz, effectiveType, cx, cy, cz, normal, ref tintSum, ref tintCount);
 
             Vector3 blendedTint = tintSum / tintCount;
             float shade = smoothedVariation * ao * GetFaceShade(normal);

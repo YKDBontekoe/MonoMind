@@ -50,7 +50,7 @@ namespace Autonocraft.Ai
                 return string.Empty;
             }
 
-            VillageEntity? village = session.Villages.GetPrimaryVillage();
+            VillageEntity? village = session.Villages.GetActiveVillage(session.Player.Position);
             if (village == null)
             {
                 return "No village has been founded yet.";
@@ -92,6 +92,7 @@ namespace Autonocraft.Ai
                         session.Villages,
                         session.Villagers,
                         village,
+                        session.Grid,
                         GetPlayerContainer(session.Player));
 
                     _lastExecutedActions.Clear();
@@ -123,7 +124,7 @@ namespace Autonocraft.Ai
 
         public async Task<string> ConfirmPendingAsync(GameSession session, bool confirmed, string target = "mayor")
         {
-            var village = session.Villages.GetPrimaryVillage();
+            var village = session.Villages.GetActiveVillage(session.Player.Position);
             if (village == null)
             {
                 return "No village has been founded yet.";
@@ -171,6 +172,7 @@ namespace Autonocraft.Ai
                 session.Villages,
                 session.Villagers,
                 village,
+                session.Grid,
                 GetPlayerContainer(session.Player));
 
             _lastExecutedActions.Clear();

@@ -2,12 +2,14 @@ using System;
 using System.IO;
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using Autonocraft.Items;
 using Autonocraft.World;
 using Autonocraft.Ai;
 using Autonocraft.Domain.Village;
+using Autonocraft.Village;
 
 namespace Autonocraft.Core
 {
@@ -16,6 +18,7 @@ namespace Autonocraft.Core
         private static HttpListener? _listener;
         private static IGameAgentBridge? _bridge;
         private static bool _isRunning = false;
+        private const int QueuedActionWaitMs = 10000;
 
         public static void Start(IGameAgentBridge bridge, int port = 5000)
         {
@@ -24,7 +27,17 @@ namespace Autonocraft.Core
             _bridge = bridge;
             _listener = new HttpListener();
             AddListenPrefixes(_listener, port);
-            _listener.Start();
+            try
+            {
+                _listener.Start();
+            }
+            catch (Exception ex)
+            {
+                _listener.Close();
+                _listener = null;
+                throw new InvalidOperationException($"Failed to start HTTP listener on port {port}: {ex.Message}", ex);
+            }
+
             _isRunning = true;
 
             Console.WriteLine($"[Agent HTTP Server] Started and listening on http://127.0.0.1:{port}/");
@@ -34,12 +47,26 @@ namespace Autonocraft.Core
 
         private static void AddListenPrefixes(HttpListener listener, int port)
         {
+            if (port < 1 || port > 65535)
+            {
+                throw new ArgumentOutOfRangeException(nameof(port), port, "Agent HTTP port must be between 1 and 65535.");
+            }
+
             string[] prefixes =
             [
                 $"http://127.0.0.1:{port}/",
-                $"http://[::1]:{port}/",
-                $"http://localhost:{port}/"
+                $"http://localhost:{port}/",
             ];
+
+            if (!OperatingSystem.IsMacOS())
+            {
+                prefixes =
+                [
+                    $"http://127.0.0.1:{port}/",
+                    $"http://[::1]:{port}/",
+                    $"http://localhost:{port}/"
+                ];
+            }
 
             foreach (string prefix in prefixes)
             {
@@ -69,6 +96,11 @@ namespace Autonocraft.Core
                     _ = Task.Run(() => HandleRequest(context)); // Handle request concurrently
                 }
                 catch (HttpListenerException)
+                {
+                    // Listener stopped
+                    break;
+                }
+                catch (ObjectDisposedException)
                 {
                     // Listener stopped
                     break;
@@ -118,6 +150,10 @@ namespace Autonocraft.Core
                 {
                     HandleGetState(response);
                 }
+                else if (path == "/village/debug" && request.HttpMethod == "GET")
+                {
+                    HandleGetVillageDebug(response);
+                }
                 else if (path == "/screenshot" && request.HttpMethod == "GET")
                 {
                     HandleGetScreenshot(request, response);
@@ -141,7 +177,7 @@ namespace Autonocraft.Core
             }
             catch (Exception ex)
             {
-                SendResponse(response, HttpStatusCode.InternalServerError, $"{{\"error\": \"{ex.Message}\"}}", "application/json");
+                SendJsonResponse(response, HttpStatusCode.InternalServerError, new { error = ex.Message });
             }
         }
 
@@ -216,6 +252,10 @@ namespace Autonocraft.Core
                 {
                     sb.Append($"{{\"slot\": {i}, \"kind\": \"tool\", \"toolId\": \"{slot.ToolId}\", \"name\": \"{slot.GetDisplayName()}\", \"durability\": {slot.Durability}, \"maxDurability\": {slot.MaxDurability}}}");
                 }
+                else if (slot.IsFluidContainer())
+                {
+                    sb.Append($"{{\"slot\": {i}, \"kind\": \"fluid_container\", \"itemId\": \"{slot.ToolId}\", \"name\": \"{slot.GetDisplayName()}\", \"filled\": {slot.IsWaterBucket().ToString().ToLower()}}}");
+                }
                 else
                 {
                     sb.Append($"{{\"slot\": {i}, \"kind\": \"block\", \"type\": \"{slot.BlockType}\", \"count\": {slot.Count}}}");
@@ -228,9 +268,16 @@ namespace Autonocraft.Core
             sb.Append(",\"animals\": [");
 
             var nearbyAnimals = session.Animals.GetAnimalsInRange(player.Position, 32f);
+            int writtenAnimals = 0;
             for (int i = 0; i < nearbyAnimals.Count; i++)
             {
                 var animal = nearbyAnimals[i];
+                if (!animal.IsAlive)
+                {
+                    continue;
+                }
+
+                if (writtenAnimals > 0) sb.Append(",");
                 sb.Append("{");
                 sb.Append($"\"id\": {animal.Id},");
                 sb.Append($"\"type\": \"{animal.Type}\",");
@@ -240,7 +287,7 @@ namespace Autonocraft.Core
                 sb.Append($"\"y\": {animal.Position.Y},");
                 sb.Append($"\"z\": {animal.Position.Z}");
                 sb.Append("}");
-                if (i < nearbyAnimals.Count - 1) sb.Append(",");
+                writtenAnimals++;
             }
 
             sb.Append("]");
@@ -285,7 +332,7 @@ namespace Autonocraft.Core
             }
             sb.Append("]");
 
-            var village = session.Villages.GetPrimaryVillage();
+            var village = session.Villages.GetActiveVillage(player.Position);
             var settings = host.Settings;
             sb.Append(",\"playWithAi\": ");
             sb.Append(settings.PlayWithAi.ToString().ToLower());
@@ -300,24 +347,41 @@ namespace Autonocraft.Core
             }
             else
             {
+                session.Villages.SyncCitizensForVillage(village);
+                int livePopulation = VillageSettlementHealth.GetLivePopulation(village, session.Villagers);
                 sb.Append("{");
                 sb.Append($"\"id\": {village.Id},");
                 sb.Append($"\"name\": \"{village.Name}\",");
-                sb.Append($"\"population\": {village.Population},");
+                sb.Append($"\"population\": {livePopulation},");
                 sb.Append($"\"populationCap\": {village.PopulationCap},");
                 sb.Append($"\"tier\": \"{village.Tier}\",");
                 sb.Append($"\"happiness\": {village.Happiness:F2},");
-                sb.Append($"\"foodStock\": {village.FoodStock:F1}");
+                sb.Append($"\"foodStock\": {village.FoodStock:F1},");
+                sb.Append($"\"anchorX\": {village.AnchorX},");
+                sb.Append($"\"anchorZ\": {village.AnchorZ}");
                 sb.Append("}");
             }
 
             sb.Append(",\"villagers\": [");
-            var nearbyVillagers = session.Villagers.GetVillagersInRange(player.Position, 32f);
+            List<Entities.Villager> nearbyVillagers = new();
+            if (village != null)
+            {
+                foreach (var v in VillageSettlementHealth.EnumerateLiveCitizens(village, session.Villagers))
+                {
+                    nearbyVillagers.Add(v);
+                }
+            }
+            else
+            {
+                nearbyVillagers = session.Villagers.GetVillagersInRange(player.Position, 32f);
+            }
+
             for (int i = 0; i < nearbyVillagers.Count; i++)
             {
                 var v = nearbyVillagers[i];
                 sb.Append("{");
                 sb.Append($"\"id\": {v.Id},");
+                sb.Append($"\"villageId\": {v.VillageId},");
                 sb.Append($"\"name\": \"{v.Name}\",");
                 sb.Append($"\"role\": \"{v.Role}\",");
                 sb.Append($"\"job\": \"{v.CurrentJob}\",");
@@ -343,6 +407,183 @@ namespace Autonocraft.Core
             sb.Append("}");
 
             SendResponse(response, HttpStatusCode.OK, sb.ToString(), "application/json");
+        }
+
+        private static void HandleGetVillageDebug(HttpListenerResponse response)
+        {
+            if (_bridge == null)
+            {
+                SendResponse(response, HttpStatusCode.InternalServerError, "{\"error\": \"Game not initialized\"}", "application/json");
+                return;
+            }
+
+            if (_bridge.CurrentGameState != GameState.Playing)
+            {
+                SendResponse(response, HttpStatusCode.ServiceUnavailable,
+                    $"{{\"error\": \"Game not in Playing state\", \"gameState\": \"{_bridge.CurrentGameState}\"}}",
+                    "application/json");
+                return;
+            }
+
+            var session = _bridge.Host.Session;
+            var village = session.Villages.GetActiveVillage(session.Player.Position);
+            if (village == null)
+            {
+                SendResponse(response, HttpStatusCode.NotFound, "{\"error\": \"No active village\"}", "application/json");
+                return;
+            }
+
+            session.Villages.SyncCitizensForVillage(village);
+
+            var villagers = new List<object>();
+            foreach (var villager in VillageSettlementHealth.EnumerateLiveCitizens(village, session.Villagers))
+            {
+                villagers.Add(new
+                {
+                    id = villager.Id,
+                    villageId = villager.VillageId,
+                    name = villager.Name,
+                    role = villager.Role.ToString(),
+                    job = villager.CurrentJob.ToString(),
+                    phase = villager.AiPhase.ToString(),
+                    x = villager.Position.X,
+                    y = villager.Position.Y,
+                    z = villager.Position.Z,
+                    target = villager.JobTarget.HasValue
+                        ? new { x = villager.JobTarget.Value.X, y = villager.JobTarget.Value.Y, z = villager.JobTarget.Value.Z }
+                        : null,
+                    buildingSiteId = villager.AssignedBuildingSiteId,
+                    buildingId = villager.AssignedBuildingId,
+                    haulSourceVillagerId = villager.HaulSourceVillagerId,
+                    haulSourceChestId = villager.HaulSourceChestId,
+                    haulDelivering = villager.HaulIsDelivering,
+                    breakProgress = villager.BreakProgress,
+                    workTimer = villager.WorkTimer,
+                    equippedTool = FormatDebugStack(villager.EquippedTool),
+                    inventory = ExportInventory(villager.Inventory)
+                });
+            }
+
+            var buildings = new List<object>();
+            foreach (var building in village.Buildings)
+            {
+                buildings.Add(new
+                {
+                    id = building.Id,
+                    blueprintId = building.BlueprintId,
+                    kind = building.Kind.ToString(),
+                    complete = building.IsComplete,
+                    anchorX = building.AnchorX,
+                    anchorY = building.AnchorY,
+                    anchorZ = building.AnchorZ
+                });
+            }
+
+            var sites = new List<object>();
+            foreach (var site in village.BuildingSites)
+            {
+                sites.Add(new
+                {
+                    id = site.Id,
+                    blueprintId = site.BlueprintId,
+                    complete = site.IsComplete,
+                    remaining = site.RemainingCount,
+                    completion = site.CompletionRatio,
+                    anchorX = site.AnchorX,
+                    anchorY = site.AnchorY,
+                    anchorZ = site.AnchorZ
+                });
+            }
+
+            var payload = new
+            {
+                village = new
+                {
+                    id = village.Id,
+                    name = village.Name,
+                    anchorX = village.AnchorX,
+                    anchorY = village.AnchorY,
+                    anchorZ = village.AnchorZ,
+                    radius = village.Radius,
+                    population = VillageSettlementHealth.GetLivePopulation(village, session.Villagers),
+                    registryPopulation = village.Population,
+                    populationCap = village.PopulationCap,
+                    housingCapacity = village.HousingCapacity,
+                    tier = village.Tier.ToString(),
+                    foodStock = village.FoodStock,
+                    happiness = village.Happiness,
+                    workQueue = village.WorkQueue.Count
+                },
+                storage = ExportInventory(village.Storage),
+                buildings,
+                buildingSites = sites,
+                villagers
+            };
+
+            SendResponse(
+                response,
+                HttpStatusCode.OK,
+                JsonSerializer.Serialize(payload),
+                "application/json");
+        }
+
+        private static List<object> ExportInventory(IItemContainer inventory)
+        {
+            var slots = new List<object>();
+            for (int i = 0; i < inventory.SlotCount; i++)
+            {
+                var stack = inventory.GetSlot(i);
+                if (stack.IsEmpty)
+                {
+                    continue;
+                }
+
+                slots.Add(new
+                {
+                    slot = i,
+                    stack = FormatDebugStack(stack)
+                });
+            }
+
+            return slots;
+        }
+
+        private static object FormatDebugStack(ItemStack stack)
+        {
+            if (stack.IsEmpty)
+            {
+                return new { kind = "empty" };
+            }
+
+            if (stack.IsTool())
+            {
+                return new
+                {
+                    kind = "tool",
+                    toolId = stack.ToolId.ToString(),
+                    name = stack.GetDisplayName(),
+                    durability = stack.Durability,
+                    maxDurability = stack.MaxDurability
+                };
+            }
+
+            if (stack.IsFluidContainer())
+            {
+                return new
+                {
+                    kind = "fluid_container",
+                    itemId = stack.ToolId.ToString(),
+                    name = stack.GetDisplayName(),
+                    filled = stack.IsWaterBucket()
+                };
+            }
+
+            return new
+            {
+                kind = "block",
+                blockType = stack.BlockType.ToString(),
+                count = stack.Count
+            };
         }
 
         private static void HandleGetScreenshot(HttpListenerRequest request, HttpListenerResponse response)
@@ -382,8 +623,8 @@ namespace Autonocraft.Core
 
             try
             {
-                // Wait for the screenshot operation on the main thread (timeout 5s)
-                if (tcs.Task.Wait(5000))
+                // Chunk-heavy scenes can delay the main-thread screenshot action briefly.
+                if (tcs.Task.Wait(10000))
                 {
                     byte[] bytes = tcs.Task.Result;
                     response.ContentType = "image/png";
@@ -399,7 +640,7 @@ namespace Autonocraft.Core
             }
             catch (Exception ex)
             {
-                SendResponse(response, HttpStatusCode.InternalServerError, $"{{\"error\": \"{ex.InnerException?.Message ?? ex.Message}\"}}", "application/json");
+                SendJsonResponse(response, HttpStatusCode.InternalServerError, new { error = ex.InnerException?.Message ?? ex.Message });
             }
         }
 
@@ -528,6 +769,7 @@ namespace Autonocraft.Core
                             var p = _bridge.Host.Session.Player;
                             p.Position = new System.Numerics.Vector3(tx, ty, tz);
                             p.Velocity = System.Numerics.Vector3.Zero;
+                            p.ForceAirborne();
                             _bridge.SyncCameraFromPlayer();
                         });
                         message = $"Teleported player to ({tx}, {ty}, {tz})";
@@ -549,6 +791,10 @@ namespace Autonocraft.Core
                             var p = _bridge.Host.Session.Player;
                             p.CreativeMode = creative;
                             p.Velocity = System.Numerics.Vector3.Zero;
+                            if (!creative)
+                            {
+                                p.ForceAirborne();
+                            }
                         });
                         message = $"Set creative mode to {creative}";
                     }
@@ -636,7 +882,7 @@ namespace Autonocraft.Core
                             }
                         });
 
-                        if (openTcs.Task.Wait(2000) && openTcs.Task.Result)
+                        if (openTcs.Task.Wait(QueuedActionWaitMs) && openTcs.Task.Result)
                         {
                             message = "Station UI opened for targeted station";
                         }
@@ -664,7 +910,7 @@ namespace Autonocraft.Core
                             _bridge.SyncTimeFromHost();
                         });
 
-                        if (tcs.Task.Wait(2000))
+                        if (tcs.Task.Wait(QueuedActionWaitMs))
                         {
                             message = tcs.Task.Result;
                             if (string.IsNullOrEmpty(message)) message = "OK";
@@ -682,10 +928,10 @@ namespace Autonocraft.Core
                         var recruitTcs = new TaskCompletionSource<bool>();
                         _bridge.PendingActions.Enqueue(() =>
                         {
-                            var v = _bridge.Host.Session.Villages.GetPrimaryVillage();
-                            recruitTcs.SetResult(v != null && _bridge.Host.Session.Villages.TryRecruit(v));
+                            var v = _bridge.Host.Session.Villages.GetActiveVillage(_bridge.Host.Session.Player.Position);
+                            recruitTcs.SetResult(v != null && _bridge.Host.Session.Villages.TryRecruit(v, _bridge.Host.Session.Grid));
                         });
-                        success = recruitTcs.Task.Wait(2000) && recruitTcs.Task.Result;
+                        success = recruitTcs.Task.Wait(QueuedActionWaitMs) && recruitTcs.Task.Result;
                         message = success ? "Recruited villager" : "Recruit failed";
                         break;
                     }
@@ -711,7 +957,7 @@ namespace Autonocraft.Core
                         _bridge.PendingActions.Enqueue(() =>
                         {
                             var session = _bridge.Host.Session;
-                            var village = session.Villages.GetPrimaryVillage();
+                            var village = session.Villages.GetActiveVillage(session.Player.Position);
                             if (village == null || !session.Villagers.TryGet(vid, out var villager))
                             {
                                 assignTcs.SetResult(false);
@@ -720,14 +966,92 @@ namespace Autonocraft.Core
 
                             assignTcs.SetResult(session.Villages.TryAssignJob(village, villager, jobType, target));
                         });
-                        success = assignTcs.Task.Wait(2000) && assignTcs.Task.Result;
+                        success = assignTcs.Task.Wait(QueuedActionWaitMs) && assignTcs.Task.Result;
                         message = success ? $"Assigned {jobType}" : "Assign failed";
                         break;
                     }
 
+                case "queue_build":
+                    {
+                        string? blueprintId = request.QueryString["blueprint_id"];
+                        if (string.IsNullOrWhiteSpace(blueprintId) ||
+                            !int.TryParse(request.QueryString["anchor_x"], out int anchorX) ||
+                            !int.TryParse(request.QueryString["anchor_z"], out int anchorZ))
+                        {
+                            success = false;
+                            message = "Need blueprint_id, anchor_x, and anchor_z params";
+                            break;
+                        }
+
+                        int? anchorY = int.TryParse(request.QueryString["anchor_y"], out int parsedAnchorY)
+                            ? parsedAnchorY
+                            : null;
+                        var queueTcs = new TaskCompletionSource<bool>();
+                        _bridge.PendingActions.Enqueue(() =>
+                        {
+                            var session = _bridge.Host.Session;
+                            var village = session.Villages.GetActiveVillage(session.Player.Position);
+                            if (village == null)
+                            {
+                                queueTcs.SetResult(false);
+                                return;
+                            }
+
+                            session.Villages.CreativeMode = session.Player.CreativeMode;
+                            queueTcs.SetResult(session.Villages.TryQueueBlueprint(
+                                session.Grid,
+                                village,
+                                blueprintId,
+                                anchorX,
+                                anchorZ,
+                                village.Storage,
+                                anchorY ?? -1));
+                        });
+                        success = queueTcs.Task.Wait(QueuedActionWaitMs) && queueTcs.Task.Result;
+                        message = success ? $"Queued {blueprintId}" : $"Queue build failed for {blueprintId}";
+                        break;
+                    }
+
                 case "open_village":
-                    message = "Use in-game V key or POST /village/chat for steward";
-                    break;
+                    {
+                        var openTcs = new TaskCompletionSource<bool>();
+                        _bridge.PendingActions.Enqueue(() =>
+                        {
+                            _bridge.RequestOpenVillageUi();
+                            openTcs.SetResult(true);
+                        });
+                        success = openTcs.Task.Wait(QueuedActionWaitMs) && openTcs.Task.Result;
+                        message = success ? "Village UI opened" : "Failed to open village UI";
+                        break;
+                    }
+
+                case "close_village":
+                case "close_village_ui":
+                    {
+                        var closeTcs = new TaskCompletionSource<bool>();
+                        _bridge.PendingActions.Enqueue(() =>
+                        {
+                            _bridge.RequestCloseVillageUi();
+                            closeTcs.SetResult(true);
+                        });
+                        success = closeTcs.Task.Wait(QueuedActionWaitMs) && closeTcs.Task.Result;
+                        message = success ? "Village UI closed" : "Failed to close village UI";
+                        break;
+                    }
+
+                case "summon_settlers":
+                    {
+                        var repairTcs = new TaskCompletionSource<bool>();
+                        _bridge.PendingActions.Enqueue(() =>
+                        {
+                            var session = _bridge.Host.Session;
+                            var village = session.Villages.GetActiveVillage(session.Player.Position);
+                            repairTcs.SetResult(village != null && session.Villages.RepairVillageCitizens(village, session.Grid));
+                        });
+                        success = repairTcs.Task.Wait(QueuedActionWaitMs) && repairTcs.Task.Result;
+                        message = success ? "Settlers summoned" : "Summon failed (stand near Town Heart)";
+                        break;
+                    }
 
                 default:
                     success = false;
@@ -736,8 +1060,7 @@ namespace Autonocraft.Core
             }
 
             var statusCode = success ? HttpStatusCode.OK : HttpStatusCode.BadRequest;
-            string resJson = $"{{\"success\": {success.ToString().ToLower()}, \"message\": \"{message}\"}}";
-            SendResponse(response, statusCode, resJson, "application/json");
+            SendJsonResponse(response, statusCode, new { success, message });
         }
 
         private static bool TryParseKey(string? keyStr, out Key key)
@@ -785,7 +1108,7 @@ namespace Autonocraft.Core
 
             string message = ExtractJsonString(body, "message") ?? request.QueryString["message"] ?? string.Empty;
             string target = ExtractJsonString(body, "target") ?? request.QueryString["target"] ?? "mayor";
-            var chatTcs = new TaskCompletionSource<(string reply, string actionsJson)>();
+            var chatTcs = new TaskCompletionSource<(string reply, List<string> actions)>();
 
             _bridge.PendingActions.Enqueue(() =>
             {
@@ -793,7 +1116,7 @@ namespace Autonocraft.Core
                 {
                     var orchestrator = _bridge.Host.Session.VillageAi;
                     string reply = orchestrator.HandleChatAsync(message, target, _bridge.Host.Session).GetAwaiter().GetResult();
-                    string actions = SerializeActions(orchestrator.LastExecutedActions);
+                    var actions = new List<string>(orchestrator.LastExecutedActions);
                     chatTcs.SetResult((reply, actions));
                 }
                 catch (Exception ex)
@@ -810,13 +1133,12 @@ namespace Autonocraft.Core
                     return;
                 }
 
-                var (reply, actionsJson) = chatTcs.Task.Result;
-                string escapedReply = reply.Replace("\"", "\\\"");
-                SendResponse(response, HttpStatusCode.OK, $"{{\"reply\": \"{escapedReply}\", \"actions\": {actionsJson}}}", "application/json");
+                var (reply, actions) = chatTcs.Task.Result;
+                SendJsonResponse(response, HttpStatusCode.OK, new { reply, actions });
             }
             catch (Exception ex)
             {
-                SendResponse(response, HttpStatusCode.InternalServerError, $"{{\"error\": \"{ex.Message}\"}}", "application/json");
+                SendJsonResponse(response, HttpStatusCode.InternalServerError, new { error = ex.Message });
             }
         }
 
@@ -864,12 +1186,12 @@ namespace Autonocraft.Core
                     return;
                 }
 
-                string reply = confirmTcs.Task.Result.Replace("\"", "\\\"");
-                SendResponse(response, HttpStatusCode.OK, $"{{\"success\": true, \"reply\": \"{reply}\"}}", "application/json");
+                string reply = confirmTcs.Task.Result;
+                SendJsonResponse(response, HttpStatusCode.OK, new { success = true, reply });
             }
             catch (Exception ex)
             {
-                SendResponse(response, HttpStatusCode.InternalServerError, $"{{\"error\": \"{ex.Message}\"}}", "application/json");
+                SendJsonResponse(response, HttpStatusCode.InternalServerError, new { error = ex.Message });
             }
         }
 
@@ -928,6 +1250,11 @@ namespace Autonocraft.Core
             catch { }
         }
 
+        private static void SendJsonResponse(HttpListenerResponse response, HttpStatusCode statusCode, object payload)
+        {
+            SendResponse(response, statusCode, JsonSerializer.Serialize(payload), "application/json");
+        }
+
         public static void Stop()
         {
             if (!_isRunning) return;
@@ -940,6 +1267,7 @@ namespace Autonocraft.Core
             }
             catch { }
             _listener = null;
+            _bridge = null;
             Console.WriteLine("[Agent HTTP Server] Stopped.");
         }
     }

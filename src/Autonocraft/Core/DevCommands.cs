@@ -7,6 +7,7 @@ using Autonocraft.Items;
 using Autonocraft.Village;
 using Autonocraft.Domain.Village;
 using Autonocraft.World;
+using Autonocraft.Engine;
 
 namespace Autonocraft.Core
 {
@@ -36,13 +37,14 @@ namespace Autonocraft.Core
                 "slot" => HandleSlot(session, parts),
                 "inv" or "hotbar" => HandleInventory(session),
                 "seed" => $"World seed: {session.Grid.Seed}",
-                "perf" => HandlePerf(session),
+                "perf" => HandlePerf(host),
                 "chunks" => HandleChunks(session),
                 "spawn" => HandleSpawn(session, parts),
                 "animals" => session.Animals.GetCountSummary(),
                 "recipes" => HandleRecipes(session),
                 "unlock" => HandleUnlock(session, parts),
                 "village" => HandleVillage(session),
+                "weather" => HandleWeather(session, parts),
                 "recruit" => HandleRecruit(session),
                 "assign" => HandleAssignJob(session, parts),
                 _ => $"Unknown command: {parts[0]}. Type 'help' for commands."
@@ -71,6 +73,7 @@ namespace Autonocraft.Core
                 "  seed              - show world seed",
                 "  perf              - show performance counters",
                 "  chunks            - show loaded chunk count and player chunk",
+                "  weather [clear|cloudy|rain|thunder] - get or set weather",
                 "  spawn <type> [n]  - spawn animals in front of player",
                 "  animals           - show animal counts",
                 "  recipes           - list unlocked crafting discoveries",
@@ -145,6 +148,7 @@ namespace Autonocraft.Core
 
             session.Player.Position = new Vector3(x, y, z);
             session.Player.Velocity = Vector3.Zero;
+            session.Player.ForceAirborne();
             return $"Teleported to ({x:F1}, {y:F1}, {z:F1})";
         }
 
@@ -166,6 +170,10 @@ namespace Autonocraft.Core
             }
 
             session.Player.Velocity = Vector3.Zero;
+            if (!session.Player.CreativeMode)
+            {
+                session.Player.ForceAirborne();
+            }
             return $"Creative mode: {(session.Player.CreativeMode ? "ON" : "OFF (survival)")}";
         }
 
@@ -275,11 +283,12 @@ namespace Autonocraft.Core
             int cx = (int)MathF.Floor(pos.X) >> 4;
             int cy = (int)MathF.Floor(pos.Y) >> 4;
             int cz = (int)MathF.Floor(pos.Z) >> 4;
-            return $"Active chunks: {session.Grid.ActiveChunkCount} | player chunk: ({cx}, {cy}, {cz}) | seed: {session.Grid.Seed}";
+            return $"Active chunks: {session.Grid.ActiveChunkCount} | stream distance: {session.Grid.StreamRenderDistance} | player chunk: ({cx}, {cy}, {cz}) | seed: {session.Grid.Seed}";
         }
 
-        private static string HandlePerf(GameSession session)
+        private static string HandlePerf(GameHostContext context)
         {
+            var session = context.Session;
             return string.Join("\n", new[]
             {
                 "PERF COUNTERS:",
@@ -297,6 +306,8 @@ namespace Autonocraft.Core
                 $"  FloraDrawCalls: {PerfCounters.FloraDrawCalls}",
                 $"  FloraVertexCount: {PerfCounters.FloraVertexCount}",
                 $"  FloraDrawMs: {PerfCounters.FloraDrawMs:F2}",
+                $"  RenderDistance: {context.Settings.RenderDistance}",
+                $"  StreamRenderDistance: {session.Grid.StreamRenderDistance}",
                 $"  PendingMeshCount: {PerfCounters.PendingMeshCount}",
                 $"  ChunksMeshedThisFrame: {PerfCounters.ChunksMeshedThisFrame}",
                 $"  MeshBuildMs: {PerfCounters.MeshBuildMs:F2}",
@@ -323,6 +334,11 @@ namespace Autonocraft.Core
             if (stack.IsTool())
             {
                 return $"{stack.GetDisplayName()} ({stack.Durability}/{stack.MaxDurability})";
+            }
+
+            if (stack.IsFluidContainer())
+            {
+                return stack.GetDisplayName();
             }
 
             return $"{stack.BlockType} x{stack.Count}";
@@ -372,18 +388,19 @@ namespace Autonocraft.Core
 
         private static string HandleVillage(GameSession session)
         {
-            var village = session.Villages.GetPrimaryVillage();
+            var village = session.Villages.GetActiveVillage(session.Player.Position);
             if (village == null)
             {
                 return "No village. Use 'recruit' after founding (press V in-game).";
             }
 
-            return $"Village '{village.Name}' pop {village.Population}/{village.PopulationCap} tier {village.Tier} happiness {village.Happiness:F2}";
+            return $"Village '{village.Name}' at ({village.AnchorX}, {village.AnchorY}, {village.AnchorZ}) " +
+                   $"pop {village.Population}/{village.PopulationCap} tier {village.Tier} happiness {village.Happiness:F2}";
         }
 
         private static string HandleRecruit(GameSession session)
         {
-            var village = session.Villages.GetPrimaryVillage();
+            var village = session.Villages.GetActiveVillage(session.Player.Position);
             if (village == null)
             {
                 int ax = (int)MathF.Floor(session.Player.Position.X);
@@ -394,7 +411,7 @@ namespace Autonocraft.Core
                 }
             }
 
-            return session.Villages.TryRecruit(village!) ? "Recruited villager." : "Recruit failed (need 4 oak planks, under cap).";
+            return session.Villages.TryRecruit(village!, session.Grid) ? "Recruited villager." : "Recruit failed (need 4 oak planks, under cap).";
         }
 
         private static string HandleAssignJob(GameSession session, string[] parts)
@@ -409,13 +426,45 @@ namespace Autonocraft.Core
                 return "Invalid villager id or job.";
             }
 
-            var village = session.Villages.GetPrimaryVillage();
+            var village = session.Villages.GetActiveVillage(session.Player.Position);
             if (village == null || !session.Villagers.TryGet(vid, out var villager))
             {
                 return "Village or villager not found.";
             }
 
+            session.Villages.SyncCitizensForVillage(village);
             return session.Villages.TryAssignJob(village, villager, job) ? $"Assigned {job}." : "Assign failed.";
+        }
+
+        private static string HandleWeather(GameSession session, string[] parts)
+        {
+            if (parts.Length < 2)
+            {
+                return $"Current weather: {session.Weather.CurrentWeather} (target: {session.Weather.TargetWeather}, progress: {session.Weather.TransitionProgress:F2})";
+            }
+
+            string target = parts[1].ToLowerInvariant();
+            WeatherKind weather;
+            switch (target)
+            {
+                case "clear":
+                    weather = WeatherKind.Clear;
+                    break;
+                case "cloudy":
+                    weather = WeatherKind.Cloudy;
+                    break;
+                case "rain":
+                    weather = WeatherKind.Rain;
+                    break;
+                case "thunder" or "thunderstorm" or "storm":
+                    weather = WeatherKind.Thunderstorm;
+                    break;
+                default:
+                    return "Unknown weather state. Use: clear, cloudy, rain, thunder";
+            }
+
+            session.Weather.ForceWeather(weather);
+            return $"Forced weather to {weather}";
         }
 
         private static string GetTimeLabel(float time)

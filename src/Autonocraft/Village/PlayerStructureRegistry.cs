@@ -44,6 +44,7 @@ namespace Autonocraft.Village
                         new BlockCost(BlockType.Cobblestone, 32),
                         new BlockCost(BlockType.OakPlank, 16)
                     },
+                    HousingProvided = 2,
                     PopulationCapBonus = 2,
                     StorageSlots = 9
                 },
@@ -58,7 +59,8 @@ namespace Autonocraft.Village
                         new BlockCost(BlockType.OakPlank, 24),
                         new BlockCost(BlockType.Cobblestone, 8)
                     },
-                    HousingProvided = 2
+                    HousingProvided = 2,
+                    PopulationCapBonus = 2
                 },
                 new BuildingBlueprint
                 {

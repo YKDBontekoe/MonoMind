@@ -29,6 +29,7 @@ namespace Autonocraft.Core
         public int FallDamageEvents { get; set; }
         public int TimesDrowned { get; set; }
         public int ItemsCrafted { get; set; }
+        public int VillageTutorialStage { get; set; }
 
         public void RecordPlayTime(float deltaTime)
         {
@@ -135,7 +136,8 @@ namespace Autonocraft.Core
                 ToolsBroken = ToolsBroken,
                 FallDamageEvents = FallDamageEvents,
                 TimesDrowned = TimesDrowned,
-                ItemsCrafted = ItemsCrafted
+                ItemsCrafted = ItemsCrafted,
+                VillageTutorialStage = VillageTutorialStage
             };
         }
 
@@ -163,6 +165,7 @@ namespace Autonocraft.Core
                 result.FallDamageEvents += stat.FallDamageEvents;
                 result.TimesDrowned += stat.TimesDrowned;
                 result.ItemsCrafted += stat.ItemsCrafted;
+                result.VillageTutorialStage = Math.Max(result.VillageTutorialStage, stat.VillageTutorialStage);
             }
 
             return result;

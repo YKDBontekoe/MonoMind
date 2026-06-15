@@ -44,32 +44,99 @@ namespace Autonocraft.Village
         public static bool HasCraftableRecipe(VillageStorage storage, bool creative = false)
             => TryFindRecipe(storage, out _, creative);
 
-        public static bool TrySmithWork(VillageStorage storage, bool creative = false)
+        public static bool TrySmithWork(VillageStorage storage, bool creative = false, Action<string>? onCrafted = null, Action<string>? onRepaired = null)
         {
-            if (TryRepairTool(storage, ToolType.Pickaxe, creative))
+            if (TryCraftBasicWoodToolFallback(storage, onCrafted))
             {
                 return true;
             }
 
-            if (TryRepairTool(storage, ToolType.Axe, creative))
+            if (TryRepairTool(storage, ToolType.Pickaxe, creative, onRepaired))
             {
                 return true;
             }
 
-            return TryCraftBest(storage, creative);
+            if (TryRepairTool(storage, ToolType.Axe, creative, onRepaired))
+            {
+                return true;
+            }
+
+            return TryCraftBest(storage, creative, onCrafted);
         }
 
-        public static bool TryCraftBest(VillageStorage storage, bool creative = false)
+        public static bool TryCraftBest(VillageStorage storage, bool creative = false, Action<string>? onCrafted = null)
         {
             if (!TryFindRecipe(storage, out var recipe, creative))
+            {
+                return TryCraftBasicWoodToolFallback(storage, onCrafted);
+            }
+
+            return TryExecute(storage, recipe, creative, onCrafted) ||
+                   TryCraftBasicWoodToolFallback(storage, onCrafted);
+        }
+
+        private static bool TryCraftBasicWoodToolFallback(VillageStorage storage, Action<string>? onCrafted)
+        {
+            if (storage.CountTools(ToolType.Pickaxe) < MinimumToolsPerType &&
+                TryConsumeBasicWoodToolInputs(storage))
+            {
+                return AddFallbackTool(storage, ItemId.WoodPickaxe, onCrafted);
+            }
+
+            if (storage.CountTools(ToolType.Axe) < MinimumToolsPerType &&
+                TryConsumeBasicWoodToolInputs(storage))
+            {
+                return AddFallbackTool(storage, ItemId.WoodAxe, onCrafted);
+            }
+
+            if (storage.CountTools(ToolType.Shovel) < MinimumToolsPerType &&
+                TryConsumeBasicWoodToolInputs(storage))
+            {
+                return AddFallbackTool(storage, ItemId.WoodShovel, onCrafted);
+            }
+
+            return false;
+        }
+
+        private static bool TryConsumeBasicWoodToolInputs(VillageStorage storage)
+        {
+            if (!storage.TryConsumeBlock(BlockType.OakPlank, 2))
             {
                 return false;
             }
 
-            return TryExecute(storage, recipe, creative);
+            if (TryConsumeAnyLog(storage))
+            {
+                return true;
+            }
+
+            storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 2));
+            return false;
         }
 
-        private static bool TryRepairTool(VillageStorage storage, ToolType toolType, bool creative)
+        private static bool TryConsumeAnyLog(VillageStorage storage)
+        {
+            return storage.TryConsumeBlock(BlockType.OakLog, 1) ||
+                   storage.TryConsumeBlock(BlockType.BirchLog, 1) ||
+                   storage.TryConsumeBlock(BlockType.PineLog, 1) ||
+                   storage.TryConsumeBlock(BlockType.WillowLog, 1) ||
+                   storage.TryConsumeBlock(BlockType.PalmLog, 1);
+        }
+
+        private static bool AddFallbackTool(VillageStorage storage, ItemId itemId, Action<string>? onCrafted)
+        {
+            var stack = ToolRegistry.CreateStack(itemId);
+            if (!storage.AddItem(stack))
+            {
+                return false;
+            }
+
+            string outputName = ToolRegistry.TryGet(itemId, out var def) ? def.DisplayName : itemId.ToString();
+            onCrafted?.Invoke(outputName);
+            return true;
+        }
+
+        private static bool TryRepairTool(VillageStorage storage, ToolType toolType, bool creative, Action<string>? onRepaired)
         {
             if (!storage.TryFindDamagedTool(toolType, out int slotIndex))
             {
@@ -83,7 +150,12 @@ namespace Autonocraft.Village
             }
 
             int repairAmount = Math.Max(1, (int)MathF.Ceiling(stack.MaxDurability * RepairFraction));
-            return storage.TryRepairTool(slotIndex, repairAmount);
+            if (storage.TryRepairTool(slotIndex, repairAmount))
+            {
+                onRepaired?.Invoke(stack.GetDisplayName());
+                return true;
+            }
+            return false;
         }
 
         private static bool TryFindRecipe(VillageStorage storage, out CraftRecipe recipe, bool creative)
@@ -123,7 +195,7 @@ namespace Autonocraft.Village
             return false;
         }
 
-        private static bool TryExecute(VillageStorage storage, CraftRecipe recipe, bool creative)
+        private static bool TryExecute(VillageStorage storage, CraftRecipe recipe, bool creative, Action<string>? onCrafted)
         {
             if (!creative)
             {
@@ -153,12 +225,26 @@ namespace Autonocraft.Village
                 }
             }
 
+            string outputName = recipe.IsToolOutput
+                ? (ToolRegistry.TryGet(recipe.OutputItem, out var def) ? def.DisplayName : recipe.OutputItem.ToString())
+                : recipe.Output.ToString();
+
             if (recipe.IsToolOutput)
             {
-                return storage.AddItem(ToolRegistry.CreateStack(recipe.OutputItem));
+                bool success = storage.AddItem(ToolRegistry.CreateStack(recipe.OutputItem));
+                if (success)
+                {
+                    onCrafted?.Invoke(outputName);
+                }
+                return success;
             }
 
-            return storage.AddItem(ItemStack.CreateBlock(recipe.Output, recipe.OutputCount));
+            bool res = storage.AddItem(ItemStack.CreateBlock(recipe.Output, recipe.OutputCount));
+            if (res)
+            {
+                onCrafted?.Invoke(outputName);
+            }
+            return res;
         }
 
         private static bool HasOutputSpace(VillageStorage storage, CraftRecipe recipe)

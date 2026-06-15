@@ -3,6 +3,7 @@ using System.Numerics;
 using Autonocraft.Entities;
 using Autonocraft.Items;
 using Autonocraft.World;
+using Autonocraft.Domain.Core;
 
 namespace Autonocraft.Engine
 {
@@ -14,7 +15,12 @@ namespace Autonocraft.Engine
         Hint,
         Hit,
         Death,
-        Bubble
+        Bubble,
+        DustMote,
+        Firefly,
+        FallingLeaf,
+        RainDrop,
+        SnowFlake
     }
 
     public struct Particle
@@ -37,13 +43,13 @@ namespace Autonocraft.Engine
 
     public sealed class ParticleSystem
     {
-        public const int MaxParticles = 256;
+        public const int MaxParticles = 512;
 
         private readonly Particle[] _particles = new Particle[MaxParticles];
 
         public ReadOnlySpan<Particle> Particles => _particles;
 
-        public void Update(float deltaTime)
+        public void Update(float deltaTime, VoxelWorld world)
         {
             for (int i = 0; i < _particles.Length; i++)
             {
@@ -60,10 +66,31 @@ namespace Autonocraft.Engine
                     continue;
                 }
 
+                if (p.Kind == ParticleKind.SnowFlake)
+                {
+                    p.Velocity.X += MathF.Sin(p.Lifetime * 2.5f) * 0.08f;
+                    p.Velocity.Z += MathF.Cos(p.Lifetime * 2.0f) * 0.08f;
+                }
+
                 p.Velocity += new Vector3(0f, -p.Gravity, 0f) * deltaTime;
                 p.Velocity *= MathF.Pow(1f - p.Drag, deltaTime * 60f);
                 p.Position += p.Velocity * deltaTime;
                 p.Rotation += p.AngularVelocity * deltaTime;
+
+                if (p.Kind == ParticleKind.RainDrop || p.Kind == ParticleKind.SnowFlake)
+                {
+                    int bx = (int)MathF.Floor(p.Position.X);
+                    int by = (int)MathF.Floor(p.Position.Y);
+                    int bz = (int)MathF.Floor(p.Position.Z);
+                    if (by >= 0 && by < 256)
+                    {
+                        var block = world.GetBlock(bx, by, bz);
+                        if (!block.IsTransparent() || block.IsFluid())
+                        {
+                            p.Active = false;
+                        }
+                    }
+                }
             }
         }
 
@@ -522,6 +549,263 @@ namespace Autonocraft.Engine
                 ((float)rng.NextDouble() * 2f - 1f) * radius,
                 ((float)rng.NextDouble() * 2f - 1f) * radius,
                 ((float)rng.NextDouble() * 2f - 1f) * radius);
+        }
+
+        private float _ambientSpawnCooldown;
+        private static readonly Random _ambientRng = new();
+
+        public void UpdateAmbient(float deltaTime, Vector3 playerPos, VoxelWorld world, float timeOfDay, WeatherSystem weather)
+        {
+            if (weather.RainIntensity > 0.01f)
+            {
+                int spawnCount = (int)(weather.RainIntensity * 80f * deltaTime);
+                if (spawnCount < 1 && _ambientRng.NextDouble() < (weather.RainIntensity * 0.8f))
+                {
+                    spawnCount = 1;
+                }
+                for (int i = 0; i < spawnCount; i++)
+                {
+                    SpawnWeatherParticle(playerPos, world, weather.RainIntensity);
+                }
+            }
+
+            _ambientSpawnCooldown -= deltaTime;
+            if (_ambientSpawnCooldown > 0f)
+            {
+                return;
+            }
+
+            _ambientSpawnCooldown = 0.1f;
+
+            var biome = world.SampleBiome((int)playerPos.X, (int)playerPos.Z).Primary;
+            bool isNight = DayNightCycle.IsNight(timeOfDay);
+            bool isDay = DayNightCycle.IsBroadDaytime(timeOfDay);
+
+            int px = (int)MathF.Floor(playerPos.X);
+            int py = (int)MathF.Floor(playerPos.Y);
+            int pz = (int)MathF.Floor(playerPos.Z);
+
+            bool isOutdoors = true;
+            int airCount = 0;
+            for (int dy = 1; dy <= 12; dy++)
+            {
+                var block = world.GetBlock(px, py + dy, pz);
+                if (block.IsTransparent() && !block.IsFluid())
+                {
+                    airCount++;
+                }
+            }
+            isOutdoors = airCount >= 8;
+
+            if (!isOutdoors)
+            {
+                if (_ambientRng.NextDouble() < 0.15f)
+                {
+                    SpawnDustMote(playerPos);
+                }
+                return;
+            }
+
+            if (isNight && (biome == BiomeType.Swamp || biome == BiomeType.Forest || biome == BiomeType.Plains))
+            {
+                float chance = biome == BiomeType.Swamp ? 0.85f : 0.25f;
+                if (_ambientRng.NextDouble() < chance)
+                {
+                    SpawnFirefly(playerPos);
+                }
+            }
+
+            if (isDay && (biome == BiomeType.Plains || biome == BiomeType.Forest || biome == BiomeType.Desert))
+            {
+                float chance = biome == BiomeType.Desert ? 0.45f : 0.2f;
+                if (_ambientRng.NextDouble() < chance)
+                {
+                    SpawnDustMote(playerPos);
+                }
+            }
+
+            if (_ambientRng.NextDouble() < 0.5f)
+            {
+                int minX = px - 8;
+                int maxX = px + 8;
+                int minY = Math.Max(0, py - 4);
+                int maxY = Math.Min(190, py + 8);
+                int minZ = pz - 8;
+                int maxZ = pz + 8;
+
+                int rx = _ambientRng.Next(minX, maxX + 1);
+                int ry = _ambientRng.Next(minY, maxY + 1);
+                int rz = _ambientRng.Next(minZ, maxZ + 1);
+
+                var blockType = world.GetBlock(rx, ry, rz);
+                if (blockType == BlockType.OakLeaves || blockType == BlockType.BirchLeaves ||
+                    blockType == BlockType.PineLeaves || blockType == BlockType.WillowLeaves ||
+                    blockType == BlockType.PalmLeaves)
+                {
+                    if (world.GetBlock(rx, ry - 1, rz).IsTransparent())
+                    {
+                        SpawnFallingLeaf(new Vector3(rx + (float)_ambientRng.NextDouble(), ry - 0.1f, rz + (float)_ambientRng.NextDouble()), blockType);
+                    }
+                }
+            }
+        }
+
+        private void SpawnWeatherParticle(Vector3 playerPos, VoxelWorld world, float intensity)
+        {
+            if (!TryAllocate(out int slot)) return;
+
+            float rx = playerPos.X + ((float)_ambientRng.NextDouble() * 2f - 1f) * 20f;
+            float rz = playerPos.Z + ((float)_ambientRng.NextDouble() * 2f - 1f) * 20f;
+            float ry = playerPos.Y + 14f;
+
+            var biome = world.SampleBiome((int)rx, (int)rz).Primary;
+            bool isSnowy = biome == BiomeType.SnowyPeaks || biome == BiomeType.Mountains;
+
+            if (isSnowy)
+            {
+                _particles[slot] = new Particle
+                {
+                    Position = new Vector3(rx, ry, rz),
+                    Velocity = new Vector3(
+                        ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.8f,
+                        -1.8f - (float)_ambientRng.NextDouble() * 1.2f,
+                        ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.8f
+                    ),
+                    Lifetime = 8.0f,
+                    MaxLifetime = 8.0f,
+                    Size = 0.03f + (float)_ambientRng.NextDouble() * 0.03f,
+                    Rotation = (float)_ambientRng.NextDouble() * MathF.PI * 2f,
+                    AngularVelocity = ((float)_ambientRng.NextDouble() * 2f - 1f) * 2f,
+                    Gravity = 0f,
+                    Drag = 0.01f,
+                    Color = new Vector3(0.95f, 0.95f, 0.98f),
+                    Kind = ParticleKind.SnowFlake,
+                    Active = true
+                };
+            }
+            else
+            {
+                _particles[slot] = new Particle
+                {
+                    Position = new Vector3(rx, ry, rz),
+                    Velocity = new Vector3(
+                        ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.2f,
+                        -16.0f - (float)_ambientRng.NextDouble() * 4.0f,
+                        ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.2f
+                    ),
+                    Lifetime = 1.2f,
+                    MaxLifetime = 1.2f,
+                    Size = 0.04f + (float)_ambientRng.NextDouble() * 0.02f,
+                    Rotation = 0f,
+                    AngularVelocity = 0f,
+                    Gravity = 0f,
+                    Drag = 0f,
+                    Color = new Vector3(0.5f, 0.58f, 0.72f),
+                    Kind = ParticleKind.RainDrop,
+                    Active = true
+                };
+            }
+        }
+
+        private void SpawnDustMote(Vector3 center)
+        {
+            if (!TryAllocate(out int slot)) return;
+
+            var offset = new Vector3(
+                ((float)_ambientRng.NextDouble() * 2f - 1f) * 16f,
+                ((float)_ambientRng.NextDouble() * 2f - 1f) * 6f,
+                ((float)_ambientRng.NextDouble() * 2f - 1f) * 16f
+            );
+
+            _particles[slot] = new Particle
+            {
+                Position = center + offset,
+                Velocity = new Vector3(
+                    ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.12f,
+                    -0.08f - (float)_ambientRng.NextDouble() * 0.12f,
+                    ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.12f
+                ),
+                Lifetime = 3.5f + (float)_ambientRng.NextDouble() * 2.0f,
+                Size = 0.015f + (float)_ambientRng.NextDouble() * 0.015f,
+                Rotation = (float)_ambientRng.NextDouble() * MathF.PI * 2f,
+                AngularVelocity = ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.5f,
+                Gravity = 0f,
+                Drag = 0.02f,
+                Color = new Vector3(0.95f, 0.92f, 0.85f),
+                Kind = ParticleKind.DustMote,
+                Active = true
+            };
+            _particles[slot].MaxLifetime = _particles[slot].Lifetime;
+        }
+
+        private void SpawnFirefly(Vector3 center)
+        {
+            if (!TryAllocate(out int slot)) return;
+
+            var offset = new Vector3(
+                ((float)_ambientRng.NextDouble() * 2f - 1f) * 14f,
+                ((float)_ambientRng.NextDouble() * 2f - 1f) * 4f,
+                ((float)_ambientRng.NextDouble() * 2f - 1f) * 14f
+            );
+
+            _particles[slot] = new Particle
+            {
+                Position = center + offset,
+                Velocity = new Vector3(
+                    ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.25f,
+                    ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.15f,
+                    ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.25f
+                ),
+                Lifetime = 4f + (float)_ambientRng.NextDouble() * 3.0f,
+                Size = 0.02f + (float)_ambientRng.NextDouble() * 0.015f,
+                Rotation = 0f,
+                AngularVelocity = 0f,
+                Gravity = -0.01f,
+                Drag = 0.01f,
+                Color = new Vector3(0.55f, 0.95f, 0.12f),
+                Kind = ParticleKind.Firefly,
+                Active = true
+            };
+            _particles[slot].MaxLifetime = _particles[slot].Lifetime;
+        }
+
+        private void SpawnFallingLeaf(Vector3 spawnPos, BlockType leafBlockType)
+        {
+            if (!TryAllocate(out int slot)) return;
+
+            Vector3 color = leafBlockType switch
+            {
+                BlockType.PineLeaves => new Vector3(0.12f, 0.35f, 0.18f),
+                BlockType.BirchLeaves => new Vector3(0.48f, 0.68f, 0.18f),
+                BlockType.WillowLeaves => new Vector3(0.35f, 0.48f, 0.24f),
+                BlockType.PalmLeaves => new Vector3(0.24f, 0.75f, 0.28f),
+                _ => new Vector3(0.24f, 0.52f, 0.15f)
+            };
+
+            color.X += ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.04f;
+            color.Y += ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.04f;
+            color.Z += ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.04f;
+            color = Vector3.Clamp(color, Vector3.Zero, Vector3.One);
+
+            _particles[slot] = new Particle
+            {
+                Position = spawnPos,
+                Velocity = new Vector3(
+                    ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.45f,
+                    -0.6f - (float)_ambientRng.NextDouble() * 0.4f,
+                    ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.45f
+                ),
+                Lifetime = 3f + (float)_ambientRng.NextDouble() * 2f,
+                Size = 0.04f + (float)_ambientRng.NextDouble() * 0.02f,
+                Rotation = (float)_ambientRng.NextDouble() * MathF.PI * 2f,
+                AngularVelocity = ((float)_ambientRng.NextDouble() * 2f - 1f) * 4f,
+                Gravity = 1.2f,
+                Drag = 0.08f,
+                Color = color,
+                Kind = ParticleKind.FallingLeaf,
+                Active = true
+            };
+            _particles[slot].MaxLifetime = _particles[slot].Lifetime;
         }
     }
 }

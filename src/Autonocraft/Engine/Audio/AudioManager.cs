@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Autonocraft.Core;
 using Autonocraft.Domain.World;
+using Autonocraft.Domain.Core;
 using Autonocraft.World;
 using Microsoft.Xna.Framework.Audio;
 
@@ -28,8 +29,16 @@ namespace Autonocraft.Engine.Audio
         private bool _ducked;
         private float _waterTarget;
         private float _windTarget;
+        private float _forestTarget;
+        private float _swampTarget;
+        private float _desertTarget;
+        private float _caveTarget;
         private float _waterVolume;
         private float _windVolume;
+        private float _forestVolume;
+        private float _swampVolume;
+        private float _desertVolume;
+        private float _caveVolume;
 
         public bool Enabled => _enabled;
 
@@ -192,7 +201,7 @@ namespace Autonocraft.Engine.Audio
             _ducked = ducked;
         }
 
-        public void Update(float deltaTime, GameState gameState, VoxelWorld? world, Player? player)
+        public void Update(float deltaTime, GameState gameState, VoxelWorld? world, Player? player, float timeOfDay = 0.5f)
         {
             if (!_enabled)
             {
@@ -201,7 +210,7 @@ namespace Autonocraft.Engine.Audio
 
             ApplyMasterVolumes();
             UpdateMusicCrossfade(deltaTime);
-            UpdateAmbient(gameState, world, player, deltaTime);
+            UpdateAmbient(gameState, world, player, deltaTime, timeOfDay);
         }
 
         private void UpdateMusicCrossfade(float deltaTime)
@@ -250,28 +259,71 @@ namespace Autonocraft.Engine.Audio
             }
         }
 
-        private void UpdateAmbient(GameState gameState, VoxelWorld? world, Player? player, float deltaTime)
+        private void UpdateAmbient(GameState gameState, VoxelWorld? world, Player? player, float deltaTime, float timeOfDay)
         {
             float duck = _ducked ? DuckMultiplier : 1f;
             bool playing = gameState == GameState.Playing && world != null && player != null;
 
             if (playing)
             {
-                _waterTarget = player!.InWater || IsWaterNearby(world!, player.Position) ? 1f : 0f;
-                _windTarget = IsOutdoors(world!, player.Position) ? 0.7f : 0.15f;
+                var pos = player!.Position;
+                var biome = world!.SampleBiome((int)pos.X, (int)pos.Z).Primary;
+                bool isOutdoors = IsOutdoors(world, pos);
+                bool isUnderground = pos.Y < WorldConstants.SeaLevel - 5 && !isOutdoors;
+                bool isDay = DayNightCycle.IsBroadDaytime(timeOfDay);
+
+                _waterTarget = player.InWater || IsWaterNearby(world, pos) ? 1f : 0f;
+                _caveTarget = isUnderground ? 1f : 0f;
+
+                if (isUnderground)
+                {
+                    _windTarget = 0.05f;
+                    _forestTarget = 0f;
+                    _swampTarget = 0f;
+                    _desertTarget = 0f;
+                }
+                else
+                {
+                    _windTarget = isOutdoors ? 0.7f : 0.15f;
+
+                    if (isOutdoors)
+                    {
+                        _forestTarget = (biome == BiomeType.Forest || biome == BiomeType.Plains) && isDay ? 0.75f : 0f;
+                        _swampTarget = biome == BiomeType.Swamp ? 0.75f : 0f;
+                        _desertTarget = biome == BiomeType.Desert ? 0.75f : 0f;
+                    }
+                    else
+                    {
+                        _forestTarget = 0f;
+                        _swampTarget = 0f;
+                        _desertTarget = 0f;
+                    }
+                }
             }
             else
             {
                 _waterTarget = 0f;
+                _caveTarget = 0f;
+                _forestTarget = 0f;
+                _swampTarget = 0f;
+                _desertTarget = 0f;
                 _windTarget = gameState == GameState.MainMenu || gameState == GameState.NewWorldSetup ? 0.25f : 0f;
             }
 
             float fadeSpeed = 2.5f * deltaTime;
             _waterVolume = MoveToward(_waterVolume, _waterTarget, fadeSpeed);
             _windVolume = MoveToward(_windVolume, _windTarget, fadeSpeed);
+            _forestVolume = MoveToward(_forestVolume, _forestTarget, fadeSpeed);
+            _swampVolume = MoveToward(_swampVolume, _swampTarget, fadeSpeed);
+            _desertVolume = MoveToward(_desertVolume, _desertTarget, fadeSpeed);
+            _caveVolume = MoveToward(_caveVolume, _caveTarget, fadeSpeed);
 
             SetAmbientVolume(AmbientKind.Water, _waterVolume * AmbientVolume * MasterVolume * duck);
             SetAmbientVolume(AmbientKind.Wind, _windVolume * AmbientVolume * MasterVolume * duck);
+            SetAmbientVolume(AmbientKind.Forest, _forestVolume * AmbientVolume * MasterVolume * duck);
+            SetAmbientVolume(AmbientKind.Swamp, _swampVolume * AmbientVolume * MasterVolume * duck);
+            SetAmbientVolume(AmbientKind.Desert, _desertVolume * AmbientVolume * MasterVolume * duck);
+            SetAmbientVolume(AmbientKind.Cave, _caveVolume * AmbientVolume * MasterVolume * duck);
         }
 
         private bool IsWaterNearby(VoxelWorld world, System.Numerics.Vector3 position)

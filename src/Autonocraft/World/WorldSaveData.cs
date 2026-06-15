@@ -79,6 +79,7 @@ namespace Autonocraft.World
         public int FallDamageEvents { get; set; }
         public int TimesDrowned { get; set; }
         public int ItemsCrafted { get; set; }
+        public int VillageTutorialStage { get; set; }
     }
 
     public sealed class InventorySlotSaveData
@@ -124,6 +125,7 @@ namespace Autonocraft.World
         public int AnchorZ { get; set; }
         public int Tier { get; set; }
         public float FoodStock { get; set; }
+        public int ConsecutiveDaysWithoutFood { get; set; }
         public float Happiness { get; set; } = 1f;
         public float Radius { get; set; } = 32f;
         public int StorageSlots { get; set; } = 9;
@@ -208,6 +210,9 @@ namespace Autonocraft.World
         public float PosY { get; set; }
         public float PosZ { get; set; }
         public float Happiness { get; set; } = 1f;
+        public float NeedFood { get; set; } = 1f;
+        public float NeedRest { get; set; } = 1f;
+        public float NeedSocial { get; set; } = 1f;
         public string Trait { get; set; } = string.Empty;
         public int MiningLevel { get; set; } = 1;
         public float MiningXp { get; set; }

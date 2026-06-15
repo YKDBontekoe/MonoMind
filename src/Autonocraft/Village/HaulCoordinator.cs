@@ -15,9 +15,9 @@ namespace Autonocraft.Village
 
         public void TryAssignHaulers(Village village)
         {
-            foreach (var villagerId in village.VillagerIds)
+            foreach (var hauler in VillageSettlementHealth.EnumerateLiveCitizens(village, _villagers))
             {
-                if (!_villagers.TryGet(villagerId, out var hauler) || hauler.CurrentJob != JobType.Idle)
+                if (hauler.CurrentJob != JobType.Idle)
                 {
                     continue;
                 }
@@ -74,13 +74,8 @@ namespace Autonocraft.Village
                 return true;
             }
 
-            foreach (var villagerId in village.VillagerIds)
+            foreach (var worker in VillageSettlementHealth.EnumerateLiveCitizens(village, _villagers))
             {
-                if (!_villagers.TryGet(villagerId, out var worker))
-                {
-                    continue;
-                }
-
                 if (excludeVillagerId.HasValue && worker.Id == excludeVillagerId.Value)
                 {
                     continue;

@@ -54,51 +54,116 @@ namespace Autonocraft.Village
             village.Storage.AddItem(ToolRegistry.CreateStack(ToolType.Pickaxe, ToolTier.Wood));
             village.FoodStock = 6f;
 
-            var spawnPos = village.Center + new Vector3(-2.5f, 0f, 0.5f);
-            var lumberjack = _villagers.Spawn(village.Id, spawnPos, _worldSeed ^ 1);
-            lumberjack.Role = VillagerRole.Lumberjack;
-            village.RegisterVillager(lumberjack.Id);
-
-            var peasant = _villagers.Spawn(village.Id, spawnPos + new Vector3(1.5f, 0f, 1f), _worldSeed ^ 2);
-            peasant.Role = VillagerRole.Hauler;
-            village.RegisterVillager(peasant.Id);
-
-            var gatherTarget = JobTargetScanner.FindNearbyLumberTarget(world, village, null, spawnPos);
-            if (gatherTarget.HasValue)
-            {
-                dispatcher.TryAssignJob(village, lumberjack, JobType.Lumber, gatherTarget);
-            }
+            VillageSettlementHealth.EnsureVillageChunksLoaded(world, village);
+            SpawnStarterCitizens(village, world, dispatcher);
 
             RecordClaimedAnchor(heartX, heartZ);
             ShowToast?.Invoke($"Welcome to {villageName}! Press V for the town board.");
             return (nearX, nearZ);
         }
 
-        public bool TryFoundVillage(List<Village> villages, VoxelWorld world, string name, int anchorX, int anchorZ, out Village? village)
+        public int SpawnStarterCitizens(
+            Village village,
+            VoxelWorld world,
+            JobDispatcher dispatcher)
         {
-            village = null;
-            int anchorY = StructureFingerprint.FindSurfaceAnchorY(world, anchorX, anchorZ);
+            if (VillageSettlementHealth.GetLivePopulation(village, _villagers) >= 2)
+            {
+                return VillageSettlementHealth.GetLivePopulation(village, _villagers);
+            }
+
+            int spawned = VillageSettlementHealth.GetLivePopulation(village, _villagers);
+            int seedBase = _worldSeed ^ (village.AnchorX * 92821 + village.AnchorZ);
+
+            if (spawned == 0)
+            {
+                var lumberjackSpawn = VillageSpawnHelper.FindSpawnPosition(world, village, seedBase ^ 1);
+                var lumberjack = _villagers.Spawn(village.Id, lumberjackSpawn, seedBase ^ 1);
+                lumberjack.Role = VillagerRole.Lumberjack;
+                lumberjack.IsGrounded = true;
+                village.RegisterVillager(lumberjack.Id);
+                spawned++;
+
+                var gatherTarget = JobTargetScanner.FindNearbyLumberTarget(world, village, null, lumberjackSpawn);
+                if (gatherTarget.HasValue)
+                {
+                    dispatcher.TryAssignJob(village, lumberjack, JobType.Lumber, gatherTarget);
+                }
+            }
+
+            if (spawned < 2)
+            {
+                var peasantSpawn = VillageSpawnHelper.FindSpawnPosition(world, village, seedBase ^ 2);
+                var peasant = _villagers.Spawn(village.Id, peasantSpawn, seedBase ^ 2);
+                peasant.Role = VillagerRole.Hauler;
+                peasant.IsGrounded = true;
+                village.RegisterVillager(peasant.Id);
+                spawned++;
+            }
+
+            return spawned;
+        }
+
+        public bool CanPlaceTownHeart(
+            VoxelWorld world,
+            int anchorX,
+            int anchorY,
+            int anchorZ,
+            IItemContainer payer,
+            bool creative)
+        {
             if (!PlayerStructureRegistry.TryGet("town_heart", out var blueprint))
             {
                 return false;
             }
 
-            foreach (var block in blueprint.Template.Blocks)
+            if (!creative && !blueprint.CanAfford(payer))
             {
-                int wx = anchorX + block.Dx;
-                int wy = anchorY + block.Dy;
-                int wz = anchorZ + block.Dz;
-                if (world.GetBlock(wx, wy, wz) != BlockType.Air)
-                {
-                    ShowToast?.Invoke("Not enough space for Town Heart.");
-                    return false;
-                }
+                return false;
             }
 
-            village = new Village(name, anchorX, anchorY, anchorZ, blueprint.StorageSlots);
+            return BlueprintPlacementHelper.HasClearFootprint(world, blueprint, anchorX, anchorY, anchorZ);
+        }
+
+        public bool TryFoundVillage(
+            List<Village> villages,
+            VoxelWorld world,
+            string name,
+            int anchorX,
+            int anchorZ,
+            out Village? village,
+            int anchorY = -1)
+        {
+            village = null;
+            if (!PlayerStructureRegistry.TryGet("town_heart", out var blueprint))
+            {
+                return false;
+            }
+
+            int resolvedY = anchorY >= 0
+                ? anchorY
+                : StructureFingerprint.FindSurfaceAnchorY(world, anchorX, anchorZ);
+
+            if (!BlueprintPlacementHelper.HasClearFootprint(world, blueprint, anchorX, resolvedY, anchorZ))
+            {
+                ShowToast?.Invoke("Not enough space for Town Heart.");
+                return false;
+            }
+
+            village = new Village(name, anchorX, resolvedY, anchorZ, blueprint.StorageSlots);
             villages.Add(village);
-            village.QueueBuild(blueprint, anchorX, anchorY, anchorZ);
-            ShowToast?.Invoke($"Founded '{name}'. Open BUILDINGS tab — builders will finish the Town Heart.");
+            village.QueueBuild(blueprint, anchorX, resolvedY, anchorZ);
+            village.FoodStock = 3f;
+            village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 8));
+
+            VillageSettlementHealth.EnsureVillageChunksLoaded(world, village);
+            var spawn = VillageSpawnHelper.FindSpawnPosition(world, village, _worldSeed ^ (anchorX * 92821 + anchorZ));
+            var founder = _villagers.Spawn(village.Id, spawn, _worldSeed ^ (anchorX * 92821 + anchorZ));
+            founder.Role = VillagerRole.Peasant;
+            founder.IsGrounded = true;
+            village.RegisterVillager(founder.Id);
+
+            ShowToast?.Invoke($"Founded '{name}'. Your settler will build the Town Heart — recruit more on the Overview tab.");
             return true;
         }
 
@@ -188,9 +253,11 @@ namespace Autonocraft.Village
             village.FoodStock = 3f;
             village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 8));
 
-            var spawn = village.Center + new Vector3(0.5f, 0f, 0.5f);
+            VillageSettlementHealth.EnsureVillageChunksLoaded(world, village);
+            var spawn = VillageSpawnHelper.FindSpawnPosition(world, village, _worldSeed ^ (anchorX * 92821 + anchorZ));
             var villager = _villagers.Spawn(village.Id, spawn, _worldSeed ^ (anchorX * 92821 + anchorZ));
             villager.Role = VillagerRole.Peasant;
+            villager.IsGrounded = true;
             village.RegisterVillager(villager.Id);
 
             RecordClaimedAnchor(anchorX, anchorZ);

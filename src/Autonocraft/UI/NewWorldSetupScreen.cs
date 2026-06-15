@@ -201,15 +201,15 @@ namespace Autonocraft.UI
 
             _backdrop.Draw(_ui, viewport, alpha);
 
-            _ui.DrawCenteredTitle("FOUND SETTLEMENT", layout.Height * 0.085f + offsetY, layout.S(2.4f), new Color(0.82f, 0.92f, 1.0f), alpha);
+            _ui.DrawCenteredTitle("FOUND SETTLEMENT", layout.Height * 0.085f + offsetY, layout.S(2.4f), UiTheme.Title, alpha);
 
-            _ui.DrawFramedPanel(panelX, panelY, panelW, panelH, new Color(0.04f, 0.06f, 0.09f) * 0.94f, new Color(0.2f, 0.45f, 0.65f), alpha);
-            _ui.DrawCenteredText("WORLD SETUP", panelY + layout.S(20f), layout.S(1.55f), new Color(0.75f, 0.86f, 0.96f), alpha);
-            _ui.DrawCenteredText("CHOOSE TERRAIN — YOUR STEWARD AWAITS", panelY + layout.S(48f), layout.S(1.05f), new Color(0.48f, 0.56f, 0.66f), alpha);
+            _ui.DrawFramedPanel(panelX, panelY, panelW, panelH, UiTheme.PanelBgMuted * 0.94f, UiTheme.PanelBorder, alpha);
+            _ui.DrawCenteredText("WORLD SETUP", panelY + layout.S(20f), layout.S(UiTheme.ScaleTitle), UiTheme.Title, alpha);
+            _ui.DrawCenteredText("CHOOSE TERRAIN — YOUR STEWARD AWAITS", panelY + layout.S(48f), layout.S(UiTheme.ScaleNormal), UiTheme.Subtitle, alpha);
 
             float typeY = panelY + layout.S(108f);
             float typeListX = cx - layout.S(200f);
-            _ui.DrawString("TERRAIN TYPE", typeListX, typeY - layout.S(26f), layout.S(1.1f), new Color(0.55f, 0.68f, 0.78f), alpha);
+            _ui.DrawString("TERRAIN TYPE", typeListX, typeY - layout.S(26f), layout.S(UiTheme.ScaleSection), UiTheme.Section, alpha);
 
             for (int i = 0; i < WorldTypes.Length; i++)
             {
@@ -217,37 +217,37 @@ namespace Autonocraft.UI
                 float rowY = typeY + i * layout.S(30f);
                 if (selected)
                 {
-                    _ui.DrawSoftGlow(typeListX - layout.S(4f), rowY - layout.S(2f), layout.S(400f), layout.S(26f), new Color(0.15f, 0.55f, 0.9f), alpha * 0.25f, 2);
-                    _ui.DrawPanel(typeListX - layout.S(4f), rowY - layout.S(2f), layout.S(400f), layout.S(26f), new Color(0.08f, 0.14f, 0.22f) * 0.9f, new Color(0.2f, 0.55f, 0.85f), 0.8f, alpha);
+                    _ui.DrawSoftGlow(typeListX - layout.S(4f), rowY - layout.S(2f), layout.S(400f), layout.S(26f), UiTheme.AccentGlow, alpha * 0.25f, 2);
+                    _ui.DrawPanel(typeListX - layout.S(4f), rowY - layout.S(2f), layout.S(400f), layout.S(26f), UiTheme.PanelBgHighlight * 0.9f, UiTheme.Accent, 0.8f, alpha);
                 }
 
-                Color color = selected ? new Color(0.88f, 0.94f, 1.0f) : new Color(0.42f, 0.5f, 0.58f);
+                Color color = selected ? UiTheme.Title : UiTheme.Meta;
                 string prefix = selected ? "> " : "  ";
                 string label = prefix + FormatWorldType(WorldTypes[i]);
-                _ui.DrawString(label, typeListX, rowY + layout.S(4f), layout.S(1.12f), color, alpha);
+                _ui.DrawString(label, typeListX, rowY + layout.S(4f), layout.S(UiTheme.ScaleNormal), color, alpha);
             }
 
             float seedY = typeY + layout.S(108f);
-            _ui.DrawString("WORLD SEED", typeListX, seedY - layout.S(26f), layout.S(1.1f), new Color(0.55f, 0.68f, 0.78f), alpha);
+            _ui.DrawString("WORLD SEED", typeListX, seedY - layout.S(26f), layout.S(UiTheme.ScaleSection), UiTheme.Section, alpha);
             _ui.DrawPanel(
                 cx - layout.S(130f),
                 seedY,
                 layout.S(260f),
                 layout.S(34f),
-                _seedFocused ? new Color(0.1f, 0.16f, 0.24f) : new Color(0.05f, 0.07f, 0.1f),
-                _seedFocused ? new Color(0.2f, 0.6f, 0.9f) : new Color(0.18f, 0.28f, 0.38f),
+                _seedFocused ? UiTheme.PanelBgHighlight * alpha : UiTheme.PanelBgMuted * alpha,
+                _seedFocused ? UiTheme.Accent : UiTheme.Rule,
                 0.85f,
                 alpha);
-            _ui.DrawString(_seedText, cx - layout.S(120f), seedY + layout.S(9f), layout.S(1.2f), new Color(0.88f, 0.94f, 1.0f), alpha);
+            _ui.DrawString(_seedText, cx - layout.S(120f), seedY + layout.S(9f), layout.S(UiTheme.ScaleNormal), UiTheme.Title, alpha);
 
             float randomY = seedY + layout.S(40f);
-            DrawButton(cx + layout.S(100f), randomY, layout.S(120f), layout.S(30f), "RANDOM", 2, layout.S(1.0f), alpha);
+            DrawButton(cx + layout.S(100f), randomY, layout.S(120f), layout.S(30f), "RANDOM", 2, layout.S(UiTheme.ScaleNormal), alpha);
 
             float createY = seedY + layout.S(86f);
-            DrawButton(cx - buttonW / 2f - layout.S(6f), createY, buttonW, buttonH, "CREATE", 0, layout.S(1.3f), alpha, accent: true);
-            DrawButton(cx + buttonW / 2f + layout.S(6f), createY, buttonW, buttonH, "BACK", 1, layout.S(1.3f), alpha);
+            DrawButton(cx - buttonW / 2f - layout.S(6f), createY, buttonW, buttonH, "CREATE", 0, layout.S(UiTheme.ScaleTitle), alpha, accent: true);
+            DrawButton(cx + buttonW / 2f + layout.S(6f), createY, buttonW, buttonH, "BACK", 1, layout.S(UiTheme.ScaleTitle), alpha);
 
-            _ui.DrawCenteredText("LEFT/RIGHT CHANGE TERRAIN", layout.Height - layout.S(32f) + offsetY, layout.S(0.95f), new Color(0.38f, 0.44f, 0.52f), 0.85f * alpha);
+            _ui.DrawCenteredText("LEFT/RIGHT CHANGE TERRAIN", layout.Height - layout.S(32f) + offsetY, layout.S(UiTheme.ScaleNormal), UiTheme.Hint, 0.85f * alpha);
         }
 
         private void DrawButton(float x, float y, float width, float height, string label, int index, float textPixelSize, float alpha, bool accent = false)

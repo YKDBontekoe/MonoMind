@@ -13,9 +13,30 @@ namespace Autonocraft.Village
         private bool _wasHamlet = true;
         private bool _wasVillage;
         private bool _wasTown;
+        private DateTime _lastWorkshopCraftTime = DateTime.MinValue;
 
         public void OnRecruit(Villager villager) =>
             Notify($"{villager.Name} joined the settlement!", "recruit");
+
+        public void OnWorkshopCraft(string itemName)
+        {
+            if ((DateTime.UtcNow - _lastWorkshopCraftTime).TotalSeconds < 10.0)
+            {
+                return;
+            }
+            _lastWorkshopCraftTime = DateTime.UtcNow;
+            Notify($"Workshop crafted: {itemName}", "goal");
+        }
+
+        public void OnWorkshopRepair(string toolName)
+        {
+            if ((DateTime.UtcNow - _lastWorkshopCraftTime).TotalSeconds < 10.0)
+            {
+                return;
+            }
+            _lastWorkshopCraftTime = DateTime.UtcNow;
+            Notify($"Workshop repaired: {toolName}", "build");
+        }
 
         public void OnBuildingCompleted(string buildingName) =>
             Notify($"{buildingName} completed!", "build");
@@ -73,9 +94,9 @@ namespace Autonocraft.Village
         public void MorningDigest(Village village, VillagerManager villagers, int buildsYesterday, float foodDelta)
         {
             int idle = 0;
-            foreach (int id in village.VillagerIds)
+            foreach (var villager in VillageSettlementHealth.EnumerateLiveCitizens(village, villagers))
             {
-                if (villagers.TryGet(id, out var v) && v.CurrentJob == JobType.Idle)
+                if (villager.CurrentJob == JobType.Idle)
                 {
                     idle++;
                 }

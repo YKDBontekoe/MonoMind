@@ -9,6 +9,12 @@ namespace Autonocraft.Village
         private readonly Dictionary<BlockType, int> _demand = new();
         private readonly Dictionary<BlockType, int> _supply = new();
 
+        public void Clear()
+        {
+            _demand.Clear();
+            _supply.Clear();
+        }
+
         public void RecordDemand(BlockType blockType, int amount = 1)
         {
             _demand.TryGetValue(blockType, out int current);

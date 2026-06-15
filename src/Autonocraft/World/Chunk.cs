@@ -27,15 +27,28 @@ namespace Autonocraft.World
         // Cached highest/lowest solid Y per column (lx + lz * Width). -1 = no solid block.
         private readonly short[] _columnHighestSolid = new short[Width * Depth];
         private readonly short[] _columnLowestSolid = new short[Width * Depth];
+        // Mesh extent includes alpha-cutout blocks (e.g. tree leaves above trunks).
+        private readonly short[] _columnHighestMesh = new short[Width * Depth];
+        private readonly short[] _columnLowestMesh = new short[Width * Depth];
         private bool _columnHeightsBuilt;
 
         private VertexBuffer? _fullVertexBuffer;
         private IndexBuffer? _fullIndexBuffer;
         private int _fullIndexCount;
 
+        private VertexBuffer? _fullWaterVertexBuffer;
+        private IndexBuffer? _fullWaterIndexBuffer;
+        private int _fullWaterIndexCount;
+        private Vertex[]? _fullWaterVertices;
+
         private VertexBuffer? _surfaceVertexBuffer;
         private IndexBuffer? _surfaceIndexBuffer;
         private int _surfaceIndexCount;
+
+        private VertexBuffer? _surfaceWaterVertexBuffer;
+        private IndexBuffer? _surfaceWaterIndexBuffer;
+        private int _surfaceWaterIndexCount;
+        private Vertex[]? _surfaceWaterVertices;
 
         private VertexBuffer? _shellVertexBuffer;
         private IndexBuffer? _shellIndexBuffer;
@@ -44,9 +57,6 @@ namespace Autonocraft.World
         private FloraVertex[]? _floraVertices;
         private uint[]? _floraIndices;
         private int _floraIndexCount;
-        private IndexBuffer? _floraIndexBuffer;
-        private DynamicVertexBuffer? _floraVertexBuffer;
-        private int _floraGpuVertexCapacity;
 
         private bool _fullMeshBuilt;
         private bool _surfaceMeshBuilt;
@@ -72,21 +82,42 @@ namespace Autonocraft.World
         {
             public readonly Vertex[] Vertices;
             public readonly uint[] Indices;
+            public readonly Vertex[] WaterVertices;
+            public readonly uint[] WaterIndices;
             public readonly ChunkMeshDetail Detail;
             public readonly bool BuildFlora;
             public readonly FloraVertex[]? FloraVertices;
             public readonly uint[]? FloraIndices;
 
-            public PrebuiltMeshData(Vertex[] v, uint[] i, ChunkMeshDetail detail, bool buildFlora,
+            public PrebuiltMeshData(Vertex[] v, uint[] i, Vertex[] wv, uint[] wi, ChunkMeshDetail detail, bool buildFlora,
                 FloraVertex[]? fv = null, uint[]? fi = null)
             {
-                Vertices = v; Indices = i; Detail = detail; BuildFlora = buildFlora;
+                Vertices = v; Indices = i; WaterVertices = wv; WaterIndices = wi; Detail = detail; BuildFlora = buildFlora;
                 FloraVertices = fv; FloraIndices = fi;
             }
         }
 
         public bool HasWaterBlocks => _hasWaterBlocks;
         public bool HasAlphaCutoutBlocks => _hasAlphaCutoutBlocks;
+
+        public Vertex[]? GetWaterVertices(ChunkMeshDetail detail)
+        {
+            return detail switch
+            {
+                ChunkMeshDetail.Surface => _surfaceWaterVertices,
+                _ => _fullWaterVertices
+            };
+        }
+
+        public (VertexBuffer? vertexBuffer, IndexBuffer? indexBuffer, int indexCount) GetWaterMesh(ChunkMeshDetail detail)
+        {
+            return detail switch
+            {
+                ChunkMeshDetail.Surface => (_surfaceWaterVertexBuffer, _surfaceWaterIndexBuffer, _surfaceWaterIndexCount),
+                ChunkMeshDetail.Shell => (null, null, 0),
+                _ => (_fullWaterVertexBuffer, _fullWaterIndexBuffer, _fullWaterIndexCount)
+            };
+        }
 
         public VertexBuffer? VertexBuffer => _fullVertexBuffer;
         public IndexBuffer? IndexBuffer => _fullIndexBuffer;
@@ -103,6 +134,8 @@ namespace Autonocraft.World
             _blocks = new BlockType[Width * Height * Depth];
             Array.Fill(_columnHighestSolid, (short)-1);
             Array.Fill(_columnLowestSolid, (short)-1);
+            Array.Fill(_columnHighestMesh, (short)-1);
+            Array.Fill(_columnLowestMesh, (short)-1);
         }
 
         /// <summary>Rebuilds per-column height cache after terrain generation or bulk edits.</summary>
@@ -112,24 +145,39 @@ namespace Autonocraft.World
             {
                 for (int lx = 0; lx < Width; lx++)
                 {
-                    int lowest = -1;
-                    int highest = -1;
+                    int lowestSolid = -1;
+                    int highestSolid = -1;
+                    int lowestMesh = -1;
+                    int highestMesh = -1;
                     for (int y = 0; y < Height; y++)
                     {
-                        if (_blocks[GetIndex(lx, y, lz)].IsSolidForSpawn())
+                        BlockType type = _blocks[GetIndex(lx, y, lz)];
+                        if (type.IsSolidForSpawn())
                         {
-                            if (lowest < 0)
+                            if (lowestSolid < 0)
                             {
-                                lowest = y;
+                                lowestSolid = y;
                             }
 
-                            highest = y;
+                            highestSolid = y;
+                        }
+
+                        if (type.IsSolidForSpawn() || type.IsAlphaCutout())
+                        {
+                            if (lowestMesh < 0)
+                            {
+                                lowestMesh = y;
+                            }
+
+                            highestMesh = y;
                         }
                     }
 
                     int idx = lz * Width + lx;
-                    _columnLowestSolid[idx] = (short)lowest;
-                    _columnHighestSolid[idx] = (short)highest;
+                    _columnLowestSolid[idx] = (short)lowestSolid;
+                    _columnHighestSolid[idx] = (short)highestSolid;
+                    _columnLowestMesh[idx] = (short)lowestMesh;
+                    _columnHighestMesh[idx] = (short)highestMesh;
                 }
             }
 
@@ -188,15 +236,36 @@ namespace Autonocraft.World
             }
         }
 
+        internal int GetCachedHighestMeshY(int lx, int lz)
+        {
+            if (!_columnHeightsBuilt)
+            {
+                RebuildColumnHeights();
+            }
+
+            return _columnHighestMesh[lz * Width + lx];
+        }
+
+        internal int GetCachedLowestMeshY(int lx, int lz)
+        {
+            if (!_columnHeightsBuilt)
+            {
+                RebuildColumnHeights();
+            }
+
+            return _columnLowestMesh[lz * Width + lx];
+        }
+
         private void UpdateColumnHeightCache(int lx, int y, int lz, BlockType type)
         {
             int idx = lz * Width + lx;
-            int currentHigh = _columnHighestSolid[idx];
-            int currentLow = _columnLowestSolid[idx];
             bool solid = type.IsSolidForSpawn();
+            bool meshBlock = solid || type.IsAlphaCutout();
 
             if (solid)
             {
+                int currentHigh = _columnHighestSolid[idx];
+                int currentLow = _columnLowestSolid[idx];
                 if (currentHigh < 0 || y > currentHigh)
                 {
                     _columnHighestSolid[idx] = (short)y;
@@ -206,32 +275,66 @@ namespace Autonocraft.World
                 {
                     _columnLowestSolid[idx] = (short)y;
                 }
+            }
+
+            if (meshBlock)
+            {
+                int meshHigh = _columnHighestMesh[idx];
+                int meshLow = _columnLowestMesh[idx];
+                if (meshHigh < 0 || y > meshHigh)
+                {
+                    _columnHighestMesh[idx] = (short)y;
+                }
+
+                if (meshLow < 0 || y < meshLow)
+                {
+                    _columnLowestMesh[idx] = (short)y;
+                }
 
                 return;
             }
 
-            if (y != currentHigh && y != currentLow)
+            int high = _columnHighestSolid[idx];
+            int low = _columnLowestSolid[idx];
+            int meshHighScan = _columnHighestMesh[idx];
+            int meshLowScan = _columnLowestMesh[idx];
+            if (y != high && y != low && y != meshHighScan && y != meshLowScan)
             {
                 return;
             }
 
-            int lowest = -1;
-            int highest = -1;
+            int lowestSolid = -1;
+            int highestSolid = -1;
+            int lowestMesh = -1;
+            int highestMesh = -1;
             for (int scanY = 0; scanY < Height; scanY++)
             {
-                if (_blocks[GetIndex(lx, scanY, lz)].IsSolidForSpawn())
+                BlockType scanType = _blocks[GetIndex(lx, scanY, lz)];
+                if (scanType.IsSolidForSpawn())
                 {
-                    if (lowest < 0)
+                    if (lowestSolid < 0)
                     {
-                        lowest = scanY;
+                        lowestSolid = scanY;
                     }
 
-                    highest = scanY;
+                    highestSolid = scanY;
+                }
+
+                if (scanType.IsSolidForSpawn() || scanType.IsAlphaCutout())
+                {
+                    if (lowestMesh < 0)
+                    {
+                        lowestMesh = scanY;
+                    }
+
+                    highestMesh = scanY;
                 }
             }
 
-            _columnLowestSolid[idx] = (short)lowest;
-            _columnHighestSolid[idx] = (short)highest;
+            _columnLowestSolid[idx] = (short)lowestSolid;
+            _columnHighestSolid[idx] = (short)highestSolid;
+            _columnLowestMesh[idx] = (short)lowestMesh;
+            _columnHighestMesh[idx] = (short)highestMesh;
         }
 
         public void GenerateAllMeshes(GraphicsDevice device, VoxelWorld world)
@@ -253,47 +356,7 @@ namespace Autonocraft.World
             return (_floraVertices, _floraIndices, _floraIndexCount);
         }
 
-        public (DynamicVertexBuffer? vertexBuffer, IndexBuffer? indexBuffer, int indexCount, FloraVertex[]? sourceVertices)
-            GetFloraGpuDrawInfo()
-        {
-            return (_floraVertexBuffer, _floraIndexBuffer, _floraIndexCount, _floraVertices);
-        }
-
-        public void EnsureFloraGpuBuffers(GraphicsDevice device)
-        {
-            if (!_floraMeshBuilt || _floraIndexCount <= 0 || _floraIndices == null)
-            {
-                return;
-            }
-
-            if (_floraIndexBuffer == null || _floraIndexBuffer.IndexCount < _floraIndexCount)
-            {
-                _floraIndexBuffer?.Dispose();
-                _floraIndexBuffer = new IndexBuffer(
-                    device,
-                    IndexElementSize.ThirtyTwoBits,
-                    _floraIndexCount,
-                    BufferUsage.WriteOnly);
-                _floraIndexBuffer.SetData(_floraIndices, 0, _floraIndexCount);
-            }
-
-            int vertexCount = _floraVertices?.Length ?? 0;
-            if (vertexCount <= 0)
-            {
-                return;
-            }
-
-            if (_floraVertexBuffer == null || _floraGpuVertexCapacity < vertexCount)
-            {
-                _floraVertexBuffer?.Dispose();
-                _floraGpuVertexCapacity = Math.Max(vertexCount, _floraGpuVertexCapacity < 1 ? vertexCount : _floraGpuVertexCapacity * 2);
-                _floraVertexBuffer = new DynamicVertexBuffer(
-                    device,
-                    VertexPositionColorTexture.VertexDeclaration,
-                    _floraGpuVertexCapacity,
-                    BufferUsage.WriteOnly);
-            }
-        }
+        // Flora vertex/index buffers are managed globally in FloraRenderer.cs for batching.
 
         public void EnsureFloraMesh(int seed, BiomeMap? biomeMap = null)
         {
@@ -373,21 +436,29 @@ namespace Autonocraft.World
 
         internal void EnsureMesh(GraphicsDevice device, MeshBuildContext context, ChunkMeshDetail detail, bool buildFlora = true)
         {
+            VertexBuffer? dummyVB = null;
+            IndexBuffer? dummyIB = null;
+            int dummyCount = 0;
+            Vertex[]? dummyVertices = null;
+
             switch (detail)
             {
                 case ChunkMeshDetail.Surface:
                     if (_surfaceMeshBuilt && !MeshStale) return;
-                    BuildMesh(device, context, ChunkMeshDetail.Surface, ref _surfaceVertexBuffer, ref _surfaceIndexBuffer, ref _surfaceIndexCount);
+                    BuildMesh(device, context, ChunkMeshDetail.Surface, ref _surfaceVertexBuffer, ref _surfaceIndexBuffer, ref _surfaceIndexCount,
+                        ref _surfaceWaterVertexBuffer, ref _surfaceWaterIndexBuffer, ref _surfaceWaterIndexCount, ref _surfaceWaterVertices);
                     _surfaceMeshBuilt = true;
                     break;
                 case ChunkMeshDetail.Shell:
                     if (_shellMeshBuilt && !MeshStale) return;
-                    BuildMesh(device, context, ChunkMeshDetail.Shell, ref _shellVertexBuffer, ref _shellIndexBuffer, ref _shellIndexCount);
+                    BuildMesh(device, context, ChunkMeshDetail.Shell, ref _shellVertexBuffer, ref _shellIndexBuffer, ref _shellIndexCount,
+                        ref dummyVB, ref dummyIB, ref dummyCount, ref dummyVertices);
                     _shellMeshBuilt = true;
                     break;
                 default:
                     if (_fullMeshBuilt && !MeshStale) return;
-                    BuildMesh(device, context, ChunkMeshDetail.Full, ref _fullVertexBuffer, ref _fullIndexBuffer, ref _fullIndexCount);
+                    BuildMesh(device, context, ChunkMeshDetail.Full, ref _fullVertexBuffer, ref _fullIndexBuffer, ref _fullIndexCount,
+                        ref _fullWaterVertexBuffer, ref _fullWaterIndexBuffer, ref _fullWaterIndexCount, ref _fullWaterVertices);
                     _fullMeshBuilt = true;
                     break;
             }
@@ -397,7 +468,6 @@ namespace Autonocraft.World
             if (buildFlora)
             {
                 EnsureFloraMesh(context.Seed, context.BiomeMap);
-                EnsureFloraGpuBuffers(device);
             }
         }
 
@@ -409,13 +479,15 @@ namespace Autonocraft.World
         {
             var vertices = new List<Vertex>(8192);
             var indices = new List<uint>(12288);
+            var waterVertices = new List<Vertex>(2048);
+            var waterIndices = new List<uint>(3072);
 
             if (detail == ChunkMeshDetail.Shell)
                 BuildShellMesh(context, ChunkX * Width, ChunkZ * Depth, vertices, indices);
             else if (detail == ChunkMeshDetail.Surface)
-                BuildSurfaceMeshList(context, vertices, indices);
+                BuildSurfaceMeshList(context, vertices, indices, waterVertices, waterIndices);
             else
-                BuildFullMeshList(context, vertices, indices);
+                BuildFullMeshList(context, vertices, indices, waterVertices, waterIndices);
 
             FloraVertex[]? fv = null;
             uint[]? fi = null;
@@ -427,7 +499,7 @@ namespace Autonocraft.World
                 if (fvList.Count > 0) { fv = fvList.ToArray(); fi = fiList.ToArray(); }
             }
 
-            return new PrebuiltMeshData(vertices.ToArray(), indices.ToArray(), detail, buildFlora, fv, fi);
+            return new PrebuiltMeshData(vertices.ToArray(), indices.ToArray(), waterVertices.ToArray(), waterIndices.ToArray(), detail, buildFlora, fv, fi);
         }
 
         /// <summary>
@@ -444,6 +516,12 @@ namespace Autonocraft.World
                     _surfaceVertexBuffer = null;
                     _surfaceIndexBuffer = null;
                     _surfaceIndexCount = 0;
+                    _surfaceWaterVertexBuffer?.Dispose();
+                    _surfaceWaterIndexBuffer?.Dispose();
+                    _surfaceWaterVertexBuffer = null;
+                    _surfaceWaterIndexBuffer = null;
+                    _surfaceWaterIndexCount = 0;
+                    _surfaceWaterVertices = null;
                     _surfaceMeshBuilt = true;
                     break;
                 case ChunkMeshDetail.Shell:
@@ -460,6 +538,12 @@ namespace Autonocraft.World
                     _fullVertexBuffer = null;
                     _fullIndexBuffer = null;
                     _fullIndexCount = 0;
+                    _fullWaterVertexBuffer?.Dispose();
+                    _fullWaterIndexBuffer?.Dispose();
+                    _fullWaterVertexBuffer = null;
+                    _fullWaterIndexBuffer = null;
+                    _fullWaterIndexCount = 0;
+                    _fullWaterVertices = null;
                     _fullMeshBuilt = true;
                     break;
             }
@@ -474,15 +558,21 @@ namespace Autonocraft.World
             switch (data.Detail)
             {
                 case ChunkMeshDetail.Surface:
-                    if (data.Indices.Length == 0)
+                    if (data.Indices.Length == 0 && data.WaterIndices.Length == 0)
                     {
                         MarkEmptyMeshDetail(ChunkMeshDetail.Surface);
                     }
-                    else if (!_surfaceMeshBuilt || wasStale)
+                    else
                     {
-                        UploadMeshBuffers(device, data.Vertices, data.Indices,
-                            ref _surfaceVertexBuffer, ref _surfaceIndexBuffer, ref _surfaceIndexCount);
-                        _surfaceMeshBuilt = true;
+                        if (!_surfaceMeshBuilt || wasStale)
+                        {
+                            UploadMeshBuffers(device, data.Vertices, data.Indices,
+                                ref _surfaceVertexBuffer, ref _surfaceIndexBuffer, ref _surfaceIndexCount);
+                            UploadMeshBuffers(device, data.WaterVertices, data.WaterIndices,
+                                ref _surfaceWaterVertexBuffer, ref _surfaceWaterIndexBuffer, ref _surfaceWaterIndexCount);
+                            _surfaceWaterVertices = data.WaterVertices;
+                            _surfaceMeshBuilt = true;
+                        }
                     }
                     SurfaceMeshBuildInFlight = false;
                     break;
@@ -500,15 +590,21 @@ namespace Autonocraft.World
                     ShellMeshBuildInFlight = false;
                     break;
                 default:
-                    if (data.Indices.Length == 0)
+                    if (data.Indices.Length == 0 && data.WaterIndices.Length == 0)
                     {
                         MarkEmptyMeshDetail(ChunkMeshDetail.Full);
                     }
-                    else if (!_fullMeshBuilt || wasStale)
+                    else
                     {
-                        UploadMeshBuffers(device, data.Vertices, data.Indices,
-                            ref _fullVertexBuffer, ref _fullIndexBuffer, ref _fullIndexCount);
-                        _fullMeshBuilt = true;
+                        if (!_fullMeshBuilt || wasStale)
+                        {
+                            UploadMeshBuffers(device, data.Vertices, data.Indices,
+                                ref _fullVertexBuffer, ref _fullIndexBuffer, ref _fullIndexCount);
+                            UploadMeshBuffers(device, data.WaterVertices, data.WaterIndices,
+                                ref _fullWaterVertexBuffer, ref _fullWaterIndexBuffer, ref _fullWaterIndexCount);
+                            _fullWaterVertices = data.WaterVertices;
+                            _fullMeshBuilt = true;
+                        }
                     }
                     FullMeshBuildInFlight = false;
                     break;
@@ -516,15 +612,12 @@ namespace Autonocraft.World
 
             MeshStale = false;
 
-            if (data.BuildFlora && data.FloraVertices != null && data.FloraIndices != null
-                && (!_floraMeshBuilt || wasStale))
+            if (data.BuildFlora && (!_floraMeshBuilt || wasStale))
             {
                 _floraVertices = data.FloraVertices;
                 _floraIndices = data.FloraIndices;
-                _floraIndexCount = data.FloraIndices.Length;
+                _floraIndexCount = data.FloraIndices?.Length ?? 0;
                 _floraMeshBuilt = true;
-                DisposeFloraGpuBuffers();
-                EnsureFloraGpuBuffers(device);
             }
         }
 
@@ -533,8 +626,12 @@ namespace Autonocraft.World
         {
             _vertexScratch ??= new List<Vertex>(8192);
             _indexScratch ??= new List<uint>(12288);
+            _waterVertexScratch ??= new List<Vertex>(2048);
+            _waterIndexScratch ??= new List<uint>(3072);
             _vertexScratch.Clear();
             _indexScratch.Clear();
+            _waterVertexScratch.Clear();
+            _waterIndexScratch.Clear();
 
             var sw = System.Diagnostics.Stopwatch.StartNew();
             if (detail == ChunkMeshDetail.Shell)
@@ -543,11 +640,11 @@ namespace Autonocraft.World
             }
             else if (detail == ChunkMeshDetail.Surface)
             {
-                BuildSurfaceMeshList(context, _vertexScratch, _indexScratch);
+                BuildSurfaceMeshList(context, _vertexScratch, _indexScratch, _waterVertexScratch, _waterIndexScratch);
             }
             else
             {
-                BuildFullMeshList(context, _vertexScratch, _indexScratch);
+                BuildFullMeshList(context, _vertexScratch, _indexScratch, _waterVertexScratch, _waterIndexScratch);
             }
 
             sw.Stop();
@@ -580,9 +677,15 @@ namespace Autonocraft.World
                 case ChunkMeshDetail.Surface:
                     _surfaceVertexBuffer?.Dispose();
                     _surfaceIndexBuffer?.Dispose();
+                    _surfaceWaterVertexBuffer?.Dispose();
+                    _surfaceWaterIndexBuffer?.Dispose();
                     _surfaceVertexBuffer = null;
                     _surfaceIndexBuffer = null;
+                    _surfaceWaterVertexBuffer = null;
+                    _surfaceWaterIndexBuffer = null;
                     _surfaceIndexCount = 0;
+                    _surfaceWaterIndexCount = 0;
+                    _surfaceWaterVertices = null;
                     _surfaceMeshBuilt = false;
                     break;
                 case ChunkMeshDetail.Shell:
@@ -596,9 +699,15 @@ namespace Autonocraft.World
                 default:
                     _fullVertexBuffer?.Dispose();
                     _fullIndexBuffer?.Dispose();
+                    _fullWaterVertexBuffer?.Dispose();
+                    _fullWaterIndexBuffer?.Dispose();
                     _fullVertexBuffer = null;
                     _fullIndexBuffer = null;
+                    _fullWaterVertexBuffer = null;
+                    _fullWaterIndexBuffer = null;
                     _fullIndexCount = 0;
+                    _fullWaterIndexCount = 0;
+                    _fullWaterVertices = null;
                     _fullMeshBuilt = false;
                     break;
             }
@@ -606,45 +715,49 @@ namespace Autonocraft.World
 
         public void InvalidateFloraMesh()
         {
-            DisposeFloraGpuBuffers();
             _floraVertices = null;
             _floraIndices = null;
             _floraIndexCount = 0;
             _floraMeshBuilt = false;
         }
 
-        private void DisposeFloraGpuBuffers()
-        {
-            _floraVertexBuffer?.Dispose();
-            _floraIndexBuffer?.Dispose();
-            _floraVertexBuffer = null;
-            _floraIndexBuffer = null;
-            _floraGpuVertexCapacity = 0;
-        }
-
         private void DisposeMeshBuffers()
         {
             _fullVertexBuffer?.Dispose();
             _fullIndexBuffer?.Dispose();
+            _fullWaterVertexBuffer?.Dispose();
+            _fullWaterIndexBuffer?.Dispose();
             _surfaceVertexBuffer?.Dispose();
             _surfaceIndexBuffer?.Dispose();
+            _surfaceWaterVertexBuffer?.Dispose();
+            _surfaceWaterIndexBuffer?.Dispose();
             _shellVertexBuffer?.Dispose();
             _shellIndexBuffer?.Dispose();
 
             _fullVertexBuffer = null;
             _fullIndexBuffer = null;
             _fullIndexCount = 0;
+            _fullWaterVertexBuffer = null;
+            _fullWaterIndexBuffer = null;
+            _fullWaterIndexCount = 0;
+            _fullWaterVertices = null;
             _surfaceVertexBuffer = null;
             _surfaceIndexBuffer = null;
             _surfaceIndexCount = 0;
+            _surfaceWaterVertexBuffer = null;
+            _surfaceWaterIndexBuffer = null;
+            _surfaceWaterIndexCount = 0;
+            _surfaceWaterVertices = null;
             _shellVertexBuffer = null;
             _shellIndexBuffer = null;
             _shellIndexCount = 0;
-            DisposeFloraGpuBuffers();
             _floraVertices = null;
             _floraIndices = null;
             _floraIndexCount = 0;
         }
+
+        private List<Vertex>? _waterVertexScratch;
+        private List<uint>? _waterIndexScratch;
 
         public (VertexBuffer? vertexBuffer, IndexBuffer? indexBuffer, int indexCount) GetMesh(ChunkMeshDetail detail)
         {
@@ -657,27 +770,14 @@ namespace Autonocraft.World
         }
 
         private void BuildMesh(GraphicsDevice device, MeshBuildContext context, ChunkMeshDetail detail,
-            ref VertexBuffer? vertexBuffer, ref IndexBuffer? indexBuffer, ref int indexCount)
+            ref VertexBuffer? vertexBuffer, ref IndexBuffer? indexBuffer, ref int indexCount,
+            ref VertexBuffer? waterVertexBuffer, ref IndexBuffer? waterIndexBuffer, ref int waterIndexCount,
+            ref Vertex[]? waterVerticesCPU)
         {
-            _vertexScratch ??= new List<Vertex>(8192);
-            _indexScratch ??= new List<uint>(12288);
-            _vertexScratch.Clear();
-            _indexScratch.Clear();
-
-            if (detail == ChunkMeshDetail.Shell)
-            {
-                BuildShellMesh(context, ChunkX * Width, ChunkZ * Depth, _vertexScratch, _indexScratch);
-            }
-            else if (detail == ChunkMeshDetail.Surface)
-            {
-                BuildSurfaceMeshList(context, _vertexScratch, _indexScratch);
-            }
-            else
-            {
-                BuildFullMeshList(context, _vertexScratch, _indexScratch);
-            }
-
-            UploadMeshBuffers(device, _vertexScratch.ToArray(), _indexScratch.ToArray(), ref vertexBuffer, ref indexBuffer, ref indexCount);
+            var data = BuildMeshCpuOnly(context, detail, buildFlora: false);
+            UploadMeshBuffers(device, data.Vertices, data.Indices, ref vertexBuffer, ref indexBuffer, ref indexCount);
+            UploadMeshBuffers(device, data.WaterVertices, data.WaterIndices, ref waterVertexBuffer, ref waterIndexBuffer, ref waterIndexCount);
+            waterVerticesCPU = data.WaterVertices;
         }
 
         private void NoteBlockType(BlockType type)
@@ -712,17 +812,21 @@ namespace Autonocraft.World
             {
                 var surfaceVertices = new List<Vertex>();
                 var surfaceIndices = new List<uint>();
-                BuildSurfaceMeshList(context, surfaceVertices, surfaceIndices);
-                return surfaceIndices.Count;
+                var dummyWaterV = new List<Vertex>();
+                var dummyWaterI = new List<uint>();
+                BuildSurfaceMeshList(context, surfaceVertices, surfaceIndices, dummyWaterV, dummyWaterI);
+                return surfaceIndices.Count + dummyWaterI.Count;
             }
 
             var fullVertices = new List<Vertex>();
             var fullIndices = new List<uint>();
-            BuildFullMeshList(context, fullVertices, fullIndices);
-            return fullIndices.Count;
+            var dummyWaterV2 = new List<Vertex>();
+            var dummyWaterI2 = new List<uint>();
+            BuildFullMeshList(context, fullVertices, fullIndices, dummyWaterV2, dummyWaterI2);
+            return fullIndices.Count + dummyWaterI2.Count;
         }
 
-        private void BuildFullMeshList(MeshBuildContext context, List<Vertex> vertices, List<uint> indices)
+        private void BuildFullMeshList(MeshBuildContext context, List<Vertex> vertices, List<uint> indices, List<Vertex> waterVertices, List<uint> waterIndices)
         {
             int worldOffsetX = ChunkX * Width;
             int worldOffsetZ = ChunkZ * Depth;
@@ -741,12 +845,14 @@ namespace Autonocraft.World
                             context,
                             vertices,
                             indices,
+                            waterVertices,
+                            waterIndices,
                             worldOffsetX + x,
                             y,
                             worldOffsetZ + z,
                             type,
                             includeAo: true,
-                            shellBoundaryOnly: false,
+                            shellTopOnly: false,
                             x,
                             z);
                     }
@@ -754,7 +860,7 @@ namespace Autonocraft.World
             }
         }
 
-        private void BuildSurfaceMeshList(MeshBuildContext context, List<Vertex> vertices, List<uint> indices)
+        private void BuildSurfaceMeshList(MeshBuildContext context, List<Vertex> vertices, List<uint> indices, List<Vertex> waterVertices, List<uint> waterIndices)
         {
             int worldOffsetX = ChunkX * Width;
             int worldOffsetZ = ChunkZ * Depth;
@@ -763,8 +869,8 @@ namespace Autonocraft.World
             {
                 for (int x = 0; x < Width; x++)
                 {
-                    int yMin = GetCachedLowestSolidY(x, z);
-                    int yMax = GetCachedHighestSolidY(x, z);
+                    int yMin = GetCachedLowestMeshY(x, z);
+                    int yMax = GetCachedHighestMeshY(x, z);
                     if (yMin < 0 || yMax < 0)
                     {
                         continue;
@@ -786,7 +892,7 @@ namespace Autonocraft.World
 
                         if (IsSurfaceBlock(context, wx, wy, wz))
                         {
-                            EmitBlockFaces(context, vertices, indices, wx, wy, wz, type, includeAo: false, shellBoundaryOnly: false, x, z);
+                            EmitBlockFaces(context, vertices, indices, waterVertices, waterIndices, wx, wy, wz, type, includeAo: false, shellTopOnly: false, x, z);
                         }
                     }
                 }
@@ -805,32 +911,44 @@ namespace Autonocraft.World
                     for (int y = Height - 1; y >= 0; y--)
                     {
                         BlockType type = _blocks[GetIndex(x, y, z)];
-                        if (type.IsSolidForSpawn())
+                        if (type == BlockType.Air)
+                        {
+                            continue;
+                        }
+
+                        int wx = worldOffsetX + x;
+                        int wz = worldOffsetZ + z;
+                        bool exposedTop = y == Height - 1 || context.GetBlock(wx, y + 1, wz).IsTransparent();
+                        if (!exposedTop)
+                        {
+                            continue;
+                        }
+
+                        if (type.IsAlphaCutout())
+                        {
+                            NoteBlockType(type);
+                            EmitBlockFaces(
+                                context,
+                                vertices,
+                                indices,
+                                vertices,
+                                indices,
+                                wx,
+                                y,
+                                wz,
+                                type,
+                                includeAo: false,
+                                shellTopOnly: true,
+                                x,
+                                z);
+                            continue;
+                        }
+
+                        if (type.IsSolidForSpawn() || type.IsWater())
                         {
                             topY = y;
                             topType = type;
                             break;
-                        }
-                    }
-
-                    if (topY < 0)
-                    {
-                        for (int y = Height - 1; y >= 0; y--)
-                        {
-                            BlockType type = _blocks[GetIndex(x, y, z)];
-                            if (!type.IsWater())
-                            {
-                                continue;
-                            }
-
-                            int wx = worldOffsetX + x;
-                            int wz = worldOffsetZ + z;
-                            if (y == Height - 1 || context.GetBlock(wx, y + 1, wz).IsTransparent())
-                            {
-                                topY = y;
-                                topType = type;
-                                break;
-                            }
                         }
                     }
 
@@ -841,7 +959,7 @@ namespace Autonocraft.World
                     int shellWy = topY;
                     int shellWz = worldOffsetZ + z;
 
-                    EmitBlockFaces(context, vertices, indices, shellWx, shellWy, shellWz, topType, includeAo: false, shellBoundaryOnly: true, x, z);
+                    EmitBlockFaces(context, vertices, indices, vertices, indices, shellWx, shellWy, shellWz, topType, includeAo: false, shellTopOnly: true, x, z);
                 }
             }
         }
@@ -859,55 +977,109 @@ namespace Autonocraft.World
                 || context.GetBlock(wx, wy, wz - 1).IsTransparent();
         }
 
-        private void EmitBlockFaces(MeshBuildContext context, List<Vertex> vertices, List<uint> indices,
-            int wx, int wy, int wz, BlockType type, bool includeAo, bool shellBoundaryOnly, int localX, int localZ)
+        private void EmitBlockFaces(MeshBuildContext context, List<Vertex> vertices, List<uint> indices, List<Vertex> waterVertices, List<uint> waterIndices,
+            int wx, int wy, int wz, BlockType type, bool includeAo, bool shellTopOnly, int localX, int localZ)
         {
             if (type.IsFloraModel())
             {
                 return;
             }
 
+            var targetVertices = type.IsWater() ? waterVertices : vertices;
+            var targetIndices = type.IsWater() ? waterIndices : indices;
+
             Vector3 pos = new Vector3(wx, wy, wz);
             Vector3 color = Vector3.One;
 
             if (wy == Height - 1 || context.GetBlock(wx, wy + 1, wz).IsTransparent())
             {
-                AddFace(vertices, indices, pos, new Vector3(0, 1, 0), color, type, context, includeAo,
+                AddFace(targetVertices, targetIndices, pos, new Vector3(0, 1, 0), color, type, context, includeAo,
                     new Vector3(0, 1, 0), new Vector3(0, 1, 1), new Vector3(1, 1, 1), new Vector3(1, 1, 0));
             }
 
-            if (!shellBoundaryOnly)
+            if (shellTopOnly)
             {
-                if (wy == 0 || context.GetBlock(wx, wy - 1, wz).IsTransparent())
-                {
-                    AddFace(vertices, indices, pos, new Vector3(0, -1, 0), color, type, context, includeAo,
-                        new Vector3(0, 0, 0), new Vector3(1, 0, 0), new Vector3(1, 0, 1), new Vector3(0, 0, 1));
-                }
+                return;
             }
 
-            if ((!shellBoundaryOnly || localX == Width - 1) && context.GetBlock(wx + 1, wy, wz).IsTransparent())
+            if (wy == 0 || context.GetBlock(wx, wy - 1, wz).IsTransparent())
             {
-                AddFace(vertices, indices, pos, new Vector3(1, 0, 0), color, type, context, includeAo,
+                AddFace(targetVertices, targetIndices, pos, new Vector3(0, -1, 0), color, type, context, includeAo,
+                    new Vector3(0, 0, 0), new Vector3(1, 0, 0), new Vector3(1, 0, 1), new Vector3(0, 0, 1));
+            }
+
+            if (context.GetBlock(wx + 1, wy, wz).IsTransparent())
+            {
+                AddFace(targetVertices, targetIndices, pos, new Vector3(1, 0, 0), color, type, context, includeAo,
                     new Vector3(1, 0, 0), new Vector3(1, 1, 0), new Vector3(1, 1, 1), new Vector3(1, 0, 1));
             }
 
-            if ((!shellBoundaryOnly || localX == 0) && context.GetBlock(wx - 1, wy, wz).IsTransparent())
+            if (context.GetBlock(wx - 1, wy, wz).IsTransparent())
             {
-                AddFace(vertices, indices, pos, new Vector3(-1, 0, 0), color, type, context, includeAo,
+                AddFace(targetVertices, targetIndices, pos, new Vector3(-1, 0, 0), color, type, context, includeAo,
                     new Vector3(0, 0, 1), new Vector3(0, 1, 1), new Vector3(0, 1, 0), new Vector3(0, 0, 0));
             }
 
-            if ((!shellBoundaryOnly || localZ == Depth - 1) && context.GetBlock(wx, wy, wz + 1).IsTransparent())
+            if (context.GetBlock(wx, wy, wz + 1).IsTransparent())
             {
-                AddFace(vertices, indices, pos, new Vector3(0, 0, 1), color, type, context, includeAo,
+                AddFace(targetVertices, targetIndices, pos, new Vector3(0, 0, 1), color, type, context, includeAo,
                     new Vector3(1, 0, 1), new Vector3(1, 1, 1), new Vector3(0, 1, 1), new Vector3(0, 0, 1));
             }
 
-            if ((!shellBoundaryOnly || localZ == 0) && context.GetBlock(wx, wy, wz - 1).IsTransparent())
+            if (context.GetBlock(wx, wy, wz - 1).IsTransparent())
             {
-                AddFace(vertices, indices, pos, new Vector3(0, 0, -1), color, type, context, includeAo,
+                AddFace(targetVertices, targetIndices, pos, new Vector3(0, 0, -1), color, type, context, includeAo,
                     new Vector3(0, 0, 0), new Vector3(0, 1, 0), new Vector3(1, 1, 0), new Vector3(1, 0, 0));
             }
+        }
+
+        private Vector3 GetWaterVertexColor(MeshBuildContext context, int wx, int wy, int wz, Vector3 cornerOffset)
+        {
+            int depth = 0;
+            while (wy - depth > 0 && context.GetBlock(wx, wy - depth - 1, wz).IsWater())
+            {
+                depth++;
+            }
+
+            Vector3 waterColor;
+            if (depth <= 0)
+            {
+                waterColor = new Vector3(0.5f, 0.85f, 0.95f);
+            }
+            else if (depth == 1)
+            {
+                waterColor = new Vector3(0.35f, 0.65f, 0.85f);
+            }
+            else if (depth == 2)
+            {
+                waterColor = new Vector3(0.2f, 0.45f, 0.75f);
+            }
+            else
+            {
+                waterColor = new Vector3(0.1f, 0.25f, 0.6f);
+            }
+
+            bool isShore = false;
+            int dx = cornerOffset.X > 0.5f ? 1 : -1;
+            int dz = cornerOffset.Z > 0.5f ? 1 : -1;
+
+            var blockX = context.GetBlock(wx + dx, wy, wz);
+            var blockZ = context.GetBlock(wx, wy, wz + dz);
+            var blockXZ = context.GetBlock(wx + dx, wy, wz + dz);
+
+            if ((blockX != BlockType.Air && !blockX.IsWater()) ||
+                (blockZ != BlockType.Air && !blockZ.IsWater()) ||
+                (blockXZ != BlockType.Air && !blockXZ.IsWater()))
+            {
+                isShore = true;
+            }
+
+            if (isShore)
+            {
+                return Vector3.Lerp(waterColor, new Vector3(1.1f, 1.1f, 1.1f), 0.75f);
+            }
+
+            return waterColor;
         }
 
         private void AddFace(List<Vertex> vertices, List<uint> indices, Vector3 pos, Vector3 normal, Vector3 baseColor, BlockType blockType,
@@ -924,28 +1096,78 @@ namespace Autonocraft.World
                 ? BlockTextureBlend.GetSmoothedVariation(context, wx, wy, wz)
                 : 1f;
 
-            Vector3 col0 = BuildCornerColor(context, wx, wy, wz, blockType, c0, normal, includeAo, smoothedVariation);
-            Vector3 col1 = BuildCornerColor(context, wx, wy, wz, blockType, c1, normal, includeAo, smoothedVariation);
-            Vector3 col2 = BuildCornerColor(context, wx, wy, wz, blockType, c2, normal, includeAo, smoothedVariation);
-            Vector3 col3 = BuildCornerColor(context, wx, wy, wz, blockType, c3, normal, includeAo, smoothedVariation);
+            float ao0 = includeAo ? ComputeCornerAO(context, wx, wy, wz, new Vector3(wx, wy, wz) + c0, normal) : ComputeColumnAO(context, wx, wy, wz, normal);
+            float ao1 = includeAo ? ComputeCornerAO(context, wx, wy, wz, new Vector3(wx, wy, wz) + c1, normal) : ComputeColumnAO(context, wx, wy, wz, normal);
+            float ao2 = includeAo ? ComputeCornerAO(context, wx, wy, wz, new Vector3(wx, wy, wz) + c2, normal) : ComputeColumnAO(context, wx, wy, wz, normal);
+            float ao3 = includeAo ? ComputeCornerAO(context, wx, wy, wz, new Vector3(wx, wy, wz) + c3, normal) : ComputeColumnAO(context, wx, wy, wz, normal);
+
+            Vector3 col0 = blockType.IsWater() ? GetWaterVertexColor(context, wx, wy, wz, c0) : BuildCornerColor(context, wx, wy, wz, blockType, c0, normal, ao0, smoothedVariation);
+            Vector3 col1 = blockType.IsWater() ? GetWaterVertexColor(context, wx, wy, wz, c1) : BuildCornerColor(context, wx, wy, wz, blockType, c1, normal, ao1, smoothedVariation);
+            Vector3 col2 = blockType.IsWater() ? GetWaterVertexColor(context, wx, wy, wz, c2) : BuildCornerColor(context, wx, wy, wz, blockType, c2, normal, ao2, smoothedVariation);
+            Vector3 col3 = blockType.IsWater() ? GetWaterVertexColor(context, wx, wy, wz, c3) : BuildCornerColor(context, wx, wy, wz, blockType, c3, normal, ao3, smoothedVariation);
 
             Vector2 uv0 = BlockTextureBlend.ComputeWorldAlignedUv(pos, c0, normal, uv.uMin, uv.vMin, uv.uMax, uv.vMax);
             Vector2 uv1 = BlockTextureBlend.ComputeWorldAlignedUv(pos, c1, normal, uv.uMin, uv.vMin, uv.uMax, uv.vMax);
             Vector2 uv2 = BlockTextureBlend.ComputeWorldAlignedUv(pos, c2, normal, uv.uMin, uv.vMin, uv.uMax, uv.vMax);
             Vector2 uv3 = BlockTextureBlend.ComputeWorldAlignedUv(pos, c3, normal, uv.uMin, uv.vMin, uv.uMax, uv.vMax);
 
-            vertices.Add(new Vertex(pos + c0, col0, normal, uv0));
-            vertices.Add(new Vertex(pos + c1, col1, normal, uv1));
-            vertices.Add(new Vertex(pos + c2, col2, normal, uv2));
-            vertices.Add(new Vertex(pos + c3, col3, normal, uv3));
+            Vector2 uvr0 = uv0;
+            Vector2 uvr1 = uv1;
+            Vector2 uvr2 = uv2;
+            Vector2 uvr3 = uv3;
 
-            indices.Add(startIndex + 0);
-            indices.Add(startIndex + 1);
-            indices.Add(startIndex + 2);
+            bool isDirectional = blockType == BlockType.OakLog || blockType == BlockType.BirchLog ||
+                                 blockType == BlockType.PineLog || blockType == BlockType.WillowLog ||
+                                 blockType == BlockType.PalmLog || blockType == BlockType.OakPlank ||
+                                 blockType == BlockType.BirchPlank || blockType == BlockType.PinePlank;
 
-            indices.Add(startIndex + 0);
-            indices.Add(startIndex + 2);
-            indices.Add(startIndex + 3);
+            bool isGrassSide = blockType == BlockType.Grass && MathF.Abs(normal.Y) < 0.1f;
+
+            if (!blockType.IsTransparent() && !blockType.IsStation() && !isDirectional && !isGrassSide)
+            {
+                int hash = (int)(wx * 73 + wy * 37 + wz * 19 + normal.X * 13 + normal.Y * 7 + normal.Z * 3);
+                int rotation = Math.Abs(hash) % 4;
+                switch (rotation)
+                {
+                    case 1:
+                        uvr0 = uv1; uvr1 = uv2; uvr2 = uv3; uvr3 = uv0;
+                        break;
+                    case 2:
+                        uvr0 = uv2; uvr1 = uv3; uvr2 = uv0; uvr3 = uv1;
+                        break;
+                    case 3:
+                        uvr0 = uv3; uvr1 = uv0; uvr2 = uv1; uvr3 = uv2;
+                        break;
+                }
+            }
+
+            vertices.Add(new Vertex(pos + c0, col0, normal, uvr0));
+            vertices.Add(new Vertex(pos + c1, col1, normal, uvr1));
+            vertices.Add(new Vertex(pos + c2, col2, normal, uvr2));
+            vertices.Add(new Vertex(pos + c3, col3, normal, uvr3));
+
+            // Voxel Ambient Occlusion Triangulation Flip Fix
+            // If the diagonal 0-2 connects more occluded corners than 1-3, flip the diagonal.
+            if (ao0 + ao2 < ao1 + ao3)
+            {
+                indices.Add(startIndex + 0);
+                indices.Add(startIndex + 1);
+                indices.Add(startIndex + 3);
+
+                indices.Add(startIndex + 1);
+                indices.Add(startIndex + 2);
+                indices.Add(startIndex + 3);
+            }
+            else
+            {
+                indices.Add(startIndex + 0);
+                indices.Add(startIndex + 1);
+                indices.Add(startIndex + 2);
+
+                indices.Add(startIndex + 0);
+                indices.Add(startIndex + 2);
+                indices.Add(startIndex + 3);
+            }
         }
 
         private static Vector3 BuildCornerColor(
@@ -956,15 +1178,12 @@ namespace Autonocraft.World
             BlockType blockType,
             Vector3 cornerOffset,
             Vector3 normal,
-            bool includeAo,
+            float ao,
             float smoothedVariation)
         {
             int cx = cornerOffset.X > 0.5f ? 1 : 0;
             int cy = cornerOffset.Y > 0.5f ? 1 : 0;
             int cz = cornerOffset.Z > 0.5f ? 1 : 0;
-            float ao = includeAo
-                ? ComputeCornerAO(context, wx, wy, wz, new Vector3(wx, wy, wz) + cornerOffset, normal)
-                : ComputeColumnAO(context, wx, wy, wz, normal);
             float variation = BlockAtlas.UseCpuBlockVariation ? smoothedVariation : 1f;
 
             return BlockTextureBlend.ComputeCornerColor(

@@ -53,6 +53,11 @@ namespace Autonocraft.Village
             }
 
             float interval = BaseGrowthInterval / Math.Max(0.5f, bonus / samples);
+            if (village.HasBuilding(BuildingKind.Well))
+            {
+                interval /= 1.15f;
+            }
+
             village.FarmGrowthAccumulator += deltaTime;
             while (village.FarmGrowthAccumulator >= interval)
             {

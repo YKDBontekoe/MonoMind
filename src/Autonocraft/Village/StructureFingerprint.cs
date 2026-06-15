@@ -81,22 +81,30 @@ namespace Autonocraft.Village
             return matchRatio >= MinMatchRatio;
         }
 
+        private static bool IsNaturalGround(BlockType type)
+        {
+            return type == BlockType.Grass || type == BlockType.Dirt || type == BlockType.Stone || 
+                   type == BlockType.Sand || type == BlockType.Snow || type == BlockType.Gravel || 
+                   type == BlockType.Clay || type == BlockType.Sandstone || type == BlockType.Cobblestone || 
+                   type == BlockType.Mud || type == BlockType.MossStone || type == BlockType.Ice ||
+                   type == BlockType.CoalOre || type == BlockType.IronOre || type == BlockType.GoldOre;
+        }
+
         public static int FindSurfaceAnchorY(VoxelWorld world, int anchorX, int anchorZ, int searchRadius = 8)
         {
-            int bestY = world.GetHighestSolidY(anchorX, anchorZ);
-            for (int dx = -searchRadius; dx <= searchRadius; dx++)
+            int highestY = world.GetHighestSolidY(anchorX, anchorZ);
+            
+            // Scan down to bypass tree logs/leaves or other non-ground blocks
+            for (int y = highestY; y >= 0; y--)
             {
-                for (int dz = -searchRadius; dz <= searchRadius; dz++)
+                BlockType type = world.GetBlock(anchorX, y, anchorZ);
+                if (IsNaturalGround(type))
                 {
-                    int y = world.GetHighestSolidY(anchorX + dx, anchorZ + dz);
-                    if (y > bestY)
-                    {
-                        bestY = y;
-                    }
+                    return y + 1;
                 }
             }
 
-            return bestY + 1;
+            return highestY >= 0 ? highestY + 1 : 65;
         }
     }
 }

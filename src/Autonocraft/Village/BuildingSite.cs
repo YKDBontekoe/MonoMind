@@ -80,10 +80,7 @@ namespace Autonocraft.Village
         public void SyncWithWorld(VoxelWorld world)
         {
             RebuildPending(world);
-            if (_pending.Count == 0)
-            {
-                IsComplete = true;
-            }
+            IsComplete = _pending.Count == 0;
         }
 
         public bool TryPlaceNextBlock(
@@ -92,7 +89,8 @@ namespace Autonocraft.Village
             float entityWidth,
             float entityHeight,
             Vector3 builderPos,
-            bool creative = false)
+            bool creative = false,
+            bool checkBuilderCollision = true)
         {
             if (!TryGetNextBlock(out var next))
             {
@@ -110,6 +108,14 @@ namespace Autonocraft.Village
                 return true;
             }
 
+            if (creative && !checkBuilderCollision)
+            {
+                world.SetBlock(wx, wy, wz, next.Type);
+                _pending.RemoveAt(0);
+                IsComplete = _pending.Count == 0;
+                return true;
+            }
+
             if (!creative && !storage.TryConsumeBlock(next.Type, 1))
             {
                 return false;
@@ -121,8 +127,8 @@ namespace Autonocraft.Village
                     wy,
                     wz,
                     next.Type,
-                    entityWidth,
-                    entityHeight,
+                    checkBuilderCollision ? entityWidth : 0f,
+                    checkBuilderCollision ? entityHeight : 0f,
                     builderPos,
                     inventory: null,
                     consumeFromInventory: false))
@@ -150,7 +156,8 @@ namespace Autonocraft.Village
                     int wx = AnchorX + block.Dx;
                     int wy = AnchorY + block.Dy;
                     int wz = AnchorZ + block.Dz;
-                    if (world.GetBlock(wx, wy, wz) == block.Type)
+                    var current = world.GetBlock(wx, wy, wz);
+                    if (current == block.Type)
                     {
                         continue;
                     }

@@ -71,7 +71,7 @@ namespace Autonocraft.UI
             float panelW = layout.S(PanelWidth);
             float panelH = layout.S(PanelHeight);
 
-            _ui.DrawFullscreenBackground(new Color(0.03f, 0.04f, 0.07f));
+            _ui.DrawFullscreenBackground(UiTheme.PanelFill);
 
             float cx = layout.CenterX;
             float titleY = layout.Height * 0.22f;
@@ -81,15 +81,15 @@ namespace Autonocraft.UI
 
             float panelX = cx - panelW / 2f;
             float panelY = layout.Height * 0.16f;
-            _ui.DrawPanel(panelX, panelY, panelW, panelH, new Color(0.04f, 0.05f, 0.08f) * 0.88f, new Color(0.2f, 0.3f, 0.4f));
+            _ui.DrawPanel(panelX, panelY, panelW, panelH, UiTheme.PanelBgMuted * 0.88f, UiTheme.PanelBorder);
 
-            _ui.DrawCenteredText("AUTONOCRAFT", titleY, layout.S(2.4f), new Color(0.8f, 0.9f, 1.0f));
-            _ui.DrawCenteredText("VOXEL SANDBOX", subtitleY, layout.S(1.3f), new Color(0.55f, 0.65f, 0.75f));
+            _ui.DrawCenteredText("AUTONOCRAFT", titleY, layout.S(2.4f), UiTheme.Title);
+            _ui.DrawCenteredText("VOXEL SANDBOX", subtitleY, layout.S(UiTheme.ScaleTitle), UiTheme.Subtitle);
 
-            DrawButton(cx, playY, buttonW, buttonH, "PLAY", _hoveredButton == 0, layout.S(1.6f));
-            DrawButton(cx, quitY, buttonW, buttonH, "QUIT", _hoveredButton == 1, layout.S(1.6f));
+            DrawButton(cx, playY, buttonW, buttonH, "PLAY", _hoveredButton == 0, layout.S(UiTheme.ScaleTitle));
+            DrawButton(cx, quitY, buttonW, buttonH, "QUIT", _hoveredButton == 1, layout.S(UiTheme.ScaleTitle));
 
-            _ui.DrawCenteredText("CLICK OR PRESS ENTER TO PLAY", layout.Height - layout.S(48f), layout.S(1.1f), new Color(0.45f, 0.5f, 0.58f), 0.9f);
+            _ui.DrawCenteredText("CLICK OR PRESS ENTER TO PLAY", layout.Height - layout.S(48f), layout.S(1.15f), UiTheme.Hint, 0.9f);
         }
 
         private void DrawButton(float centerX, float y, float width, float height, string label, bool hovered, float textPixelSize)

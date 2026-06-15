@@ -66,6 +66,14 @@ namespace Autonocraft.Engine
                 BlockType.Flower => "flower",
                 BlockType.Reed => "reed",
                 BlockType.Cactus => "cactus",
+                BlockType.Fern => "fern",
+                BlockType.MushroomRed => "mushroom_red",
+                BlockType.MushroomBrown => "mushroom_brown",
+                BlockType.DeadBush => "dead_bush",
+                BlockType.LilyPad => "lily_pad",
+                BlockType.Vine => "vine",
+                BlockType.BerryBush => "berry_bush",
+                BlockType.Seagrass => "seagrass",
                 _ => "tall_grass"
             };
             var tileUv = BlockAtlas.GetTileUVs(tileId);
@@ -77,6 +85,12 @@ namespace Autonocraft.Engine
                 BlockType.Reed => 0.28f,
                 BlockType.Flower => 0.32f,
                 BlockType.Cactus => 0.30f,
+                BlockType.Fern => 0.45f,
+                BlockType.MushroomRed or BlockType.MushroomBrown => 0.22f,
+                BlockType.DeadBush => 0.38f,
+                BlockType.Vine => 0.40f,
+                BlockType.BerryBush => 0.42f,
+                BlockType.Seagrass => 0.30f,
                 _ => 0.38f
             };
             float height = type switch
@@ -85,6 +99,12 @@ namespace Autonocraft.Engine
                 BlockType.Reed => 1.15f,
                 BlockType.Flower => 0.55f,
                 BlockType.Cactus => CactusHeight(wx, wz),
+                BlockType.Fern => 0.65f,
+                BlockType.MushroomRed or BlockType.MushroomBrown => 0.35f,
+                BlockType.DeadBush => 0.75f,
+                BlockType.Vine => 1.0f,
+                BlockType.BerryBush => 0.70f,
+                BlockType.Seagrass => 0.85f,
                 BlockType.TallGrass when biome.Primary == BiomeType.Forest => 0.62f,
                 BlockType.TallGrass when biome.Primary == BiomeType.Swamp => 0.72f,
                 _ => 0.88f
@@ -101,11 +121,48 @@ namespace Autonocraft.Engine
                 BlockType.Sunflower or BlockType.Reed => 3,
                 BlockType.Flower or BlockType.Cactus => 2,
                 BlockType.TallGrass => 2,
+                BlockType.Fern => 3,
+                BlockType.BerryBush => 3,
                 _ => 2
             };
 
             var bottomTint = new Vector3(0.86f, 0.90f, 0.86f);
             var topTint = new Vector3(1.02f, 1.04f, 1.0f);
+
+            if (type == BlockType.LilyPad)
+            {
+                float padSize = 0.45f * widthScale;
+                Vector3 p0 = new Vector3(cx - padSize, baseY + 0.02f, cz - padSize);
+                Vector3 p1 = new Vector3(cx + padSize, baseY + 0.02f, cz - padSize);
+                Vector3 p2 = new Vector3(cx + padSize, baseY + 0.02f, cz + padSize);
+                Vector3 p3 = new Vector3(cx - padSize, baseY + 0.02f, cz + padSize);
+                AddQuad(vertices, indices, p0, p1, p2, p3, bottomTint, topTint, uv, 0f);
+                return;
+            }
+
+            if (type == BlockType.Vine)
+            {
+                for (int cross = 0; cross < crossCount; cross++)
+                {
+                    float angle = yaw + cross * (MathF.PI / crossCount);
+                    float sin = MathF.Sin(angle);
+                    float cos = MathF.Cos(angle);
+                    float dx = halfW * cos;
+                    float dz = halfW * sin;
+                    AddQuadVines(
+                        vertices,
+                        indices,
+                        new Vector3(cx - dx, baseY, cz - dz),
+                        new Vector3(cx + dx, baseY, cz + dz),
+                        new Vector3(cx + dx, baseY + height, cz + dz),
+                        new Vector3(cx - dx, baseY + height, cz - dz),
+                        bottomTint,
+                        topTint,
+                        uv,
+                        windPhase);
+                }
+                return;
+            }
 
             for (int cross = 0; cross < crossCount; cross++)
             {
@@ -174,6 +231,33 @@ namespace Autonocraft.Engine
             vertices.Add(new FloraVertex(p1, colorBottom, new Vector2(uv.uMax, uv.vMax), windPhase, 0f));
             vertices.Add(new FloraVertex(p2, colorTop, new Vector2(uv.uMax, uv.vMin), windPhase, 1f));
             vertices.Add(new FloraVertex(p3, colorTop, new Vector2(uv.uMin, uv.vMin), windPhase, 1f));
+
+            indices.Add(start);
+            indices.Add(start + 1);
+            indices.Add(start + 2);
+            indices.Add(start);
+            indices.Add(start + 2);
+            indices.Add(start + 3);
+        }
+
+        private static void AddQuadVines(
+            List<FloraVertex> vertices,
+            List<uint> indices,
+            Vector3 p0,
+            Vector3 p1,
+            Vector3 p2,
+            Vector3 p3,
+            Vector3 colorBottom,
+            Vector3 colorTop,
+            (float uMin, float vMin, float uMax, float vMax) uv,
+            float windPhase)
+        {
+            uint start = (uint)vertices.Count;
+            // Vines are anchored at the top (HeightFactor = 0f) and sway at the bottom (HeightFactor = 1f)
+            vertices.Add(new FloraVertex(p0, colorBottom, new Vector2(uv.uMin, uv.vMax), windPhase, 1f));
+            vertices.Add(new FloraVertex(p1, colorBottom, new Vector2(uv.uMax, uv.vMax), windPhase, 1f));
+            vertices.Add(new FloraVertex(p2, colorTop, new Vector2(uv.uMax, uv.vMin), windPhase, 0f));
+            vertices.Add(new FloraVertex(p3, colorTop, new Vector2(uv.uMin, uv.vMin), windPhase, 0f));
 
             indices.Add(start);
             indices.Add(start + 1);

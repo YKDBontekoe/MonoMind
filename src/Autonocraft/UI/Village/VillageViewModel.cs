@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Numerics;
 using Autonocraft.Domain.Village;
 using Autonocraft.Entities;
 using Autonocraft.Village;
@@ -27,26 +28,15 @@ namespace Autonocraft.UI.Village
             VillageEntity village,
             VillageManager manager,
             VillagerManager villagers,
-            bool playerCreative)
+            bool playerCreative,
+            Vector3? playerPos = null)
         {
-            var rows = new List<VillagerRowViewModel>();
-            foreach (int id in village.VillagerIds)
-            {
-                if (!villagers.TryGet(id, out var villager))
-                {
-                    continue;
-                }
+            manager.SyncCitizensForVillage(village);
 
-                rows.Add(new VillagerRowViewModel
-                {
-                    Id = villager.Id,
-                    Name = villager.Name,
-                    Role = villager.Role.ToString(),
-                    Activity = VillagerActivityText.Describe(villager),
-                    Progress = VillagerActivityText.DescribeProgress(villager),
-                    Happiness = villager.Happiness,
-                    NeedsAttention = VillagerActivityText.NeedsAttention(villager)
-                });
+            var rows = new List<VillagerRowViewModel>();
+            foreach (var villager in VillageSettlementHealth.EnumerateLiveCitizens(village, villagers))
+            {
+                rows.Add(CreateVillagerRow(villager));
             }
 
             int pending = 0;
@@ -58,12 +48,14 @@ namespace Autonocraft.UI.Village
                 }
             }
 
+            int livePopulation = VillageSettlementHealth.CountLiveCitizens(village, villagers);
+
             return new VillageViewModel
             {
                 VillageName = village.Name,
-                StatusLine = $"{village.Tier} · Pop {village.Population}/{village.PopulationCap} · Food {village.FoodStock:0.#}",
-                NextAction = VillageGuidance.GetNextBestAction(village, villagers),
-                Population = village.Population,
+                StatusLine = $"{village.Tier} · Pop {livePopulation}/{village.PopulationCap} · Food {village.FoodStock:0.#}",
+                NextAction = VillageGuidance.GetNextBestAction(village, villagers, playerPos),
+                Population = livePopulation,
                 PopulationCap = village.PopulationCap,
                 FoodStock = village.FoodStock,
                 Happiness = village.Happiness,
@@ -73,11 +65,27 @@ namespace Autonocraft.UI.Village
                 Goals = village.Scheduler.Goals,
                 PendingBuildCount = pending,
                 WorkQueueCount = village.WorkQueue.Count,
-                RecruitHint = village.CanRecruit(playerCreative)
-                    ? $"Recruit costs {VillageEntity.RecruitFoodCost} oak planks"
-                    : "At cap or missing rations"
+                RecruitHint = livePopulation == 0
+                    ? "First settler arrives when you found or claim"
+                    : village.CanRecruit(villagers, playerCreative)
+                        ? $"Recruit costs {VillageEntity.RecruitFoodCost} oak planks"
+                        : livePopulation >= village.PopulationCap
+                            ? "Build a Peasant House to raise housing cap"
+                            : "Need 4 oak planks in village storage"
             };
         }
+
+        private static VillagerRowViewModel CreateVillagerRow(Villager villager) =>
+            new()
+            {
+                Id = villager.Id,
+                Name = villager.Name,
+                Role = villager.Role.ToString(),
+                Activity = VillagerActivityText.Describe(villager),
+                Progress = VillagerActivityText.DescribeProgress(villager),
+                Happiness = villager.Happiness,
+                NeedsAttention = VillagerActivityText.NeedsAttention(villager)
+            };
     }
 
     public sealed class VillagerRowViewModel

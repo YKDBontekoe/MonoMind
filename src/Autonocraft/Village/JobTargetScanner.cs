@@ -147,14 +147,10 @@ namespace Autonocraft.Village
                         int x = centerX + dx;
                         int z = centerZ + dz;
                         int topY = world.GetHighestSolidY(x, z);
-                        for (int y = topY; y >= topY - 8 && y > 0; y--)
+                        for (int y = Math.Max(1, topY - 8); y <= topY; y++)
                         {
                             var block = world.GetBlock(x, y, z);
-                            if (block is BlockType.OakLog or BlockType.OakLeaves
-                                or BlockType.BirchLog or BlockType.BirchLeaves
-                                or BlockType.PineLog or BlockType.PineLeaves
-                                or BlockType.WillowLog or BlockType.WillowLeaves
-                                or BlockType.PalmLog or BlockType.PalmLeaves)
+                            if (IsLumberLog(block))
                             {
                                 return new Vector3(x + 0.5f, y, z + 0.5f);
                             }
@@ -165,5 +161,12 @@ namespace Autonocraft.Village
 
             return null;
         }
+
+        private static bool IsLumberLog(BlockType block) =>
+            block is BlockType.OakLog
+                or BlockType.BirchLog
+                or BlockType.PineLog
+                or BlockType.WillowLog
+                or BlockType.PalmLog;
     }
 }

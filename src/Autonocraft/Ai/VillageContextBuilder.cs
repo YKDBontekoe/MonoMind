@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Autonocraft.Domain.Village;
 using Autonocraft.Entities;
+using Autonocraft.Village;
 using VillageEntity = Autonocraft.Village.Village;
 
 namespace Autonocraft.Ai
@@ -9,14 +10,12 @@ namespace Autonocraft.Ai
     {
         public static string BuildSummary(Autonocraft.Village.VillageManager villageManager, VillageEntity village, VillagerManager villagerManager)
         {
-            var villagers = new List<object>();
-            foreach (int villagerId in village.VillagerIds)
-            {
-                if (!villagerManager.TryGet(villagerId, out var villager))
-                {
-                    continue;
-                }
+            VillageSettlementHealth.SyncPopulationRegistry(village, villagerManager);
+            int livePopulation = VillageSettlementHealth.GetLivePopulation(village, villagerManager);
 
+            var villagers = new List<object>();
+            foreach (var villager in VillageSettlementHealth.EnumerateLiveCitizens(village, villagerManager))
+            {
                 villagers.Add(new
                 {
                     id = villager.Id,
@@ -106,7 +105,7 @@ namespace Autonocraft.Ai
                     id = village.Id,
                     name = village.Name,
                     tier = village.Tier.ToString(),
-                    population = village.Population,
+                    population = livePopulation,
                     population_cap = village.PopulationCap,
                     housing_capacity = village.HousingCapacity,
                     food_stock = village.FoodStock,

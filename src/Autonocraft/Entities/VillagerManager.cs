@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Autonocraft.Domain.Village;
+using Autonocraft.Domain.World;
 using Autonocraft.Village;
 using Autonocraft.World;
 
@@ -23,6 +24,15 @@ namespace Autonocraft.Entities
             _villagers.Add(villager);
             _villagerIndex[villager.Id] = villager;
             return villager;
+        }
+
+        public void Despawn(int villagerId)
+        {
+            if (_villagerIndex.TryGetValue(villagerId, out var villager))
+            {
+                _villagers.Remove(villager);
+                _villagerIndex.Remove(villagerId);
+            }
         }
 
         public bool TryGet(int id, out Villager villager) =>
@@ -63,6 +73,44 @@ namespace Autonocraft.Entities
         public void Update(float deltaTime, VoxelWorld world, IReadOnlyList<Village.Village> villages)
         {
             World = world;
+            foreach (var villager in _villagers)
+            {
+                RecoverIfOutOfWorld(villager, world, villages);
+            }
+        }
+
+        private static void RecoverIfOutOfWorld(Villager villager, VoxelWorld world, IReadOnlyList<Village.Village> villages)
+        {
+            if (float.IsFinite(villager.Position.X) &&
+                float.IsFinite(villager.Position.Y) &&
+                float.IsFinite(villager.Position.Z) &&
+                villager.Position.Y >= WorldConstants.BedrockLevel - 8f)
+            {
+                return;
+            }
+
+            var fallback = villager.Position;
+            foreach (var village in villages)
+            {
+                if (village.Id == villager.VillageId)
+                {
+                    fallback = village.Center;
+                    break;
+                }
+            }
+
+            int x = (int)MathF.Floor(fallback.X);
+            int z = (int)MathF.Floor(fallback.Z);
+            int surfaceY = world.GetHighestSolidY(x, z);
+            if (surfaceY < WorldConstants.BedrockLevel)
+            {
+                surfaceY = WorldConstants.SeaLevel;
+            }
+
+            villager.Position = new Vector3(x + 0.5f, surfaceY + 1f, z + 0.5f);
+            villager.Velocity = Vector3.Zero;
+            villager.IsGrounded = false;
+            villager.OnBlocked();
         }
 
         public void LoadVillagers(IEnumerable<VillagerSaveData> data)
@@ -103,6 +151,7 @@ namespace Autonocraft.Entities
                 }
 
                 villager.Happiness = entry.Happiness;
+                villager.RestoreNeeds(entry.NeedFood, entry.NeedRest, entry.NeedSocial);
                 villager.RestorePersona(entry.Trait);
                 villager.RestoreSkills(
                     entry.MiningLevel,
@@ -147,6 +196,9 @@ namespace Autonocraft.Entities
                     PosY = villager.Position.Y,
                     PosZ = villager.Position.Z,
                     Happiness = villager.Happiness,
+                    NeedFood = villager.Needs.Food,
+                    NeedRest = villager.Needs.Rest,
+                    NeedSocial = villager.Needs.Social,
                     Trait = villager.Persona.Trait,
                     MiningLevel = villager.Skills.Mining.Level,
                     MiningXp = villager.Skills.Mining.Xp,

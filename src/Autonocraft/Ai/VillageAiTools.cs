@@ -19,6 +19,7 @@ namespace Autonocraft.Ai
             Autonocraft.Village.VillageManager villageManager,
             VillagerManager villagerManager,
             VillageEntity village,
+            VoxelWorld world,
             IItemContainer? payer = null)
         {
             try
@@ -31,7 +32,7 @@ namespace Autonocraft.Ai
                     "get_village_summary" => (true, VillageContextBuilder.BuildSummary(villageManager, village, villagerManager)),
                     "list_villagers" => ListVillagers(villagerManager, village),
                     "assign_job" => AssignJob(villageManager, villagerManager, village, root),
-                    "recruit_villager" => Recruit(villageManager, village),
+                    "recruit_villager" => Recruit(villageManager, village, world),
                     "queue_build" => QueueBuild(villageManager, villagerManager, village, root, payer),
                     "mark_resource" => MarkResource(villagerManager, village, root),
                     "cancel_job" => CancelJob(village, villagerManager, root),
@@ -51,14 +52,11 @@ namespace Autonocraft.Ai
 
         private static (bool success, string message) ListVillagers(VillagerManager villagerManager, VillageEntity village)
         {
-            var lines = new List<string>();
-            foreach (int villagerId in village.VillagerIds)
-            {
-                if (!villagerManager.TryGet(villagerId, out var villager))
-                {
-                    continue;
-                }
+            VillageSettlementHealth.SyncPopulationRegistry(village, villagerManager);
 
+            var lines = new List<string>();
+            foreach (var villager in VillageSettlementHealth.EnumerateLiveCitizens(village, villagerManager))
+            {
                 lines.Add($"{villager.Id}: {villager.Name} ({villager.Role}, {villager.CurrentJob})");
             }
 
@@ -105,11 +103,16 @@ namespace Autonocraft.Ai
             return (true, $"Assigned {villager.Name} to {job}.");
         }
 
-        private static (bool success, string message) Recruit(Autonocraft.Village.VillageManager villageManager, VillageEntity village)
+        private static (bool success, string message) Recruit(
+            Autonocraft.Village.VillageManager villageManager,
+            VillageEntity village,
+            VoxelWorld world)
         {
-            if (!villageManager.TryRecruit(village))
+            if (!villageManager.TryRecruit(village, world))
             {
-                return (false, "Cannot recruit: at population cap or need 4 oak planks in storage.");
+                return (false, village.Population == 0
+                    ? "Cannot recruit yet — found or claim a settlement to welcome your first settler."
+                    : "Cannot recruit: at population cap or need 4 oak planks in storage.");
             }
 
             return (true, "A new villager joined the village.");

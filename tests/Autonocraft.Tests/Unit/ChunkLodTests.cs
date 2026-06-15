@@ -7,13 +7,13 @@ public class ChunkLodTests
 {
     [Theory]
     [InlineData(4, 1, ChunkMeshDetail.Full)]
-    [InlineData(4, 2, ChunkMeshDetail.Surface)]
-    [InlineData(4, 4, ChunkMeshDetail.Shell)]
+    [InlineData(4, 2, ChunkMeshDetail.Full)]
+    [InlineData(4, 4, ChunkMeshDetail.Surface)]
     [InlineData(6, 2, ChunkMeshDetail.Full)]
     [InlineData(6, 4, ChunkMeshDetail.Surface)]
     [InlineData(6, 6, ChunkMeshDetail.Shell)]
-    [InlineData(10, 3, ChunkMeshDetail.Full)]
-    [InlineData(10, 6, ChunkMeshDetail.Surface)]
+    [InlineData(10, 3, ChunkMeshDetail.Surface)]
+    [InlineData(10, 6, ChunkMeshDetail.Shell)]
     [InlineData(10, 10, ChunkMeshDetail.Shell)]
     public void SelectDetailMatchesExpectedBands(int renderDistance, int chunkDistance, ChunkMeshDetail expected)
     {

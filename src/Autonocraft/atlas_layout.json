@@ -1,6 +1,6 @@
 {
   "gridCols": 8,
-  "gridRows": 10,
+  "gridRows": 11,
   "tileSize": 128,
   "tiles": {
     "grass_top": { "col": 0, "row": 0, "file": "grass_top.png" },
@@ -77,7 +77,15 @@
     "wheat_sprout": { "col": 0, "row": 9, "file": "wheat_sprout.png" },
     "wheat_crop": { "col": 1, "row": 9, "file": "wheat_crop.png" },
     "carrot_sprout": { "col": 2, "row": 9, "file": "carrot_sprout.png" },
-    "carrot_crop": { "col": 3, "row": 9, "file": "carrot_crop.png" }
+    "carrot_crop": { "col": 3, "row": 9, "file": "carrot_crop.png" },
+    "fern": { "col": 7, "row": 8, "file": "fern.png" },
+    "mushroom_red": { "col": 4, "row": 9, "file": "mushroom_red.png" },
+    "mushroom_brown": { "col": 5, "row": 9, "file": "mushroom_brown.png" },
+    "dead_bush": { "col": 6, "row": 9, "file": "dead_bush.png" },
+    "lily_pad": { "col": 7, "row": 9, "file": "lily_pad.png" },
+    "vine": { "col": 0, "row": 10, "file": "vine.png" },
+    "berry_bush": { "col": 1, "row": 10, "file": "berry_bush.png" },
+    "seagrass": { "col": 2, "row": 10, "file": "seagrass.png" }
   },
   "blockFaces": {
     "Grass": { "top": "grass_top", "bottom": "dirt", "side": "grass_side" },
@@ -125,7 +133,15 @@
     "WheatSprout": { "all": "wheat_sprout" },
     "Wheat": { "all": "wheat_crop" },
     "CarrotSprout": { "all": "carrot_sprout" },
-    "Carrot": { "all": "carrot_crop" }
+    "Carrot": { "all": "carrot_crop" },
+    "Fern": { "all": "fern" },
+    "MushroomRed": { "all": "mushroom_red" },
+    "MushroomBrown": { "all": "mushroom_brown" },
+    "DeadBush": { "all": "dead_bush" },
+    "LilyPad": { "all": "lily_pad" },
+    "Vine": { "all": "vine" },
+    "BerryBush": { "all": "berry_bush" },
+    "Seagrass": { "all": "seagrass" }
   },
   "animals": {
     "Sheep": { "body": "sheep_body", "head": "sheep_head" },

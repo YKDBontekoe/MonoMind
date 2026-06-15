@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 
-DEFAULT_HOST = "localhost"
+DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 5001
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 MOVEMENT_KEYS = frozenset({"w", "a", "s", "d", "space", "shift"})

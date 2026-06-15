@@ -111,10 +111,10 @@ namespace Autonocraft.UI
             float contentPadding = layout.S(12f);
 
             _ui.DrawPanel(panelX, panelY, panelW, panelH,
-                new Color(0.02f, 0.03f, 0.06f) * 0.92f,
-                new Color(0.0f, 0.7f, 1.0f), 0.9f);
+                UiTheme.PanelBgMuted * 0.92f,
+                UiTheme.Accent, 0.9f);
 
-            _ui.DrawString("DEV CONSOLE", panelX + contentPadding, panelY + layout.S(8f), layout.S(1.3f), new Color(0.0f, 0.85f, 1.0f));
+            _ui.DrawString("DEV CONSOLE", panelX + contentPadding, panelY + layout.S(8f), layout.S(UiTheme.ScaleSection), UiTheme.Accent);
 
             float contentX = panelX + contentPadding;
             float contentY = panelY + layout.S(32f);
@@ -129,13 +129,13 @@ namespace Autonocraft.UI
                 float y = contentY + (i - startLine) * lineHeight;
                 var color = _lines[i].StartsWith("Unknown", StringComparison.OrdinalIgnoreCase) ||
                             _lines[i].StartsWith("Usage:", StringComparison.OrdinalIgnoreCase)
-                    ? new Color(1.0f, 0.5f, 0.3f)
-                    : new Color(0.75f, 0.8f, 0.85f);
+                    ? UiTheme.Danger
+                    : UiTheme.StatValue;
                 _ui.DrawString(_lines[i], contentX, y, textScale, color);
             }
 
             float inputY = panelY + panelH - layout.S(36f);
-            _ui.DrawFilledRect(contentX - 2f, inputY - layout.S(4f), contentW + 4f, layout.S(28f), new Color(0.04f, 0.06f, 0.1f) * 0.95f);
+            _ui.DrawFilledRect(contentX - 2f, inputY - layout.S(4f), contentW + 4f, layout.S(28f), UiTheme.PanelFill * 0.95f);
             _ui.DrawString("> " + _input + "_", contentX, inputY, textScale, Color.White);
         }
 

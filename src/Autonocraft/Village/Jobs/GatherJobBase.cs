@@ -16,16 +16,34 @@ namespace Autonocraft.Village.Jobs
         {
             if (!TryResolveBreakTarget(villager, world, context, out var target))
             {
+                if (context.CreativeMode)
+                {
+                    TickCreativeFallback(villager, deltaTime);
+                    return;
+                }
+
                 ReturnEquippedTool(villager, context.Storage);
                 villager.AssignJob(JobType.Idle, null, null);
                 return;
             }
 
+            if (context.Village != null)
+            {
+                VillageSettlementHealth.EnsureVillageChunksLoaded(world, context.Village);
+            }
+            else
+            {
+                world.UpdateChunksAround(null, target, 1);
+            }
+
             if (villager.AiPhase == VillagerAiPhase.PathTo)
             {
-                if (VillagerMovementHelper.TryMoveToward(villager, deltaTime, world, target))
+                if (!context.CreativeMode && !IsWithinGatherReach(villager, target))
                 {
-                    return;
+                    if (VillagerMovementHelper.TryMoveToward(villager, deltaTime, world, target))
+                    {
+                        return;
+                    }
                 }
 
                 villager.SetAiPhase(VillagerAiPhase.Working);
@@ -33,18 +51,19 @@ namespace Autonocraft.Village.Jobs
 
             if (villager.AiPhase == VillagerAiPhase.Working)
             {
-                if (!EnsureEquippedTool(villager, context.Storage, RequiredTool, context.CreativeMode))
-                {
-                    ReturnEquippedTool(villager, context.Storage);
-                    villager.AssignJob(JobType.Idle, null, null);
-                    return;
-                }
+                TryEquipPreferredTool(villager, context.Storage, RequiredTool, context.CreativeMode);
 
                 int bx = (int)MathF.Floor(target.X);
                 int by = (int)MathF.Floor(target.Y);
                 int bz = (int)MathF.Floor(target.Z);
+                if (!context.CreativeMode && !IsWithinGatherReach(villager, target))
+                {
+                    villager.SetAiPhase(VillagerAiPhase.PathTo);
+                    return;
+                }
+
                 var block = world.GetBlock(bx, by, bz);
-                if (block == BlockType.Air || !block.IsCollidable() || !IsTargetBlock(block))
+                if (block == BlockType.Air || !IsTargetBlock(block))
                 {
                     context.Village?.WorkQueue.Complete(bx, by, bz);
                     villager.MarkedResource = null;
@@ -83,30 +102,48 @@ namespace Autonocraft.Village.Jobs
             }
         }
 
-        private static bool EnsureEquippedTool(Villager villager, VillageStorage storage, ToolType requiredTool, bool creative)
+        private void TickCreativeFallback(Villager villager, float deltaTime)
+        {
+            villager.SetAiPhase(VillagerAiPhase.Working);
+            if (!villager.EquippedTool.IsTool() ||
+                !ToolRegistry.TryGet(villager.EquippedTool.ToolId, out var equippedDef) ||
+                equippedDef.ToolType != RequiredTool)
+            {
+                villager.SetEquippedTool(ToolRegistry.CreateStack(RequiredTool, ToolTier.Stone));
+            }
+
+            villager.WorkTimer += deltaTime * villager.WorkSpeedMultiplier;
+            if (villager.WorkTimer < Villager.WorkInterval)
+            {
+                return;
+            }
+
+            villager.WorkTimer = 0f;
+            var block = RequiredTool == ToolType.Axe ? BlockType.OakLog : BlockType.Cobblestone;
+            villager.Inventory.AddItem(ItemStack.CreateBlock(block, 1));
+        }
+
+        private static void TryEquipPreferredTool(Villager villager, VillageStorage storage, ToolType preferredTool, bool creative)
         {
             if (villager.EquippedTool.IsTool() &&
                 ToolRegistry.TryGet(villager.EquippedTool.ToolId, out var equippedDef) &&
-                equippedDef.ToolType == requiredTool &&
+                equippedDef.ToolType == preferredTool &&
                 (creative || villager.EquippedTool.Durability > 0))
             {
-                return true;
+                return;
             }
 
             ReturnEquippedTool(villager, storage);
-            if (storage.TryWithdrawTool(requiredTool, out var tool))
+            if (storage.TryWithdrawTool(preferredTool, out var tool))
             {
                 villager.SetEquippedTool(tool);
-                return true;
+                return;
             }
 
             if (creative)
             {
-                villager.SetEquippedTool(ToolRegistry.CreateStack(requiredTool, ToolTier.Stone));
-                return villager.EquippedTool.IsTool();
+                villager.SetEquippedTool(ToolRegistry.CreateStack(preferredTool, ToolTier.Stone));
             }
-
-            return false;
         }
 
         private static void ReturnEquippedTool(Villager villager, VillageStorage storage)
@@ -157,7 +194,7 @@ namespace Autonocraft.Village.Jobs
                 int by = (int)MathF.Floor(villager.JobTarget.Value.Y);
                 int bz = (int)MathF.Floor(villager.JobTarget.Value.Z);
                 var block = world.GetBlock(bx, by, bz);
-                if (block != BlockType.Air && block.IsCollidable() && IsTargetBlock(block))
+                if (block != BlockType.Air && IsTargetBlock(block))
                 {
                     target = villager.JobTarget.Value;
                     return true;
@@ -194,6 +231,15 @@ namespace Autonocraft.Village.Jobs
             target = default;
             return false;
         }
+
+        private static bool IsWithinGatherReach(Villager villager, Vector3 target)
+        {
+            int bx = (int)MathF.Floor(target.X);
+            int bz = (int)MathF.Floor(target.Z);
+            float reachX = villager.Position.X - (bx + 0.5f);
+            float reachZ = villager.Position.Z - (bz + 0.5f);
+            return reachX * reachX + reachZ * reachZ <= 2.5f * 2.5f;
+        }
     }
 
     internal sealed class LumberJob : GatherJobBase
@@ -201,11 +247,11 @@ namespace Autonocraft.Village.Jobs
         protected override ToolType RequiredTool => ToolType.Axe;
 
         protected override Func<BlockType, bool> IsTargetBlock => block =>
-            block is BlockType.OakLog or BlockType.OakLeaves
-                or BlockType.BirchLog or BlockType.BirchLeaves
-                or BlockType.PineLog or BlockType.PineLeaves
-                or BlockType.WillowLog or BlockType.WillowLeaves
-                or BlockType.PalmLog or BlockType.PalmLeaves;
+            block is BlockType.OakLog
+                or BlockType.BirchLog
+                or BlockType.PineLog
+                or BlockType.WillowLog
+                or BlockType.PalmLog;
     }
 
     internal sealed class MineJob : GatherJobBase

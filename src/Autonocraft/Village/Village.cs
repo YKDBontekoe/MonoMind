@@ -34,6 +34,7 @@ namespace Autonocraft.Village
         public VillageStorage Storage { get; }
         public JobScheduler Scheduler { get; } = new();
         public GatherWorkQueue WorkQueue { get; } = new();
+        public VillageEconomy Economy { get; } = new VillageEconomy();
 
         public int HousingCapacity { get; set; }
         public int PopulationCap { get; set; } = 2;
@@ -43,6 +44,8 @@ namespace Autonocraft.Village
         public float Happiness { get; set; } = 1f;
         public float DayAccumulator { get; set; }
         public float FarmGrowthAccumulator { get; set; }
+        public int ConsecutiveDaysWithoutFood { get; set; }
+        public bool DailyNeedsSimulatedThisFrame { get; private set; }
 
         private readonly List<int> _villagerIds = new();
         private readonly List<VillageBuilding> _buildings = new();
@@ -89,12 +92,28 @@ namespace Autonocraft.Village
 
         public bool CanRecruit(bool creative = false)
         {
+            if (Population == 0)
+            {
+                return false;
+            }
+
             if (Population >= PopulationCap)
             {
                 return false;
             }
 
             return creative || Storage.CountBlock(RationBlock) >= RecruitFoodCost;
+        }
+
+        public bool CanRecruit(VillagerManager villagers, bool creative = false)
+        {
+            VillageSettlementHealth.SyncPopulationRegistry(this, villagers);
+            if (VillageSettlementHealth.GetLivePopulation(this, villagers) == 0)
+            {
+                return false;
+            }
+
+            return CanRecruit(creative);
         }
 
         public bool TryRecruitCost(bool creative = false)
@@ -121,6 +140,38 @@ namespace Autonocraft.Village
         }
 
         public void UnregisterVillager(int villagerId) => _villagerIds.Remove(villagerId);
+
+        public void ReconcileVillagerRegistry(IReadOnlyList<Villager> villagers)
+        {
+            for (int i = _villagerIds.Count - 1; i >= 0; i--)
+            {
+                if (!ContainsVillagerId(villagers, _villagerIds[i]))
+                {
+                    _villagerIds.RemoveAt(i);
+                }
+            }
+
+            foreach (var villager in villagers)
+            {
+                if (villager.VillageId == Id)
+                {
+                    RegisterVillager(villager.Id);
+                }
+            }
+        }
+
+        private static bool ContainsVillagerId(IReadOnlyList<Villager> villagers, int villagerId)
+        {
+            foreach (var villager in villagers)
+            {
+                if (villager.Id == villagerId)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         public BuildingSite? QueueBuild(BuildingBlueprint blueprint, int anchorX, int anchorY, int anchorZ)
         {
@@ -441,13 +492,16 @@ namespace Autonocraft.Village
 
         public void UpdateSimulation(float deltaTime, float timeOfDay)
         {
+            DailyNeedsSimulatedThisFrame = false;
             DayAccumulator += deltaTime;
             if (DayAccumulator >= 120f)
             {
                 DayAccumulator = 0f;
                 SimulateDailyNeeds();
+                DailyNeedsSimulatedThisFrame = true;
             }
 
+            float maxHappiness = HasBuilding(BuildingKind.Market) ? 1.1f : 1.0f;
             bool isNight = DayNightCycle.IsNight(timeOfDay);
             if (isNight && FoodStock <= 0f)
             {
@@ -455,7 +509,7 @@ namespace Autonocraft.Village
             }
             else if (FoodStock > Population)
             {
-                Happiness = MathF.Min(1f, Happiness + 0.02f);
+                Happiness = MathF.Min(maxHappiness, Happiness + 0.02f);
             }
         }
 
@@ -465,11 +519,13 @@ namespace Autonocraft.Village
             if (FoodStock >= need)
             {
                 FoodStock -= need;
+                ConsecutiveDaysWithoutFood = 0;
             }
             else
             {
                 FoodStock = 0f;
                 Happiness = MathF.Max(0.1f, Happiness - 0.1f);
+                ConsecutiveDaysWithoutFood++;
             }
         }
 

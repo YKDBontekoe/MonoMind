@@ -7,5 +7,6 @@ namespace Autonocraft.Village
         public int AnchorY { get; init; }
         public int AnchorZ { get; init; }
         public bool Valid { get; init; }
+        public bool IsQueuedConstruction { get; init; }
     }
 }

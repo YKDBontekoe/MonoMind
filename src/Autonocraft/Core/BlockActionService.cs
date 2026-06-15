@@ -50,7 +50,9 @@ namespace Autonocraft.Core
                 return false;
             }
 
-            if (EntityIntersectsBlock(entityWidth, entityHeight, entityPosition, x, y, z))
+            if (entityWidth > 0f &&
+                entityHeight > 0f &&
+                EntityIntersectsBlock(entityWidth, entityHeight, entityPosition, x, y, z))
             {
                 return false;
             }

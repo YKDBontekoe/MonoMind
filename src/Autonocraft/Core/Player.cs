@@ -63,6 +63,16 @@ namespace Autonocraft.Core
             FallDistance = 0f;
         }
 
+        public void ForceAirborne()
+        {
+            IsGrounded = false;
+            _wasGrounded = false;
+            _wasInWater = InWater;
+            _fallStartY = Position.Y;
+            JustLanded = false;
+            FallDistance = 0f;
+        }
+
         public ItemStack[] Hotbar { get; } = new ItemStack[9];
         public int SelectedSlot { get; set; } = 0;
 
@@ -468,7 +478,7 @@ namespace Autonocraft.Core
             int surfaceY = world.GetHighestSolidY(x, z);
             if (surfaceY < 0)
             {
-                surfaceY = 26;
+                surfaceY = 64;
             }
 
             for (int offset = 0; offset < 16; offset++)
