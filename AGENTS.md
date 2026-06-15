@@ -84,7 +84,7 @@ bash scripts/ci_e2e.sh   # macOS/Linux full E2E
 
 Tests instantiate `AutonocraftGame(runTests: true)` without calling `Run()`, so no MonoGame window is created. Graphics device may be `null` for chunk updates in test mode.
 
-### Covered areas (40 tests)
+### Covered areas (48 tests)
 
 #### Settings & world generation
 
@@ -178,6 +178,19 @@ Tests instantiate `AutonocraftGame(runTests: true)` without calling `Run()`, so 
 | Village Events Notifier | Recruit/build/tier toast events |
 | Village AI Tools | Mock LLM tool `get_village_summary` |
 
+#### Survival & early game
+
+| Test | What it verifies |
+|------|------------------|
+| Hunger Drain | Hunger decreases over simulated time in survival |
+| Eat Food | Consuming cooked meat restores hunger |
+| Animal Loot | Killing pig adds raw meat to inventory |
+| Village Rations | Withdrawing from food stock reduces `FoodStock` and restores player hunger |
+| Night Spawn | Wolf spawns at night, none at noon (headless sim) |
+| Death Penalty | Death drops hotbar items; respawn restores partial hunger |
+| Hunger Save Round-Trip | Hunger persists in `world.json` |
+| Starter Settlement (extended) | Welcome cooked meat in storage, both settlers working, farm plot queued |
+
 ### Expected output
 
 ```
@@ -219,6 +232,10 @@ Returns JSON with player state, skills, hotbar (blocks/tools), nearby animals, t
   "isGrounded": true,
   "health": 20,
   "maxHealth": 20,
+  "hunger": 20,
+  "maxHunger": 20,
+  "earlyGuideStage": 0,
+  "guidanceHint": "Press V — take rations or open Town Board",
   "timeOfDay": 0.3,
   "timeScale": 0.01,
   "timePaused": false,
@@ -240,7 +257,7 @@ Returns JSON with player state, skills, hotbar (blocks/tools), nearby animals, t
 }
 ```
 
-Hotbar `kind` values: `"empty"`, `"block"`, `"tool"`. `nearbyStation` is `"Bench"`, `"Forge"`, `"Crucible"`, or `null`.
+Hotbar `kind` values: `"empty"`, `"block"`, `"tool"`, `"food"`, `"fluid_container"`. `nearbyStation` is `"Bench"`, `"Forge"`, `"Crucible"`, or `null`.
 
 `village` and `villagers[]` appear when a settlement exists. `playWithAi`, `aiProvider`, and `llmAvailable` reflect main-menu AI settings (`Mock`, `OpenRouter`, `LlamaCpp`, or off).
 
@@ -381,6 +398,10 @@ For multi-step flows, JSON scenarios, and a reusable Python client, see `.cursor
 | Player physics & inventory | `Core/Player.cs`, `Core/PlayerStatistics.cs` |
 | Block mine/place | `Core/BlockInteractionSystem.cs` |
 | Combat | `Core/CombatSystem.cs` |
+| Survival / hunger | `Core/SurvivalConstants.cs`, `Core/FoodConsumption` in `AnimalLoot.cs`, `Items/FoodRegistry.cs` |
+| Early-game guide | `Core/EarlyGameGuide.cs` |
+| Night threats | `Entities/NightThreatSpawner.cs` |
+| Death penalty | `Core/DeathConsequences.cs` |
 | HTTP agent API | `Core/AgentHttpServer.cs` |
 | Integration tests | `tests/Autonocraft.Tests/`, `Core/GameIntegrationTests.cs` |
 | World & chunks | `World/VoxelWorld.cs`, `World/Chunk.cs`, `World/ChunkLod.cs` |
@@ -410,6 +431,8 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/CODEMAP.md](docs/CODE
 | Add craft recipe | `CraftRecipeRegistry.cs`, `CraftingSystem.cs` | `TestNewCraftRecipes` |
 | Change mining speed | `MiningCalculator.cs`, `ToolRegistry.cs` | `TestToolMiningSpeed` |
 | Fix swimming | `Player.cs`, `FluidSystem.cs` | `TestSwimThroughWater`, `TestDrowning` |
+| Survival / hunger | `SurvivalConstants.cs`, `FoodRegistry.cs`, `Player.cs` | `SurvivalTests`, hunger save round-trip |
+| Night threats | `NightThreatSpawner.cs`, `AnimalType.cs` | `RunNightSpawn` |
 | Add structure | `StructureRegistry.cs`, `StructurePlacer.cs` | `TestStructureGeneration` |
 | Rendering change | `Engine/WorldRenderer.cs`, `Engine/SceneLighting.cs`, `Engine/BlockTerrainEffect.cs` | `--test` + screenshot |
 

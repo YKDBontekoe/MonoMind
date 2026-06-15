@@ -83,6 +83,7 @@ namespace Autonocraft.World
         public int TimesDrowned { get; set; }
         public int ItemsCrafted { get; set; }
         public int VillageTutorialStage { get; set; }
+        public int EarlyGuideStage { get; set; }
     }
 
     public sealed class InventorySlotSaveData
