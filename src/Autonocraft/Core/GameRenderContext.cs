@@ -22,6 +22,7 @@ namespace Autonocraft.Core
         public CraftingSystem Crafting { get; set; } = null!;
         public HudToast HudToast { get; set; } = null!;
         public bool ShowVillageHint { get; set; }
+        public string? OnboardingHint { get; set; }
         public string? NearbyClaimHint { get; set; }
         public float TimeOfDay { get; set; }
         public float WaterAnimTime { get; set; }

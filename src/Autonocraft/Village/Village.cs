@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Autonocraft.Core;
 using Autonocraft.Domain.Core;
 using Autonocraft.Domain.Village;
 using Autonocraft.Entities;
@@ -42,6 +43,7 @@ namespace Autonocraft.Village
         public float Happiness { get; set; } = 1f;
         public float DayAccumulator { get; set; }
         public float FarmProductionTimer { get; set; }
+        public int LowFoodDayStreak { get; set; }
 
         private readonly List<int> _villagerIds = new();
         private readonly List<VillageBuilding> _buildings = new();
@@ -265,6 +267,7 @@ namespace Autonocraft.Village
 
             FarmProductionTimer = 0f;
             FoodStock += farmPlots * FarmFoodPerMinute;
+            Storage.AddItem(ItemStack.CreateConsumable(ItemId.Bread, farmPlots));
         }
 
         private void SimulateDailyNeeds()
@@ -273,12 +276,26 @@ namespace Autonocraft.Village
             if (FoodStock >= need)
             {
                 FoodStock -= need;
+                LowFoodDayStreak = 0;
             }
             else
             {
                 FoodStock = 0f;
                 Happiness = MathF.Max(0.1f, Happiness - 0.1f);
+                LowFoodDayStreak++;
             }
+        }
+
+        public bool TryTakeRation(Player player)
+        {
+            if (FoodStock < 1f)
+            {
+                return false;
+            }
+
+            FoodStock -= 1f;
+            player.AddItem(ItemStack.CreateConsumable(ItemId.VillageRation, 1));
+            return true;
         }
 
         public float GetWorkSpeedMultiplier()

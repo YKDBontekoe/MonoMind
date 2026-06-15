@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Autonocraft.Core;
 
 namespace Autonocraft.World
 {
     public sealed class WorldSaveData
     {
-        public int Version { get; set; } = 6;
+        public int Version { get; set; } = 8;
         public string SlotId { get; set; } = string.Empty;
         public string SlotName { get; set; } = string.Empty;
         public int Seed { get; set; } = 1337;
@@ -40,6 +41,8 @@ namespace Autonocraft.World
         public float Pitch { get; set; }
         public float Health { get; set; } = 20f;
         public float MaxHealth { get; set; } = 20f;
+        public float Hunger { get; set; } = SurvivalConstants.MaxHunger;
+        public float MaxHunger { get; set; } = SurvivalConstants.MaxHunger;
         public bool FlyingMode { get; set; }
         public int SelectedSlot { get; set; }
         public List<InventorySlotSaveData> Hotbar { get; set; } = new();

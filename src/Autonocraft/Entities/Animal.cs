@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Autonocraft.Core;
 using Autonocraft.World;
 
 namespace Autonocraft.Entities
@@ -25,6 +26,8 @@ namespace Autonocraft.Entities
         public bool IsDying { get; private set; }
         public bool ReadyForRemoval => IsDying && DeathAnimTimer <= 0f;
         public float DeathScale => IsDying ? Math.Clamp(DeathAnimTimer / DeathAnimDuration, 0f, 1f) : 1f;
+        public bool IsHostile { get; private set; }
+        public float AttackCooldown { get; private set; }
 
         private const float HitFlashDuration = 0.15f;
         private const float DeathAnimDuration = 0.3f;
@@ -32,7 +35,7 @@ namespace Autonocraft.Entities
         private readonly Random _rng;
         private readonly AnimalStats _stats;
 
-        public Animal(AnimalType type, Vector3 position, int seed)
+        public Animal(AnimalType type, Vector3 position, int seed, bool hostile = false)
         {
             Id = _nextId++;
             Type = type;
@@ -45,6 +48,7 @@ namespace Autonocraft.Entities
             IdleTime = NextIdleDuration();
             WanderDirection = Vector3.Zero;
             WanderDistanceRemaining = 0f;
+            IsHostile = hostile || type == AnimalType.Wolf;
         }
 
         public AnimalStats Stats => _stats;
@@ -92,14 +96,32 @@ namespace Autonocraft.Entities
             }
         }
 
-        public void Update(float deltaTime, VoxelWorld world)
+        public void Update(float deltaTime, VoxelWorld world, Vector3? chaseTarget = null, bool fleeAtDawn = false)
         {
             if (IsDying)
             {
                 return;
             }
 
-            UpdateAi(deltaTime);
+            if (AttackCooldown > 0f)
+            {
+                AttackCooldown = MathF.Max(0f, AttackCooldown - deltaTime);
+            }
+
+            if (IsHostile && fleeAtDawn)
+            {
+                BeginDeathAnimation();
+                return;
+            }
+
+            if (IsHostile && chaseTarget.HasValue)
+            {
+                UpdateHostileAi(deltaTime, chaseTarget.Value);
+            }
+            else
+            {
+                UpdateAi(deltaTime);
+            }
 
             var horizontal = new Vector3(WanderDirection.X * _stats.WalkSpeed, 0f, WanderDirection.Z * _stats.WalkSpeed);
             if (Type == AnimalType.Chicken && IsGrounded && WanderDistanceRemaining > 0f && _rng.NextDouble() < 0.02)
@@ -147,6 +169,45 @@ namespace Autonocraft.Entities
             {
                 Yaw = MathF.Atan2(WanderDirection.X, WanderDirection.Z) * (180f / MathF.PI);
             }
+        }
+
+        private void UpdateHostileAi(float deltaTime, Vector3 target)
+        {
+            var toTarget = target - Position;
+            toTarget.Y = 0f;
+            float dist = toTarget.Length();
+            if (dist > SurvivalConstants.WolfChaseRange)
+            {
+                WanderDirection = Vector3.Zero;
+                WanderDistanceRemaining = 0f;
+                IdleTime = NextIdleDuration();
+                return;
+            }
+
+            if (dist > 0.5f)
+            {
+                WanderDirection = Vector3.Normalize(toTarget);
+                WanderDistanceRemaining = dist;
+                IdleTime = 0f;
+            }
+        }
+
+        public bool TryAttackPlayer(Player player)
+        {
+            if (!IsHostile || !IsAlive || AttackCooldown > 0f)
+            {
+                return false;
+            }
+
+            var offset = player.Position - Position;
+            offset.Y = 0f;
+            if (offset.Length() > SurvivalConstants.WolfMeleeRange)
+            {
+                return false;
+            }
+
+            AttackCooldown = SurvivalConstants.WolfAttackCooldownSeconds;
+            return player.TakeDamage(SurvivalConstants.WolfMeleeDamage);
         }
 
         private void UpdateAi(float deltaTime)

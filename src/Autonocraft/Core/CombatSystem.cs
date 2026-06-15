@@ -41,17 +41,20 @@ namespace Autonocraft.Core
             BlocksMiningThisFrame = false;
             player.UpdateInvulnerability(deltaTime);
 
-            if (_attackCooldown > 0f)
-            {
-                _attackCooldown = Math.Max(0f, _attackCooldown - deltaTime);
-            }
-
             HandleFallDamage(player, world, animator);
             HandleDrowning(deltaTime, player, animator);
+
+            bool isMoving = player.Velocity.X * player.Velocity.X + player.Velocity.Z * player.Velocity.Z > 0.5f;
+            player.TickHunger(deltaTime, isMoving, blockInteraction.IsMining);
 
             if (!player.IsAlive)
             {
                 return;
+            }
+
+            if (_attackCooldown > 0f)
+            {
+                _attackCooldown = Math.Max(0f, _attackCooldown - deltaTime);
             }
 
             bool wantsAttack = leftPressed || (leftHeld && _attackCooldown <= 0f);
@@ -162,6 +165,11 @@ namespace Autonocraft.Core
             if (!targetAnimal.IsAlive)
             {
                 player.Stats.RecordAnimalKill(targetAnimal.Type, damage);
+                var loot = AnimalLoot.For(targetAnimal.Type);
+                if (!loot.IsEmpty)
+                {
+                    player.AddItem(loot);
+                }
                 if (player.Skills.AddXp(PlayerSkill.Combat, 10f))
                 {
                     ShowToast?.Invoke($"Combat level {player.Skills.GetLevel(PlayerSkill.Combat)}!");
@@ -263,8 +271,7 @@ namespace Autonocraft.Core
         {
             var spawnPos = Player.FindSafeSpawnPosition(world, spawnX, spawnZ);
             player.Position = spawnPos;
-            player.Velocity = Vector3.Zero;
-            player.Health = player.MaxHealth;
+            player.RestoreRespawnVitals();
             Console.WriteLine($"[Combat] Player respawned at ({spawnPos.X:F1}, {spawnPos.Y:F1}, {spawnPos.Z:F1})");
         }
     }

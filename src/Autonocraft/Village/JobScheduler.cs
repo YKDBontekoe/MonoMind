@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Autonocraft.Crafting;
 using Autonocraft.Domain.Village;
 using Autonocraft.Entities;
 using Autonocraft.World;
@@ -58,6 +59,72 @@ namespace Autonocraft.Village
             }
 
             return null;
+        }
+
+        public static string GetActionHint(VillageGoal goal)
+        {
+            string description = goal.Description.ToLowerInvariant();
+            if (description.Contains("farm"))
+            {
+                return "BUILDINGS → Farm Plot";
+            }
+
+            if (description.Contains("recruit"))
+            {
+                return "PRESS R TO RECRUIT (4 PLANKS)";
+            }
+
+            if (description.Contains("bench") || description.Contains("crafting") || description.Contains("awaken"))
+            {
+                return "SHIFT+CLICK SIGIL TO AWAKEN BENCH";
+            }
+
+            return string.Empty;
+        }
+
+        public void UpdateGoalProgress(Village village, DiscoveryJournal journal)
+        {
+            foreach (var goal in _goals)
+            {
+                if (goal.Completed)
+                {
+                    continue;
+                }
+
+                if (IsGoalComplete(goal, village, journal))
+                {
+                    goal.Completed = true;
+                }
+            }
+        }
+
+        private static bool IsGoalComplete(VillageGoal goal, Village village, DiscoveryJournal journal)
+        {
+            string description = goal.Description.ToLowerInvariant();
+            if (description.Contains("farm"))
+            {
+                foreach (var site in village.BuildingSites)
+                {
+                    if (site.BlueprintId == "farm_plot")
+                    {
+                        return true;
+                    }
+                }
+
+                return village.CountBuildings(BuildingKind.FarmPlot) > 0;
+            }
+
+            if (description.Contains("bench") || description.Contains("crafting") || description.Contains("awaken"))
+            {
+                return journal.IsUnlocked("sigil:bench");
+            }
+
+            if (description.Contains("recruit"))
+            {
+                return village.Population > 2;
+            }
+
+            return false;
         }
 
         public bool AssignJob(Villager villager, JobType job, Vector3? target = null, int? buildingSiteId = null)

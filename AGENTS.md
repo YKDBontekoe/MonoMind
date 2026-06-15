@@ -84,7 +84,7 @@ bash scripts/ci_e2e.sh   # macOS/Linux full E2E
 
 Tests instantiate `AutonocraftGame(runTests: true)` without calling `Run()`, so no MonoGame window is created. Graphics device may be `null` for chunk updates in test mode.
 
-### Covered areas (40 tests)
+### Covered areas (47 tests)
 
 #### Settings & world generation
 
@@ -175,6 +175,18 @@ Tests instantiate `AutonocraftGame(runTests: true)` without calling `Run()`, so 
 | Village Save Round-Trip V6 | Buildings, sites, caps, villager jobs persist (save v6) |
 | Village AI Tools | Mock LLM tool `get_village_summary` |
 
+#### Survival & onboarding
+
+| Test | What it verifies |
+|------|------------------|
+| Player Hunger | Depletion, eating restores, starvation damage |
+| Consumable From Animal | Kill sheep → raw meat in hotbar |
+| Night Wolf Spawn | Hostile wolves at night; flee/despawn at dawn |
+| Death Inventory Loss | Death removes hotbar slots; respawn partial hunger |
+| Village Guidance Hints | Onboarding steps advance; crafting hint after bench step |
+| Village Goals Progress | Starter goals seeded; farm goal completes when plot queued |
+| Village Ration Withdraw | Take ration reduces `FoodStock`, restores player hunger |
+
 ### Expected output
 
 ```
@@ -216,14 +228,17 @@ Returns JSON with player state, skills, hotbar (blocks/tools), nearby animals, t
   "isGrounded": true,
   "health": 20,
   "maxHealth": 20,
+  "hunger": 14,
+  "maxHunger": 20,
   "timeOfDay": 0.3,
   "timeScale": 0.01,
   "timePaused": false,
   "selectedSlot": 0,
   "hotbar": [
-    { "slot": 0, "kind": "block", "type": "Dirt", "count": 64 },
-    { "slot": 1, "kind": "tool", "toolId": "WoodPickaxe", "name": "Wood Pickaxe", "durability": 59, "maxDurability": 60 },
-    { "slot": 2, "kind": "empty" }
+    { "slot": 0, "kind": "fluid", "toolId": "EmptyBucket", "name": "Empty Bucket" },
+    { "slot": 1, "kind": "block", "type": "Dirt", "count": 8 },
+    { "slot": 2, "kind": "tool", "toolId": "WoodAxe", "name": "Wood Axe", "durability": 28, "maxDurability": 30 },
+    { "slot": 3, "kind": "consumable", "itemId": "Berries", "name": "Berries", "count": 2 }
   ],
   "skills": {
     "mining": { "level": 1, "xp": 0 },
@@ -237,7 +252,9 @@ Returns JSON with player state, skills, hotbar (blocks/tools), nearby animals, t
 }
 ```
 
-Hotbar `kind` values: `"empty"`, `"block"`, `"tool"`. `nearbyStation` is `"Bench"`, `"Forge"`, `"Crucible"`, or `null`.
+Hotbar `kind` values: `"empty"`, `"block"`, `"tool"`, `"fluid"`, `"consumable"`. `nearbyStation` is `"Bench"`, `"Forge"`, `"Crucible"`, or `null`.
+
+Saves use **world.json v8** (adds optional `hunger` / `maxHunger` on player; missing fields default to a full bar).
 
 `village` and `villagers[]` appear when a settlement exists. `playWithAi`, `aiProvider`, and `llmAvailable` reflect main-menu AI settings (`Mock`, `OpenRouter`, `LlamaCpp`, or off).
 
@@ -375,9 +392,11 @@ For multi-step flows, JSON scenarios, and a reusable Python client, see `.cursor
 | Concern | Primary files |
 |---------|---------------|
 | Game loop & state machine | `Core/AutonocraftGame.cs`, `Core/GameSession.cs`, `Core/GameState.cs` |
-| Player physics & inventory | `Core/Player.cs`, `Core/PlayerStatistics.cs` |
+| Player physics & inventory | `Core/Player.cs`, `Core/PlayerStatistics.cs`, `Core/SurvivalConstants.cs`, `Items/FoodRegistry.cs` |
 | Block mine/place | `Core/BlockInteractionSystem.cs` |
-| Combat | `Core/CombatSystem.cs` |
+| Combat | `Core/CombatSystem.cs`, `Core/DeathConsequences.cs`, `Core/AnimalLoot.cs` |
+| Night threats | `Entities/NightThreatSpawner.cs`, `Entities/Animal.cs` (hostile wolves) |
+| Onboarding | `Core/EarlyGameGuide.cs`, `Core/GameSession.cs` (`UpdateSurvival`) |
 | HTTP agent API | `Core/AgentHttpServer.cs` |
 | Integration tests | `tests/Autonocraft.Tests/`, `Core/GameIntegrationTests.cs` |
 | World & chunks | `World/VoxelWorld.cs`, `World/Chunk.cs`, `World/ChunkLod.cs` |

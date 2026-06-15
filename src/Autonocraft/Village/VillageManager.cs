@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
+using Autonocraft.Crafting;
+using Autonocraft.Core;
 using Autonocraft.Domain.Core;
 using Autonocraft.Domain.Village;
 using Autonocraft.Entities;
@@ -18,6 +21,7 @@ namespace Autonocraft.Village
         private readonly HashSet<long> _claimedAnchors = new();
         private int _worldSeed;
         private bool _wasNight;
+        private DiscoveryJournal? _craftingJournal;
 
         public Action<string>? ShowToast { get; set; }
         public IReadOnlyList<Village> Villages => _villages;
@@ -29,6 +33,21 @@ namespace Autonocraft.Village
         }
 
         public void SetWorldSeed(int seed) => _worldSeed = seed;
+
+        public void SetCraftingJournal(DiscoveryJournal journal) => _craftingJournal = journal;
+
+        public bool TryTakeRation(Village village, Player player, out string message)
+        {
+            message = string.Empty;
+            if (!village.TryTakeRation(player))
+            {
+                message = "Not enough village food stock.";
+                return false;
+            }
+
+            message = "Took a village ration.";
+            return true;
+        }
 
         public Village? GetPrimaryVillage() => _villages.Count > 0 ? _villages[0] : null;
 
@@ -76,9 +95,13 @@ namespace Autonocraft.Village
             var village = new Village(villageName, heartX, heartY, heartZ, blueprint.StorageSlots);
             _villages.Add(village);
             village.RegisterClaimedBuilding(blueprint, heartX, heartY, heartZ);
-            village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 16));
-            village.Storage.AddItem(ItemStack.CreateBlock(BlockType.Cobblestone, 8));
-            village.FoodStock = 6f;
+            village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 8));
+            village.Storage.AddItem(ItemStack.CreateBlock(BlockType.Cobblestone, 4));
+            village.FoodStock = 4f;
+
+            village.Scheduler.AddGoal("Queue a farm plot before food runs low", priority: 10);
+            village.Scheduler.AddGoal("Recruit a farmer when you have 4 planks", priority: 8);
+            village.Scheduler.AddGoal("Awaken a crafting bench for tools", priority: 6);
 
             var spawnPos = village.Center + new Vector3(-2.5f, 0f, 0.5f);
             var lumberjack = _villagers.Spawn(village.Id, spawnPos, _worldSeed ^ 1);
@@ -93,6 +116,12 @@ namespace Autonocraft.Village
             if (gatherTarget.HasValue)
             {
                 TryAssignJob(village, lumberjack, JobType.Gather, gatherTarget);
+            }
+
+            var peasantGather = FindNearbyGatherTarget(world, heartX + 3, heartZ + 2, 24);
+            if (peasantGather.HasValue)
+            {
+                TryAssignJob(village, peasant, JobType.Gather, peasantGather);
             }
 
             RecordClaimedAnchor(heartX, heartZ);
@@ -353,6 +382,24 @@ namespace Autonocraft.Village
             foreach (var village in _villages)
             {
                 village.UpdateSimulation(deltaTime, timeOfDay);
+                if (_craftingJournal != null)
+                {
+                    village.Scheduler.UpdateGoalProgress(village, _craftingJournal);
+                }
+
+                if (village.LowFoodDayStreak >= 2 &&
+                    village.Scheduler.Goals.All(g => g.Completed || !g.Description.Contains("farm", StringComparison.OrdinalIgnoreCase)))
+                {
+                    village.Scheduler.AddGoal("Build another farm plot", priority: 9);
+                    ShowToast?.Invoke("Village food is low — build another farm plot.");
+                    village.LowFoodDayStreak = 0;
+                }
+
+                if (village.CountBuildings(BuildingKind.Workshop) > 0 && _craftingJournal != null)
+                {
+                    _craftingJournal.Unlock("recipe:cooked_meat");
+                }
+
                 FinalizeCompletedSites(village, world);
 
                 if (morning)
@@ -361,13 +408,19 @@ namespace Autonocraft.Village
                 }
 
                 var context = BuildContext(village);
-                float workMult = village.GetWorkSpeedMultiplier();
+                float baseWorkMult = village.GetWorkSpeedMultiplier();
 
                 foreach (var villagerId in village.VillagerIds)
                 {
                     if (!_villagers.TryGet(villagerId, out var villager))
                     {
                         continue;
+                    }
+
+                    float workMult = baseWorkMult;
+                    if (villager.CurrentJob == JobType.Gather && village.CountBuildings(BuildingKind.LumberCamp) > 0)
+                    {
+                        workMult *= 1.25f;
                     }
 
                     villager.WorkSpeedMultiplier = workMult;

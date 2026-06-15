@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Microsoft.Xna.Framework.Graphics;
 using Autonocraft.Crafting;
+using Autonocraft.Domain.Items;
 using Autonocraft.Engine;
 using Autonocraft.Engine.Animation;
 using Autonocraft.Engine.Audio;
@@ -335,7 +336,11 @@ namespace Autonocraft.Core
             }
             else if (rightPressed)
             {
-                if (!TryUseBucket(world, player, cameraPos, cameraFront, particles, device))
+                if (player.GetSelectedStack().IsConsumable() && player.TryEatSelected())
+                {
+                    PlaySfx?.Invoke(SfxKind.Mine, BlockType.Air);
+                }
+                else if (!TryUseBucket(world, player, cameraPos, cameraFront, particles, device))
                 {
                     TryPlaceBlock(world, player, particles, device);
                 }
@@ -421,6 +426,7 @@ namespace Autonocraft.Core
             Console.WriteLine($"[Mining] Mined block {_miningBlockType} at ({bx}, {by}, {bz}).");
             world.SetBlock(bx, by, bz, BlockType.Air, device);
             player.AddToInventory(_miningBlockType);
+            TryDropBerries(player, _miningBlockType);
             player.Stats.RecordBlockBroken();
             bool toolBroke = player.DamageSelectedTool(1);
             GrantSkillXp(player, MiningCalculator.GetSkillForBlock(_miningBlockType), MiningCalculator.GetXpForBlock(_miningBlockType));
@@ -443,6 +449,21 @@ namespace Autonocraft.Core
             }
             TriggerCrosshairFlash();
             ResetMining();
+        }
+
+        private static void TryDropBerries(Player player, BlockType minedType)
+        {
+            if (minedType != BlockType.OakLeaves && minedType != BlockType.TallGrass && !minedType.IsAnyLeaves())
+            {
+                return;
+            }
+
+            if (Random.Shared.NextDouble() > SurvivalConstants.BerryDropChance)
+            {
+                return;
+            }
+
+            player.AddItem(ItemStack.CreateConsumable(ItemId.Berries, 1));
         }
 
         private bool TryUseBucket(

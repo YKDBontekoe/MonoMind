@@ -41,7 +41,7 @@ namespace Autonocraft.Items
                 return AddBlockStack(item.BlockType, item.Count);
             }
 
-            if (item.IsTool() || item.IsFluidContainer())
+            if (item.IsTool() || item.IsFluidContainer() || item.IsConsumable())
             {
                 return AddSingleStack(item);
             }

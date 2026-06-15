@@ -200,6 +200,8 @@ namespace Autonocraft.Core
             sb.Append($"\"isGrounded\": {player.IsGrounded.ToString().ToLower()},");
             sb.Append($"\"health\": {player.Health},");
             sb.Append($"\"maxHealth\": {player.MaxHealth},");
+            sb.Append($"\"hunger\": {player.Hunger},");
+            sb.Append($"\"maxHunger\": {player.MaxHunger},");
             sb.Append($"\"timeOfDay\": {host.TimeOfDay},");
             sb.Append($"\"timeScale\": {host.TimeScale},");
             sb.Append($"\"timePaused\": {host.TimePaused.ToString().ToLower()},");
@@ -215,6 +217,14 @@ namespace Autonocraft.Core
                 else if (slot.IsTool())
                 {
                     sb.Append($"{{\"slot\": {i}, \"kind\": \"tool\", \"toolId\": \"{slot.ToolId}\", \"name\": \"{slot.GetDisplayName()}\", \"durability\": {slot.Durability}, \"maxDurability\": {slot.MaxDurability}}}");
+                }
+                else if (slot.IsConsumable())
+                {
+                    sb.Append($"{{\"slot\": {i}, \"kind\": \"consumable\", \"itemId\": \"{slot.ToolId}\", \"name\": \"{slot.GetDisplayName()}\", \"count\": {slot.Count}}}");
+                }
+                else if (slot.IsFluidContainer())
+                {
+                    sb.Append($"{{\"slot\": {i}, \"kind\": \"fluid\", \"toolId\": \"{slot.ToolId}\", \"name\": \"{slot.GetDisplayName()}\"}}");
                 }
                 else
                 {

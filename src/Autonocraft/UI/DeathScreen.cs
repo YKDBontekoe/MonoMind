@@ -22,10 +22,16 @@ namespace Autonocraft.UI
         public bool IsOpen { get; private set; }
         public bool RespawnRequested { get; private set; }
         public bool MainMenuRequested { get; private set; }
+        private string _lostItemsSubtitle = string.Empty;
 
         public DeathScreen(UiRenderer ui)
         {
             _ui = ui;
+        }
+
+        public void SetLostItemsSubtitle(string subtitle)
+        {
+            _lostItemsSubtitle = subtitle ?? string.Empty;
         }
 
         public void Open()
@@ -105,6 +111,12 @@ namespace Autonocraft.UI
             float mainMenuY = respawnY + buttonH + buttonSpacing;
 
             _ui.DrawCenteredText("YOU DIED", titleY, layout.S(2.4f), new Color(0.95f, 0.35f, 0.35f), alpha);
+            if (!string.IsNullOrEmpty(_lostItemsSubtitle))
+            {
+                _ui.DrawCenteredText(_lostItemsSubtitle, subtitleY, layout.S(1.0f), new Color(0.75f, 0.55f, 0.52f), alpha);
+                subtitleY += layout.S(22f);
+            }
+
             _ui.DrawCenteredText("YOUR ADVENTURE ISN'T OVER", subtitleY, layout.S(1.1f), new Color(0.65f, 0.5f, 0.52f), alpha);
 
             DrawButton(cx, respawnY, buttonW, buttonH, "RESPAWN", 0, layout.S(1.5f), alpha);

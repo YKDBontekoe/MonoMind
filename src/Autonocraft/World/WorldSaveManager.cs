@@ -144,7 +144,7 @@ namespace Autonocraft.World
         {
             return new WorldSaveData
             {
-                Version = 6,
+                Version = 8,
                 SlotId = snapshot.SlotId,
                 SlotName = snapshot.SlotName,
                 Seed = snapshot.Seed,
@@ -216,6 +216,15 @@ namespace Autonocraft.World
 
             data.Player.MaxHealth = Math.Max(1, data.Player.MaxHealth);
             data.Player.Health = Math.Clamp(data.Player.Health, 0, data.Player.MaxHealth);
+            data.Player.MaxHunger = data.Player.MaxHunger > 0 ? data.Player.MaxHunger : SurvivalConstants.MaxHunger;
+            if (data.Player.Hunger <= 0)
+            {
+                data.Player.Hunger = data.Player.MaxHunger;
+            }
+            else
+            {
+                data.Player.Hunger = Math.Clamp(data.Player.Hunger, 0, data.Player.MaxHunger);
+            }
             data.Player.SelectedSlot = Math.Clamp(data.Player.SelectedSlot, 0, 8);
 
             if (data.Player.Hotbar == null)
@@ -352,6 +361,8 @@ namespace Autonocraft.World
                 Pitch = player.Pitch,
                 Health = player.Health,
                 MaxHealth = player.MaxHealth,
+                Hunger = player.Hunger,
+                MaxHunger = player.MaxHunger,
                 FlyingMode = player.FlyingMode,
                 SelectedSlot = player.SelectedSlot,
                 Hotbar = SerializeHotbar(player),
@@ -373,6 +384,8 @@ namespace Autonocraft.World
             player.Pitch = data.Pitch;
             player.MaxHealth = Math.Max(1, data.MaxHealth);
             player.Health = Math.Clamp(data.Health, 0, player.MaxHealth);
+            player.MaxHunger = data.MaxHunger > 0 ? data.MaxHunger : SurvivalConstants.MaxHunger;
+            player.Hunger = data.Hunger > 0 ? Math.Clamp(data.Hunger, 0, player.MaxHunger) : player.MaxHunger;
             player.FlyingMode = data.FlyingMode;
             player.SelectedSlot = Math.Clamp(data.SelectedSlot, 0, 8);
 
@@ -519,6 +532,16 @@ namespace Autonocraft.World
                 };
             }
 
+            if (stack.IsConsumable())
+            {
+                return new InventorySlotSaveData
+                {
+                    Kind = (byte)ItemKind.Consumable,
+                    ToolId = (ushort)stack.ToolId,
+                    Count = stack.Count
+                };
+            }
+
             return new InventorySlotSaveData
             {
                 Kind = (byte)ItemKind.Block,
@@ -530,6 +553,11 @@ namespace Autonocraft.World
         private static ItemStack DeserializeHotbarSlot(InventorySlotSaveData data)
         {
             var kind = (ItemKind)data.Kind;
+            if (kind == ItemKind.Consumable && data.ToolId != 0 && data.Count > 0)
+            {
+                return ItemStack.CreateConsumable((ItemId)data.ToolId, data.Count);
+            }
+
             if (kind == ItemKind.FluidContainer && data.ToolId != 0)
             {
                 return ItemStack.CreateFluidContainer((ItemId)data.ToolId);
@@ -600,6 +628,21 @@ namespace Autonocraft.World
                 }
 
                 data.Version = 6;
+            }
+
+            if (data.Version < 8)
+            {
+                if (data.Player.Hunger <= 0)
+                {
+                    data.Player.Hunger = SurvivalConstants.MaxHunger;
+                }
+
+                if (data.Player.MaxHunger <= 0)
+                {
+                    data.Player.MaxHunger = SurvivalConstants.MaxHunger;
+                }
+
+                data.Version = 8;
             }
         }
 

@@ -37,6 +37,7 @@ namespace Autonocraft.UI
         public bool IsOpen { get; private set; }
         public bool RecruitRequested { get; private set; }
         public bool ClaimRequested { get; private set; }
+        public bool RationRequested { get; private set; }
         public bool CloseRequested { get; private set; }
         public string? RequestedBlueprintId { get; private set; }
         public int RequestedAssignVillagerId { get; private set; } = -1;
@@ -88,6 +89,7 @@ namespace Autonocraft.UI
             RecruitRequested = false;
             ClaimRequested = false;
             CloseRequested = false;
+            RationRequested = false;
             RequestedBlueprintId = null;
             RequestedAssignVillagerId = -1;
 
@@ -110,12 +112,12 @@ namespace Autonocraft.UI
 
             if (kb.IsKeyDown(Keys.Left) && !prevKb.IsKeyDown(Keys.Left))
             {
-                _selectedTab = (_selectedTab + 2) % 3;
+                _selectedTab = (_selectedTab + 3) % 4;
             }
 
             if (kb.IsKeyDown(Keys.Right) && !prevKb.IsKeyDown(Keys.Right))
             {
-                _selectedTab = (_selectedTab + 1) % 3;
+                _selectedTab = (_selectedTab + 1) % 4;
             }
 
             var layout = new UiLayout(viewport);
@@ -131,7 +133,7 @@ namespace Autonocraft.UI
             int buttonIndex = 0;
 
             float tabY = panelY + layout.S(44f);
-            string[] tabs = { "OVERVIEW", "BUILDINGS", "VILLAGERS" };
+            string[] tabs = { "OVERVIEW", "BUILDINGS", "VILLAGERS", "GOALS" };
             float tabX = left;
             for (int i = 0; i < tabs.Length; i++)
             {
@@ -158,10 +160,18 @@ namespace Autonocraft.UI
             {
                 _hoveredButton = 11;
             }
+            else if (_selectedTab == 0)
+            {
+                var rationRect = new Rectangle((int)(left + buttonW + layout.S(12f)), (int)footerY, (int)buttonW, (int)buttonH);
+                if (HitTest(rationRect, mouse.X, mouse.Y))
+                {
+                    _hoveredButton = 13;
+                }
+            }
 
             if (_selectedTab == 0 && _canClaimNearby)
             {
-                var claimRect = new Rectangle((int)(left + buttonW + layout.S(12f)), (int)footerY, (int)buttonW, (int)buttonH);
+                var claimRect = new Rectangle((int)(left + (buttonW + layout.S(12f)) * 2f), (int)footerY, (int)buttonW, (int)buttonH);
                 if (HitTest(claimRect, mouse.X, mouse.Y))
                 {
                     _hoveredButton = 12;
@@ -232,7 +242,7 @@ namespace Autonocraft.UI
                 return;
             }
 
-            if (_hoveredButton >= 0 && _hoveredButton <= 2)
+            if (_hoveredButton >= 0 && _hoveredButton <= 3)
             {
                 _selectedTab = _hoveredButton;
                 return;
@@ -247,6 +257,12 @@ namespace Autonocraft.UI
             if (_hoveredButton == 11)
             {
                 CloseRequested = true;
+                return;
+            }
+
+            if (_hoveredButton == 13)
+            {
+                RationRequested = true;
                 return;
             }
 
@@ -319,6 +335,9 @@ namespace Autonocraft.UI
                 case 2:
                     DrawVillagersTab(layout, panelX, panelY, panelH, left, buttonH, alpha);
                     break;
+                case 3:
+                    DrawGoalsTab(layout, panelY, left, alpha);
+                    break;
                 default:
                     DrawOverviewTab(layout, panelY, left, alpha);
                     break;
@@ -326,9 +345,14 @@ namespace Autonocraft.UI
 
             float footerY = panelY + panelH - layout.S(72f);
             _ui.DrawButton(left, footerY, buttonW, buttonH, "RECRUIT", _hoveredButton == 10, false, layout.S(1.1f), alpha);
+            if (_selectedTab == 0)
+            {
+                _ui.DrawButton(left + buttonW + layout.S(12f), footerY, buttonW, buttonH, "TAKE RATION", _hoveredButton == 13, false, layout.S(1.0f), alpha);
+            }
+
             if (_selectedTab == 0 && _canClaimNearby)
             {
-                _ui.DrawButton(left + buttonW + layout.S(12f), footerY, buttonW, buttonH, "CLAIM OUTPOST", _hoveredButton == 12, false, layout.S(1.0f), alpha);
+                _ui.DrawButton(left + (buttonW + layout.S(12f)) * 2f, footerY, buttonW, buttonH, "CLAIM OUTPOST", _hoveredButton == 12, false, layout.S(1.0f), alpha);
             }
 
             float closeX = panelX + panelW - layout.S(20f) - buttonW;
@@ -339,7 +363,7 @@ namespace Autonocraft.UI
 
         private void DrawTabs(UiLayout layout, float panelX, float panelY, float panelW, float left, float alpha)
         {
-            string[] tabs = { "OVERVIEW", "BUILDINGS", "VILLAGERS" };
+            string[] tabs = { "OVERVIEW", "BUILDINGS", "VILLAGERS", "GOALS" };
             float tabY = panelY + layout.S(44f);
             float tabX = left;
             for (int i = 0; i < tabs.Length; i++)
@@ -394,6 +418,31 @@ namespace Autonocraft.UI
             if (storageLines == 0)
             {
                 _ui.DrawString("EMPTY", left + layout.S(12f), y, layout.S(1.0f), new Color(0.45f, 0.5f, 0.58f) * alpha);
+            }
+        }
+
+        private void DrawGoalsTab(UiLayout layout, float panelY, float left, float alpha)
+        {
+            float y = panelY + layout.S(84f);
+            var top = _village!.Scheduler.GetTopOpenGoal();
+            if (top != null)
+            {
+                string hint = JobScheduler.GetActionHint(top);
+                if (!string.IsNullOrEmpty(hint))
+                {
+                    _ui.DrawString($"NEXT: {hint}", left, y, layout.S(1.0f), new Color(0.72f, 0.88f, 0.65f) * alpha);
+                    y += layout.S(24f);
+                }
+            }
+
+            foreach (var goal in _village.Scheduler.Goals)
+            {
+                string line = goal.Completed ? $"✓ {goal.Description}" : $"• {goal.Description} (P{goal.Priority})";
+                Color color = goal.Completed
+                    ? new Color(0.45f, 0.55f, 0.5f)
+                    : new Color(0.85f, 0.88f, 0.92f);
+                _ui.DrawString(line, left + layout.S(8f), y, layout.S(1.0f), color * alpha);
+                y += layout.S(20f);
             }
         }
 

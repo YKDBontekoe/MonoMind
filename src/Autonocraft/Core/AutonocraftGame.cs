@@ -554,12 +554,13 @@ namespace Autonocraft.Core
 
         private void PrepareNewWorldSettlement()
         {
+            _session.ConfigureNewWorldStart();
             var (spawnX, spawnZ) = _session.Villages.InitializeStarterSettlement(_session.Grid, _worldSpawnX, _worldSpawnZ);
             _worldSpawnX = spawnX;
             _worldSpawnZ = spawnZ;
             _session.PlacePlayerOnSurface(_worldSpawnX, _worldSpawnZ);
             SyncCameraFromPlayer();
-            _session.ShowVillageHint = true;
+            _session.ShowVillageHint = false;
             _session.Crafting.ShowCraftingHint = false;
         }
 
@@ -570,7 +571,7 @@ namespace Autonocraft.Core
             bool fromSave = _loadingFromSave;
             if (!fromSave)
             {
-                _session.ShowVillageHint = true;
+                _session.ShowVillageHint = false;
                 _session.Crafting.ShowCraftingHint = false;
             }
             else
@@ -832,6 +833,8 @@ namespace Autonocraft.Core
 
         private void OpenDeathScreen()
         {
+            string lostItems = DeathConsequences.ApplyInventoryLoss(_session.Player);
+            _deathScreen!.SetLostItemsSubtitle(lostItems);
             _session.Player.Stats.RecordDeath();
             _mouseLockedBeforeDeath = _isMouseLocked;
             _isMouseLocked = false;
@@ -1372,6 +1375,17 @@ namespace Autonocraft.Core
             {
                 _session.Villages.TryRecruit(village);
             }
+            else if (_villageScreen.RationRequested)
+            {
+                if (_session.Villages.TryTakeRation(village, _session.Player, out var message))
+                {
+                    _session.HudToast.Show(message);
+                }
+                else
+                {
+                    _session.HudToast.Show(message);
+                }
+            }
             else if (_villageScreen.ClaimRequested)
             {
                 if (_session.Villages.TryFindClaimableStructure(
@@ -1801,8 +1815,11 @@ namespace Autonocraft.Core
 
             if (!inSpawnWarmup || warmup >= 0.75f)
             {
-                _session.UpdateAnimals(deltaTime);
+                _session.UpdateAnimals(deltaTime, _timeOfDay);
             }
+
+            bool villageUiOpen = _villageScreen?.IsOpen == true;
+            _session.UpdateSurvival(deltaTime, _timeOfDay, !inSpawnWarmup, villageUiOpen, OpenVillageUi);
 
             if (!inSpawnWarmup || warmup >= 0.6f)
             {
@@ -2047,6 +2064,7 @@ namespace Autonocraft.Core
                 _session.Grid,
                 _session.Player.Position,
                 new PlayerHotbarAdapter(_session.Player));
+            _session.EarlyGuide.NotifyVillageUiOpened();
         }
 
         private IItemContainer WrapPlayerHotbar() => new PlayerHotbarAdapter(_session.Player);
@@ -2054,6 +2072,7 @@ namespace Autonocraft.Core
         private void CloseVillageUi()
         {
             _villageScreen!.Close();
+            _session.EarlyGuide.NotifyVillageUiClosed();
             _isMouseLocked = _mouseLockedBeforeVillageUi;
             if (_isMouseLocked)
             {

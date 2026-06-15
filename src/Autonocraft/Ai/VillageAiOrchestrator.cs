@@ -21,6 +21,8 @@ namespace Autonocraft.Ai
         private readonly IOpenRouterClient _client;
         private readonly bool _usingMock;
 
+        public bool UsesMockClient => _usingMock;
+
         public string? PendingConfirmation { get; private set; }
         public string? PendingToolName { get; private set; }
         public string? PendingToolArgs { get; private set; }

@@ -105,6 +105,12 @@ namespace Autonocraft.Crafting
             UnlockDefaultToolRecipes();
         }
 
+        public void ResetForNewWorld()
+        {
+            Journal.Load(Array.Empty<string>());
+            ShowCraftingHint = false;
+        }
+
         private void UnlockDefaultToolRecipes()
         {
             Journal.Unlock("recipe:wood_pickaxe");
@@ -203,6 +209,10 @@ namespace Autonocraft.Crafting
                 {
                     player.AddItem(ToolRegistry.CreateStack(recipe.OutputItem));
                 }
+                else if (recipe.IsConsumableOutput)
+                {
+                    player.AddItem(ItemStack.CreateConsumable(recipe.OutputItem, recipe.OutputCount));
+                }
                 else
                 {
                     player.GiveBlocks(recipe.Output, recipe.OutputCount);
@@ -238,6 +248,10 @@ namespace Autonocraft.Crafting
                 if (recipe.IsToolOutput)
                 {
                     output.AddItem(ToolRegistry.CreateStack(recipe.OutputItem));
+                }
+                else if (recipe.IsConsumableOutput)
+                {
+                    output.AddItem(ItemStack.CreateConsumable(recipe.OutputItem, recipe.OutputCount));
                 }
                 else
                 {

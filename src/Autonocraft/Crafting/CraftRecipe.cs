@@ -48,6 +48,7 @@ namespace Autonocraft.Crafting
         public ItemId OutputItem { get; init; } = ItemId.None;
         public bool RequiresUnlock { get; init; }
         public bool IsToolOutput => OutputKind == ItemKind.Tool && OutputItem != ItemId.None;
+        public bool IsConsumableOutput => OutputKind == ItemKind.Consumable && OutputItem != ItemId.None;
         public bool RequiresHeat { get; init; }
         public bool RequiresWater { get; init; }
         public TimePhase? RequiredTimePhase { get; init; }

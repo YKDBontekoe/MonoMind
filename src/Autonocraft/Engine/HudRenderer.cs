@@ -163,6 +163,13 @@ namespace Autonocraft.Engine
                 DrawRectOutline(_spriteBatch, pillX, pillY, pillW, pillH, 1f, new Color(0.2f, 0.32f, 0.42f), 0.7f);
                 PixelFont.DrawString(_spriteBatch, _whiteTexture, labelText, pillX + pillPadX, pillY + pillPadY, activeLabelSize, new Color(0.92f, 0.94f, 0.98f), 0.95f);
             }
+            else if (!string.IsNullOrEmpty(ctx.OnboardingHint))
+            {
+                string hint = ctx.OnboardingHint!;
+                float hintSize = layout.S(0.95f);
+                float hintWidth = PixelFont.MeasureString(hint, hintSize);
+                PixelFont.DrawString(_spriteBatch, _whiteTexture, hint, cx - hintWidth / 2f, hotbarYMin - layout.S(30f), hintSize, new Color(0.72f, 0.88f, 0.58f), 0.9f);
+            }
             else if (ctx.ShowVillageHint)
             {
                 string hint = "V — MANAGE SETTLEMENT  |  C — TALK TO STEWARD";
@@ -476,9 +483,9 @@ namespace Autonocraft.Engine
         private void DrawHudStatusCard(UiLayout layout, Player player, int activeChunksCount)
         {
             float cardW = layout.S(168f);
-            float cardH = layout.S(108f);
+            float cardH = layout.S(player.HeadUnderwater ? 128f : 118f);
             float cardX = layout.Padding;
-            float cardY = layout.Height - layout.S(188f);
+            float cardY = layout.Height - layout.S(198f);
             float hpRatio = Math.Clamp(player.Health / player.MaxHealth, 0f, 1f);
             bool lowHealth = hpRatio < 0.25f && player.Health > 0f;
 
@@ -504,6 +511,19 @@ namespace Autonocraft.Engine
 
             DrawRectOutline(_spriteBatch, barX, barY, barW, barH, 1f, new Color(0.25f, 0.12f, 0.14f), 0.8f);
 
+            float hungerRatio = Math.Clamp(player.Hunger / player.MaxHunger, 0f, 1f);
+            bool lowHunger = hungerRatio < 0.25f && player.Hunger > 0f;
+            float hungerY = barY + barH + layout.S(8f);
+            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(barX - 1), (int)(hungerY - 1), (int)(barW + 2), (int)(barH + 2)), Color.Black * 0.55f);
+            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)hungerY, (int)barW, (int)barH), new Color(0.12f, 0.08f, 0.04f) * 0.95f);
+            if (hungerRatio > 0.01f)
+            {
+                Color hungerFill = lowHunger ? new Color(0.95f, 0.55f, 0.15f) : new Color(0.92f, 0.72f, 0.18f);
+                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)hungerY, (int)(barW * hungerRatio), (int)barH), hungerFill);
+            }
+
+            DrawRectOutline(_spriteBatch, barX, hungerY, barW, barH, 1f, new Color(0.28f, 0.2f, 0.1f), 0.8f);
+
             if (player.HeadUnderwater)
             {
                 float o2Ratio = Math.Clamp(player.Oxygen / Player.MaxOxygen, 0f, 1f);
@@ -519,7 +539,7 @@ namespace Autonocraft.Engine
                 DrawRectOutline(_spriteBatch, barX, o2Y, barW, barH, 1f, new Color(0.12f, 0.18f, 0.24f), 0.8f);
             }
 
-            float skillY = cardY + layout.S(44f);
+            float skillY = cardY + layout.S(54f);
             float skillLineH = layout.S(18f);
             DrawSkillBar(layout, "MIN", player.Skills.Mining, cardX + layout.S(14f), skillY, cardW - layout.S(28f), skillLineH);
             DrawSkillBar(layout, "WDC", player.Skills.Woodcutting, cardX + layout.S(14f), skillY + skillLineH, cardW - layout.S(28f), skillLineH);
@@ -529,18 +549,22 @@ namespace Autonocraft.Engine
         private void DrawHudStatusCardText(UiLayout layout, Player player, int activeChunksCount)
         {
             float cardW = layout.S(168f);
-            float cardH = layout.S(108f);
+            float cardH = layout.S(player.HeadUnderwater ? 128f : 118f);
             float cardX = layout.Padding;
-            float cardY = layout.Height - layout.S(188f);
+            float cardY = layout.Height - layout.S(198f);
             float hpTextSize = layout.S(0.95f);
             string hpText = $"{MathF.Round(player.Health)}/{MathF.Round(player.MaxHealth)}";
             PixelFont.DrawString(_spriteBatch, _whiteTexture, "HEALTH", cardX + layout.S(14f), cardY + layout.S(4f), hpTextSize, new Color(0.75f, 0.78f, 0.84f), 0.85f);
+            string hungerText = $"{MathF.Round(player.Hunger)}/{MathF.Round(player.MaxHunger)}";
+            PixelFont.DrawString(_spriteBatch, _whiteTexture, "HUNGER", cardX + layout.S(14f), cardY + layout.S(18f), layout.S(0.8f), new Color(0.82f, 0.7f, 0.45f), 0.8f);
             if (player.HeadUnderwater)
             {
-                PixelFont.DrawString(_spriteBatch, _whiteTexture, "O2", cardX + layout.S(14f), cardY + layout.S(28f), layout.S(0.75f), new Color(0.55f, 0.72f, 0.88f), 0.8f);
+                PixelFont.DrawString(_spriteBatch, _whiteTexture, "O2", cardX + layout.S(14f), cardY + layout.S(34f), layout.S(0.75f), new Color(0.55f, 0.72f, 0.88f), 0.8f);
             }
             float hpTextW = PixelFont.MeasureString(hpText, hpTextSize);
             PixelFont.DrawString(_spriteBatch, _whiteTexture, hpText, cardX + cardW - layout.S(14f) - hpTextW, cardY + layout.S(4f), hpTextSize, new Color(0.95f, 0.55f, 0.62f), 0.95f);
+            float hungerTextW = PixelFont.MeasureString(hungerText, layout.S(0.8f));
+            PixelFont.DrawString(_spriteBatch, _whiteTexture, hungerText, cardX + cardW - layout.S(14f) - hungerTextW, cardY + layout.S(18f), layout.S(0.8f), new Color(0.95f, 0.78f, 0.42f), 0.9f);
 
             string posText = $"{player.Position.X:F0} {player.Position.Y:F0} {player.Position.Z:F0}";
             float metaSize = layout.S(0.8f);

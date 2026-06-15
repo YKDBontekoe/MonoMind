@@ -26,6 +26,8 @@ namespace Autonocraft.Core
         private GameRenderContext? _renderContext;
         private AudioManager? _audio;
         private float _footstepTimer;
+        private readonly NightThreatSpawner _nightThreats = new();
+        public EarlyGameGuide EarlyGuide { get; } = new();
 
         public Player Player { get; private set; }
         public VoxelWorld Grid { get; private set; }
@@ -51,6 +53,8 @@ namespace Autonocraft.Core
             Villagers = new VillagerManager();
             Villages = new VillageManager(Villagers);
             Villages.SetWorldSeed(seed);
+            Villages.SetCraftingJournal(_craftingSystem.Journal);
+            _nightThreats.ShowToast = msg => _hudToast.Show(msg);
             _blockInteraction.BindAnimator(_interactionAnimator);
             WireNotifications();
         }
@@ -89,10 +93,19 @@ namespace Autonocraft.Core
 
         public static Player CreateDefaultPlayer()
         {
-            var player = new Player(new Vector3(GameConstants.DefaultSpawnX + 0.5f, 64f, GameConstants.DefaultSpawnZ + 0.5f));
+            var player = new Player(new Vector3(GameConstants.DefaultSpawnX + 0.5f, 64f, GameConstants.DefaultSpawnZ + 0.5f), leanStart: true);
             player.Yaw = -90f;
             player.Pitch = 0f;
             return player;
+        }
+
+        public void ConfigureNewWorldStart()
+        {
+            Player.ApplyLeanStartKit();
+            _craftingSystem.ResetForNewWorld();
+            EarlyGuide.BeginNewWorld();
+            ShowVillageOnboarding = true;
+            ShowVillageHint = false;
         }
 
         public void ResetPlayer()
@@ -104,6 +117,7 @@ namespace Autonocraft.Core
         public void ResetCrafting()
         {
             _craftingSystem = new CraftingSystem();
+            Villages.SetCraftingJournal(_craftingSystem.Journal);
             WireNotifications();
         }
 
@@ -116,7 +130,37 @@ namespace Autonocraft.Core
             Villagers = new VillagerManager();
             Villages = new VillageManager(Villagers);
             Villages.SetWorldSeed(seed);
+            Villages.SetCraftingJournal(_craftingSystem.Journal);
+            _nightThreats.ShowToast = msg => _hudToast.Show(msg);
             WireNotifications();
+        }
+
+        public void UpdateSurvival(float deltaTime, float timeOfDay, bool spawnWarmupComplete, bool villageUiOpen, Action? requestOpenVillage)
+        {
+            if (!Player.FlyingMode)
+            {
+                _nightThreats.Update(deltaTime, spawnWarmupComplete, timeOfDay, Player, Animals, Villages, Grid);
+            }
+
+            EarlyGuide.Update(
+                deltaTime,
+                Player,
+                Crafting,
+                Villages,
+                timeOfDay,
+                villageUiOpen,
+                msg => _hudToast.Show(msg),
+                requestOpenVillage);
+
+            if (EarlyGuide.Step != EarlyGameGuideStep.OpenVillage)
+            {
+                ShowVillageHint = false;
+            }
+
+            if (EarlyGuide.Step is EarlyGameGuideStep.AwakenBench or EarlyGameGuideStep.Done)
+            {
+                Crafting.ShowCraftingHint = EarlyGuide.Step == EarlyGameGuideStep.AwakenBench || Crafting.Journal.IsUnlocked("sigil:bench");
+            }
         }
 
         public bool DeferAmbientSpawns { get; set; }
@@ -357,9 +401,9 @@ namespace Autonocraft.Core
                 maxMeshPerFrame: maxMeshPerFrame);
         }
 
-        public void UpdateAnimals(float deltaTime)
+        public void UpdateAnimals(float deltaTime, float timeOfDay = 0.3f)
         {
-            Animals.Update(deltaTime, Grid);
+            Animals.Update(deltaTime, Grid, Player, timeOfDay);
         }
 
         public void UpdateVillages(float deltaTime, float timeOfDay)
@@ -396,6 +440,7 @@ namespace Autonocraft.Core
             _renderContext.Crafting = Crafting;
             _renderContext.HudToast = _hudToast;
             _renderContext.ShowVillageHint = ShowVillageHint;
+            _renderContext.OnboardingHint = EarlyGuide.GetHudHint();
             _renderContext.NearbyClaimHint = NearbyClaimHint;
             _renderContext.TimeOfDay = timeOfDay;
             _renderContext.WaterAnimTime = waterAnimTime;

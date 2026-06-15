@@ -17,7 +17,8 @@ namespace Autonocraft.Items
             Kind == ItemKind.Empty ||
             (Kind == ItemKind.Block && (BlockType == BlockType.Air || Count <= 0)) ||
             (Kind == ItemKind.Tool && ToolId == ItemId.None) ||
-            (Kind == ItemKind.FluidContainer && ToolId == ItemId.None);
+            (Kind == ItemKind.FluidContainer && ToolId == ItemId.None) ||
+            (Kind == ItemKind.Consumable && (ToolId == ItemId.None || Count <= 0));
 
         public static ItemStack CreateBlock(BlockType blockType, int count)
         {
@@ -48,6 +49,8 @@ namespace Autonocraft.Items
 
         public bool IsFluidContainer() => Kind == ItemKind.FluidContainer && ToolId != ItemId.None;
 
+        public bool IsConsumable() => Kind == ItemKind.Consumable && ToolId != ItemId.None && Count > 0;
+
         public bool IsWaterBucket() => IsFluidContainer() && ToolId == ItemId.WaterBucket;
 
         public bool IsEmptyBucket() => IsFluidContainer() && ToolId == ItemId.EmptyBucket;
@@ -60,6 +63,11 @@ namespace Autonocraft.Items
                 ToolId = containerId,
                 Count = 1
             };
+        }
+
+        public static ItemStack CreateConsumable(ItemId itemId, int count = 1)
+        {
+            return FoodRegistry.Create(itemId, count);
         }
 
         public bool CanStackWith(in ItemStack other)
@@ -81,6 +89,7 @@ namespace Autonocraft.Items
                                  Durability == other.Durability &&
                                  MaxDurability == other.MaxDurability &&
                                  Count < 64,
+                ItemKind.Consumable => ToolId == other.ToolId && Count < 64 && other.Count < 64,
                 _ => false
             };
         }
@@ -105,6 +114,11 @@ namespace Autonocraft.Items
                     ItemId.EmptyBucket => "Empty Bucket",
                     _ => ToolId.ToString()
                 };
+            }
+
+            if (IsConsumable())
+            {
+                return FoodRegistry.GetDisplayName(ToolId);
             }
 
             return BlockType.ToString();

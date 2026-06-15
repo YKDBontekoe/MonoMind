@@ -46,7 +46,7 @@ Engine and World must not depend on `AutonocraftGame` directly — use `GameSess
 | `WorldLoading` | Async chunk terrain + mesh generation with progress UI |
 | `Playing` | Active gameplay; starter hamlet spawned on new worlds; agent HTTP server starts here |
 
-**New world start:** `VillageManager.InitializeStarterSettlement()` places a completed Town Heart near spawn, seeds storage, spawns two villagers (lumberjack + peasant), and opens the village UI once with onboarding toasts. Player hotbar is tuned for settlement play (axe + lighter block stacks).
+**New world start:** Lean survival kit (empty bucket, 8 dirt, wood axe/pickaxe at 30 durability, hunger 14/20). `CraftingSystem.ResetForNewWorld()` clears pre-unlocked wood tool recipes. `VillageManager.InitializeStarterSettlement()` places Town Heart, seeds **8 planks / 4 cobble**, `FoodStock = 4`, assigns gather jobs, and seeds scheduler goals. `EarlyGameGuide` auto-opens village UI after 3s warmup and drives progressive HUD hints. Flying/creative mode (`FlyingMode`) skips survival penalties and onboarding.
 
 **Discoverable outposts:** World-gen structures (`PlainsCottage`, `VillageOutpost`, `ForestShelter`) can be claimed via **V** UI, Shift+right-click on structure blocks, or auto-claim when opening **V** near an unclaimed site.
 
@@ -113,6 +113,48 @@ Each level has its own vertex/index buffers on the GPU.
 ## Fluid System
 
 `World/FluidSystem.cs` simulates water flow between blocks. `WaterQuery.cs` provides helpers for swimming, drowning, underwater camera tint, and splash detection. Player physics in `Player.cs` handles swim-up/down, surface buoyancy, and oxygen depletion.
+
+---
+
+## Survival
+
+Hunger-only survival pressure (no thirst). Constants live in `Core/SurvivalConstants.cs`.
+
+| Mechanic | Behavior |
+|----------|----------|
+| Hunger | Max 20; depletes ~1 point / 90s idle, faster when moving/mining; skipped in `FlyingMode` |
+| Starvation | 1 HP / 4s at 0 hunger |
+| Consumables | `ItemKind.Consumable` — berries, raw/cooked meat, bread, village ration (`Items/FoodRegistry.cs`) |
+| Eating | Right-click with consumable selected |
+| Death stakes | Lose 3 random hotbar slots + 25% tool durability wear; respawn at 8/20 hunger |
+| Night threats | `NightThreatSpawner` spawns wolves outside village/bench safe zones; flee at dawn |
+
+Player saves include `hunger` / `maxHunger` in **world.json v8**.
+
+---
+
+## Village Goals & Food Loop
+
+- Starter hamlet seeds three scheduler goals (farm, recruit, bench).
+- Village UI **GOALS** tab lists open goals with action hints; goals auto-complete when conditions are met.
+- Farm plots add `FoodStock` and deposit **Bread** into village storage each production tick.
+- **TAKE RATION** on OVERVIEW spends 1 `FoodStock` for a `VillageRation` consumable.
+- `lumber_camp` speeds Gather jobs ×1.25; `workshop` unlocks `recipe:cooked_meat` near the village.
+
+---
+
+## Onboarding
+
+`EarlyGameGuide` (`Core/EarlyGameGuide.cs`) drives the first-hour flow:
+
+1. Welcome toast → auto-open village UI after 3s
+2. Assign-work hint when village UI closes
+3. Food hint when hunger drops below 12
+4. Crafting hint after 2 minutes or first stone mined
+5. Night warning at first dusk
+6. Done after first night survived or 2 goals completed
+
+HUD hint priority: onboarding → active item label → village/crafting contextual hint. Offline steward keyword replies in `VillageChatScreen` when the mock LLM client is active.
 
 ---
 

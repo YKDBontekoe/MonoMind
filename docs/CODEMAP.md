@@ -17,10 +17,14 @@ Agent-oriented navigation index. Pair with [AGENTS.md](../AGENTS.md) for build/t
 | `GameRenderContext.cs` | Read-only snapshot for rendering (decouples Engine from game) |
 | `GameConstants.cs` | Spawn coords, autosave interval |
 | `SaveSnapshot.cs` | DTO for save serialization |
-| `Player.cs` | Physics, inventory, skills, swimming, stats tracking |
+| `Player.cs` | Physics, inventory, hunger, skills, swimming, stats tracking |
 | `PlayerStatistics.cs` | Lifetime counters (distance, kills, play time, etc.) |
-| `BlockInteractionSystem.cs` | Raycast, mining, placing, sigils, station interaction |
-| `CombatSystem.cs` | Melee combat, fall effects, respawn |
+| `SurvivalConstants.cs` | Hunger, death, wolf spawn tuning |
+| `EarlyGameGuide.cs` | New-world onboarding step machine + offline steward replies |
+| `DeathConsequences.cs` | Hotbar loss and tool wear on death |
+| `AnimalLoot.cs` | Animal kill drop table (raw meat) |
+| `BlockInteractionSystem.cs` | Raycast, mining, placing, eating, sigils, station interaction |
+| `CombatSystem.cs` | Melee combat, hunger tick, fall effects, respawn |
 | `AgentHttpServer.cs` | HTTP API on port 5000 |
 | `DevCommands.cs` | F3/`~` dev console commands |
 | `GameState.cs` | MainMenu / NewWorldSetup / WorldLoading / Playing |
@@ -116,9 +120,9 @@ Agent-oriented navigation index. Pair with [AGENTS.md](../AGENTS.md) for build/t
 | `ToolType.cs` | Pickaxe, Axe, Shovel, Sword |
 | `ToolTier.cs` | Wood, Stone, Iron, Gold |
 | `MiningCalculator.cs` | Break time from tool + skill |
-| `ItemStack.cs` | Hotbar slot (block, tool, bucket) |
-| `ItemId.cs` | Item identifier enum |
-| `ItemKind.cs` | Empty, Block, Tool, FluidContainer |
+| `ItemStack.cs` | Hotbar slot (block, tool, bucket, consumable) |
+| `FoodRegistry.cs` | Consumable hunger restore values |
+| `ItemKind.cs` | Empty, Block, Tool, FluidContainer, Consumable |
 | `PlayerSkills.cs` | Mining/woodcutting/combat XP |
 | `PlayerSkill.cs` | Single skill level + XP |
 | `SkillProgress.cs` | XP curve helpers |
@@ -141,9 +145,10 @@ Agent-oriented navigation index. Pair with [AGENTS.md](../AGENTS.md) for build/t
 
 | File | Description |
 |------|-------------|
-| `AnimalManager.cs` | Spawn, update, population cap |
-| `Animal.cs` | Single animal state and AI |
-| `AnimalType.cs` | Sheep, Pig, Chicken |
+| `AnimalManager.cs` | Spawn, update, population cap, hostile tracking |
+| `Animal.cs` | Single animal state, wander AI, hostile chase |
+| `AnimalType.cs` | Sheep, Pig, Chicken, Wolf |
+| `NightThreatSpawner.cs` | Night wolf spawns and safe-zone checks |
 | `EntityCollision.cs` | Animal-world collision |
 | `EntityRaycast.cs` | Raycast against animals |
 

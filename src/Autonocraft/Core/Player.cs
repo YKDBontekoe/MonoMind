@@ -15,6 +15,8 @@ namespace Autonocraft.Core
 
         public float Health { get; set; } = 20f;
         public float MaxHealth { get; set; } = 20f;
+        public float Hunger { get; set; } = SurvivalConstants.MaxHunger;
+        public float MaxHunger { get; set; } = SurvivalConstants.MaxHunger;
 
         public const float Width = 0.6f;
         public const float Height = 1.8f;
@@ -52,6 +54,9 @@ namespace Autonocraft.Core
         private bool _wasInWater;
         private float _fallStartY;
         private float _invulnerabilityTimer;
+        private float _starvationTimer;
+        private bool _warnedHunger25;
+        private bool _warnedHunger10;
         public const float InvulnerabilityDuration = 0.5f;
 
         public void ResetFallTracking()
@@ -66,21 +71,42 @@ namespace Autonocraft.Core
         public ItemStack[] Hotbar { get; } = new ItemStack[9];
         public int SelectedSlot { get; set; } = 0;
 
-        public Player(Vector3 spawnPosition)
+        public Player(Vector3 spawnPosition, bool leanStart = false)
         {
             Position = spawnPosition;
             Velocity = Vector3.Zero;
 
-            Hotbar[0] = ItemStack.CreateBlock(BlockType.Grass, 32);
-            Hotbar[1] = ItemStack.CreateBlock(BlockType.OakLog, 16);
-            Hotbar[2] = ItemStack.CreateBlock(BlockType.Dirt, 32);
-            Hotbar[3] = ToolRegistry.CreateStack(ToolType.Pickaxe, ToolTier.Wood);
-            Hotbar[4] = ToolRegistry.CreateStack(ToolType.Axe, ToolTier.Wood);
+            if (leanStart)
+            {
+                ApplyLeanStartKit();
+            }
+            else
+            {
+                Hotbar[0] = ItemStack.CreateBlock(BlockType.Grass, 32);
+                Hotbar[1] = ItemStack.CreateBlock(BlockType.OakLog, 16);
+                Hotbar[2] = ItemStack.CreateBlock(BlockType.Dirt, 32);
+                Hotbar[3] = ToolRegistry.CreateStack(ToolType.Pickaxe, ToolTier.Wood);
+                Hotbar[4] = ToolRegistry.CreateStack(ToolType.Axe, ToolTier.Wood);
 
-            for (int i = 5; i < 9; i++)
+                for (int i = 5; i < 9; i++)
+                {
+                    Hotbar[i] = ItemStack.Empty;
+                }
+            }
+        }
+
+        public void ApplyLeanStartKit()
+        {
+            Hotbar[0] = ItemStack.CreateFluidContainer(ItemId.EmptyBucket);
+            Hotbar[1] = ItemStack.CreateBlock(BlockType.Dirt, 8);
+            Hotbar[2] = ItemStack.CreateTool(ItemId.WoodAxe, 30);
+            Hotbar[3] = ItemStack.CreateTool(ItemId.WoodPickaxe, 30);
+            for (int i = 4; i < 9; i++)
             {
                 Hotbar[i] = ItemStack.Empty;
             }
+
+            Hunger = SurvivalConstants.LeanStartHunger;
         }
 
         public ItemStack GetSelectedStack() => Hotbar[SelectedSlot];
@@ -182,6 +208,12 @@ namespace Autonocraft.Core
             if (item.IsFluidContainer())
             {
                 AddFluidContainerStack(item);
+                return;
+            }
+
+            if (item.IsConsumable())
+            {
+                AddConsumableStack(item);
             }
         }
 
@@ -269,6 +301,122 @@ namespace Autonocraft.Core
 
             Console.WriteLine($"[Inventory] Hotbar full! Cannot collect {container.GetDisplayName()}.");
             Notify($"Hotbar full! Cannot collect {container.GetDisplayName()}");
+        }
+
+        private void AddConsumableStack(ItemStack consumable)
+        {
+            int remaining = consumable.Count;
+            for (int i = 0; i < 9 && remaining > 0; i++)
+            {
+                if (Hotbar[i].IsConsumable() && Hotbar[i].ToolId == consumable.ToolId && Hotbar[i].Count < 64)
+                {
+                    int add = Math.Min(64 - Hotbar[i].Count, remaining);
+                    Hotbar[i].Count += add;
+                    remaining -= add;
+                }
+            }
+
+            for (int i = 0; i < 9 && remaining > 0; i++)
+            {
+                if (Hotbar[i].IsEmpty)
+                {
+                    int add = Math.Min(64, remaining);
+                    Hotbar[i] = ItemStack.CreateConsumable(consumable.ToolId, add);
+                    remaining -= add;
+                }
+            }
+
+            if (remaining > 0)
+            {
+                Notify($"Hotbar full! Lost {remaining}x {consumable.GetDisplayName()}");
+            }
+        }
+
+        public bool TryEatSelected()
+        {
+            ref var slot = ref Hotbar[SelectedSlot];
+            if (!slot.IsConsumable())
+            {
+                return false;
+            }
+
+            float restore = FoodRegistry.GetHungerRestore(slot.ToolId);
+            if (restore <= 0f)
+            {
+                return false;
+            }
+
+            string name = FoodRegistry.GetDisplayName(slot.ToolId);
+            Hunger = MathF.Min(MaxHunger, Hunger + restore);
+            slot.Count--;
+            if (slot.Count <= 0)
+            {
+                slot = ItemStack.Empty;
+            }
+
+            Notify($"Ate {name} (+{restore:F0} hunger)");
+            return true;
+        }
+
+        public void TickHunger(float deltaTime, bool isActivelyMoving, bool isMining)
+        {
+            if (FlyingMode || !IsAlive)
+            {
+                return;
+            }
+
+            float rate = SurvivalConstants.IdleHungerDepletionPerSecond;
+            if (isActivelyMoving || isMining)
+            {
+                rate *= SurvivalConstants.ActiveHungerMultiplier;
+            }
+
+            Hunger = MathF.Max(0f, Hunger - rate * deltaTime);
+            UpdateHungerWarnings();
+
+            if (Hunger > 0f)
+            {
+                _starvationTimer = 0f;
+                return;
+            }
+
+            _starvationTimer += deltaTime;
+            if (_starvationTimer >= SurvivalConstants.StarvationIntervalSeconds)
+            {
+                _starvationTimer = 0f;
+                TakeDamage(SurvivalConstants.StarvationDamage);
+            }
+        }
+
+        private void UpdateHungerWarnings()
+        {
+            float ratio = Hunger / MaxHunger;
+            if (ratio <= 0.25f && !_warnedHunger25)
+            {
+                _warnedHunger25 = true;
+                Notify("Getting hungry — find food soon.");
+            }
+
+            if (ratio <= 0.10f && !_warnedHunger10)
+            {
+                _warnedHunger10 = true;
+                Notify("Starving — eat or take a village ration!");
+            }
+
+            if (ratio > 0.30f)
+            {
+                _warnedHunger25 = false;
+                _warnedHunger10 = false;
+            }
+        }
+
+        public void RestoreRespawnVitals()
+        {
+            Health = MaxHealth;
+            Hunger = SurvivalConstants.RespawnHunger;
+            Velocity = Vector3.Zero;
+            _starvationTimer = 0f;
+            ClearInvulnerability();
         }
 
         public bool TakeDamage(float amount, out bool tookDamage)

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Autonocraft.Core;
+using Autonocraft.Domain.Core;
 using Autonocraft.World;
 
 namespace Autonocraft.Entities
@@ -26,16 +27,56 @@ namespace Autonocraft.Entities
 
         public int Count => _animals.Count;
 
-        public void Update(float deltaTime, VoxelWorld world)
+        public int CountHostile()
         {
+            int count = 0;
+            foreach (var animal in _animals)
+            {
+                if (animal.IsHostile && animal.IsAlive && !animal.IsDying)
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        public Animal? SpawnHostile(AnimalType type, Vector3 position, VoxelWorld world)
+        {
+            if (CountHostile() >= SurvivalConstants.MaxHostileMobsGlobal || _animals.Count >= MaxAnimalsGlobal)
+            {
+                return null;
+            }
+
+            var stats = AnimalStats.For(type);
+            if (!EntityCollision.IsSpaceClearAt(world, position, stats.Width, stats.Height))
+            {
+                return null;
+            }
+
+            var animal = new Animal(type, position, _nextSpawnSeed++, hostile: true);
+            _animals.Add(animal);
+            return animal;
+        }
+
+        public void Update(float deltaTime, VoxelWorld world, Player? player = null, float timeOfDay = 0.3f)
+        {
+            bool isNight = DayNightCycle.IsNight(timeOfDay);
+            Vector3? chaseTarget = player is { IsAlive: true } ? player.Position : null;
+
             for (int i = _animals.Count - 1; i >= 0; i--)
             {
                 var animal = _animals[i];
                 var prevX = animal.Position.X;
                 var prevZ = animal.Position.Z;
 
-                animal.Update(deltaTime, world);
+                animal.Update(deltaTime, world, chaseTarget, fleeAtDawn: animal.IsHostile && !isNight);
                 animal.UpdateAnimation(deltaTime);
+
+                if (player != null && animal.IsHostile && animal.IsAlive && !animal.IsDying)
+                {
+                    animal.TryAttackPlayer(player);
+                }
 
                 if (animal.ReadyForRemoval)
                 {

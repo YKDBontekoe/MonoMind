@@ -194,6 +194,18 @@ namespace Autonocraft.Crafting
                     OutputCount = 2,
                     RequiresWater = true,
                     RequiredBiome = BiomeType.Desert
+                },
+                new CraftRecipe
+                {
+                    Id = "recipe:cooked_meat",
+                    DisplayName = "Roast Meat",
+                    StationType = BlockType.StationCrucible,
+                    Inputs = new[] { new CraftInput { Tag = MaterialTag.Organic, Count = 2 } },
+                    OutputKind = ItemKind.Consumable,
+                    OutputItem = ItemId.CookedMeat,
+                    OutputCount = 1,
+                    RequiresHeat = true,
+                    RequiresUnlock = true
                 }
             };
         }

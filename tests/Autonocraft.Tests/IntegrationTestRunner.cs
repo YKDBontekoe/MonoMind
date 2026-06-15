@@ -76,6 +76,13 @@ public static class IntegrationTestRunner
                 VillageTests.RunStarterSettlementOnNewWorld(game);
                 VillageTests.RunVillageFoundAndRecruit(game);
                 VillageTests.RunVillageSaveRoundTripV6(game);
+                SurvivalTests.RunPlayerHunger(player, game);
+                SurvivalTests.RunConsumableFromAnimal(game, player, world);
+                SurvivalTests.RunNightWolfSpawn(game, player, world);
+                SurvivalTests.RunDeathInventoryLoss(player, world);
+                SurvivalTests.RunVillageGuidanceHints();
+                SurvivalTests.RunVillageGoalsProgress(world);
+                SurvivalTests.RunVillageRationWithdraw(player);
             }
 
             WorldGenTests.RunBiomeTreeSpecies();

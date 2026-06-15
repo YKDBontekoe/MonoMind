@@ -227,7 +227,16 @@ namespace Autonocraft.UI
 
             try
             {
-                string reply = await _orchestrator.HandleChatAsync(message, _target, session).ConfigureAwait(false);
+                string reply;
+                if (_stewardMode && _orchestrator.UsesMockClient)
+                {
+                    reply = EarlyGameGuide.GetOfflineStewardReply(message);
+                }
+                else
+                {
+                    reply = await _orchestrator.HandleChatAsync(message, _target, session).ConfigureAwait(false);
+                }
+
                 string prefix = _stewardMode ? "Steward" : "Villager";
                 _history.Add($"{prefix}: {reply}");
             }

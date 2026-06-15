@@ -23,6 +23,12 @@ namespace Autonocraft.Domain.Items
         GoldSword = 33,
 
         EmptyBucket = 40,
-        WaterBucket = 41
+        WaterBucket = 41,
+
+        RawMeat = 50,
+        CookedMeat = 51,
+        Berries = 52,
+        Bread = 53,
+        VillageRation = 54
     }
 }
