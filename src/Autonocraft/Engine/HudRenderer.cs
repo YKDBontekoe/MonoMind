@@ -486,9 +486,9 @@ namespace Autonocraft.Engine
         private void DrawHudStatusCard(UiLayout layout, Player player, int activeChunksCount)
         {
             float cardW = layout.S(168f);
-            float cardH = layout.S(108f);
+            float cardH = layout.S(124f);
             float cardX = layout.Padding;
-            float cardY = layout.Height - layout.S(188f);
+            float cardY = layout.Height - layout.S(204f);
             float hpRatio = Math.Clamp(player.Health / player.MaxHealth, 0f, 1f);
             bool lowHealth = hpRatio < 0.25f && player.Health > 0f;
 
@@ -514,6 +514,22 @@ namespace Autonocraft.Engine
 
             DrawRectOutline(_spriteBatch, barX, barY, barW, barH, 1f, new Color(0.25f, 0.12f, 0.14f), 0.8f);
 
+            float hungerY = barY + barH + layout.S(8f);
+            if (!player.CreativeMode)
+            {
+                float hungerRatio = Math.Clamp(player.Hunger / player.MaxHunger, 0f, 1f);
+                bool lowHunger = hungerRatio < SurvivalConstants.HungerWarningFraction && player.Hunger > 0f;
+                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(barX - 1), (int)(hungerY - 1), (int)(barW + 2), (int)(barH + 2)), Color.Black * 0.55f);
+                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)hungerY, (int)barW, (int)barH), new Color(0.12f, 0.08f, 0.04f) * 0.95f);
+                if (hungerRatio > 0.01f)
+                {
+                    Color hungerFill = lowHunger ? new Color(0.95f, 0.55f, 0.15f) : new Color(0.88f, 0.62f, 0.18f);
+                    _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)hungerY, (int)(barW * hungerRatio), (int)barH), hungerFill);
+                }
+
+                DrawRectOutline(_spriteBatch, barX, hungerY, barW, barH, 1f, new Color(0.28f, 0.18f, 0.08f), 0.8f);
+            }
+
             if (player.HeadUnderwater)
             {
                 float o2Ratio = Math.Clamp(player.Oxygen / Player.MaxOxygen, 0f, 1f);
@@ -529,7 +545,7 @@ namespace Autonocraft.Engine
                 DrawRectOutline(_spriteBatch, barX, o2Y, barW, barH, 1f, new Color(0.12f, 0.18f, 0.24f), 0.8f);
             }
 
-            float skillY = cardY + layout.S(44f);
+            float skillY = cardY + layout.S(58f);
             float skillLineH = layout.S(18f);
             DrawSkillBar(layout, "MIN", player.Skills.Mining, cardX + layout.S(14f), skillY, cardW - layout.S(28f), skillLineH);
             DrawSkillBar(layout, "WDC", player.Skills.Woodcutting, cardX + layout.S(14f), skillY + skillLineH, cardW - layout.S(28f), skillLineH);
@@ -539,12 +555,20 @@ namespace Autonocraft.Engine
         private void DrawHudStatusCardText(UiLayout layout, Player player, int activeChunksCount)
         {
             float cardW = layout.S(168f);
-            float cardH = layout.S(108f);
+            float cardH = layout.S(124f);
             float cardX = layout.Padding;
-            float cardY = layout.Height - layout.S(188f);
+            float cardY = layout.Height - layout.S(204f);
             float hpTextSize = layout.S(0.95f);
             string hpText = $"{MathF.Round(player.Health)}/{MathF.Round(player.MaxHealth)}";
             PixelFont.DrawString(_spriteBatch, _whiteTexture, "HEALTH", cardX + layout.S(14f), cardY + layout.S(4f), hpTextSize, UiTheme.StatLabel, 0.9f);
+            if (!player.CreativeMode)
+            {
+                string hungerText = $"{MathF.Round(player.Hunger)}/{MathF.Round(player.MaxHunger)}";
+                PixelFont.DrawString(_spriteBatch, _whiteTexture, "FOOD", cardX + layout.S(14f), cardY + layout.S(28f), layout.S(UiTheme.ScaleSmall), UiTheme.Meta, 0.9f);
+                float hungerTextW = PixelFont.MeasureString(hungerText, layout.S(UiTheme.ScaleSmall));
+                PixelFont.DrawString(_spriteBatch, _whiteTexture, hungerText, cardX + cardW - layout.S(14f) - hungerTextW, cardY + layout.S(28f), layout.S(UiTheme.ScaleSmall), new Color(0.95f, 0.72f, 0.28f), 0.95f);
+            }
+
             if (player.HeadUnderwater)
             {
                 PixelFont.DrawString(_spriteBatch, _whiteTexture, "O2", cardX + layout.S(14f), cardY + layout.S(28f), layout.S(UiTheme.ScaleSmall), UiTheme.Meta, 0.9f);

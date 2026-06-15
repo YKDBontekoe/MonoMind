@@ -24,6 +24,7 @@ namespace Autonocraft.Core
         private readonly InteractionAnimator _interactionAnimator = new();
         private CraftingSystem _craftingSystem = new();
         private readonly HudToast _hudToast = new();
+        private readonly NightThreatSpawner _nightThreatSpawner = new();
         private GameRenderContext? _renderContext;
         private AudioManager? _audio;
         private float _footstepTimer;
@@ -401,6 +402,12 @@ namespace Autonocraft.Core
         public void UpdateAnimals(float deltaTime)
         {
             Animals.Update(deltaTime, Grid);
+        }
+
+        public void UpdateSurvival(float deltaTime, float timeOfDay, bool spawnWarmupActive)
+        {
+            Player.UpdateHunger(deltaTime, InteractionAnimator);
+            _nightThreatSpawner.Update(deltaTime, timeOfDay, spawnWarmupActive, Grid, Player, Animals);
         }
 
         public void UpdateVillages(float deltaTime, float timeOfDay)

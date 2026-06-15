@@ -46,6 +46,7 @@ namespace Autonocraft.Core
                 "village" => HandleVillage(session),
                 "weather" => HandleWeather(session, parts),
                 "recruit" => HandleRecruit(session),
+                "ration" or "rations" => HandleRations(session),
                 "assign" => HandleAssignJob(session, parts),
                 _ => $"Unknown command: {parts[0]}. Type 'help' for commands."
             };
@@ -412,6 +413,19 @@ namespace Autonocraft.Core
             }
 
             return session.Villages.TryRecruit(village!, session.Grid) ? "Recruited villager." : "Recruit failed (need 4 oak planks, under cap).";
+        }
+
+        private static string HandleRations(GameSession session)
+        {
+            var village = session.Villages.GetActiveVillage(session.Player.Position);
+            if (village == null)
+            {
+                return "No village nearby.";
+            }
+
+            return FoodConsumption.TryTakeRations(session.Player, village)
+                ? $"Took rations. Food stock: {village.FoodStock:0.#}"
+                : "Could not take rations.";
         }
 
         private static string HandleAssignJob(GameSession session, string[] parts)

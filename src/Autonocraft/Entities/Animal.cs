@@ -10,6 +10,7 @@ namespace Autonocraft.Entities
 
         public int Id { get; }
         public AnimalType Type { get; }
+        public bool IsNightThreat { get; set; }
         public Vector3 Position;
         public Vector3 Velocity;
         public float Yaw;

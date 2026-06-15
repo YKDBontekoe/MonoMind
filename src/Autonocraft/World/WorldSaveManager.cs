@@ -274,6 +274,13 @@ namespace Autonocraft.World
                     return new InventorySlotSaveData();
                 }
             }
+            else if (kind == ItemKind.Food && data.ToolId != 0)
+            {
+                if (!FoodRegistry.TryGet((ItemId)data.ToolId, out _) || data.Count <= 0)
+                {
+                    return new InventorySlotSaveData();
+                }
+            }
             else if (kind == ItemKind.Block || (kind == ItemKind.Empty && data.Count > 0))
             {
                 if (data.Count <= 0 || !Enum.IsDefined(typeof(BlockType), data.Block) || data.Block == (byte)BlockType.Air)
@@ -352,6 +359,8 @@ namespace Autonocraft.World
                 Pitch = player.Pitch,
                 Health = player.Health,
                 MaxHealth = player.MaxHealth,
+                Hunger = player.Hunger,
+                MaxHunger = player.MaxHunger,
                 CreativeMode = player.CreativeMode,
                 SelectedSlot = player.SelectedSlot,
                 Hotbar = SerializeHotbar(player),
@@ -373,6 +382,8 @@ namespace Autonocraft.World
             player.Pitch = data.Pitch;
             player.MaxHealth = Math.Max(1, data.MaxHealth);
             player.Health = Math.Clamp(data.Health, 0, player.MaxHealth);
+            player.MaxHunger = data.MaxHunger > 0 ? data.MaxHunger : SurvivalConstants.MaxHunger;
+            player.Hunger = Math.Clamp(data.Hunger > 0 ? data.Hunger : player.MaxHunger, 0, player.MaxHunger);
             player.CreativeMode = data.CreativeMode || data.FlyingModeLegacy == true;
             player.SelectedSlot = Math.Clamp(data.SelectedSlot, 0, 8);
 
@@ -521,6 +532,16 @@ namespace Autonocraft.World
                 };
             }
 
+            if (stack.IsFood())
+            {
+                return new InventorySlotSaveData
+                {
+                    Kind = (byte)ItemKind.Food,
+                    ToolId = (ushort)stack.FoodId,
+                    Count = stack.Count
+                };
+            }
+
             return new InventorySlotSaveData
             {
                 Kind = (byte)ItemKind.Block,
@@ -535,6 +556,16 @@ namespace Autonocraft.World
             if (kind == ItemKind.FluidContainer && data.ToolId != 0)
             {
                 return ItemStack.CreateFluidContainer((ItemId)data.ToolId);
+            }
+
+            if (kind == ItemKind.Food && data.ToolId != 0)
+            {
+                if (!FoodRegistry.TryGet((ItemId)data.ToolId, out _))
+                {
+                    return ItemStack.Empty;
+                }
+
+                return ItemStack.CreateFood((ItemId)data.ToolId, Math.Max(1, data.Count));
             }
 
             if (kind == ItemKind.Tool && data.ToolId != 0)

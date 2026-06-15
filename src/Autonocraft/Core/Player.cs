@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Autonocraft.Engine.Animation;
 using Autonocraft.Entities;
 using Autonocraft.Items;
 using Autonocraft.World;
@@ -15,6 +16,10 @@ namespace Autonocraft.Core
 
         public float Health { get; set; } = 20f;
         public float MaxHealth { get; set; } = 20f;
+        public float Hunger { get; set; } = SurvivalConstants.MaxHunger;
+        public float MaxHunger { get; set; } = SurvivalConstants.MaxHunger;
+        public DeathCause LastDeathCause { get; set; } = DeathCause.Unknown;
+        public bool DeathConsequencesApplied { get; set; }
 
         public const float Width = 0.6f;
         public const float Height = 1.8f;
@@ -52,6 +57,7 @@ namespace Autonocraft.Core
         private bool _wasInWater;
         private float _fallStartY;
         private float _invulnerabilityTimer;
+        private float _starvationTimer;
         public const float InvulnerabilityDuration = 0.5f;
 
         public void ResetFallTracking()
@@ -81,9 +87,9 @@ namespace Autonocraft.Core
             Position = spawnPosition;
             Velocity = Vector3.Zero;
 
-            Hotbar[0] = ItemStack.CreateBlock(BlockType.Grass, 32);
+            Hotbar[0] = ItemStack.CreateBlock(BlockType.Grass, 24);
             Hotbar[1] = ItemStack.CreateBlock(BlockType.OakLog, 16);
-            Hotbar[2] = ItemStack.CreateBlock(BlockType.Dirt, 32);
+            Hotbar[2] = ItemStack.CreateBlock(BlockType.Dirt, 24);
             Hotbar[3] = ToolRegistry.CreateStack(ToolType.Pickaxe, ToolTier.Wood);
             Hotbar[4] = ToolRegistry.CreateStack(ToolType.Axe, ToolTier.Wood);
 
@@ -203,6 +209,12 @@ namespace Autonocraft.Core
             if (item.IsFluidContainer())
             {
                 AddFluidContainerStack(item);
+                return;
+            }
+
+            if (item.IsFood())
+            {
+                AddFoodStack(item);
             }
         }
 
@@ -274,6 +286,82 @@ namespace Autonocraft.Core
 
             Console.WriteLine($"[Inventory] Hotbar full! Cannot collect {tool.GetDisplayName()}.");
             Notify($"Hotbar full! Cannot collect {tool.GetDisplayName()}");
+        }
+
+        private void AddFoodStack(ItemStack food)
+        {
+            int remaining = food.Count;
+            for (int i = 0; i < 9 && remaining > 0; i++)
+            {
+                if (Hotbar[i].IsFood() && Hotbar[i].FoodId == food.FoodId && Hotbar[i].Count < 64)
+                {
+                    int add = Math.Min(64 - Hotbar[i].Count, remaining);
+                    Hotbar[i].Count += add;
+                    remaining -= add;
+                }
+            }
+
+            for (int i = 0; i < 9 && remaining > 0; i++)
+            {
+                if (Hotbar[i].IsEmpty)
+                {
+                    int add = Math.Min(64, remaining);
+                    Hotbar[i] = ItemStack.CreateFood(food.FoodId, add);
+                    remaining -= add;
+                }
+            }
+
+            if (remaining > 0)
+            {
+                Notify($"Hotbar full! Lost {remaining}x {food.GetDisplayName()}");
+            }
+        }
+
+        public void RestoreHunger(float amount)
+        {
+            if (amount <= 0f)
+            {
+                return;
+            }
+
+            Hunger = MathF.Min(MaxHunger, Hunger + amount);
+        }
+
+        public void UpdateHunger(float deltaTime, InteractionAnimator? animator = null)
+        {
+            if (CreativeMode || !IsAlive)
+            {
+                return;
+            }
+
+            Hunger = MathF.Max(0f, Hunger - SurvivalConstants.HungerDrainPerSecond * deltaTime);
+            if (Hunger > 0f)
+            {
+                return;
+            }
+
+            _starvationTimer += deltaTime;
+            if (_starvationTimer < SurvivalConstants.StarvationDamageInterval)
+            {
+                return;
+            }
+
+            _starvationTimer = 0f;
+            if (TakeDamage(SurvivalConstants.StarvationDamage, out _))
+            {
+                LastDeathCause = DeathCause.Starvation;
+                animator?.TriggerDamage(0.6f);
+            }
+        }
+
+        public float GetMoveSpeedMultiplier()
+        {
+            if (CreativeMode || Hunger > MaxHunger * SurvivalConstants.LowHungerFraction)
+            {
+                return 1f;
+            }
+
+            return SurvivalConstants.LowHungerSpeedMultiplier;
         }
 
         private void AddFluidContainerStack(ItemStack container)
@@ -351,6 +439,7 @@ namespace Autonocraft.Core
                 {
                     horizontalMove = Vector3.Normalize(horizontalMove);
                     float speed = CustomMoveSpeed > 0f ? CustomMoveSpeed : WalkSpeed;
+                    speed *= GetMoveSpeedMultiplier();
                     if (InWater)
                     {
                         speed = CustomMoveSpeed > 0f ? CustomMoveSpeed : SwimSpeed;
@@ -507,6 +596,10 @@ namespace Autonocraft.Core
                 else if (Hotbar[i].IsTool())
                 {
                     sb.Append($"[{marker}{i + 1}: {Hotbar[i].GetDisplayName()} ({Hotbar[i].Durability})]");
+                }
+                else if (Hotbar[i].IsFood())
+                {
+                    sb.Append($"[{marker}{i + 1}: {Hotbar[i].GetDisplayName()} ({Hotbar[i].Count})]");
                 }
                 else
                 {

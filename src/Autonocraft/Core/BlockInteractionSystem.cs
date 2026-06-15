@@ -345,7 +345,11 @@ namespace Autonocraft.Core
             }
             else if (rightPressed)
             {
-                if (!TryUseBucket(world, player, cameraPos, cameraFront, particles, device))
+                if (FoodConsumption.TryEatFromHotbar(player))
+                {
+                    TriggerCrosshairFlash();
+                }
+                else if (!TryUseBucket(world, player, cameraPos, cameraFront, particles, device))
                 {
                     TryPlaceBlock(world, player, particles, device);
                 }

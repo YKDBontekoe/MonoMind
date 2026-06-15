@@ -107,6 +107,8 @@ namespace Autonocraft.Core
         private bool _wasActive = true;
         private bool _skipMouseLookFrame;
         private bool _deferPrevMouseReset;
+        private string? _deathCauseText;
+        private string? _deathPenaltyText;
         private float _spawnWarmupRemaining;
         private float _inactiveTimer;
         private float _claimHintTimer = 10f;
@@ -901,14 +903,23 @@ namespace Autonocraft.Core
 
         private void OpenDeathScreen()
         {
-            _session.Player.Stats.RecordDeath();
+            var player = _session.Player;
+            if (!player.DeathConsequencesApplied)
+            {
+                DeathConsequences.ApplyOnDeath(player);
+                player.DeathConsequencesApplied = true;
+            }
+
+            _deathCauseText = FormatDeathCause(player.LastDeathCause);
+            _deathPenaltyText = "You dropped some supplies.";
+            player.Stats.RecordDeath();
             _mouseLockedBeforeDeath = _isMouseLocked;
             _isMouseLocked = false;
             ReleaseMouseCapture();
             IsMouseVisible = true;
             _pauseMenu!.Close();
             _pauseFade.SnapVisible();
-            _deathScreen!.Open();
+            _deathScreen!.Open(_deathCauseText, _deathPenaltyText);
             _deathFade.BeginFadeInSlideUp(0.25f, 16f);
             Window.Title = "Autonocraft | You Died";
         }
@@ -1330,6 +1341,8 @@ namespace Autonocraft.Core
                 if (_deathScreen.RespawnRequested)
                 {
                     CombatSystem.RespawnPlayer(_session.Grid, _session.Player, _worldSpawnX, _worldSpawnZ);
+                    _deathCauseText = null;
+                    _deathPenaltyText = null;
                     CloseDeathScreen();
                 }
                 else if (_deathScreen.MainMenuRequested)
@@ -2340,6 +2353,7 @@ namespace Autonocraft.Core
             if (!inSpawnWarmup || warmup >= 0.6f)
             {
                 _session.UpdateVillages(deltaTime, _timeOfDay);
+                _session.UpdateSurvival(deltaTime, _timeOfDay, inSpawnWarmup);
                 UpdateVillageTutorial(deltaTime);
                 // TryFindClaimableStructure is expensive — poll at most every 10 s; GameSession skips if player barely moved.
                 _claimHintTimer += deltaTime;
@@ -2602,6 +2616,16 @@ namespace Autonocraft.Core
                 _settings.PlayWithAi && _settings.AiProvider != AiProviderKind.Disabled);
         }
 
+        private static string FormatDeathCause(DeathCause cause) => cause switch
+        {
+            DeathCause.Fall => "You fell from a great height.",
+            DeathCause.Drown => "You drowned.",
+            DeathCause.Starvation => "You starved.",
+            DeathCause.Wolf => "A wolf killed you.",
+            DeathCause.Animal => "An animal killed you.",
+            _ => "YOUR ADVENTURE ISN'T OVER"
+        };
+
         private IItemContainer WrapPlayerHotbar() => new PlayerHotbarAdapter(_session.Player);
 
         private void CloseVillageUi()
@@ -2859,7 +2883,7 @@ namespace Autonocraft.Core
                 if (_tutorialTimer <= 0f)
                 {
                     _session.HudToast.Show("Welcome! Your first settlers have arrived. Press V to open the Town Board.", new Microsoft.Xna.Framework.Color(0.55f, 0.82f, 0.65f), 6f);
-                    _tutorialTimer = 10f; // Remind every 10 seconds if not opened
+                    _tutorialTimer = 10f;
                 }
 
                 if (_villageScreen?.IsOpen == true)
@@ -2876,7 +2900,6 @@ namespace Autonocraft.Core
                     _tutorialTimer = 12f;
                 }
 
-                // Check if any villager is working
                 bool anyWorking = false;
                 foreach (var villager in _session.Villagers.All)
                 {
@@ -2903,7 +2926,6 @@ namespace Autonocraft.Core
                     _tutorialTimer = 15f;
                 }
 
-                // Check if farm plot is queued
                 bool farmPlotQueued = false;
                 foreach (var site in primaryVillage.BuildingSites)
                 {
