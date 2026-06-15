@@ -459,7 +459,8 @@ namespace Autonocraft.World
                 FallDamageEvents = stats.FallDamageEvents,
                 TimesDrowned = stats.TimesDrowned,
                 ItemsCrafted = stats.ItemsCrafted,
-                VillageTutorialStage = stats.VillageTutorialStage
+                VillageTutorialStage = stats.VillageTutorialStage,
+                EarlyGuideStage = stats.EarlyGuideStage
             };
         }
 
@@ -490,6 +491,7 @@ namespace Autonocraft.World
             stats.TimesDrowned = data.TimesDrowned;
             stats.ItemsCrafted = data.ItemsCrafted;
             stats.VillageTutorialStage = data.VillageTutorialStage;
+            stats.EarlyGuideStage = data.EarlyGuideStage > 0 ? data.EarlyGuideStage : data.VillageTutorialStage;
         }
 
         private static List<InventorySlotSaveData> SerializeHotbar(Player player)

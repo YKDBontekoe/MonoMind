@@ -155,9 +155,24 @@ Each level has its own vertex/index buffers on the GPU.
 
 - **Creative mode** (default off at spawn): no gravity, free vertical movement with Space/Shift, unlimited resources.
 - **Physics mode**: gravity, ground collision, jumping, fall damage, swimming, drowning.
-- **Inventory**: 9-slot hotbar with `ItemStack` (blocks, tools with durability, fluid containers).
+- **Inventory**: 9-slot hotbar with `ItemStack` (blocks, tools with durability, fluid containers, food).
+- **Hunger** (survival): drains over time; starvation damage at 0; low-hunger walk debuff; persisted in saves.
 - **Skills**: mining, woodcutting, combat — XP and levels affect mining speed.
 - **Spawn**: `FindSafeSpawnPosition()` searches surface near `(16, 16)`.
+
+### Survival loop
+
+| Component | Role |
+|-----------|------|
+| `SurvivalConstants.cs` | Hunger drain, starvation, ration cost, night-wolf caps |
+| `FoodRegistry.cs` | Food items (`RawMeat`, `CookedMeat`, `Bread`) and hunger restore values |
+| `FoodConsumption` | Right-click eat from hotbar; `Take Rations` from village food stock |
+| `AnimalLoot.cs` | Raw meat drops on animal kill |
+| `NightThreatSpawner.cs` | Spawns wolves at night outside shelter (cap 2; despawn at dawn) |
+| `DeathConsequences.cs` | Drop half hotbar on death; 60% hunger on respawn |
+| `EarlyGameGuide.cs` | Unified survival + village tutorial stages (`earlyGuideStage` in saves) |
+
+Crafting: wood/stone swords at Bench; cooked meat at Forge; bread from wheat at Bench.
 
 Camera (`Engine/Camera.cs`) syncs yaw/pitch/position from the player each frame.
 
@@ -175,7 +190,7 @@ Camera (`Engine/Camera.cs`) syncs yaw/pitch/position from the player each frame.
 
 - Raycasts up to 5 blocks from the camera.
 - **Left click:** if an animal is in range, `CombatSystem` handles melee; otherwise mines the targeted block via `MiningCalculator.GetEffectiveBreakTime()`.
-- **Right click:** places the held block on the adjacent face.
+- **Right click:** places the held block, eats food from hotbar, or uses bucket.
 - **Shift+right click:** activates a sigil pattern → crafting station block.
 - **Right click station:** opens crucible UI for Bench/Forge/Crucible.
 
@@ -183,7 +198,7 @@ Camera (`Engine/Camera.cs`) syncs yaw/pitch/position from the player each frame.
 
 ## Animals
 
-`Entities/AnimalManager.cs` manages Sheep, Pig, and Chicken entities:
+`Entities/AnimalManager.cs` manages Sheep, Pig, Chicken, and night-spawned Wolf entities:
 
 - Spawn around player on world entry (`PopulateAroundSpawn`).
 - Gravity, ground collision, wander AI with obstacle avoidance.

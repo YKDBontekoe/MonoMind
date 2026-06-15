@@ -17,9 +17,13 @@ Agent-oriented navigation index. Pair with [AGENTS.md](../AGENTS.md) for build/t
 | `GameRenderContext.cs` | Read-only snapshot for rendering (decouples Engine from game) |
 | `GameConstants.cs` | Spawn coords, autosave interval |
 | `SaveSnapshot.cs` | DTO for save serialization |
-| `Player.cs` | Physics, inventory, skills, swimming, stats tracking |
-| `PlayerStatistics.cs` | Lifetime counters (distance, kills, play time, etc.) |
-| `BlockInteractionSystem.cs` | Raycast, mining, placing, sigils, station interaction |
+| `Player.cs` | Physics, inventory, hunger, skills, swimming, stats tracking |
+| `PlayerStatistics.cs` | Lifetime counters (distance, kills, play time, early guide stage) |
+| `SurvivalConstants.cs` | Hunger/survival tuning constants |
+| `EarlyGameGuide.cs` | Unified early-game survival + village tutorial |
+| `DeathConsequences.cs` | Death hotbar drop and respawn hunger restore |
+| `AnimalLoot.cs` | Animal kill loot + `FoodConsumption` helpers |
+| `BlockInteractionSystem.cs` | Raycast, mining, placing, eating, sigils, station interaction |
 | `CombatSystem.cs` | Melee combat, fall effects, respawn |
 | `AgentHttpServer.cs` | HTTP API on port 5000 |
 | `DevCommands.cs` | F3/`~` dev console commands |
@@ -112,6 +116,7 @@ Agent-oriented navigation index. Pair with [AGENTS.md](../AGENTS.md) for build/t
 | File | Description |
 |------|-------------|
 | `ToolRegistry.cs` | Tool definitions and creation |
+| `FoodRegistry.cs` | Food item hunger restore values |
 | `ToolDefinition.cs` | Single tool stats |
 | `ToolType.cs` | Pickaxe, Axe, Shovel, Sword |
 | `ToolTier.cs` | Wood, Stone, Iron, Gold |
@@ -143,7 +148,8 @@ Agent-oriented navigation index. Pair with [AGENTS.md](../AGENTS.md) for build/t
 |------|-------------|
 | `AnimalManager.cs` | Spawn, update, population cap |
 | `Animal.cs` | Single animal state and AI |
-| `AnimalType.cs` | Sheep, Pig, Chicken |
+| `AnimalType.cs` | Sheep, Pig, Chicken, Wolf stats |
+| `NightThreatSpawner.cs` | Night wolf spawns near player |
 | `EntityCollision.cs` | Animal-world collision |
 | `EntityRaycast.cs` | Raycast against animals |
 
@@ -255,7 +261,7 @@ Agent-oriented navigation index. Pair with [AGENTS.md](../AGENTS.md) for build/t
 |----------|--------------|--------|
 | `AutonocraftGame.cs` (~1290 LOC) | `GameSession.cs` (simulation), `GameConstants.cs` | Refactored |
 | `Renderer.cs` (~1385 LOC) | `WorldRenderer.cs`, `HudRenderer.cs`, `PixelFont.cs` | Refactored |
-| `GameIntegrationTests.cs` (~1842 LOC) | `tests/Autonocraft.Tests/Integration/*.cs` | Refactored |
+| `GameIntegrationTests.cs` (~1842 LOC) | `tests/Autonocraft.Tests/Integration/*.cs` (incl. `SurvivalTests.cs`) | Refactored |
 
 ---
 

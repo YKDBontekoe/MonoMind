@@ -121,6 +121,47 @@ public static class VillageTests
             throw new Exception("Starter storage not seeded.");
         }
 
+        int foodInStorage = 0;
+        for (int i = 0; i < village.Storage.SlotCount; i++)
+        {
+            var stack = village.Storage.GetSlot(i);
+            if (stack.IsFood() && stack.FoodId == ItemId.CookedMeat)
+            {
+                foodInStorage += stack.Count;
+            }
+        }
+
+        if (foodInStorage < 2)
+        {
+            throw new Exception("Expected welcome cooked meat rations in starter storage.");
+        }
+
+        bool anyWorking = false;
+        for (int tick = 0; tick < 240 && !anyWorking; tick++)
+        {
+            session.Villages.Update(0.05f, world, 0.3f, session.Animals);
+            foreach (var villager in session.Villagers.All)
+            {
+                if (villager.VillageId == village.Id &&
+                    villager.CurrentJob != Domain.Village.JobType.Idle &&
+                    villager.CurrentJob != Domain.Village.JobType.Sleep)
+                {
+                    anyWorking = true;
+                    break;
+                }
+            }
+        }
+
+        if (!anyWorking)
+        {
+            throw new Exception("Expected starter villagers to begin working quickly.");
+        }
+
+        if (!village.BuildingSites.Any(site => site.BlueprintId == "farm_plot"))
+        {
+            throw new Exception("Expected pre-queued farm plot at starter settlement.");
+        }
+
         if (!PlayerStructureRegistry.TryGet("town_heart", out var heart))
         {
             throw new Exception("Town heart blueprint missing.");

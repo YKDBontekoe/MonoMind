@@ -79,6 +79,12 @@ public static class IntegrationTestRunner
                 AnimalCombatTests.RunPlayerTakeDamage(player);
                 AnimalCombatTests.RunEntityRaycast(world);
                 AnimalCombatTests.RunMeleeKillAnimal(game, player, world);
+                SurvivalTests.RunHungerDrain(player);
+                SurvivalTests.RunEatFood(player);
+                SurvivalTests.RunAnimalLoot(player, game.Animals, world);
+                SurvivalTests.RunNightSpawn(world, player, game.Animals);
+                SurvivalTests.RunDeathPenalty(player);
+                SurvivalTests.RunHungerSaveRoundTrip(game, player, world);
                 PhysicsTests.RunFallDamage(game, player, world);
                 InteractionTests.RunClickPriority(game, player, world);
                 CraftingTests.RunSigilBenchActivation(game, world);
@@ -94,6 +100,7 @@ public static class IntegrationTestRunner
                 FluidTests.RunWaterFillsExcavatedGap(world);
                 CraftingTests.RunNewCraftRecipes(game, player, world);
                 VillageTests.RunStarterSettlementOnNewWorld(game);
+                SurvivalTests.RunVillageRations(player, game.Session.Villages.GetPrimaryVillage()!);
                 VillageTests.RunVillageFoundAndRecruit(game);
                 VillageTests.RunVillageSaveRoundTripV6(game);
                 VillageTests.RunVillageSaveRoundTripV7(game);
