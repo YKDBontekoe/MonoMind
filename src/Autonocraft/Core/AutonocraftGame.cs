@@ -581,6 +581,14 @@ namespace Autonocraft.Core
             _journalScreen = new JournalScreen(_ui);
             _villageAiOrchestrator = _session.VillageAi;
             _villageScreen = new VillageScreen(_ui, _session.Villagers);
+            _villageScreen.SetTakeRationsAction(player =>
+            {
+                var village = _session.Villages.GetActiveVillage(player.Position);
+                if (village != null)
+                {
+                    FoodConsumption.TryTakeRations(player, village);
+                }
+            });
             _villageChatScreen = new VillageChatScreen(_ui, _session.VillageAi);
 
             _audio = new AudioManager(enabled: true);

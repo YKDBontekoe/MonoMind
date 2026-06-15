@@ -13,7 +13,19 @@ namespace Autonocraft.Village
         private bool _wasHamlet = true;
         private bool _wasVillage;
         private bool _wasTown;
+        private bool _firstDeliveryNotified;
         private DateTime _lastWorkshopCraftTime = DateTime.MinValue;
+
+        public void OnFirstResourceDelivery(string itemName)
+        {
+            if (_firstDeliveryNotified)
+            {
+                return;
+            }
+
+            _firstDeliveryNotified = true;
+            Notify($"First delivery: {itemName} reached village storage!", "goal");
+        }
 
         public void OnRecruit(Villager villager) =>
             Notify($"{villager.Name} joined the settlement!", "recruit");

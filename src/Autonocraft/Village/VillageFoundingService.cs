@@ -50,12 +50,23 @@ namespace Autonocraft.Village
             village.RegisterClaimedBuilding(blueprint, heartX, heartY, heartZ);
             village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 16));
             village.Storage.AddItem(ItemStack.CreateBlock(BlockType.Cobblestone, 8));
+            village.Storage.AddItem(ItemStack.CreateFood(ItemId.CookedMeat, 2));
             village.Storage.AddItem(ToolRegistry.CreateStack(ToolType.Axe, ToolTier.Wood));
             village.Storage.AddItem(ToolRegistry.CreateStack(ToolType.Pickaxe, ToolTier.Wood));
             village.FoodStock = 6f;
 
             VillageSettlementHealth.EnsureVillageChunksLoaded(world, village);
             SpawnStarterCitizens(village, world, dispatcher);
+
+            if (PlayerStructureRegistry.TryGet("farm_plot", out var farmBlueprint))
+            {
+                int farmX = village.AnchorX + 8;
+                int farmZ = village.AnchorZ + 4;
+                int farmY = StructureFingerprint.FindSurfaceAnchorY(world, farmX, farmZ);
+                village.QueueBuild(farmBlueprint, farmX, farmY, farmZ);
+            }
+
+            dispatcher.AutoAssignIdleWorkers(village, world);
 
             RecordClaimedAnchor(heartX, heartZ);
             ShowToast?.Invoke($"Welcome to {villageName}! Press V for the town board.");
@@ -95,12 +106,13 @@ namespace Autonocraft.Village
             {
                 var peasantSpawn = VillageSpawnHelper.FindSpawnPosition(world, village, seedBase ^ 2);
                 var peasant = _villagers.Spawn(village.Id, peasantSpawn, seedBase ^ 2);
-                peasant.Role = VillagerRole.Hauler;
+                peasant.Role = VillagerRole.Builder;
                 peasant.IsGrounded = true;
                 village.RegisterVillager(peasant.Id);
                 spawned++;
             }
 
+            dispatcher.AutoAssignIdleWorkers(village, world);
             return spawned;
         }
 
