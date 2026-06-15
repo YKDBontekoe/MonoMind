@@ -170,6 +170,7 @@ namespace Autonocraft.Village.Jobs
 
             if (context.Storage.AddItem(stack))
             {
+                context.Events?.OnFirstResourceDelivery(stack.GetDisplayName());
                 villager.Inventory.SetSlot(slot, ItemStack.Empty);
             }
         }
