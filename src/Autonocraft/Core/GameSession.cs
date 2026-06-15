@@ -24,6 +24,8 @@ namespace Autonocraft.Core
         private readonly InteractionAnimator _interactionAnimator = new();
         private CraftingSystem _craftingSystem = new();
         private readonly HudToast _hudToast = new();
+        private readonly NightThreatSpawner _nightThreatSpawner = new();
+        private readonly EarlyGameGuide _earlyGameGuide = new();
         private GameRenderContext? _renderContext;
         private AudioManager? _audio;
         private float _footstepTimer;
@@ -45,6 +47,7 @@ namespace Autonocraft.Core
         public CraftingSystem Crafting => _craftingSystem;
         public Ai.VillageAiOrchestrator VillageAi { get; private set; }
         public VillageEvents VillageEvents { get; } = new();
+        public EarlyGameGuide EarlyGameGuide => _earlyGameGuide;
 
         public GameSession(int seed, WorldGenParams? parameters = null)
         {
@@ -401,6 +404,25 @@ namespace Autonocraft.Core
         public void UpdateAnimals(float deltaTime)
         {
             Animals.Update(deltaTime, Grid);
+        }
+
+        public void UpdateSurvival(float deltaTime, float timeOfDay, bool spawnWarmupActive)
+        {
+            Player.UpdateHunger(deltaTime, InteractionAnimator);
+            _nightThreatSpawner.Update(deltaTime, timeOfDay, spawnWarmupActive, Grid, Player, Animals);
+        }
+
+        public void UpdateEarlyGuide(float deltaTime, float timeOfDay, bool villageScreenOpen)
+        {
+            var village = Villages.GetActiveVillage(Player.Position);
+            _earlyGameGuide.Update(
+                deltaTime,
+                Player,
+                village,
+                Villagers,
+                timeOfDay,
+                villageScreenOpen,
+                msg => _hudToast.Show(msg));
         }
 
         public void UpdateVillages(float deltaTime, float timeOfDay)

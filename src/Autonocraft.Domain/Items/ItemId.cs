@@ -7,10 +7,12 @@ namespace Autonocraft.Domain.Items
         WoodPickaxe = 1,
         WoodAxe = 2,
         WoodShovel = 3,
+        WoodSword = 4,
 
         StonePickaxe = 10,
         StoneAxe = 11,
         StoneShovel = 12,
+        StoneSword = 13,
 
         IronPickaxe = 20,
         IronAxe = 21,
@@ -23,6 +25,10 @@ namespace Autonocraft.Domain.Items
         GoldSword = 33,
 
         EmptyBucket = 40,
-        WaterBucket = 41
+        WaterBucket = 41,
+
+        RawMeat = 50,
+        CookedMeat = 51,
+        Bread = 52
     }
 }

@@ -49,6 +49,9 @@ namespace Autonocraft.Crafting
                 ToolRecipe("recipe:wood_shovel", "Wood Shovel", BlockType.StationBench,
                     new[] { new CraftInput { ExactBlock = BlockType.OakPlank, Count = 2 }, new CraftInput { Tag = MaterialTag.Wood, Count = 1 } },
                     ItemId.WoodShovel),
+                ToolRecipe("recipe:wood_sword", "Wood Sword", BlockType.StationBench,
+                    new[] { new CraftInput { ExactBlock = BlockType.OakPlank, Count = 2 }, new CraftInput { Tag = MaterialTag.Wood, Count = 1 } },
+                    ItemId.WoodSword),
                 ToolRecipe("recipe:stone_pickaxe", "Stone Pickaxe", BlockType.StationBench,
                     new[] { new CraftInput { ExactBlock = BlockType.OakPlank, Count = 2 }, new CraftInput { ExactBlock = BlockType.Stone, Count = 3 } },
                     ItemId.StonePickaxe, requiresUnlock: true),
@@ -58,6 +61,22 @@ namespace Autonocraft.Crafting
                 ToolRecipe("recipe:stone_shovel", "Stone Shovel", BlockType.StationBench,
                     new[] { new CraftInput { ExactBlock = BlockType.OakPlank, Count = 2 }, new CraftInput { ExactBlock = BlockType.Stone, Count = 3 } },
                     ItemId.StoneShovel, requiresUnlock: true),
+                ToolRecipe("recipe:stone_sword", "Stone Sword", BlockType.StationBench,
+                    new[] { new CraftInput { ExactBlock = BlockType.OakPlank, Count = 2 }, new CraftInput { ExactBlock = BlockType.Stone, Count = 3 } },
+                    ItemId.StoneSword, requiresUnlock: true),
+                new CraftRecipe
+                {
+                    Id = "recipe:bread",
+                    DisplayName = "Bake Bread",
+                    StationType = BlockType.StationBench,
+                    Inputs = new[] { new CraftInput { ExactBlock = BlockType.Wheat, Count = 2 } },
+                    OutputKind = ItemKind.Food,
+                    OutputItem = ItemId.Bread,
+                    OutputCount = 1,
+                    RequiresUnlock = true
+                },
+                FoodRecipe("recipe:cooked_meat", "Cook Meat", BlockType.StationForge,
+                    ItemId.RawMeat, ItemId.CookedMeat, requiresHeat: true),
                 new CraftRecipe
                 {
                     Id = "recipe:iron_block",
@@ -220,6 +239,30 @@ namespace Autonocraft.Crafting
                 RequiresUnlock = requiresUnlock,
                 RequiresHeat = requiresHeat,
                 RequiredTimePhase = requiredTimePhase
+            };
+        }
+
+        private static CraftRecipe FoodRecipe(
+            string id,
+            string displayName,
+            BlockType station,
+            ItemId inputFood,
+            ItemId outputFood,
+            bool requiresUnlock = false,
+            bool requiresHeat = false)
+        {
+            return new CraftRecipe
+            {
+                Id = id,
+                DisplayName = displayName,
+                StationType = station,
+                InputFood = inputFood,
+                InputFoodCount = 1,
+                OutputKind = ItemKind.Food,
+                OutputItem = outputFood,
+                OutputCount = 1,
+                RequiresUnlock = requiresUnlock,
+                RequiresHeat = requiresHeat
             };
         }
     }

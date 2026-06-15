@@ -162,6 +162,7 @@ namespace Autonocraft.Core
             if (!targetAnimal.IsAlive)
             {
                 player.Stats.RecordAnimalKill(targetAnimal.Type, damage);
+                AnimalLoot.GrantKillLoot(player, targetAnimal.Type);
                 if (player.Skills.AddXp(PlayerSkill.Combat, 10f))
                 {
                     ShowToast?.Invoke($"Combat level {player.Skills.GetLevel(PlayerSkill.Combat)}!");
@@ -211,6 +212,7 @@ namespace Autonocraft.Core
 
             if (player.TakeDamage(retaliation, out _))
             {
+                player.LastDeathCause = animal.Type == AnimalType.Wolf ? DeathCause.Wolf : DeathCause.Animal;
                 Console.WriteLine($"[Combat] Player took {retaliation:F0} retaliation damage ({player.Health:F0}/{player.MaxHealth:F0} HP)");
                 animator.TriggerDamage(0.7f);
             }
@@ -238,6 +240,7 @@ namespace Autonocraft.Core
             if (player.TakeDamage(damage, out _))
             {
                 player.Stats.RecordFallDamage();
+                player.LastDeathCause = DeathCause.Fall;
                 Console.WriteLine(
                     $"[Combat] Fall damage: {damage:F0} from {player.FallDistance:F1} blocks ({player.Health:F0}/{player.MaxHealth:F0} HP)");
                 animator.TriggerDamage(flashStrength);
@@ -255,6 +258,11 @@ namespace Autonocraft.Core
             float damage = Player.OxygenDamagePerSecond * deltaTime;
             if (player.TakeDamage(damage, out _))
             {
+                if (player.Oxygen <= 0f)
+                {
+                    player.LastDeathCause = DeathCause.Drown;
+                }
+
                 animator.TriggerDamage(0.5f);
             }
         }
@@ -265,6 +273,8 @@ namespace Autonocraft.Core
             player.Position = spawnPos;
             player.Velocity = Vector3.Zero;
             player.Health = player.MaxHealth;
+            player.DeathConsequencesApplied = false;
+            DeathConsequences.ApplyOnRespawn(player);
             Console.WriteLine($"[Combat] Player respawned at ({spawnPos.X:F1}, {spawnPos.Y:F1}, {spawnPos.Z:F1})");
         }
     }

@@ -237,6 +237,12 @@ namespace Autonocraft.Core
             sb.Append($"\"isGrounded\": {player.IsGrounded.ToString().ToLower()},");
             sb.Append($"\"health\": {player.Health},");
             sb.Append($"\"maxHealth\": {player.MaxHealth},");
+            sb.Append($"\"hunger\": {player.Hunger},");
+            sb.Append($"\"maxHunger\": {player.MaxHunger},");
+            sb.Append($"\"earlyGuideStage\": {player.Stats.EarlyGuideStage},");
+            var primaryVillage = session.Villages.GetActiveVillage(player.Position);
+            string guidanceHint = EarlyGameGuide.GetGuidanceHint(player, primaryVillage, session.Villagers);
+            sb.Append($"\"guidanceHint\": \"{EscapeJson(guidanceHint)}\",");
             sb.Append($"\"timeOfDay\": {host.TimeOfDay},");
             sb.Append($"\"timeScale\": {host.TimeScale},");
             sb.Append($"\"timePaused\": {host.TimePaused.ToString().ToLower()},");
@@ -252,6 +258,10 @@ namespace Autonocraft.Core
                 else if (slot.IsTool())
                 {
                     sb.Append($"{{\"slot\": {i}, \"kind\": \"tool\", \"toolId\": \"{slot.ToolId}\", \"name\": \"{slot.GetDisplayName()}\", \"durability\": {slot.Durability}, \"maxDurability\": {slot.MaxDurability}}}");
+                }
+                else if (slot.IsFood())
+                {
+                    sb.Append($"{{\"slot\": {i}, \"kind\": \"food\", \"itemId\": \"{slot.FoodId}\", \"name\": \"{slot.GetDisplayName()}\", \"count\": {slot.Count}}}");
                 }
                 else if (slot.IsFluidContainer())
                 {
@@ -1255,6 +1265,9 @@ namespace Autonocraft.Core
         {
             SendResponse(response, statusCode, JsonSerializer.Serialize(payload), "application/json");
         }
+
+        private static string EscapeJson(string value) =>
+            value.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
         public static void Stop()
         {

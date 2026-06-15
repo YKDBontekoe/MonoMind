@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Text.Json.Serialization;
+using Autonocraft.Core;
 
 namespace Autonocraft.World
 {
@@ -42,6 +43,8 @@ namespace Autonocraft.World
         public float Pitch { get; set; }
         public float Health { get; set; } = 20f;
         public float MaxHealth { get; set; } = 20f;
+        public float Hunger { get; set; } = SurvivalConstants.MaxHunger;
+        public float MaxHunger { get; set; } = SurvivalConstants.MaxHunger;
         public bool CreativeMode { get; set; }
 
         [JsonPropertyName("flyingMode")]
@@ -80,6 +83,7 @@ namespace Autonocraft.World
         public int TimesDrowned { get; set; }
         public int ItemsCrafted { get; set; }
         public int VillageTutorialStage { get; set; }
+        public int EarlyGuideStage { get; set; }
     }
 
     public sealed class InventorySlotSaveData

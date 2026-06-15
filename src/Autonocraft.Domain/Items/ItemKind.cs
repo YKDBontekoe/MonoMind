@@ -5,6 +5,7 @@ namespace Autonocraft.Domain.Items
         Empty = 0,
         Block = 1,
         Tool = 2,
-        FluidContainer = 3
+        FluidContainer = 3,
+        Food = 4
     }
 }

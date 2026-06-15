@@ -46,6 +46,11 @@ namespace Autonocraft.Items
                 return AddSingleStack(item);
             }
 
+            if (item.IsFood())
+            {
+                return AddFoodStack(item);
+            }
+
             return false;
         }
 
@@ -108,6 +113,11 @@ namespace Autonocraft.Items
                 return CountFreeSpaceForBlock(item.BlockType) >= item.Count;
             }
 
+            if (item.IsFood())
+            {
+                return CountFreeSpaceForFood(item.FoodId) >= item.Count;
+            }
+
             return HasEmptySlot();
         }
 
@@ -146,6 +156,56 @@ namespace Autonocraft.Items
             }
 
             return true;
+        }
+
+        private bool AddFoodStack(ItemStack food)
+        {
+            int remaining = food.Count;
+            for (int i = 0; i < _slots.Length && remaining > 0; i++)
+            {
+                if (_slots[i].IsFood() && _slots[i].FoodId == food.FoodId && _slots[i].Count < DefaultStackSize)
+                {
+                    int add = Math.Min(DefaultStackSize - _slots[i].Count, remaining);
+                    _slots[i].Count += add;
+                    remaining -= add;
+                }
+            }
+
+            for (int i = 0; i < _slots.Length && remaining > 0; i++)
+            {
+                if (_slots[i].IsEmpty)
+                {
+                    int add = Math.Min(DefaultStackSize, remaining);
+                    _slots[i] = ItemStack.CreateFood(food.FoodId, add);
+                    remaining -= add;
+                }
+            }
+
+            if (remaining > 0)
+            {
+                OnOverflow?.Invoke($"Inventory full! Lost {remaining}x {food.GetDisplayName()}");
+                return false;
+            }
+
+            return true;
+        }
+
+        private int CountFreeSpaceForFood(ItemId foodId)
+        {
+            int free = 0;
+            for (int i = 0; i < _slots.Length; i++)
+            {
+                if (_slots[i].IsEmpty)
+                {
+                    free += DefaultStackSize;
+                }
+                else if (_slots[i].IsFood() && _slots[i].FoodId == foodId)
+                {
+                    free += DefaultStackSize - _slots[i].Count;
+                }
+            }
+
+            return free;
         }
 
         private bool AddSingleStack(ItemStack item)

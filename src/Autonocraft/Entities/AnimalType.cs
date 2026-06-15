@@ -6,7 +6,8 @@ namespace Autonocraft.Entities
     {
         Sheep,
         Pig,
-        Chicken
+        Chicken,
+        Wolf
     }
 
     public readonly struct AnimalStats
@@ -64,6 +65,12 @@ namespace Autonocraft.Entities
                     new Color(245, 245, 240),
                     new Color(200, 40, 40),
                     new Color(240, 200, 40),
+                    true),
+                AnimalType.Wolf => new AnimalStats(
+                    0.9f, 0.9f, 4.5f, 12f, 3.5f,
+                    new Color(55, 55, 60),
+                    new Color(35, 35, 40),
+                    new Color(80, 80, 85),
                     true),
                 _ => new AnimalStats(0.6f, 0.8f, 2.5f, 8f, 1f, Color.White, Color.Gray, Color.Transparent, false)
             };

@@ -110,6 +110,7 @@ namespace Autonocraft.Crafting
             Journal.Unlock("recipe:wood_pickaxe");
             Journal.Unlock("recipe:wood_axe");
             Journal.Unlock("recipe:wood_shovel");
+            Journal.Unlock("recipe:wood_sword");
         }
 
         private static void UnlockStoneToolRecipes(DiscoveryJournal journal)
@@ -117,6 +118,8 @@ namespace Autonocraft.Crafting
             journal.Unlock("recipe:stone_pickaxe");
             journal.Unlock("recipe:stone_axe");
             journal.Unlock("recipe:stone_shovel");
+            journal.Unlock("recipe:stone_sword");
+            journal.Unlock("recipe:bread");
         }
 
         private static void UnlockIronToolRecipes(DiscoveryJournal journal)
@@ -168,6 +171,10 @@ namespace Autonocraft.Crafting
             {
                 UnlockStoneToolRecipes(Journal);
             }
+            else if (pattern.OutputStation == BlockType.StationForge)
+            {
+                Journal.Unlock("recipe:cooked_meat");
+            }
 
             ShowCraftingHint = false;
         }
@@ -189,6 +196,20 @@ namespace Autonocraft.Crafting
                     continue;
                 }
 
+                if (recipe.IsFoodInput)
+                {
+                    if (!TryConsumeFoodFromPlayer(player, recipe.InputFood, recipe.InputFoodCount))
+                    {
+                        continue;
+                    }
+
+                    player.AddItem(ItemStack.CreateFood(recipe.OutputItem, recipe.OutputCount));
+                    Journal.Unlock(recipe.Id);
+                    player.Stats.RecordItemCrafted();
+                    OnDiscoveryUnlocked?.Invoke($"Unlocked {recipe.DisplayName}");
+                    return CraftAttemptResult.Success(recipe);
+                }
+
                 if (!recipe.TryMatchInputs(Crucible.InputSlots, out var consumption))
                 {
                     continue;
@@ -202,6 +223,10 @@ namespace Autonocraft.Crafting
                 if (recipe.IsToolOutput)
                 {
                     player.AddItem(ToolRegistry.CreateStack(recipe.OutputItem));
+                }
+                else if (recipe.IsFoodOutput)
+                {
+                    player.AddItem(ItemStack.CreateFood(recipe.OutputItem, recipe.OutputCount));
                 }
                 else
                 {
@@ -262,6 +287,30 @@ namespace Autonocraft.Crafting
                     UnlockGoldToolRecipes(Journal);
                     break;
             }
+        }
+
+        private static bool TryConsumeFoodFromPlayer(Player player, ItemId foodId, int count)
+        {
+            int remaining = count;
+            for (int i = 0; i < player.Hotbar.Length && remaining > 0; i++)
+            {
+                ref var slot = ref player.Hotbar[i];
+                if (!slot.IsFood() || slot.FoodId != foodId)
+                {
+                    continue;
+                }
+
+                int take = Math.Min(slot.Count, remaining);
+                slot.Count -= take;
+                if (slot.Count <= 0)
+                {
+                    slot = ItemStack.Empty;
+                }
+
+                remaining -= take;
+            }
+
+            return remaining <= 0;
         }
 
         public CraftEnvironment GetCurrentEnvironment(VoxelWorld world, float timeOfDay)

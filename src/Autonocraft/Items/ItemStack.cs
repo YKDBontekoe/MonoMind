@@ -6,6 +6,7 @@ namespace Autonocraft.Items
     {
         public ItemKind Kind;
         public ItemId ToolId;
+        public ItemId FoodId;
         public BlockType BlockType;
         public int Count;
         public int Durability;
@@ -17,7 +18,8 @@ namespace Autonocraft.Items
             Kind == ItemKind.Empty ||
             (Kind == ItemKind.Block && (BlockType == BlockType.Air || Count <= 0)) ||
             (Kind == ItemKind.Tool && ToolId == ItemId.None) ||
-            (Kind == ItemKind.FluidContainer && ToolId == ItemId.None);
+            (Kind == ItemKind.FluidContainer && ToolId == ItemId.None) ||
+            (Kind == ItemKind.Food && FoodId == ItemId.None);
 
         public static ItemStack CreateBlock(BlockType blockType, int count)
         {
@@ -41,6 +43,18 @@ namespace Autonocraft.Items
                 MaxDurability = def.MaxDurability
             };
         }
+
+        public static ItemStack CreateFood(ItemId foodId, int count)
+        {
+            return new ItemStack
+            {
+                Kind = ItemKind.Food,
+                FoodId = foodId,
+                Count = count
+            };
+        }
+
+        public bool IsFood() => Kind == ItemKind.Food && FoodId != ItemId.None;
 
         public bool IsTool() => Kind == ItemKind.Tool && ToolId != ItemId.None;
 
@@ -81,6 +95,7 @@ namespace Autonocraft.Items
                                  Durability == other.Durability &&
                                  MaxDurability == other.MaxDurability &&
                                  Count < 64,
+                ItemKind.Food => FoodId == other.FoodId && Count < 64 && other.Count < 64,
                 _ => false
             };
         }
@@ -105,6 +120,11 @@ namespace Autonocraft.Items
                     ItemId.EmptyBucket => "Empty Bucket",
                     _ => ToolId.ToString()
                 };
+            }
+
+            if (IsFood())
+            {
+                return FoodRegistry.GetDisplayName(FoodId);
             }
 
             return BlockType.ToString();

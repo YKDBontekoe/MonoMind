@@ -30,6 +30,13 @@ namespace Autonocraft.Core
         public int TimesDrowned { get; set; }
         public int ItemsCrafted { get; set; }
         public int VillageTutorialStage { get; set; }
+        public int EarlyGuideStage
+        {
+            get => _earlyGuideStage > 0 ? _earlyGuideStage : VillageTutorialStage;
+            set => _earlyGuideStage = value;
+        }
+
+        private int _earlyGuideStage;
 
         public void RecordPlayTime(float deltaTime)
         {
@@ -137,7 +144,8 @@ namespace Autonocraft.Core
                 FallDamageEvents = FallDamageEvents,
                 TimesDrowned = TimesDrowned,
                 ItemsCrafted = ItemsCrafted,
-                VillageTutorialStage = VillageTutorialStage
+                VillageTutorialStage = VillageTutorialStage,
+                EarlyGuideStage = EarlyGuideStage
             };
         }
 
@@ -166,6 +174,7 @@ namespace Autonocraft.Core
                 result.TimesDrowned += stat.TimesDrowned;
                 result.ItemsCrafted += stat.ItemsCrafted;
                 result.VillageTutorialStage = Math.Max(result.VillageTutorialStage, stat.VillageTutorialStage);
+                result.EarlyGuideStage = Math.Max(result.EarlyGuideStage, stat.EarlyGuideStage);
             }
 
             return result;

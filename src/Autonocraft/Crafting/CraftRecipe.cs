@@ -46,8 +46,12 @@ namespace Autonocraft.Crafting
         public int OutputCount { get; init; } = 1;
         public ItemKind OutputKind { get; init; } = ItemKind.Block;
         public ItemId OutputItem { get; init; } = ItemId.None;
+        public ItemId InputFood { get; init; } = ItemId.None;
+        public int InputFoodCount { get; init; } = 1;
         public bool RequiresUnlock { get; init; }
         public bool IsToolOutput => OutputKind == ItemKind.Tool && OutputItem != ItemId.None;
+        public bool IsFoodOutput => OutputKind == ItemKind.Food && OutputItem != ItemId.None;
+        public bool IsFoodInput => InputFood != ItemId.None;
         public bool RequiresHeat { get; init; }
         public bool RequiresWater { get; init; }
         public TimePhase? RequiredTimePhase { get; init; }

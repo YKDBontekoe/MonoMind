@@ -107,10 +107,12 @@ namespace Autonocraft.Core
         private bool _wasActive = true;
         private bool _skipMouseLookFrame;
         private bool _deferPrevMouseReset;
+        private bool _pendingAutoOpenPeopleTab;
+        private string? _deathCauseText;
+        private string? _deathPenaltyText;
         private float _spawnWarmupRemaining;
         private float _inactiveTimer;
         private float _claimHintTimer = 10f;
-        private float _tutorialTimer;
         private const float FocusLossReleaseDelay = 0.35f;
         private const int MouseWarpRejectThreshold = 120;
         private const float MaxGameplayDeltaTime = 1f / 30f;
@@ -579,6 +581,14 @@ namespace Autonocraft.Core
             _journalScreen = new JournalScreen(_ui);
             _villageAiOrchestrator = _session.VillageAi;
             _villageScreen = new VillageScreen(_ui, _session.Villagers);
+            _villageScreen.SetTakeRationsAction(player =>
+            {
+                var village = _session.Villages.GetActiveVillage(player.Position);
+                if (village != null)
+                {
+                    FoodConsumption.TryTakeRations(player, village);
+                }
+            });
             _villageChatScreen = new VillageChatScreen(_ui, _session.VillageAi);
 
             _audio = new AudioManager(enabled: true);
@@ -656,6 +666,7 @@ namespace Autonocraft.Core
                 _session.HudToast.Show(
                     "Founder's Hamlet is ready. Press V → PEOPLE tab to assign jobs to your 2 settlers.",
                     durationSeconds: 8f);
+                _pendingAutoOpenPeopleTab = true;
             }
 
             _isMouseLocked = true;
@@ -901,14 +912,23 @@ namespace Autonocraft.Core
 
         private void OpenDeathScreen()
         {
-            _session.Player.Stats.RecordDeath();
+            var player = _session.Player;
+            if (!player.DeathConsequencesApplied)
+            {
+                DeathConsequences.ApplyOnDeath(player);
+                player.DeathConsequencesApplied = true;
+            }
+
+            _deathCauseText = FormatDeathCause(player.LastDeathCause);
+            _deathPenaltyText = "You dropped some supplies.";
+            player.Stats.RecordDeath();
             _mouseLockedBeforeDeath = _isMouseLocked;
             _isMouseLocked = false;
             ReleaseMouseCapture();
             IsMouseVisible = true;
             _pauseMenu!.Close();
             _pauseFade.SnapVisible();
-            _deathScreen!.Open();
+            _deathScreen!.Open(_deathCauseText, _deathPenaltyText);
             _deathFade.BeginFadeInSlideUp(0.25f, 16f);
             Window.Title = "Autonocraft | You Died";
         }
@@ -1330,6 +1350,8 @@ namespace Autonocraft.Core
                 if (_deathScreen.RespawnRequested)
                 {
                     CombatSystem.RespawnPlayer(_session.Grid, _session.Player, _worldSpawnX, _worldSpawnZ);
+                    _deathCauseText = null;
+                    _deathPenaltyText = null;
                     CloseDeathScreen();
                 }
                 else if (_deathScreen.MainMenuRequested)
@@ -2340,7 +2362,8 @@ namespace Autonocraft.Core
             if (!inSpawnWarmup || warmup >= 0.6f)
             {
                 _session.UpdateVillages(deltaTime, _timeOfDay);
-                UpdateVillageTutorial(deltaTime);
+                _session.UpdateSurvival(deltaTime, _timeOfDay, inSpawnWarmup);
+                _session.UpdateEarlyGuide(deltaTime, _timeOfDay, _villageScreen?.IsOpen == true);
                 // TryFindClaimableStructure is expensive — poll at most every 10 s; GameSession skips if player barely moved.
                 _claimHintTimer += deltaTime;
                 if (_claimHintTimer >= 10f)
@@ -2350,6 +2373,12 @@ namespace Autonocraft.Core
                 }
 
                 _session.UpdateVillageHudHint(_session.Player.CreativeMode);
+            }
+
+            if (_pendingAutoOpenPeopleTab && !inSpawnWarmup && _session.Player.Stats.EarlyGuideStage <= 1)
+            {
+                _pendingAutoOpenPeopleTab = false;
+                OpenVillageUiToPeopleTab();
             }
 
             _autosaveTimer += deltaTime;
@@ -2599,8 +2628,25 @@ namespace Autonocraft.Core
                 new PlayerHotbarAdapter(_session.Player),
                 _session.Player.CreativeMode,
                 openingNote,
-                _settings.PlayWithAi && _settings.AiProvider != AiProviderKind.Disabled);
+                _settings.PlayWithAi && _settings.AiProvider != AiProviderKind.Disabled,
+                earlyGuideStage: _session.Player.Stats.EarlyGuideStage);
         }
+
+        private void OpenVillageUiToPeopleTab()
+        {
+            OpenVillageUi();
+            _villageScreen?.OpenPeopleTab();
+        }
+
+        private static string FormatDeathCause(DeathCause cause) => cause switch
+        {
+            DeathCause.Fall => "You fell from a great height.",
+            DeathCause.Drown => "You drowned.",
+            DeathCause.Starvation => "You starved.",
+            DeathCause.Wolf => "A wolf killed you.",
+            DeathCause.Animal => "An animal killed you.",
+            _ => "YOUR ADVENTURE ISN'T OVER"
+        };
 
         private IItemContainer WrapPlayerHotbar() => new PlayerHotbarAdapter(_session.Player);
 
@@ -2831,123 +2877,6 @@ namespace Autonocraft.Core
             }
 
             return $"{stack.BlockType} (x{stack.Count})";
-        }
-
-        private void UpdateVillageTutorial(float deltaTime)
-        {
-            if (_session.Player.CreativeMode)
-            {
-                return;
-            }
-
-            var primaryVillage = _session.Villages.GetActiveVillage(_session.Player.Position);
-            if (primaryVillage == null)
-            {
-                return;
-            }
-
-            int stage = _session.Player.Stats.VillageTutorialStage;
-            if (stage >= 5)
-            {
-                return;
-            }
-
-            _tutorialTimer -= deltaTime;
-
-            if (stage == 0)
-            {
-                if (_tutorialTimer <= 0f)
-                {
-                    _session.HudToast.Show("Welcome! Your first settlers have arrived. Press V to open the Town Board.", new Microsoft.Xna.Framework.Color(0.55f, 0.82f, 0.65f), 6f);
-                    _tutorialTimer = 10f; // Remind every 10 seconds if not opened
-                }
-
-                if (_villageScreen?.IsOpen == true)
-                {
-                    _session.Player.Stats.VillageTutorialStage = 1;
-                    _tutorialTimer = 0f;
-                }
-            }
-            else if (stage == 1)
-            {
-                if (_tutorialTimer <= 0f)
-                {
-                    _session.HudToast.Show("The PEOPLE tab shows your villagers. Assign them LUMBER or BUILD to get started.", new Microsoft.Xna.Framework.Color(0.55f, 0.82f, 0.65f), 6f);
-                    _tutorialTimer = 12f;
-                }
-
-                // Check if any villager is working
-                bool anyWorking = false;
-                foreach (var villager in _session.Villagers.All)
-                {
-                    if (villager.VillageId == primaryVillage.Id &&
-                        villager.CurrentJob != Domain.Village.JobType.Idle &&
-                        villager.CurrentJob != Domain.Village.JobType.Sleep)
-                    {
-                        anyWorking = true;
-                        break;
-                    }
-                }
-
-                if (anyWorking)
-                {
-                    _session.Player.Stats.VillageTutorialStage = 2;
-                    _tutorialTimer = 0f;
-                }
-            }
-            else if (stage == 2)
-            {
-                if (_tutorialTimer <= 0f)
-                {
-                    _session.HudToast.Show("Nice! Your villager is working. Build a Farm Plot in the BUILD tab to grow food.", new Microsoft.Xna.Framework.Color(0.55f, 0.82f, 0.65f), 6f);
-                    _tutorialTimer = 15f;
-                }
-
-                // Check if farm plot is queued
-                bool farmPlotQueued = false;
-                foreach (var site in primaryVillage.BuildingSites)
-                {
-                    if (site.BlueprintId == "farm_plot")
-                    {
-                        farmPlotQueued = true;
-                        break;
-                    }
-                }
-
-                if (farmPlotQueued)
-                {
-                    _session.Player.Stats.VillageTutorialStage = 3;
-                    _tutorialTimer = 0f;
-                }
-            }
-            else if (stage == 3)
-            {
-                if (_tutorialTimer <= 0f)
-                {
-                    _session.HudToast.Show("Shift+LeftClick on trees near your village to mark them for lumberjacks.", new Microsoft.Xna.Framework.Color(0.55f, 0.82f, 0.65f), 6f);
-                    _tutorialTimer = 15f;
-                }
-
-                if (primaryVillage.WorkQueue.Count > 0)
-                {
-                    _session.Player.Stats.VillageTutorialStage = 4;
-                    _tutorialTimer = 0f;
-                }
-            }
-            else if (stage == 4)
-            {
-                if (_tutorialTimer <= 0f)
-                {
-                    _session.HudToast.Show("Your village is growing! Build houses to increase your population cap.", new Microsoft.Xna.Framework.Color(0.55f, 0.82f, 0.65f), 6f);
-                    _tutorialTimer = 20f;
-                }
-
-                if (primaryVillage.HousingCapacity > 0 || primaryVillage.PopulationCap > 2)
-                {
-                    _session.Player.Stats.VillageTutorialStage = 5;
-                    _session.HudToast.Show("Tutorial complete! Use the town board (V) to grow your settlement.", new Microsoft.Xna.Framework.Color(0.55f, 0.82f, 0.65f), 6f);
-                }
-            }
         }
     }
 

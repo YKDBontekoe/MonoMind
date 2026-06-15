@@ -49,6 +49,8 @@ namespace Autonocraft.UI
         private IItemContainer? _playerPayer;
         private bool _playerCreative;
         private string? _openingNote;
+        private int _earlyGuideStage;
+        private Action<Core.Player>? _takeRationsAction;
         private int _selectedTab;
         private int _selectedVillagerId = -1;
         private int _hoveredButton = -1;
@@ -131,7 +133,8 @@ namespace Autonocraft.UI
             IItemContainer? playerPayer,
             bool playerCreative = false,
             string? openingNote = null,
-            bool playWithAi = true)
+            bool playWithAi = true,
+            int earlyGuideStage = 0)
         {
             _village = village;
             _villageManager = villageManager;
@@ -142,6 +145,7 @@ namespace Autonocraft.UI
             _openingNote = openingNote;
             _isFoundingMode = false;
             _playWithAi = playWithAi;
+            _earlyGuideStage = earlyGuideStage;
             _selectedGoalBlockIndex = 0;
             _selectedGoalCountIndex = 1;
             _isEditingName = false;
@@ -171,6 +175,21 @@ namespace Autonocraft.UI
             _canClaimNearby = villageManager.TryFindClaimableStructure(world, playerPos, 24f, out _, out _, out _);
             IsOpen = true;
         }
+
+        public void OpenPeopleTab()
+        {
+            _selectedTab = 2;
+            foreach (var villager in _villagers.All)
+            {
+                if (_village != null && villager.VillageId == _village.Id && villager.Role == VillagerRole.Lumberjack)
+                {
+                    _selectedVillagerId = villager.Id;
+                    return;
+                }
+            }
+        }
+
+        public void SetTakeRationsAction(Action<Core.Player>? action) => _takeRationsAction = action;
 
         public void Close()
         {
@@ -254,12 +273,12 @@ namespace Autonocraft.UI
 
             if (kb.IsKeyDown(Keys.Left) && !prevKb.IsKeyDown(Keys.Left))
             {
-                _selectedTab = (_selectedTab + TabLabels.Length - 1) % TabLabels.Length;
+                _selectedTab = CycleTab(_selectedTab, -1);
             }
 
             if (kb.IsKeyDown(Keys.Right) && !prevKb.IsKeyDown(Keys.Right))
             {
-                _selectedTab = (_selectedTab + 1) % TabLabels.Length;
+                _selectedTab = CycleTab(_selectedTab, 1);
             }
 
             for (int i = 0; i < TabLabels.Length && i < 9; i++)
@@ -313,6 +332,8 @@ namespace Autonocraft.UI
                 }
 
                 HitRect(left + (buttonW + layout.S(10f)) * (_canClaimNearby ? 2f : 1f), footerY, buttonW, buttonH, 13, mouse);
+                float rationX = left + (buttonW + layout.S(10f)) * (_canClaimNearby ? 3f : 2f);
+                HitRect(rationX, footerY, buttonW, buttonH, 16, mouse);
             }
 
             if (_selectedTab == 1)
@@ -572,6 +593,9 @@ namespace Autonocraft.UI
 
                 _ui.DrawButton(left + (buttonW + layout.S(10f)) * (_canClaimNearby ? 2f : 1f), footerY, buttonW, buttonH,
                     "PAINT ZONE", _hoveredButton == 13, false, layout.S(UiTheme.ScaleSmall), alpha);
+                float rationX = left + (buttonW + layout.S(10f)) * (_canClaimNearby ? 3f : 2f);
+                _ui.DrawButton(rationX, footerY, buttonW, buttonH, "TAKE RATIONS", _hoveredButton == 16, false,
+                    layout.S(UiTheme.ScaleSmall), alpha);
             }
 
             float closeX = panelX + panelW - layout.S(20f) - buttonW;
@@ -649,12 +673,31 @@ namespace Autonocraft.UI
             _ui.DrawString(tier, badgeX + layout.S(10f), badgeY + layout.S(4f), layout.S(0.85f), accent * alpha);
         }
 
+        private bool IsGoalsTabVisible() => _earlyGuideStage >= 3;
+
+        private int VisibleTabCount => IsGoalsTabVisible() ? TabLabels.Length : TabLabels.Length - 1;
+
+        private int MapVisibleTabToIndex(int visibleIndex)
+        {
+            if (visibleIndex < 3 || IsGoalsTabVisible())
+            {
+                return visibleIndex;
+            }
+
+            return 0;
+        }
+
         private void DrawTabBar(ScreenLayout layout, float left, float panelY, float alpha, Color accent)
         {
             float tabY = panelY + layout.S(58f);
             float tabX = left;
             for (int i = 0; i < TabLabels.Length; i++)
             {
+                if (i == 3 && !IsGoalsTabVisible())
+                {
+                    continue;
+                }
+
                 bool selected = i == _selectedTab;
                 bool hovered = _hoveredButton == i;
                 Color fill = selected ? UiTheme.PanelBgHighlight : UiTheme.PanelBgMuted;
@@ -1250,9 +1293,29 @@ namespace Autonocraft.UI
             float tabX = layout.Left;
             for (int i = 0; i < TabLabels.Length; i++)
             {
+                if (i == 3 && !IsGoalsTabVisible())
+                {
+                    continue;
+                }
+
                 HitRect(tabX, tabY, layout.S(TabWidth), layout.S(TabHeight), i, mouse);
                 tabX += layout.S(TabWidth) + layout.S(8f);
             }
+        }
+
+        private int CycleTab(int current, int delta)
+        {
+            int tab = current;
+            for (int attempt = 0; attempt < TabLabels.Length; attempt++)
+            {
+                tab = (tab + delta + TabLabels.Length) % TabLabels.Length;
+                if (tab != 3 || IsGoalsTabVisible())
+                {
+                    return tab;
+                }
+            }
+
+            return current;
         }
 
         private void HitBuildCatalog(ScreenLayout layout, MouseState mouse, float buttonH)
@@ -1345,6 +1408,12 @@ namespace Autonocraft.UI
             if (_hoveredButton == 13)
             {
                 RequestWorkZonePlacement = true;
+                return;
+            }
+
+            if (_hoveredButton == 16 && _takeRationsAction != null && _playerPayer is Core.Player player)
+            {
+                _takeRationsAction(player);
                 return;
             }
 

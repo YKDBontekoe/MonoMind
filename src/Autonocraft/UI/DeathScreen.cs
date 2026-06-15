@@ -22,15 +22,19 @@ namespace Autonocraft.UI
         public bool IsOpen { get; private set; }
         public bool RespawnRequested { get; private set; }
         public bool MainMenuRequested { get; private set; }
+        public string? CauseText { get; private set; }
+        public string? PenaltyText { get; private set; }
 
         public DeathScreen(UiRenderer ui)
         {
             _ui = ui;
         }
 
-        public void Open()
+        public void Open(string? causeText = null, string? penaltyText = null)
         {
             IsOpen = true;
+            CauseText = causeText;
+            PenaltyText = penaltyText;
             _hoveredButton = -1;
         }
 
@@ -105,7 +109,15 @@ namespace Autonocraft.UI
             float mainMenuY = respawnY + buttonH + buttonSpacing;
 
             _ui.DrawCenteredText("YOU DIED", titleY, layout.S(2.4f), UiTheme.Danger, alpha);
-            _ui.DrawCenteredText("YOUR ADVENTURE ISN'T OVER", subtitleY, layout.S(UiTheme.ScaleSection), new Color(0.85f, 0.72f, 0.74f), alpha);
+            string subtitle = string.IsNullOrWhiteSpace(CauseText)
+                ? "YOUR ADVENTURE ISN'T OVER"
+                : CauseText!;
+            _ui.DrawCenteredText(subtitle, subtitleY, layout.S(UiTheme.ScaleSection), new Color(0.85f, 0.72f, 0.74f), alpha);
+            if (!string.IsNullOrWhiteSpace(PenaltyText))
+            {
+                _ui.DrawCenteredText(PenaltyText!, subtitleY + layout.S(22f), layout.S(UiTheme.ScaleSmall),
+                    new Color(0.78f, 0.62f, 0.55f), alpha * 0.95f);
+            }
 
             DrawButton(cx, respawnY, buttonW, buttonH, "RESPAWN", 0, layout.S(1.5f), alpha);
             DrawButton(cx, mainMenuY, buttonW, buttonH, "MAIN MENU", 1, layout.S(1.4f), alpha);
