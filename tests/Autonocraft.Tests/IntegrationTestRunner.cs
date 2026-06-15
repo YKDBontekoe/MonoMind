@@ -19,8 +19,16 @@ public static class IntegrationTestRunner
         {
             WorldGenTests.RunGameSettingsRoundTrip();
             VillageTests.RunVillageScreenInputLayout();
+            VillageTests.RunBlueprintPlacementHelper();
+            VillageTests.RunCanPlaceBlueprint();
+            VillageTests.RunQueuedBuildingSiteSurvivesSync();
+            VillageTests.RunStarterSettlementBeforeChunksLoaded();
+            VillageTests.RunLiveStyleJobAssignmentHasWorld();
+            VillageTests.RunFullVillageLifecycleJobs();
+            VillageTests.RunAgentHttpVillageBridgeE2E();
             WorldGenTests.RunChunkLodBands();
             WorldGenTests.RunChunkLodMeshCounts();
+            WorldGenTests.RunOceanShellMeshSurfaces();
             ChunkStreamingTests.RunInitialLoadWaitsForInFlightGeneration();
             ChunkStreamingTests.RunFaultedChunkGenerationDoesNotCrash();
             ChunkStreamingTests.RunChunkUnloadDiscardsStaleInFlight();
@@ -32,7 +40,19 @@ public static class IntegrationTestRunner
             VillageTests.RunBlockActionService();
             VillageTests.RunClaimWorldStructure();
             VillageTests.RunFarmFoodProduction();
+            VillageTests.RunBuildingJobWiring();
+            VillageTests.RunVillagerToolMining();
             VillageTests.RunVillageAiToolsMock();
+            VillageTests.RunVillageNumericGoals();
+            VillageTests.RunPlayerWorkQueue();
+            VillageTests.RunRepairMissingCitizens();
+            VillageTests.RunVillagerLumberChopping();
+            VillageTests.RunAdoptOrphanedCitizens();
+            VillageTests.RunVillageRegistryDesyncLiveChop();
+            VillageTests.RunVillageGuidanceHints();
+            VillageTests.RunVillageEventsNotifier();
+            VillageTests.RunStarvationConsequences();
+            VillageTests.RunVillageRename();
 
             using (var game = new AutonocraftGame(runTests: true))
             {
@@ -76,6 +96,7 @@ public static class IntegrationTestRunner
                 VillageTests.RunStarterSettlementOnNewWorld(game);
                 VillageTests.RunVillageFoundAndRecruit(game);
                 VillageTests.RunVillageSaveRoundTripV6(game);
+                VillageTests.RunVillageSaveRoundTripV7(game);
             }
 
             WorldGenTests.RunBiomeTreeSpecies();

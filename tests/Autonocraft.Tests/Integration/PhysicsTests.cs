@@ -40,7 +40,7 @@ public static class PhysicsTests
 
         player.Position = new Vector3(16.5f, spawnY, 16.5f);
         player.Velocity = Vector3.Zero;
-        player.FlyingMode = false;
+        player.CreativeMode = false;
 
         if (player.IsGrounded)
         {
@@ -147,7 +147,7 @@ public static class PhysicsTests
 
         world.SetBlock(16, targetY, 16, BlockType.Stone);
 
-        player.FlyingMode = false;
+        player.CreativeMode = false;
         player.Health = 20f;
         player.Velocity = Vector3.Zero;
         player.Position = new Vector3(16.5f, targetY + 1.2f, 16.5f);
@@ -234,7 +234,7 @@ public static class PhysicsTests
 
         player.Position = new Vector3(x + 0.5f, y, z + 0.5f);
         player.Velocity = Vector3.Zero;
-        player.FlyingMode = false;
+        player.CreativeMode = false;
 
         float startX = player.Position.X;
         float dt = 0.016f;

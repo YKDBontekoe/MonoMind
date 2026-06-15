@@ -177,7 +177,7 @@ namespace Autonocraft.Engine.Animation
             HotbarWiggleScale = Tween.SmoothDamp(HotbarWiggleScale, 1f, 14f, deltaTime);
 
             float horizontalSpeed = MathF.Sqrt(player.Velocity.X * player.Velocity.X + player.Velocity.Z * player.Velocity.Z);
-            if (player.IsGrounded && !player.FlyingMode && horizontalSpeed > 0.5f)
+            if (player.IsGrounded && !player.CreativeMode && horizontalSpeed > 0.5f)
             {
                 _walkBobPhase += deltaTime * 4f * MathF.PI * 2f;
                 WalkBobOffsetY = MathF.Sin(_walkBobPhase) * 0.03f * Math.Clamp(horizontalSpeed / Player.WalkSpeed, 0f, 1f);

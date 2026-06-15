@@ -7,6 +7,7 @@ using Autonocraft.Core;
 using Autonocraft.Engine.Animation;
 using Autonocraft.Items;
 using Autonocraft.World;
+using Autonocraft.Village;
 using Vector3 = System.Numerics.Vector3;
 using Matrix = Microsoft.Xna.Framework.Matrix;
 
@@ -59,6 +60,7 @@ namespace Autonocraft.Engine
             DrawHudBottomVignette(layout);
             DrawHudCrosshair(layout, cx, cy, interaction, animator);
             DrawHudCompass(layout, cx, player.Yaw);
+            DrawVillageCompassMarker(layout, cx, layout.Padding, layout.S(34f), ctx);
             DrawHudTimeBadge(layout, ctx.TimeOfDay);
             DrawHudStatusCard(layout, player, activeChunksCount);
             DrawHudModeBadge(layout, player);
@@ -135,6 +137,7 @@ namespace Autonocraft.Engine
 
             DrawHudStatusCardText(layout, player, activeChunksCount);
             DrawHudModeBadgeText(layout, player);
+            DrawKeyHintsBar(layout, ctx);
 
             if (!string.IsNullOrEmpty(ctx.NearbyClaimHint))
             {
@@ -163,9 +166,16 @@ namespace Autonocraft.Engine
                 DrawRectOutline(_spriteBatch, pillX, pillY, pillW, pillH, 1f, new Color(0.2f, 0.32f, 0.42f), 0.7f);
                 PixelFont.DrawString(_spriteBatch, _whiteTexture, labelText, pillX + pillPadX, pillY + pillPadY, activeLabelSize, new Color(0.92f, 0.94f, 0.98f), 0.95f);
             }
-            else if (ctx.ShowVillageHint)
+            else if (!string.IsNullOrEmpty(ctx.VillageHudHint))
             {
-                string hint = "V — MANAGE SETTLEMENT  |  C — TALK TO STEWARD";
+                string hint = ctx.VillageHudHint!;
+                float hintSize = layout.S(0.95f);
+                float hintWidth = PixelFont.MeasureString(hint, hintSize);
+                PixelFont.DrawString(_spriteBatch, _whiteTexture, hint, cx - hintWidth / 2f, hotbarYMin - layout.S(30f), hintSize, new Color(0.55f, 0.82f, 0.65f), 0.85f);
+            }
+            else if (!string.IsNullOrEmpty(ctx.HudPlacementHint))
+            {
+                string hint = ctx.HudPlacementHint!;
                 float hintSize = layout.S(0.95f);
                 float hintWidth = PixelFont.MeasureString(hint, hintSize);
                 PixelFont.DrawString(_spriteBatch, _whiteTexture, hint, cx - hintWidth / 2f, hotbarYMin - layout.S(30f), hintSize, new Color(0.55f, 0.82f, 0.65f), 0.85f);
@@ -178,8 +188,8 @@ namespace Autonocraft.Engine
                 PixelFont.DrawString(_spriteBatch, _whiteTexture, hint, cx - hintWidth / 2f, hotbarYMin - layout.S(30f), hintSize, new Color(0.55f, 0.72f, 0.85f), 0.8f);
             }
 
-            float keyLabelSize = layout.S(0.85f);
-            float countLabelSize = layout.S(1.0f);
+            float keyLabelSize = layout.S(UiTheme.ScaleSmall);
+            float countLabelSize = layout.S(UiTheme.ScaleNormal);
             for (int i = 0; i < 9; i++)
             {
                 float slotXMin = hotbarXMin + i * (slotSize + slotSpacing);
@@ -187,7 +197,7 @@ namespace Autonocraft.Engine
                 float slotYMax = hotbarYMin + slotSize;
 
                 string keyLabel = (i + 1).ToString();
-                PixelFont.DrawString(_spriteBatch, _whiteTexture, keyLabel, slotXMin + layout.S(3f), hotbarYMin + layout.S(2f), keyLabelSize, new Color(0.45f, 0.5f, 0.58f), 0.7f);
+                PixelFont.DrawString(_spriteBatch, _whiteTexture, keyLabel, slotXMin + layout.S(3f), hotbarYMin + layout.S(2f), keyLabelSize, UiTheme.Hint, 0.9f);
 
                 var slotItem = player.Hotbar[i];
                 if (slotItem.IsEmpty)
@@ -534,21 +544,21 @@ namespace Autonocraft.Engine
             float cardY = layout.Height - layout.S(188f);
             float hpTextSize = layout.S(0.95f);
             string hpText = $"{MathF.Round(player.Health)}/{MathF.Round(player.MaxHealth)}";
-            PixelFont.DrawString(_spriteBatch, _whiteTexture, "HEALTH", cardX + layout.S(14f), cardY + layout.S(4f), hpTextSize, new Color(0.75f, 0.78f, 0.84f), 0.85f);
+            PixelFont.DrawString(_spriteBatch, _whiteTexture, "HEALTH", cardX + layout.S(14f), cardY + layout.S(4f), hpTextSize, UiTheme.StatLabel, 0.9f);
             if (player.HeadUnderwater)
             {
-                PixelFont.DrawString(_spriteBatch, _whiteTexture, "O2", cardX + layout.S(14f), cardY + layout.S(28f), layout.S(0.75f), new Color(0.55f, 0.72f, 0.88f), 0.8f);
+                PixelFont.DrawString(_spriteBatch, _whiteTexture, "O2", cardX + layout.S(14f), cardY + layout.S(28f), layout.S(UiTheme.ScaleSmall), UiTheme.Meta, 0.9f);
             }
             float hpTextW = PixelFont.MeasureString(hpText, hpTextSize);
-            PixelFont.DrawString(_spriteBatch, _whiteTexture, hpText, cardX + cardW - layout.S(14f) - hpTextW, cardY + layout.S(4f), hpTextSize, new Color(0.95f, 0.55f, 0.62f), 0.95f);
+            PixelFont.DrawString(_spriteBatch, _whiteTexture, hpText, cardX + cardW - layout.S(14f) - hpTextW, cardY + layout.S(4f), hpTextSize, UiTheme.Danger, 0.95f);
 
             string posText = $"{player.Position.X:F0} {player.Position.Y:F0} {player.Position.Z:F0}";
-            float metaSize = layout.S(0.8f);
+            float metaSize = layout.S(UiTheme.ScaleSmall);
             float metaY = cardY + cardH - layout.S(12f);
-            PixelFont.DrawString(_spriteBatch, _whiteTexture, posText, cardX + layout.S(14f), metaY, metaSize, new Color(0.42f, 0.48f, 0.55f), 0.65f);
+            PixelFont.DrawString(_spriteBatch, _whiteTexture, posText, cardX + layout.S(14f), metaY, metaSize, UiTheme.Meta, 0.9f);
             string chunkText = $"{activeChunksCount} CHK";
             float chunkW = PixelFont.MeasureString(chunkText, metaSize);
-            PixelFont.DrawString(_spriteBatch, _whiteTexture, chunkText, cardX + cardW - layout.S(14f) - chunkW, metaY, metaSize, new Color(0.42f, 0.48f, 0.55f), 0.65f);
+            PixelFont.DrawString(_spriteBatch, _whiteTexture, chunkText, cardX + cardW - layout.S(14f) - chunkW, metaY, metaSize, UiTheme.Meta, 0.9f);
         }
 
         private void DrawHudModeBadge(UiLayout layout, Player player)
@@ -557,7 +567,7 @@ namespace Autonocraft.Engine
             float badgeH = layout.S(34f);
             float badgeX = layout.Width - layout.Padding - badgeW;
             float badgeY = layout.Height - layout.S(188f);
-            Color accent = player.FlyingMode ? new Color(0.25f, 0.75f, 1.0f) : new Color(0.95f, 0.62f, 0.22f);
+            Color accent = player.CreativeMode ? new Color(0.25f, 0.75f, 1.0f) : new Color(0.95f, 0.62f, 0.22f);
             DrawHudGlassPanel(_spriteBatch, badgeX, badgeY, badgeW, badgeH, accent, 0.82f);
         }
 
@@ -567,16 +577,16 @@ namespace Autonocraft.Engine
             float badgeH = layout.S(34f);
             float badgeX = layout.Width - layout.Padding - badgeW;
             float badgeY = layout.Height - layout.S(188f);
-            string modeLabel = player.FlyingMode ? "CREATIVE" : "SURVIVAL";
-            Color modeColor = player.FlyingMode ? new Color(0.45f, 0.85f, 1.0f) : new Color(0.98f, 0.72f, 0.35f);
+            string modeLabel = player.CreativeMode ? "CREATIVE" : "SURVIVAL";
+            Color modeColor = player.CreativeMode ? new Color(0.45f, 0.85f, 1.0f) : new Color(0.98f, 0.72f, 0.35f);
             float textSize = layout.S(0.95f);
             float textW = PixelFont.MeasureString(modeLabel, textSize);
             PixelFont.DrawString(_spriteBatch, _whiteTexture, modeLabel, badgeX + (badgeW - textW) / 2f, badgeY + layout.S(10f), textSize, modeColor, 0.95f);
 
             string grounded = player.IsGrounded ? "GROUNDED" : "AIRBORNE";
-            float subSize = layout.S(0.75f);
+            float subSize = layout.S(UiTheme.ScaleSmall);
             float subW = PixelFont.MeasureString(grounded, subSize);
-            PixelFont.DrawString(_spriteBatch, _whiteTexture, grounded, badgeX + (badgeW - subW) / 2f, badgeY + badgeH + layout.S(4f), subSize, new Color(0.45f, 0.52f, 0.6f), 0.7f);
+            PixelFont.DrawString(_spriteBatch, _whiteTexture, grounded, badgeX + (badgeW - subW) / 2f, badgeY + badgeH + layout.S(4f), subSize, UiTheme.Hint, 0.95f);
         }
 
         private void DrawHudGlassPanel(SpriteBatch sb, float x, float y, float w, float h, Color accent, float alpha)
@@ -602,8 +612,8 @@ namespace Autonocraft.Engine
 
         private void DrawSkillBar(UiLayout layout, string label, SkillProgress progress, float x, float y, float totalW, float lineH)
         {
-            float labelSize = layout.S(0.82f);
-            PixelFont.DrawString(_spriteBatch, _whiteTexture, $"{label} {progress.Level}", x, y, labelSize, new Color(0.68f, 0.74f, 0.8f), 0.85f);
+            float labelSize = layout.S(UiTheme.ScaleSmall);
+            PixelFont.DrawString(_spriteBatch, _whiteTexture, $"{label} {progress.Level}", x, y, labelSize, UiTheme.Subtitle, 0.9f);
             float barW = layout.S(72f);
             float barH = layout.S(4f);
             float barX = x + totalW - barW;
@@ -696,6 +706,54 @@ namespace Autonocraft.Engine
             }
         }
 
+        private void DrawKeyHintsBar(UiLayout layout, GameRenderContext ctx)
+        {
+            var hasVillage = ctx.Villages != null && ctx.Villages.GetActiveVillage(ctx.Player.Position) != null;
+            string hintsText = "";
+            if (ctx.VillageUiOpen)
+            {
+                hintsText = "1-4 - Switch Tab   R - Recruit   ESC - Close";
+            }
+            else if (!hasVillage)
+            {
+                hintsText = "V - Start Settlement";
+            }
+            else
+            {
+                var village = ctx.Villages?.GetActiveVillage(ctx.Player.Position);
+                if (village != null)
+                {
+                    var dist = Vector3.Distance(ctx.Player.Position, village.Center);
+                    if (dist <= village.Radius)
+                    {
+                        hintsText = "V - Town Board   C - Chat   Shift+LeftClick - Mark Resource";
+                    }
+                    else
+                    {
+                        hintsText = $"V - Town Board (~{(int)dist}m away)";
+                    }
+                }
+            }
+
+            if (string.IsNullOrEmpty(hintsText))
+            {
+                return;
+            }
+
+            float cardX = layout.Padding;
+            float barY = layout.Height - layout.S(72f);
+            float textSize = layout.S(UiTheme.ScaleSmall);
+
+            // Draw a subtle dark background pill for the hints
+            float textWidth = PixelFont.MeasureString(hintsText, textSize);
+            float pillW = textWidth + layout.S(16f);
+            float pillH = layout.S(20f);
+
+            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)cardX, (int)barY, (int)pillW, (int)pillH), Color.Black * 0.45f);
+            DrawRectOutline(_spriteBatch, cardX, barY, pillW, pillH, 1f, new Color(0.2f, 0.25f, 0.3f) * 0.6f, 0.7f);
+            PixelFont.DrawString(_spriteBatch, _whiteTexture, hintsText, cardX + layout.S(8f), barY + layout.S(4f), textSize, UiTheme.Hint, 0.95f);
+        }
+
         private static string GetDirection(float yaw)
         {
             float angle = (yaw % 360f + 360f) % 360f;
@@ -703,6 +761,59 @@ namespace Autonocraft.Engine
             if (angle >= 135f && angle < 225f) return "WEST";
             if (angle >= 225f && angle < 315f) return "NORTH";
             return "EAST";
+        }
+
+        private void DrawVillageCompassMarker(UiLayout layout, float cx, float compassY, float compassH, GameRenderContext ctx)
+        {
+            var primaryVillage = ctx.Villages?.GetActiveVillage(ctx.Player.Position);
+            if (primaryVillage == null)
+            {
+                return;
+            }
+
+            var player = ctx.Player;
+            var playerPos = player.Position;
+            var villagePos = primaryVillage.Center;
+
+            float dx = villagePos.X - playerPos.X;
+            float dz = villagePos.Z - playerPos.Z;
+            float distance = MathF.Sqrt(dx * dx + dz * dz);
+
+            if (distance <= 3f)
+            {
+                return;
+            }
+
+            // Calculate angle from player to village in degrees
+            // +X is East (0 deg), +Z is South (90 deg), -X is West (180 deg), -Z is North (270 deg)
+            float angleRad = MathF.Atan2(dz, dx);
+            float angleDeg = angleRad * (180f / MathF.PI);
+            angleDeg = (angleDeg % 360f + 360f) % 360f;
+
+            // Player Yaw: 0 is East, 90 is South, 180 is West, 270 is North
+            float playerYawDeg = (player.Yaw % 360f + 360f) % 360f;
+
+            float diff = angleDeg - playerYawDeg;
+            diff = (diff + 180f) % 360f;
+            if (diff < 0) diff += 360f;
+            diff -= 180f;
+
+            string relDir;
+            if (Math.Abs(diff) <= 22.5f) relDir = "AHEAD";
+            else if (Math.Abs(diff) >= 157.5f) relDir = "BEHIND";
+            else if (diff > 0) relDir = "RIGHT";
+            else relDir = "LEFT";
+
+            string text = $"{primaryVillage.Name.ToUpperInvariant()} - {(int)distance} BLOCKS {relDir}";
+            float textSize = layout.S(UiTheme.ScaleSmall);
+            float textW = PixelFont.MeasureString(text, textSize);
+            float badgeW = textW + layout.S(16f);
+            float badgeH = layout.S(20f);
+            float badgeX = cx - badgeW / 2f;
+            float badgeY = compassY + compassH + layout.S(4f);
+
+            DrawHudGlassPanel(_spriteBatch, badgeX, badgeY, badgeW, badgeH, UiTheme.Accent, 0.78f);
+            PixelFont.DrawString(_spriteBatch, _whiteTexture, text, badgeX + layout.S(8f), badgeY + layout.S(5f), textSize, UiTheme.Title, 0.95f);
         }
     }
 }

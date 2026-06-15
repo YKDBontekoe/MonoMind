@@ -14,6 +14,7 @@ from game_client import AssertionError, GameClient, GameClientError, Vec3, valid
 
 
 STEP_HANDLERS: dict[str, Any] = {}
+LAST_MOVE_START: Vec3 | None = None
 
 
 def step(name: str):
@@ -90,11 +91,12 @@ def _look(client: GameClient, value: Any, index: int) -> None:
     print(f"[{index}] look {data}")
 
 
+@step("set_creative")
 @step("set_flying")
-def _set_flying(client: GameClient, value: Any, index: int) -> None:
-    flying = value if isinstance(value, bool) else str(value).lower() == "true"
-    client.set_flying(flying)
-    print(f"[{index}] set_flying {flying}")
+def _set_creative(client: GameClient, value: Any, index: int) -> None:
+    creative = value if isinstance(value, bool) else str(value).lower() == "true"
+    client.set_creative(creative)
+    print(f"[{index}] set_creative {creative}")
 
 
 @step("select_slot")
@@ -124,7 +126,9 @@ def _release_keys(client: GameClient, _value: Any, index: int) -> None:
 
 @step("move")
 def _move(client: GameClient, value: Any, index: int) -> None:
+    global LAST_MOVE_START
     data = _expect_dict(value, "move")
+    LAST_MOVE_START = client.snapshot().position
     client.move(
         forward=float(data.get("forward", 0)),
         back=float(data.get("back", 0)),
@@ -281,12 +285,14 @@ def _assert(client: GameClient, value: Any, index: int) -> None:
 
 @step("wait_for")
 def _wait_for(client: GameClient, value: Any, index: int) -> None:
+    global LAST_MOVE_START
     data = _expect_dict(value, "wait_for")
     timeout = float(data.get("timeout", 10))
     poll = float(data.get("poll_interval", 0.2))
 
     if "position_change" in data:
-        from_pos = client.snapshot().position
+        from_pos = LAST_MOVE_START or client.snapshot().position
+        LAST_MOVE_START = None
         min_dist = float(data["position_change"])
         client.wait_position_change(from_pos, min_distance=min_dist, timeout=timeout)
         print(f"[{index}] wait_for position_change >= {min_dist}")

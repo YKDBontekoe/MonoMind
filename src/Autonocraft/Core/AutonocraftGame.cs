@@ -45,6 +45,13 @@ namespace Autonocraft.Core
         private VillageAiOrchestrator? _villageAiOrchestrator;
         private bool _mouseLockedBeforeCrafting;
         private bool _mouseLockedBeforeVillageUi;
+        private string? _pendingBlueprintId;
+        private bool _pendingFoundingPlacement;
+        private BlueprintPlacementPreview? _blueprintPlacementPreview;
+        private readonly List<BlueprintPlacementPreview> _constructionSitePreviews = new();
+        private WorkZonePlacementPreview? _workZonePreview;
+        private (int X, int Y, int Z)? _workZoneCornerA;
+        private bool _workZonePlacementActive;
         private readonly UiTransition _screenFade = new UiTransition();
         private readonly UiTransition _pauseFade = new UiTransition();
         private readonly UiTransition _deathFade = new UiTransition();
@@ -74,6 +81,7 @@ namespace Autonocraft.Core
         private string? _activeSlotName;
         private WorldSaveData? _pendingSaveData;
         private bool _loadingFromSave;
+        private bool _needsStarterSettlement;
         private float _autosaveTimer;
         private bool _saveInProgress;
         private bool _exitSaveDone;
@@ -102,6 +110,7 @@ namespace Autonocraft.Core
         private float _spawnWarmupRemaining;
         private float _inactiveTimer;
         private float _claimHintTimer = 10f;
+        private float _tutorialTimer;
         private const float FocusLossReleaseDelay = 0.35f;
         private const int MouseWarpRejectThreshold = 120;
         private const float MaxGameplayDeltaTime = 1f / 30f;
@@ -177,6 +186,39 @@ namespace Autonocraft.Core
 
         public void RequestExit() => Exit();
 
+        public void RequestOpenVillageUi()
+        {
+            if (_state != GameState.Playing)
+            {
+                return;
+            }
+
+            OpenVillageUi();
+        }
+
+        public void RequestCloseVillageUi()
+        {
+            if (_villageScreen?.IsOpen == true)
+            {
+                CloseVillageUi();
+                return;
+            }
+
+            if (_villageChatScreen?.IsOpen == true)
+            {
+                _villageChatScreen.Close();
+                _isMouseLocked = _mouseLockedBeforeVillageUi;
+                if (_isMouseLocked)
+                {
+                    ApplyMouseCapture();
+                }
+                else
+                {
+                    IsMouseVisible = true;
+                }
+            }
+        }
+
         public void SetTimeOfDay(float value)
         {
             _hostContext.SetTimeOfDay(value);
@@ -242,6 +284,11 @@ namespace Autonocraft.Core
             else if (_skipMenu && IsCiEnvironment())
             {
                 _settings.RenderDistance = Math.Min(_settings.RenderDistance, 4);
+            }
+
+            if (!_runTests)
+            {
+                Console.WriteLine($"[Settings] Render distance: {_settings.RenderDistance} chunks");
             }
 
             _camera = new Camera();
@@ -530,9 +577,9 @@ namespace Autonocraft.Core
             _deathScreen = new DeathScreen(_ui);
             _crucibleScreen = new CrucibleScreen(_ui);
             _journalScreen = new JournalScreen(_ui);
-            _villageAiOrchestrator = new VillageAiOrchestrator(settings: _settings);
+            _villageAiOrchestrator = _session.VillageAi;
             _villageScreen = new VillageScreen(_ui, _session.Villagers);
-            _villageChatScreen = new VillageChatScreen(_ui, _villageAiOrchestrator);
+            _villageChatScreen = new VillageChatScreen(_ui, _session.VillageAi);
 
             _audio = new AudioManager(enabled: true);
             _audio.Initialize();
@@ -542,7 +589,7 @@ namespace Autonocraft.Core
 
             if (_skipMenu)
             {
-                PrepareNewWorldSettlement();
+                _needsStarterSettlement = true;
                 StartWorldLoading();
             }
 
@@ -554,12 +601,15 @@ namespace Autonocraft.Core
 
         private void PrepareNewWorldSettlement()
         {
-            var (spawnX, spawnZ) = _session.Villages.InitializeStarterSettlement(_session.Grid, _worldSpawnX, _worldSpawnZ);
-            _worldSpawnX = spawnX;
-            _worldSpawnZ = spawnZ;
+            _session.Grid.UpdateChunksAround(
+                null,
+                new Vector3(_worldSpawnX + 0.5f, 64f, _worldSpawnZ + 0.5f),
+                2);
+
+            _session.Villages.EnsureStarterSettlement(_session.Grid, _worldSpawnX, _worldSpawnZ);
             _session.PlacePlayerOnSurface(_worldSpawnX, _worldSpawnZ);
             SyncCameraFromPlayer();
-            _session.ShowVillageHint = true;
+            _session.VillageHudHint = "V — Town board · PEOPLE tab assigns jobs";
             _session.Crafting.ShowCraftingHint = false;
         }
 
@@ -568,9 +618,23 @@ namespace Autonocraft.Core
             CloseAllGameplayOverlays();
 
             bool fromSave = _loadingFromSave;
+            if (_needsStarterSettlement)
+            {
+                _needsStarterSettlement = false;
+                PrepareNewWorldSettlement();
+            }
+            else if (!fromSave)
+            {
+                PlacePlayerOnSurface();
+            }
+            else
+            {
+                _session.Villages.RepairAllVillages(_session.Grid);
+            }
+
             if (!fromSave)
             {
-                _session.ShowVillageHint = true;
+                _session.VillageHudHint = "V — Town board · Recruit villagers and queue buildings";
                 _session.Crafting.ShowCraftingHint = false;
             }
             else
@@ -589,7 +653,9 @@ namespace Autonocraft.Core
 
             if (!fromSave)
             {
-                _session.HudToast.Show("Welcome to Founder's Hamlet — press V to manage your settlement");
+                _session.HudToast.Show(
+                    "Founder's Hamlet is ready. Press V → PEOPLE tab to assign jobs to your 2 settlers.",
+                    durationSeconds: 8f);
             }
 
             _isMouseLocked = true;
@@ -635,7 +701,7 @@ namespace Autonocraft.Core
             _hostContext.TimeScale = _timeScale;
             _hostContext.TimePaused = _timePaused;
 
-            PrepareNewWorldSettlement();
+            _needsStarterSettlement = true;
             StartWorldLoading();
         }
 
@@ -716,7 +782,10 @@ namespace Autonocraft.Core
         private void StartWorldLoading()
         {
             ApplyFastLoadingGraphics();
-            _loadingScreen!.Begin(_camera.Position, _settings.RenderDistance, _pendingSaveData);
+            Vector3 loadCenter = _loadingFromSave
+                ? _camera.Position
+                : new Vector3(_worldSpawnX + 0.5f, 64f, _worldSpawnZ + 0.5f);
+            _loadingScreen!.Begin(loadCenter, _settings.RenderDistance, _pendingSaveData);
             _state = GameState.WorldLoading;
             Window.Title = "Autonocraft | Loading World...";
             if (_skipMenu)
@@ -960,7 +1029,7 @@ namespace Autonocraft.Core
                 _prevState = _state;
             }
 
-            _audio?.Update(deltaTime, _state, _session.Grid, _session.Player);
+            _audio?.Update(deltaTime, _state, _session.Grid, _session.Player, _timeOfDay);
             _audio?.SetDucked(ShouldDuckAudio());
 
             _screenFade.Update(deltaTime);
@@ -1198,8 +1267,9 @@ namespace Autonocraft.Core
                 return;
             }
 
-            _villageAiOrchestrator = new VillageAiOrchestrator(settings: _settings);
-            _villageChatScreen = new VillageChatScreen(_ui, _villageAiOrchestrator);
+            _session.RefreshVillageAi(_settings);
+            _villageAiOrchestrator = _session.VillageAi;
+            _villageChatScreen = new VillageChatScreen(_ui, _session.VillageAi);
         }
 
         private void UpdateNewWorldSetup(KeyboardState kbState, MouseState mouseState, float deltaTime)
@@ -1313,6 +1383,7 @@ namespace Autonocraft.Core
                     return true;
                 }
 
+                _villageScreen.SetPlayerPosition(_session.Player.Position);
                 _villageScreen.Update(GraphicsDevice.Viewport, kbState, mouseState, _prevKbState, _prevMouseState);
                 if (_villageScreen.CloseRequested)
                 {
@@ -1360,17 +1431,371 @@ namespace Autonocraft.Core
             return false;
         }
 
+        private void StartFoundingTownHeartPlacement()
+        {
+            if (!PlayerStructureRegistry.TryGet("town_heart", out var blueprint))
+            {
+                return;
+            }
+
+            CloseVillageUi();
+            _pendingFoundingPlacement = true;
+            _pendingBlueprintId = blueprint.Id;
+            UpdateFoundingPlacementPreview(blueprint);
+            EnsureMouseLockedForGameplay();
+        }
+
+        private void StartBlueprintPlacement(Village.Village village, string blueprintId)
+        {
+            if (!PlayerStructureRegistry.TryGet(blueprintId, out var blueprint))
+            {
+                return;
+            }
+
+            CloseVillageUi();
+            _pendingBlueprintId = blueprintId;
+            UpdateBlueprintPlacementPreview(village, blueprint);
+            EnsureMouseLockedForGameplay();
+        }
+
+        private void CancelBlueprintPlacement()
+        {
+            _pendingBlueprintId = null;
+            _pendingFoundingPlacement = false;
+            _blueprintPlacementPreview = null;
+        }
+
+        private void ConfirmBlueprintPlacement()
+        {
+            if (_pendingFoundingPlacement)
+            {
+                ConfirmFoundingPlacement();
+                return;
+            }
+
+            if (_pendingBlueprintId == null || _blueprintPlacementPreview == null || !_blueprintPlacementPreview.Valid)
+            {
+                return;
+            }
+
+            var village = _session.Villages.GetActiveVillage(_session.Player.Position);
+            if (village == null)
+            {
+                CancelBlueprintPlacement();
+                return;
+            }
+
+            var payer = village.Storage.HasSpaceFor(ItemStack.CreateBlock(BlockType.Dirt, 1))
+                ? (IItemContainer)village.Storage
+                : WrapPlayerHotbar();
+
+            _session.Villages.TryQueueBlueprint(
+                _session.Grid,
+                village,
+                _pendingBlueprintId,
+                _blueprintPlacementPreview.AnchorX,
+                _blueprintPlacementPreview.AnchorZ,
+                payer,
+                _blueprintPlacementPreview.AnchorY);
+
+            CancelBlueprintPlacement();
+        }
+
+        private void ConfirmFoundingPlacement()
+        {
+            if (_blueprintPlacementPreview == null || !_blueprintPlacementPreview.Valid)
+            {
+                return;
+            }
+
+            if (!PlayerStructureRegistry.TryGet("town_heart", out var blueprint))
+            {
+                CancelBlueprintPlacement();
+                return;
+            }
+
+            var payer = WrapPlayerHotbar();
+            if (!_session.Player.CreativeMode && !blueprint.CanAfford(payer))
+            {
+                _session.HudToast.Show("Need cobblestone and oak planks in your hotbar for the Town Heart.");
+                return;
+            }
+
+            if (!_session.Villages.TryFoundVillage(
+                    _session.Grid,
+                    "New Settlement",
+                    _blueprintPlacementPreview.AnchorX,
+                    _blueprintPlacementPreview.AnchorZ,
+                    out _,
+                    _blueprintPlacementPreview.AnchorY))
+            {
+                _session.HudToast.Show("Need flat open ground for the Town Heart.");
+                return;
+            }
+
+            if (!_session.Player.CreativeMode)
+            {
+                blueprint.TryConsumeCosts(payer);
+            }
+
+            CancelBlueprintPlacement();
+            _session.HudToast.Show("Settlement founded! Your settler is building the Town Heart.");
+        }
+
+        private void UpdateBlueprintPlacementPreview(BuildingBlueprint blueprint, Village.Village? village)
+        {
+            var resolved = BlueprintPlacementHelper.ResolveFromLook(
+                _session.Grid,
+                _camera.Position,
+                _camera.Front,
+                BlockInteractionSystem.RaycastRange);
+
+            if (!resolved.HasHit)
+            {
+                resolved = BlueprintPlacementHelper.ResolveFallbackNearPlayer(
+                    _session.Grid,
+                    _session.Player.Position,
+                    _camera.Front);
+            }
+
+            bool valid = false;
+            if (resolved.HasHit)
+            {
+                if (_pendingFoundingPlacement)
+                {
+                    valid = _session.Villages.CanPlaceTownHeart(
+                        _session.Grid,
+                        resolved.AnchorX,
+                        resolved.AnchorY,
+                        resolved.AnchorZ,
+                        WrapPlayerHotbar());
+                }
+                else if (village != null)
+                {
+                    var payer = village.Storage.HasSpaceFor(ItemStack.CreateBlock(BlockType.Dirt, 1))
+                        ? (IItemContainer)village.Storage
+                        : WrapPlayerHotbar();
+                    valid = _session.Villages.CanPlaceBlueprint(
+                        _session.Grid,
+                        village,
+                        blueprint,
+                        resolved.AnchorX,
+                        resolved.AnchorZ,
+                        payer,
+                        resolved.AnchorY);
+                }
+            }
+
+            _blueprintPlacementPreview = new BlueprintPlacementPreview
+            {
+                Blueprint = blueprint,
+                AnchorX = resolved.AnchorX,
+                AnchorY = resolved.AnchorY,
+                AnchorZ = resolved.AnchorZ,
+                Valid = valid
+            };
+        }
+
+        private void UpdateFoundingPlacementPreview(BuildingBlueprint blueprint) =>
+            UpdateBlueprintPlacementPreview(blueprint, null);
+
+        private void UpdateBlueprintPlacementPreview(Village.Village village, BuildingBlueprint blueprint) =>
+            UpdateBlueprintPlacementPreview(blueprint, village);
+
+        private void PopulateConstructionSitePreviews(GameRenderContext renderContext, VillageManager villages, Vector3 playerPos)
+        {
+            _constructionSitePreviews.Clear();
+            var village = villages.GetActiveVillage(playerPos);
+            if (village == null)
+            {
+                renderContext.PendingConstructionSites = null;
+                return;
+            }
+
+            foreach (var site in village.BuildingSites)
+            {
+                if (site.IsComplete)
+                {
+                    continue;
+                }
+
+                if (!PlayerStructureRegistry.TryGet(site.BlueprintId, out var blueprint))
+                {
+                    continue;
+                }
+
+                _constructionSitePreviews.Add(new BlueprintPlacementPreview
+                {
+                    Blueprint = blueprint,
+                    AnchorX = site.AnchorX,
+                    AnchorY = site.AnchorY,
+                    AnchorZ = site.AnchorZ,
+                    Valid = true,
+                    IsQueuedConstruction = true
+                });
+            }
+
+            renderContext.PendingConstructionSites = _constructionSitePreviews.Count > 0
+                ? _constructionSitePreviews
+                : null;
+        }
+
+        private void StartWorkZonePlacement(Village.Village village)
+        {
+            CloseVillageUi();
+            _workZonePlacementActive = true;
+            _workZoneCornerA = null;
+            _workZonePreview = new WorkZonePlacementPreview
+            {
+                HasFirstCorner = false,
+                Valid = false
+            };
+            EnsureMouseLockedForGameplay();
+        }
+
+        private void CancelWorkZonePlacement()
+        {
+            _workZonePlacementActive = false;
+            _workZoneCornerA = null;
+            _workZonePreview = null;
+        }
+
+        private void ConfirmWorkZoneCorner(Village.Village village, int x, int y, int z)
+        {
+            if (!_workZoneCornerA.HasValue)
+            {
+                _workZoneCornerA = (x, y, z);
+                UpdateWorkZonePreview(village, x, y, z);
+                _session.HudToast.Show("Select opposite corner.");
+                return;
+            }
+
+            var start = _workZoneCornerA.Value;
+            _session.Villages.TryMarkWorkZone(
+                _session.Grid,
+                village,
+                start.X,
+                start.Y,
+                start.Z,
+                x,
+                y,
+                z,
+                out string message);
+            _session.HudToast.Show(message);
+            CancelWorkZonePlacement();
+        }
+
+        private void UpdateWorkZonePreview(Village.Village village, int bx, int by, int bz)
+        {
+            if (!_workZoneCornerA.HasValue)
+            {
+                _workZonePreview = new WorkZonePlacementPreview
+                {
+                    HasFirstCorner = false,
+                    Valid = false
+                };
+                return;
+            }
+
+            var start = _workZoneCornerA.Value;
+            var bounds = GatherWorkQueue.NormalizeBounds(start.X, start.Y, start.Z, bx, by, bz);
+            _workZonePreview = new WorkZonePlacementPreview
+            {
+                MinX = bounds.minX,
+                MinY = bounds.minY,
+                MinZ = bounds.minZ,
+                MaxX = bounds.maxX,
+                MaxY = bounds.maxY,
+                MaxZ = bounds.maxZ,
+                HasFirstCorner = true,
+                Valid = _session.Villages.CanMarkWorkZone(
+                    village,
+                    start.X,
+                    start.Y,
+                    start.Z,
+                    bx,
+                    by,
+                    bz)
+            };
+        }
+
+        private void UpdateWorkZonePlacementPreview(Village.Village village)
+        {
+            var (hitBlockPos, _, _, _) = BlockInteractionSystem.RaycastSolid(
+                _session.Grid,
+                _camera.Position,
+                _camera.Front,
+                BlockInteractionSystem.RaycastRange);
+
+            if (!hitBlockPos.HasValue)
+            {
+                return;
+            }
+
+            int x = (int)MathF.Floor(hitBlockPos.Value.X);
+            int y = (int)MathF.Floor(hitBlockPos.Value.Y);
+            int z = (int)MathF.Floor(hitBlockPos.Value.Z);
+            UpdateWorkZonePreview(village, x, y, z);
+        }
+
+        private void OpenVillageChatWithVillager(Village.Village village, int villagerId, string villagerName)
+        {
+            PrepareMouseForUi();
+            _villageChatScreen!.OpenWithVillager(village, villagerId, villagerName);
+        }
+
+        private void EnsureMouseLockedForGameplay()
+        {
+            if (!_isMouseLocked)
+            {
+                _isMouseLocked = true;
+                IsMouseVisible = false;
+                SdlMouseCapture.TryEnableRelativeMode();
+            }
+        }
+
         private void HandleVillageScreenActions()
         {
-            var village = _session.Villages.GetPrimaryVillage() ?? _session.Villages.GetVillageAt(_session.Player.Position);
+            if (_villageScreen!.IsFoundingMode)
+            {
+                if (_villageScreen.PlaceTownHeartRequested)
+                {
+                    StartFoundingTownHeartPlacement();
+                }
+                else if (_villageScreen.ClaimRequested)
+                {
+                    if (_session.Villages.TryFindClaimableStructure(
+                            _session.Grid,
+                            _session.Player.Position,
+                            24f,
+                            out int ax,
+                            out int az,
+                            out _))
+                    {
+                        if (_session.Villages.TryClaimStructure(_session.Grid, ax, az, out _))
+                        {
+                            CloseVillageUi();
+                            OpenVillageUi();
+                        }
+                    }
+                }
+
+                return;
+            }
+
+            var village = _session.Villages.GetActiveVillage(_session.Player.Position);
             if (village == null)
             {
                 return;
             }
 
-            if (_villageScreen!.RecruitRequested)
+            if (_villageScreen!.SummonSettlersRequested)
             {
-                _session.Villages.TryRecruit(village);
+                _session.Villages.RepairVillageCitizens(village, _session.Grid);
+            }
+            else if (_villageScreen.RecruitRequested)
+            {
+                _session.Villages.TryRecruit(village, _session.Grid);
             }
             else if (_villageScreen.ClaimRequested)
             {
@@ -1385,20 +1810,19 @@ namespace Autonocraft.Core
                     _session.Villages.TryClaimStructure(_session.Grid, ax, az, out _);
                 }
             }
-            else if (_villageScreen.RequestedBlueprintId != null)
+            else if (_villageScreen.RequestedBlueprintId != null && _villageScreen.RequestBlueprintPlacement)
             {
-                int ax = village.AnchorX + 6;
-                int az = village.AnchorZ + 6;
-                var payer = village.Storage.HasSpaceFor(ItemStack.CreateBlock(BlockType.Dirt, 1))
-                    ? (IItemContainer)village.Storage
-                    : WrapPlayerHotbar();
-                _session.Villages.TryQueueBlueprint(
-                    _session.Grid,
-                    village,
-                    _villageScreen.RequestedBlueprintId,
-                    ax,
-                    az,
-                    payer);
+                StartBlueprintPlacement(village, _villageScreen.RequestedBlueprintId);
+            }
+            else if (_villageScreen.RequestWorkZonePlacement)
+            {
+                StartWorkZonePlacement(village);
+            }
+            else if (_villageScreen.RequestedChatVillagerId >= 0 &&
+                     _session.Villagers.TryGet(_villageScreen.RequestedChatVillagerId, out var chatVillager))
+            {
+                CloseVillageUi();
+                OpenVillageChatWithVillager(village, chatVillager.Id, chatVillager.Name);
             }
             else if (_villageScreen.RequestedAssignVillagerId >= 0 &&
                      _session.Villagers.TryGet(_villageScreen.RequestedAssignVillagerId, out var villager))
@@ -1414,18 +1838,33 @@ namespace Autonocraft.Core
                 return;
             }
 
-            try
+            int[] ports = [_agentPort, 5001, 8765, 5010];
+            foreach (int port in ports)
             {
-                AgentHttpServer.Start(this, _agentPort);
-                _agentServerStarted = true;
-                if (!RuntimeMetrics.FileLoggingEnabled)
+                if (_agentServerStarted)
                 {
-                    RuntimeMetrics.EnableFileLogging(fromCli: false);
+                    break;
+                }
+
+                try
+                {
+                    AgentHttpServer.Start(this, port);
+                    _agentPort = port;
+                    _agentServerStarted = true;
+                    if (!RuntimeMetrics.FileLoggingEnabled)
+                    {
+                        RuntimeMetrics.EnableFileLogging(fromCli: false);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Agent] HTTP server failed on port {port}: {ex.Message}");
                 }
             }
-            catch (Exception ex)
+
+            if (!_agentServerStarted)
             {
-                Console.WriteLine($"[Agent] HTTP server failed to start: {ex.Message}");
+                Console.WriteLine("[Agent] HTTP server unavailable — in-game controls still work.");
             }
         }
 
@@ -1531,8 +1970,53 @@ namespace Autonocraft.Core
 
             if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && _session.Player.IsAlive)
             {
+                if (_pendingBlueprintId != null)
+                {
+                    CancelBlueprintPlacement();
+                    return;
+                }
+
+                if (_workZonePlacementActive)
+                {
+                    CancelWorkZonePlacement();
+                    return;
+                }
+
                 OpenPauseMenu();
                 return;
+            }
+
+            if (_pendingBlueprintId != null
+                && PlayerStructureRegistry.TryGet(_pendingBlueprintId, out var placementBlueprint))
+            {
+                if (_pendingFoundingPlacement)
+                {
+                    UpdateFoundingPlacementPreview(placementBlueprint);
+                }
+                else
+                {
+                    var placementVillage = _session.Villages.GetActiveVillage(_session.Player.Position);
+                    if (placementVillage != null)
+                    {
+                        UpdateBlueprintPlacementPreview(placementVillage, placementBlueprint);
+                    }
+                    else
+                    {
+                        CancelBlueprintPlacement();
+                    }
+                }
+            }
+            else if (_workZonePlacementActive)
+            {
+                var zoneVillage = _session.Villages.GetActiveVillage(_session.Player.Position);
+                if (zoneVillage != null)
+                {
+                    UpdateWorkZonePlacementPreview(zoneVillage);
+                }
+                else
+                {
+                    CancelWorkZonePlacement();
+                }
             }
 
             // Keyboard slot selections (D1-D9)
@@ -1557,9 +2041,9 @@ namespace Autonocraft.Core
             // Toggle physics mode
             if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.G) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.G))
             {
-                _session.Player.FlyingMode = !_session.Player.FlyingMode;
+                _session.Player.CreativeMode = !_session.Player.CreativeMode;
                 _session.Player.Velocity = Vector3.Zero;
-                Console.WriteLine($"[Mode] Toggled FlyingMode to: {_session.Player.FlyingMode}");
+                Console.WriteLine($"[Mode] Toggled creative mode: {_session.Player.CreativeMode}");
             }
 
             // Mouse interactions when locked (not gated on IsActive — macOS can flicker inactive during chunk hitches).
@@ -1567,6 +2051,7 @@ namespace Autonocraft.Core
             bool leftPressed = false;
             bool rightPressed = false;
             bool shiftRightPressed = false;
+            bool shiftHeld = false;
 
             float mouseDx = 0f;
             float mouseDy = 0f;
@@ -1615,7 +2100,7 @@ namespace Autonocraft.Core
                 leftHeld = mouseState.LeftButton == ButtonState.Pressed;
                 leftPressed = leftHeld && _prevMouseState.LeftButton == ButtonState.Released;
                 rightPressed = mouseState.RightButton == ButtonState.Pressed && _prevMouseState.RightButton == ButtonState.Released;
-                bool shiftHeld = kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.LeftShift)
+                shiftHeld = kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.LeftShift)
                     || kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.RightShift);
                 shiftRightPressed = rightPressed && shiftHeld;
                 if (shiftHeld)
@@ -1660,7 +2145,7 @@ namespace Autonocraft.Core
                 if (IsKeyPressed(kbState, Key.A)) moveDir -= rightHorizontal;
                 if (IsKeyPressed(kbState, Key.D)) moveDir += rightHorizontal;
 
-                if (_session.Player.FlyingMode)
+                if (_session.Player.CreativeMode)
                 {
                     if (IsKeyPressed(kbState, Key.Space)) moveDir += Vector3.UnitY;
                     if (IsKeyPressed(kbState, Key.ShiftLeft) || IsKeyPressed(kbState, Key.ShiftRight)) moveDir -= Vector3.UnitY;
@@ -1685,7 +2170,9 @@ namespace Autonocraft.Core
                 _prevSpacePressed = IsKeyPressed(kbState, Key.Space);
                 _session.UpdateMovementAudio(deltaTime, moveDir);
                 _session.InteractionAnimator.Update(deltaTime, _session.Player);
-                _session.Particles.Update(deltaTime);
+                _session.Weather.Update(deltaTime);
+                _session.Particles.Update(deltaTime, _session.Grid);
+                _session.Particles.UpdateAmbient(deltaTime, _session.Player.Position, _session.Grid, _timeOfDay, _session.Weather);
 
                 if (_session.Player.InWater && !_playerWasInWater)
                 {
@@ -1730,6 +2217,49 @@ namespace Autonocraft.Core
                         _camera.Front,
                         BlockInteractionSystem.RaycastRange);
 
+                    bool shiftLeftPressed = leftPressed && shiftHeld;
+                    bool handledClick = false;
+
+                    if (_pendingBlueprintId != null && leftPressed)
+                    {
+                        ConfirmBlueprintPlacement();
+                        handledClick = true;
+                    }
+                    else if (_workZonePlacementActive && leftPressed && solidRayHit.HasHit)
+                    {
+                        var zoneVillage = _session.Villages.GetActiveVillage(_session.Player.Position);
+                        if (zoneVillage != null)
+                        {
+                            ConfirmWorkZoneCorner(
+                                zoneVillage,
+                                (int)solidRayHit.BlockPos.X,
+                                (int)solidRayHit.BlockPos.Y,
+                                (int)solidRayHit.BlockPos.Z);
+                        }
+
+                        handledClick = true;
+                    }
+                    else if (shiftLeftPressed && solidRayHit.HasHit)
+                    {
+                        if (_session.Villages.TryMarkWorkBlock(
+                                _session.Grid,
+                                (int)solidRayHit.BlockPos.X,
+                                (int)solidRayHit.BlockPos.Y,
+                                (int)solidRayHit.BlockPos.Z,
+                                out string markMessage))
+                        {
+                            _session.HudToast.Show(markMessage);
+                        }
+                        else
+                        {
+                            _session.HudToast.Show(markMessage);
+                        }
+
+                        handledClick = true;
+                    }
+
+                    bool allowMining = leftHeld && !handledClick && !shiftHeld && !_session.Combat.BlocksMiningThisFrame;
+
                     _session.Combat.Update(
                         deltaTime,
                         _session.Grid,
@@ -1740,8 +2270,8 @@ namespace Autonocraft.Core
                         _session.InteractionAnimator,
                         _camera.Position,
                         _camera.Front,
-                        leftHeld,
-                        leftPressed,
+                        allowMining ? leftHeld : false,
+                        handledClick ? false : leftPressed,
                         solidRayHit);
 
                     _session.BlockInteraction.Update(
@@ -1750,13 +2280,14 @@ namespace Autonocraft.Core
                         _session.Player,
                         _camera.Position,
                         _camera.Front,
-                        leftHeld && !_session.Combat.BlocksMiningThisFrame,
+                        allowMining,
                         rightPressed,
                         shiftRightPressed,
                         _session.Crafting,
                         _session.Particles,
                         GraphicsDevice,
-                        solidRayHit);
+                        solidRayHit,
+                        _pendingBlueprintId != null);
 
                     if (_session.BlockInteraction.PendingStationOpen.HasValue)
                     {
@@ -1789,12 +2320,14 @@ namespace Autonocraft.Core
             }
 
             float warmup = SpawnWarmupProgress;
+            int targetTerrainPerFrame = VoxelWorld.GetRuntimeTerrainChunksPerFrame(_settings.RenderDistance);
+            int targetMeshPerFrame = VoxelWorld.GetRuntimeMeshChunksPerFrame(_settings.RenderDistance);
             int terrainPerFrame = inSpawnWarmup
-                ? Math.Max(1, (int)MathF.Round(1f + (VoxelWorld.DefaultTerrainChunksPerFrame - 1f) * warmup))
-                : VoxelWorld.DefaultTerrainChunksPerFrame;
+                ? Math.Max(1, (int)MathF.Round(1f + (targetTerrainPerFrame - 1f) * warmup))
+                : targetTerrainPerFrame;
             int meshPerFrame = inSpawnWarmup
-                ? Math.Max(1, (int)MathF.Round(1f + (VoxelWorld.DefaultMeshChunksPerFrame - 1f) * warmup))
-                : VoxelWorld.DefaultMeshChunksPerFrame;
+                ? Math.Max(1, (int)MathF.Round(1f + (targetMeshPerFrame - 1f) * warmup))
+                : targetMeshPerFrame;
 
             _session.DeferAmbientSpawns = inSpawnWarmup && warmup < 0.7f;
             _session.UpdateChunks(GraphicsDevice, _camera.Position, _settings.RenderDistance, terrainPerFrame, meshPerFrame);
@@ -1807,6 +2340,7 @@ namespace Autonocraft.Core
             if (!inSpawnWarmup || warmup >= 0.6f)
             {
                 _session.UpdateVillages(deltaTime, _timeOfDay);
+                UpdateVillageTutorial(deltaTime);
                 // TryFindClaimableStructure is expensive — poll at most every 10 s; GameSession skips if player barely moved.
                 _claimHintTimer += deltaTime;
                 if (_claimHintTimer >= 10f)
@@ -1814,6 +2348,8 @@ namespace Autonocraft.Core
                     _claimHintTimer = 0f;
                     _session.UpdateNearbyClaimHint();
                 }
+
+                _session.UpdateVillageHudHint(_session.Player.CreativeMode);
             }
 
             _autosaveTimer += deltaTime;
@@ -1827,7 +2363,7 @@ namespace Autonocraft.Core
             if (_titleUpdateTimer >= 0.5f)
             {
                 _titleUpdateTimer = 0f;
-                Window.Title = $"Autonocraft | FPS: {RuntimeMetrics.RollingFps:F0} | Draw: {PerfCounters.LastDrawMs:F1}ms | Update: {PerfCounters.LastUpdateMs:F1}ms | DC: {PerfCounters.TerrainDrawCalls} | Chunks: {_session.Grid.ActiveChunkCount} | Mesh: {PerfCounters.MeshBuildMs:F1}ms | Pending: {PerfCounters.PendingMeshCount}{(_session.Player.FlyingMode ? " | FLY" : "")}";
+                Window.Title = $"Autonocraft | FPS: {RuntimeMetrics.RollingFps:F0} | Draw: {PerfCounters.LastDrawMs:F1}ms | Update: {PerfCounters.LastUpdateMs:F1}ms | DC: {PerfCounters.TerrainDrawCalls} | Chunks: {_session.Grid.ActiveChunkCount} | Mesh: {PerfCounters.MeshBuildMs:F1}ms | Pending: {PerfCounters.PendingMeshCount}{(_session.Player.CreativeMode ? " | CREATIVE" : "")}";
             }
 
             string? overlayName = null;
@@ -1954,7 +2490,19 @@ namespace Autonocraft.Core
                     {
                         // Water animation via atlas.SetData causes GPU stalls on macOS — use static tile.
                         var drawStopwatch = Stopwatch.StartNew();
-                        _renderer?.Draw(_session.PrepareRenderContext(_camera, _timeOfDay, _waterAnimTime, _settings.RenderDistance));
+                        var renderContext = _session.PrepareRenderContext(_camera, _timeOfDay, _waterAnimTime, _settings.RenderDistance);
+                        PopulateConstructionSitePreviews(renderContext, _session.Villages, _session.Player.Position);
+                        renderContext.VillageUiOpen = _villageScreen?.IsOpen == true;
+                        renderContext.BlueprintPlacement = _blueprintPlacementPreview;
+                        renderContext.WorkZonePlacement = _workZonePreview;
+                        renderContext.HudPlacementHint = _pendingFoundingPlacement
+                            ? "LOOK AT GROUND · LEFT CLICK PLACE TOWN HEART · ESC CANCEL"
+                            : _pendingBlueprintId != null
+                                ? "LOOK AT GROUND · LEFT CLICK PLACE · ESC CANCEL"
+                                : _workZonePlacementActive
+                                ? (_workZoneCornerA.HasValue ? "CLICK OPPOSITE CORNER · ESC CANCEL" : "CLICK FIRST CORNER · ESC CANCEL")
+                                : null;
+                        _renderer?.Draw(renderContext);
                         drawStopwatch.Stop();
                         PerfCounters.RecordDraw((float)drawStopwatch.Elapsed.TotalMilliseconds);
                     }
@@ -2006,47 +2554,52 @@ namespace Autonocraft.Core
 
         private void OpenVillageUi()
         {
-            var village = _session.Villages.GetPrimaryVillage() ?? _session.Villages.GetVillageAt(_session.Player.Position);
+            var village = _session.Villages.GetActiveVillage(_session.Player.Position);
             if (village == null)
             {
-                if (_session.Villages.TryFindClaimableStructure(
-                        _session.Grid,
-                        _session.Player.Position,
-                        24f,
-                        out int ax,
-                        out int az,
-                        out _))
-                {
-                    if (!_session.Villages.TryClaimStructure(_session.Grid, ax, az, out village))
-                    {
-                        return;
-                    }
-                }
-                else
-                {
-                    int fx = (int)MathF.Floor(_session.Player.Position.X);
-                    int fz = (int)MathF.Floor(_session.Player.Position.Z);
-                    if (_session.Villages.TryFoundVillage(_session.Grid, "New Settlement", fx, fz, out village))
-                    {
-                        _session.Villages.TryQueueBlueprint(_session.Grid, village!, "town_heart", fx, fz, new PlayerHotbarAdapter(_session.Player));
-                    }
-                    else
-                    {
-                        _session.HudToast.Show("Could not found village here.");
-                        return;
-                    }
-                }
+                _mouseLockedBeforeVillageUi = _isMouseLocked;
+                PrepareMouseForUi();
+                TryActivateWindow();
+                _villageScreen!.OpenFounding(
+                    _session.Villages,
+                    _session.Grid,
+                    _session.Player.Position,
+                    new PlayerHotbarAdapter(_session.Player),
+                    _session.Player.CreativeMode,
+                    _settings.PlayWithAi && _settings.AiProvider != AiProviderKind.Disabled);
+                return;
+            }
+
+            if (_session.Villages.RepairVillageCitizens(village, _session.Grid))
+            {
+                village.ReconcileVillagerRegistry(_session.Villagers.All);
+            }
+
+            _session.Villages.SyncCitizensForVillage(village);
+
+            string? openingNote = null;
+            int citizens = VillageSettlementHealth.GetLivePopulation(village, _session.Villagers);
+            if (citizens == 0)
+            {
+                openingNote = "Settlers are being summoned to your Town Heart. Check the PEOPLE tab in a moment.";
+            }
+            else if (citizens < 2 && village.Name.Contains("Founder", System.StringComparison.OrdinalIgnoreCase))
+            {
+                openingNote = $"{citizens} settler(s) on site — open PEOPLE tab to assign LUMBER or BUILD.";
             }
 
             _mouseLockedBeforeVillageUi = _isMouseLocked;
             PrepareMouseForUi();
             TryActivateWindow();
             _villageScreen!.Open(
-                village!,
+                village,
                 _session.Villages,
                 _session.Grid,
                 _session.Player.Position,
-                new PlayerHotbarAdapter(_session.Player));
+                new PlayerHotbarAdapter(_session.Player),
+                _session.Player.CreativeMode,
+                openingNote,
+                _settings.PlayWithAi && _settings.AiProvider != AiProviderKind.Disabled);
         }
 
         private IItemContainer WrapPlayerHotbar() => new PlayerHotbarAdapter(_session.Player);
@@ -2073,10 +2626,10 @@ namespace Autonocraft.Core
                 return;
             }
 
-            var village = _session.Villages.GetPrimaryVillage() ?? _session.Villages.GetVillageAt(_session.Player.Position);
+            var village = _session.Villages.GetActiveVillage(_session.Player.Position);
             if (village == null)
             {
-                _session.HudToast.Show("No village nearby. Press V to found one.");
+                _session.HudToast.Show("No village nearby. Press V to place a Town Heart.");
                 return;
             }
 
@@ -2097,6 +2650,11 @@ namespace Autonocraft.Core
             public bool AddItem(ItemStack item) { _player.AddItem(item); return true; }
             public bool TryConsumeBlock(BlockType blockType, int count)
             {
+                if (_player.CreativeMode)
+                {
+                    return true;
+                }
+
                 int have = CountBlock(blockType);
                 if (have < count) return false;
                 int remaining = count;
@@ -2112,6 +2670,11 @@ namespace Autonocraft.Core
             }
             public int CountBlock(BlockType blockType)
             {
+                if (_player.CreativeMode)
+                {
+                    return int.MaxValue / 2;
+                }
+
                 int total = 0;
                 for (int i = 0; i < _player.Hotbar.Length; i++)
                 {
@@ -2268,6 +2831,123 @@ namespace Autonocraft.Core
             }
 
             return $"{stack.BlockType} (x{stack.Count})";
+        }
+
+        private void UpdateVillageTutorial(float deltaTime)
+        {
+            if (_session.Player.CreativeMode)
+            {
+                return;
+            }
+
+            var primaryVillage = _session.Villages.GetActiveVillage(_session.Player.Position);
+            if (primaryVillage == null)
+            {
+                return;
+            }
+
+            int stage = _session.Player.Stats.VillageTutorialStage;
+            if (stage >= 5)
+            {
+                return;
+            }
+
+            _tutorialTimer -= deltaTime;
+
+            if (stage == 0)
+            {
+                if (_tutorialTimer <= 0f)
+                {
+                    _session.HudToast.Show("Welcome! Your first settlers have arrived. Press V to open the Town Board.", new Microsoft.Xna.Framework.Color(0.55f, 0.82f, 0.65f), 6f);
+                    _tutorialTimer = 10f; // Remind every 10 seconds if not opened
+                }
+
+                if (_villageScreen?.IsOpen == true)
+                {
+                    _session.Player.Stats.VillageTutorialStage = 1;
+                    _tutorialTimer = 0f;
+                }
+            }
+            else if (stage == 1)
+            {
+                if (_tutorialTimer <= 0f)
+                {
+                    _session.HudToast.Show("The PEOPLE tab shows your villagers. Assign them LUMBER or BUILD to get started.", new Microsoft.Xna.Framework.Color(0.55f, 0.82f, 0.65f), 6f);
+                    _tutorialTimer = 12f;
+                }
+
+                // Check if any villager is working
+                bool anyWorking = false;
+                foreach (var villager in _session.Villagers.All)
+                {
+                    if (villager.VillageId == primaryVillage.Id &&
+                        villager.CurrentJob != Domain.Village.JobType.Idle &&
+                        villager.CurrentJob != Domain.Village.JobType.Sleep)
+                    {
+                        anyWorking = true;
+                        break;
+                    }
+                }
+
+                if (anyWorking)
+                {
+                    _session.Player.Stats.VillageTutorialStage = 2;
+                    _tutorialTimer = 0f;
+                }
+            }
+            else if (stage == 2)
+            {
+                if (_tutorialTimer <= 0f)
+                {
+                    _session.HudToast.Show("Nice! Your villager is working. Build a Farm Plot in the BUILD tab to grow food.", new Microsoft.Xna.Framework.Color(0.55f, 0.82f, 0.65f), 6f);
+                    _tutorialTimer = 15f;
+                }
+
+                // Check if farm plot is queued
+                bool farmPlotQueued = false;
+                foreach (var site in primaryVillage.BuildingSites)
+                {
+                    if (site.BlueprintId == "farm_plot")
+                    {
+                        farmPlotQueued = true;
+                        break;
+                    }
+                }
+
+                if (farmPlotQueued)
+                {
+                    _session.Player.Stats.VillageTutorialStage = 3;
+                    _tutorialTimer = 0f;
+                }
+            }
+            else if (stage == 3)
+            {
+                if (_tutorialTimer <= 0f)
+                {
+                    _session.HudToast.Show("Shift+LeftClick on trees near your village to mark them for lumberjacks.", new Microsoft.Xna.Framework.Color(0.55f, 0.82f, 0.65f), 6f);
+                    _tutorialTimer = 15f;
+                }
+
+                if (primaryVillage.WorkQueue.Count > 0)
+                {
+                    _session.Player.Stats.VillageTutorialStage = 4;
+                    _tutorialTimer = 0f;
+                }
+            }
+            else if (stage == 4)
+            {
+                if (_tutorialTimer <= 0f)
+                {
+                    _session.HudToast.Show("Your village is growing! Build houses to increase your population cap.", new Microsoft.Xna.Framework.Color(0.55f, 0.82f, 0.65f), 6f);
+                    _tutorialTimer = 20f;
+                }
+
+                if (primaryVillage.HousingCapacity > 0 || primaryVillage.PopulationCap > 2)
+                {
+                    _session.Player.Stats.VillageTutorialStage = 5;
+                    _session.HudToast.Show("Tutorial complete! Use the town board (V) to grow your settlement.", new Microsoft.Xna.Framework.Color(0.55f, 0.82f, 0.65f), 6f);
+                }
+            }
         }
     }
 

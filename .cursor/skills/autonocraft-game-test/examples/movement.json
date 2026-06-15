@@ -8,7 +8,7 @@
     {"teleport": {"x": 20, "y": 72, "z": 20}},
     {"look": {"yaw": 90, "pitch": -30}},
     {"screenshot": "test_output/scenarios/move_02_aerial.png"},
-    {"set_flying": false},
+    {"set_creative": false},
     {"move": {"forward": 1.5}},
     {"wait_for": {"position_change": 0.2, "timeout": 8}},
     {"look": {"dx": -20, "dy": 10}},

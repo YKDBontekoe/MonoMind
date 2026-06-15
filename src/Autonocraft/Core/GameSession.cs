@@ -20,6 +20,7 @@ namespace Autonocraft.Core
         private readonly BlockInteractionSystem _blockInteraction = new();
         private readonly CombatSystem _combatSystem = new();
         private readonly ParticleSystem _particles = new();
+        private readonly WeatherSystem _weather = new();
         private readonly InteractionAnimator _interactionAnimator = new();
         private CraftingSystem _craftingSystem = new();
         private readonly HudToast _hudToast = new();
@@ -33,15 +34,17 @@ namespace Autonocraft.Core
         public VillagerManager Villagers { get; private set; }
         public VillageManager Villages { get; private set; }
         public HudToast HudToast => _hudToast;
-        public bool ShowVillageOnboarding { get; set; }
-        public bool ShowVillageHint { get; set; } = true;
+        public string? VillageHudHint { get; set; }
         public string? NearbyClaimHint { get; set; }
         private Vector3 _lastClaimHintScanPos = new(float.MinValue, 0f, float.MinValue);
         public BlockInteractionSystem BlockInteraction => _blockInteraction;
         public CombatSystem Combat => _combatSystem;
         public ParticleSystem Particles => _particles;
+        public WeatherSystem Weather => _weather;
         public InteractionAnimator InteractionAnimator => _interactionAnimator;
         public CraftingSystem Crafting => _craftingSystem;
+        public Ai.VillageAiOrchestrator VillageAi { get; private set; }
+        public VillageEvents VillageEvents { get; } = new();
 
         public GameSession(int seed, WorldGenParams? parameters = null)
         {
@@ -51,9 +54,14 @@ namespace Autonocraft.Core
             Villagers = new VillagerManager();
             Villages = new VillageManager(Villagers);
             Villages.SetWorldSeed(seed);
+            Villagers.Update(0f, Grid, Villages.Villages);
+            VillageAi = new Ai.VillageAiOrchestrator(settings: GameSettingsManager.Load());
             _blockInteraction.BindAnimator(_interactionAnimator);
             WireNotifications();
         }
+
+        public void RefreshVillageAi(GameSettings settings) =>
+            VillageAi = new Ai.VillageAiOrchestrator(settings: settings);
 
         public void BindAudio(AudioManager? audio)
         {
@@ -67,6 +75,8 @@ namespace Autonocraft.Core
             _blockInteraction.ShowToast = msg => _hudToast.Show(msg);
             _combatSystem.ShowToast = msg => _hudToast.Show(msg);
             Villages.ShowToast = msg => _hudToast.Show(msg);
+            VillageEvents.ShowToast = msg => _hudToast.Show(msg);
+            Villages.SetVillageEvents(VillageEvents);
             _craftingSystem.OnDiscoveryUnlocked = msg =>
             {
                 _hudToast.Show(msg, new Microsoft.Xna.Framework.Color(0.45f, 0.95f, 0.72f));
@@ -116,6 +126,7 @@ namespace Autonocraft.Core
             Villagers = new VillagerManager();
             Villages = new VillageManager(Villagers);
             Villages.SetWorldSeed(seed);
+            Villagers.Update(0f, Grid, Villages.Villages);
             WireNotifications();
         }
 
@@ -140,12 +151,42 @@ namespace Autonocraft.Core
             var spawnPos = Player.FindSafeSpawnPosition(Grid, spawnX, spawnZ);
             Player.Position = spawnPos;
             Player.Velocity = Vector3.Zero;
-            Player.FlyingMode = false;
+            Player.CreativeMode = false;
         }
 
         public void PopulateAnimals(int renderDistance, int spawnX = GameConstants.DefaultSpawnX, int spawnZ = GameConstants.DefaultSpawnZ)
         {
             Animals.PopulateAroundSpawn(Grid, spawnX, spawnZ, renderDistance);
+        }
+
+        public void UpdateVillageHudHint(bool playerCreative)
+        {
+            if (NearbyClaimHint != null)
+            {
+                VillageHudHint = null;
+                return;
+            }
+
+            var village = Villages.GetActiveVillage(Player.Position);
+            if (village == null)
+            {
+                VillageHudHint = "V — Place Town Heart (your first settler joins automatically)";
+                return;
+            }
+
+            if (Villages.GetVillageAt(Player.Position) == null
+                && !VillageSettlementHealth.IsPlayerNearTownHeart(village, Player.Position))
+            {
+                float dx = Player.Position.X - village.Center.X;
+                float dz = Player.Position.Z - village.Center.Z;
+                int dist = (int)MathF.Round(MathF.Sqrt(dx * dx + dz * dz));
+                VillageHudHint = dist > 8
+                    ? $"V — Return to {village.Name} (~{dist} blocks away)"
+                    : "V — " + VillageGuidance.GetNextBestAction(village, Villagers, Player.Position);
+                return;
+            }
+
+            VillageHudHint = "V — " + VillageGuidance.GetNextBestAction(village, Villagers, Player.Position);
         }
 
         public void UpdateNearbyClaimHint()
@@ -196,7 +237,7 @@ namespace Autonocraft.Core
         public void UpdatePlayerMovement(
             float deltaTime,
             Vector3 moveDir,
-            bool flyingMode,
+            bool creativeMode,
             bool swimUp,
             bool swimDown,
             bool jumpPressed)
@@ -206,7 +247,7 @@ namespace Autonocraft.Core
                 return;
             }
 
-            if (flyingMode)
+            if (creativeMode)
             {
                 Player.Update(deltaTime, Grid, moveDir);
             }
@@ -221,19 +262,19 @@ namespace Autonocraft.Core
             }
 
             _interactionAnimator.Update(deltaTime, Player);
-            _particles.Update(deltaTime);
+            _particles.Update(deltaTime, Grid);
         }
 
         public void PlayJumpSound() => _audio?.PlaySfx(SfxKind.Jump);
 
         public void UpdateMovementAudio(float deltaTime, Vector3 moveDir)
         {
-            if (_audio == null || !Player.IsAlive || Player.FlyingMode)
+            if (_audio == null || !Player.IsAlive || Player.CreativeMode)
             {
                 return;
             }
 
-            if (Player.JustLanded && !Player.FlyingMode)
+            if (Player.JustLanded && !Player.CreativeMode)
             {
                 float volume = Math.Clamp(Player.FallDistance / 6f, 0.3f, 1f);
                 _audio.PlaySfx(SfxKind.Land, volume: volume);
@@ -346,7 +387,7 @@ namespace Autonocraft.Core
             int maxTerrainPerFrame = VoxelWorld.DefaultTerrainChunksPerFrame,
             int maxMeshPerFrame = VoxelWorld.DefaultMeshChunksPerFrame)
         {
-            var profile = ChunkStreamingProfile.FromMovement(Player.Position, Player.Velocity, Player.FlyingMode);
+            var profile = ChunkStreamingProfile.FromMovement(Player.Position, Player.Velocity, Player.CreativeMode);
             Grid.UpdateChunksAround(device, cameraPosition, renderDistance, profile);
             Grid.ProcessPendingWork(
                 device,
@@ -364,7 +405,9 @@ namespace Autonocraft.Core
 
         public void UpdateVillages(float deltaTime, float timeOfDay)
         {
-            Villages.Update(deltaTime, Grid, timeOfDay);
+            Villages.CreativeMode = Player.CreativeMode;
+            Villages.Update(deltaTime, Grid, timeOfDay, Animals);
+            Villages.RepairNearbySettlements(Grid, Player.Position, deltaTime);
         }
 
         public void LoadVillageSave(
@@ -376,6 +419,7 @@ namespace Autonocraft.Core
                 villages ?? Array.Empty<VillageSaveData>(),
                 villagers ?? Array.Empty<VillagerSaveData>(),
                 claimedAnchors);
+            Villages.RepairAllVillages(Grid);
         }
 
         public GameRenderContext PrepareRenderContext(Camera camera, float timeOfDay, float waterAnimTime, int renderDistance)
@@ -390,16 +434,18 @@ namespace Autonocraft.Core
             _renderContext.Grid = Grid;
             _renderContext.Animals = Animals;
             _renderContext.Villagers = Villagers;
+            _renderContext.Villages = Villages;
             _renderContext.BlockInteraction = BlockInteraction;
             _renderContext.Particles = Particles;
             _renderContext.InteractionAnimator = InteractionAnimator;
             _renderContext.Crafting = Crafting;
             _renderContext.HudToast = _hudToast;
-            _renderContext.ShowVillageHint = ShowVillageHint;
+            _renderContext.VillageHudHint = VillageHudHint;
             _renderContext.NearbyClaimHint = NearbyClaimHint;
             _renderContext.TimeOfDay = timeOfDay;
             _renderContext.WaterAnimTime = waterAnimTime;
             _renderContext.RenderDistance = renderDistance;
+            _renderContext.Weather = Weather;
             return _renderContext;
         }
 

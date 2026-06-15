@@ -70,7 +70,7 @@ public class CornerAoTests
             "BuildFullMeshList",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         Assert.NotNull(method);
-        method!.Invoke(chunk, new object[] { context, vertices, indices });
+        method!.Invoke(chunk, new object[] { context, vertices, indices, new List<Vertex>(), new List<uint>() });
     }
 
     private static float FindSouthFaceTopCornerBrightness(IReadOnlyList<Vertex> vertices, int wx, int wy, int wz)

@@ -1,6 +1,6 @@
 {
   "gridCols": 8,
-  "gridRows": 9,
+  "gridRows": 11,
   "tileSize": 128,
   "tiles": {
     "grass_top": { "col": 0, "row": 0, "file": "grass_top.png" },
@@ -52,6 +52,8 @@
     "tool_gold_axe": { "col": 3, "row": 6, "file": "tool_gold_axe.png" },
     "tool_gold_shovel": { "col": 4, "row": 6, "file": "tool_gold_shovel.png" },
     "tool_gold_sword": { "col": 5, "row": 6, "file": "tool_gold_sword.png" },
+    "villager_body": { "col": 6, "row": 6, "file": "villager_body.png" },
+    "villager_head": { "col": 7, "row": 6, "file": "villager_head.png" },
     "willow_log": { "col": 0, "row": 7, "file": "willow_log.png" },
     "willow_leaves": { "col": 1, "row": 7, "file": "willow_leaves.png" },
     "palm_log": { "col": 2, "row": 7, "file": "palm_log.png" },
@@ -71,7 +73,19 @@
     "birch_log_top": { "col": 4, "row": 1, "file": "birch_log_top.png" },
     "pine_log_top": { "col": 5, "row": 0, "file": "pine_log_top.png" },
     "willow_log_top": { "col": 5, "row": 1, "file": "willow_log_top.png" },
-    "palm_log_top": { "col": 7, "row": 4, "file": "palm_log_top.png" }
+    "palm_log_top": { "col": 7, "row": 4, "file": "palm_log_top.png" },
+    "wheat_sprout": { "col": 0, "row": 9, "file": "wheat_sprout.png" },
+    "wheat_crop": { "col": 1, "row": 9, "file": "wheat_crop.png" },
+    "carrot_sprout": { "col": 2, "row": 9, "file": "carrot_sprout.png" },
+    "carrot_crop": { "col": 3, "row": 9, "file": "carrot_crop.png" },
+    "fern": { "col": 7, "row": 8, "file": "fern.png" },
+    "mushroom_red": { "col": 4, "row": 9, "file": "mushroom_red.png" },
+    "mushroom_brown": { "col": 5, "row": 9, "file": "mushroom_brown.png" },
+    "dead_bush": { "col": 6, "row": 9, "file": "dead_bush.png" },
+    "lily_pad": { "col": 7, "row": 9, "file": "lily_pad.png" },
+    "vine": { "col": 0, "row": 10, "file": "vine.png" },
+    "berry_bush": { "col": 1, "row": 10, "file": "berry_bush.png" },
+    "seagrass": { "col": 2, "row": 10, "file": "seagrass.png" }
   },
   "blockFaces": {
     "Grass": { "top": "grass_top", "bottom": "dirt", "side": "grass_side" },
@@ -115,11 +129,26 @@
     "Reed": { "all": "reed" },
     "Sunflower": { "all": "sunflower" },
     "HayBale": { "all": "hay_bale" },
-    "Ice": { "all": "ice" }
+    "Ice": { "all": "ice" },
+    "WheatSprout": { "all": "wheat_sprout" },
+    "Wheat": { "all": "wheat_crop" },
+    "CarrotSprout": { "all": "carrot_sprout" },
+    "Carrot": { "all": "carrot_crop" },
+    "Fern": { "all": "fern" },
+    "MushroomRed": { "all": "mushroom_red" },
+    "MushroomBrown": { "all": "mushroom_brown" },
+    "DeadBush": { "all": "dead_bush" },
+    "LilyPad": { "all": "lily_pad" },
+    "Vine": { "all": "vine" },
+    "BerryBush": { "all": "berry_bush" },
+    "Seagrass": { "all": "seagrass" }
   },
   "animals": {
     "Sheep": { "body": "sheep_body", "head": "sheep_head" },
     "Pig": { "body": "pig_body", "head": "pig_head" },
     "Chicken": { "body": "chicken_body", "head": "chicken_head" }
+  },
+  "villagers": {
+    "Default": { "body": "villager_body", "head": "villager_head" }
   }
 }

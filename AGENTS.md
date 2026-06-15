@@ -173,6 +173,9 @@ Tests instantiate `AutonocraftGame(runTests: true)` without calling `Run()`, so 
 | Starter Settlement On New World | Town Heart placed, 2 villagers, seeded storage |
 | Village Found And Recruit | Found village, storage rations, recruit peasant |
 | Village Save Round-Trip V6 | Buildings, sites, caps, villager jobs persist (save v6) |
+| Village Save Round-Trip V7 | Extended villager haul/tool state, output chests, village radius (save v7) |
+| Village Guidance Hints | Next-best-action HUD hint selection |
+| Village Events Notifier | Recruit/build/tier toast events |
 | Village AI Tools | Mock LLM tool `get_village_summary` |
 
 ### Expected output
@@ -212,7 +215,7 @@ Returns JSON with player state, skills, hotbar (blocks/tools), nearby animals, t
   "velocity": { "x": 0, "y": 0, "z": 0 },
   "yaw": 0,
   "pitch": 0,
-  "flyingMode": false,
+  "creativeMode": false,
   "isGrounded": true,
   "health": 20,
   "maxHealth": 20,
@@ -277,7 +280,7 @@ Queues thread-safe actions on the game loop. Returns `{"success": true|false, "m
 | `set_look` | `yaw`, `pitch` | Set camera orientation (pitch clamped ±89°) |
 | `look` | `dx`, `dy` | Relative look rotation |
 | `teleport` | `x`, `y`, `z` | Teleport player, zero velocity |
-| `set_flying` | `flying=true\|false` | Toggle flying / physics mode |
+| `set_creative` | `creative=true\|false` | Toggle creative / survival mode (alias: `set_flying` with `flying=`) |
 | `select_slot` | `slot=0-8` | Select hotbar slot |
 | `set_time` | `value=0-1` | Set time of day (0=midnight, 0.5=noon) |
 | `set_time_scale` | `value` | Day-cycle speed (0 pauses) |
@@ -303,7 +306,7 @@ Toggle in-game with **F3** or **`` ` ``**. Also callable via HTTP: `POST /action
 | `time pause\|resume` | Pause/resume day cycle |
 | `tp <x> <y> <z>` / `teleport` | Teleport |
 | `pos` | Show position |
-| `fly [on\|off]` | Toggle flying mode |
+| `creative [on\|off]` | Toggle creative mode (alias: `fly`) |
 | `give <block> [n]` | Add blocks to hotbar |
 | `give tool <pickaxe\|axe\|shovel\|sword> [wood\|stone\|iron\|gold]` | Add tool |
 | `give bucket [water]` | Add empty or water bucket |
@@ -350,7 +353,7 @@ python3 tests/interact.py action look dx=10 dy=0
 python3 tests/interact.py action teleport x=16 y=65 z=16
 
 # Flying and inventory
-python3 tests/interact.py action set_flying flying=false
+python3 tests/interact.py action set_creative creative=false
 python3 tests/interact.py action select_slot slot=2
 
 # Crafting

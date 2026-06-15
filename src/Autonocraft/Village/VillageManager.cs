@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Autonocraft.Domain.Core;
 using Autonocraft.Domain.Village;
 using Autonocraft.Entities;
 using Autonocraft.Items;
@@ -10,122 +9,290 @@ using Autonocraft.World.Structures;
 
 namespace Autonocraft.Village
 {
-    public sealed class VillageManager
+    public sealed class VillageManager : IJobAssignment
     {
         private readonly List<Village> _villages = new();
+        private readonly Dictionary<int, Village> _villageIndex = new();
         private readonly VillagerManager _villagers;
         private readonly HashSet<int> _finalizedSites = new();
-        private readonly HashSet<long> _claimedAnchors = new();
+        private readonly VillageFoundingService _founding;
+        private readonly JobDispatcher _dispatcher;
+        private readonly HaulCoordinator _haulCoordinator;
+        private readonly VillageSimulation _simulation;
+        private readonly VillagePersistence _persistence;
+        private VillageEvents? _events;
         private int _worldSeed;
-        private bool _wasNight;
+        private float _repairScanCooldown;
 
-        public Action<string>? ShowToast { get; set; }
+        public Action<string>? ShowToast
+        {
+            get => _founding.ShowToast;
+            set
+            {
+                _founding.ShowToast = value;
+                _dispatcher.ShowToast = value;
+            }
+        }
+
+        public bool CreativeMode
+        {
+            get => _dispatcher.CreativeMode;
+            set
+            {
+                _dispatcher.CreativeMode = value;
+                _simulation.CreativeMode = value;
+            }
+        }
+
         public IReadOnlyList<Village> Villages => _villages;
-        public IReadOnlyCollection<long> ClaimedAnchors => _claimedAnchors;
+        public IReadOnlyCollection<long> ClaimedAnchors => throw new NotSupportedException("Use ExportClaimedAnchors");
 
         public VillageManager(VillagerManager villagers)
         {
             _villagers = villagers;
+            _haulCoordinator = new HaulCoordinator(villagers);
+            _dispatcher = new JobDispatcher(villagers, _haulCoordinator);
+            _founding = new VillageFoundingService(villagers, new HashSet<long>());
+            _simulation = new VillageSimulation(villagers, _dispatcher, _haulCoordinator);
+            _persistence = new VillagePersistence(villagers);
         }
 
-        public void SetWorldSeed(int seed) => _worldSeed = seed;
+        public void SetWorldSeed(int seed)
+        {
+            _worldSeed = seed;
+            _founding.SetWorldSeed(seed);
+        }
 
         public Village? GetPrimaryVillage() => _villages.Count > 0 ? _villages[0] : null;
 
-        public Village? GetVillage(int id)
+        public Village? GetActiveVillage(Vector3 playerPos)
         {
+            var atPlayer = GetVillageAt(playerPos);
+            if (atPlayer != null)
+            {
+                VillageSettlementHealth.AdoptNearbyOrphanedCitizens(atPlayer, _villagers, _villages);
+                VillageSettlementHealth.SyncPopulationRegistry(atPlayer, _villagers);
+                return atPlayer;
+            }
+
+            Village? best = null;
+            int bestPopulation = -1;
+            float bestDist = float.MaxValue;
             foreach (var village in _villages)
             {
-                if (village.Id == id)
+                if (!VillageSettlementHealth.HasEstablishedSettlement(village))
                 {
-                    return village;
+                    continue;
+                }
+
+                VillageSettlementHealth.AdoptNearbyOrphanedCitizens(village, _villagers, _villages);
+                int population = VillageSettlementHealth.GetLivePopulation(village, _villagers);
+                float dist = HorizontalDistanceSquared(playerPos, village);
+                if (population > bestPopulation || (population == bestPopulation && dist < bestDist))
+                {
+                    bestPopulation = population;
+                    bestDist = dist;
+                    best = village;
                 }
             }
 
-            return null;
+            if (best != null && bestPopulation > 0 && bestDist <= 48f * 48f)
+            {
+                VillageSettlementHealth.SyncPopulationRegistry(best, _villagers);
+                return best;
+            }
+
+            Village? nearestHeart = null;
+            bestDist = float.MaxValue;
+            foreach (var village in _villages)
+            {
+                if (!VillageSettlementHealth.HasEstablishedSettlement(village))
+                {
+                    continue;
+                }
+
+                float dist = HorizontalDistanceSquared(playerPos, village);
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    nearestHeart = village;
+                }
+            }
+
+            if (nearestHeart != null && bestDist <= 48f * 48f)
+            {
+                VillageSettlementHealth.AdoptNearbyOrphanedCitizens(nearestHeart, _villagers, _villages);
+                VillageSettlementHealth.SyncPopulationRegistry(nearestHeart, _villagers);
+                return nearestHeart;
+            }
+
+            var primary = GetPrimaryVillage();
+            if (primary != null)
+            {
+                VillageSettlementHealth.AdoptNearbyOrphanedCitizens(primary, _villagers, _villages);
+                VillageSettlementHealth.SyncPopulationRegistry(primary, _villagers);
+            }
+
+            return primary;
         }
+
+        public void SyncCitizensForVillage(Village village)
+        {
+            VillageSettlementHealth.AdoptNearbyOrphanedCitizens(village, _villagers, _villages);
+            VillageSettlementHealth.SyncPopulationRegistry(village, _villagers);
+        }
+
+        public Village? GetVillage(int id) =>
+            _villageIndex.TryGetValue(id, out var village) ? village : null;
 
         public Village? GetVillageAt(Vector3 position)
         {
+            Village? best = null;
+            int bestPopulation = -1;
+            float bestDist = float.MaxValue;
+
             foreach (var village in _villages)
             {
-                if (village.Contains(position))
+                if (!village.Contains(position))
                 {
-                    return village;
+                    continue;
+                }
+
+                int population = VillageSettlementHealth.GetLivePopulation(village, _villagers);
+                float dist = HorizontalDistanceSquared(position, village);
+                if (population > bestPopulation || (population == bestPopulation && dist < bestDist))
+                {
+                    bestPopulation = population;
+                    bestDist = dist;
+                    best = village;
                 }
             }
 
-            return null;
+            return best;
+        }
+
+        private static float HorizontalDistanceSquared(Vector3 position, Village village)
+        {
+            float dx = position.X - (village.AnchorX + 0.5f);
+            float dz = position.Z - (village.AnchorZ + 0.5f);
+            return dx * dx + dz * dz;
         }
 
         public (int spawnX, int spawnZ) InitializeStarterSettlement(VoxelWorld world, int nearX, int nearZ)
         {
-            const string villageName = "Founder's Hamlet";
-            int heartX = nearX + 4;
-            int heartZ = nearZ;
-            int heartY = StructureFingerprint.FindSurfaceAnchorY(world, heartX, heartZ);
-
-            if (!PlayerStructureRegistry.TryGet("town_heart", out var blueprint))
-            {
-                return (nearX, nearZ);
-            }
-
-            ClearFootprint(world, blueprint, heartX, heartY, heartZ);
-            PlaceBlueprintBlocks(world, blueprint, heartX, heartY, heartZ);
-
-            var village = new Village(villageName, heartX, heartY, heartZ, blueprint.StorageSlots);
-            _villages.Add(village);
-            village.RegisterClaimedBuilding(blueprint, heartX, heartY, heartZ);
-            village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 16));
-            village.Storage.AddItem(ItemStack.CreateBlock(BlockType.Cobblestone, 8));
-            village.FoodStock = 6f;
-
-            var spawnPos = village.Center + new Vector3(-2.5f, 0f, 0.5f);
-            var lumberjack = _villagers.Spawn(village.Id, spawnPos, _worldSeed ^ 1);
-            lumberjack.Role = VillagerRole.Lumberjack;
-            village.RegisterVillager(lumberjack.Id);
-
-            var peasant = _villagers.Spawn(village.Id, spawnPos + new Vector3(1.5f, 0f, 1f), _worldSeed ^ 2);
-            peasant.Role = VillagerRole.Peasant;
-            village.RegisterVillager(peasant.Id);
-
-            var gatherTarget = FindNearbyGatherTarget(world, heartX, heartZ, 20);
-            if (gatherTarget.HasValue)
-            {
-                TryAssignJob(village, lumberjack, JobType.Gather, gatherTarget);
-            }
-
-            RecordClaimedAnchor(heartX, heartZ);
-            ShowToast?.Invoke($"Welcome to {villageName}!");
-            return (nearX, nearZ);
+            var result = _founding.InitializeStarterSettlement(_villages, world, nearX, nearZ, _dispatcher);
+            RebuildIndex();
+            return result;
         }
 
-        public bool TryFoundVillage(VoxelWorld world, string name, int anchorX, int anchorZ, out Village? village)
+        public void EnsureStarterSettlement(VoxelWorld world, int nearX, int nearZ)
         {
-            village = null;
-            int anchorY = StructureFingerprint.FindSurfaceAnchorY(world, anchorX, anchorZ);
-            if (!PlayerStructureRegistry.TryGet("town_heart", out var blueprint))
+            var primary = GetPrimaryVillage();
+            if (primary == null)
+            {
+                InitializeStarterSettlement(world, nearX, nearZ);
+                return;
+            }
+
+            RepairVillageCitizens(primary, world);
+        }
+
+        public bool RepairVillageCitizens(Village village, VoxelWorld world)
+        {
+            VillageSettlementHealth.SyncPopulationRegistry(village, _villagers);
+            if (!VillageSettlementHealth.NeedsCitizenRepair(village, _villagers))
             {
                 return false;
             }
 
-            foreach (var block in blueprint.Template.Blocks)
+            int before = VillageSettlementHealth.GetLivePopulation(village, _villagers);
+            if (before > 0)
             {
-                int wx = anchorX + block.Dx;
-                int wy = anchorY + block.Dy;
-                int wz = anchorZ + block.Dz;
-                if (world.GetBlock(wx, wy, wz) != BlockType.Air)
+                return false;
+            }
+
+            VillageSettlementHealth.EnsureVillageChunksLoaded(world, village);
+            int after = _founding.SpawnStarterCitizens(village, world, _dispatcher);
+            VillageSettlementHealth.SyncPopulationRegistry(village, _villagers);
+            after = VillageSettlementHealth.GetLivePopulation(village, _villagers);
+            if (after > before)
+            {
+                ShowToast?.Invoke($"{after} settler(s) arrived at {village.Name}. Open PEOPLE tab to assign jobs.");
+                return true;
+            }
+
+            return false;
+        }
+
+        public void RepairNearbySettlements(VoxelWorld world, Vector3 playerPos, float deltaTime)
+        {
+            _repairScanCooldown -= deltaTime;
+            if (_repairScanCooldown > 0f)
+            {
+                return;
+            }
+
+            _repairScanCooldown = 1f;
+            foreach (var village in _villages)
+            {
+                if (!VillageSettlementHealth.IsPlayerNearTownHeart(village, playerPos))
                 {
-                    ShowToast?.Invoke("Not enough space for Town Heart.");
-                    return false;
+                    continue;
+                }
+
+                RepairVillageCitizens(village, world);
+            }
+        }
+
+        public void RepairAllVillages(VoxelWorld world)
+        {
+            foreach (var village in _villages)
+            {
+                RepairVillageCitizens(village, world);
+            }
+        }
+
+        public bool CanPlaceTownHeart(
+            VoxelWorld world,
+            int anchorX,
+            int anchorY,
+            int anchorZ,
+            IItemContainer payer) =>
+            _founding.CanPlaceTownHeart(world, anchorX, anchorY, anchorZ, payer, CreativeMode);
+
+        public bool TryFoundVillage(
+            VoxelWorld world,
+            string name,
+            int anchorX,
+            int anchorZ,
+            out Village? village,
+            int anchorY = -1)
+        {
+            var ok = _founding.TryFoundVillage(_villages, world, name, anchorX, anchorZ, out village, anchorY);
+            if (ok && village != null)
+            {
+                RebuildIndex();
+                Villager? founder = null;
+                foreach (var citizen in VillageSettlementHealth.EnumerateLiveCitizens(village, _villagers))
+                {
+                    founder = citizen;
+                    break;
+                }
+
+                if (founder != null)
+                {
+                    foreach (var site in village.BuildingSites)
+                    {
+                        if (!site.IsComplete)
+                        {
+                            _dispatcher.TryAssignJob(village, founder, JobType.Build, null, site.Id);
+                            break;
+                        }
+                    }
                 }
             }
 
-            village = new Village(name, anchorX, anchorY, anchorZ, blueprint.StorageSlots);
-            _villages.Add(village);
-            village.QueueBuild(blueprint, anchorX, anchorY, anchorZ);
-            ShowToast?.Invoke($"Founded village '{name}'. Build the Town Heart!");
-            return true;
+            return ok;
         }
 
         public bool TryFindClaimableStructure(
@@ -135,290 +302,180 @@ namespace Autonocraft.Village
             out int anchorX,
             out int anchorZ,
             out StructureDefinition? matched,
-            bool quickScan = false)
-        {
-            anchorX = 0;
-            anchorZ = 0;
-            matched = null;
-            int px = (int)MathF.Floor(playerPos.X);
-            int pz = (int)MathF.Floor(playerPos.Z);
-            float effectiveRadius = quickScan ? Math.Min(radius, 16f) : radius;
-            int scanRadius = (int)MathF.Ceiling(effectiveRadius);
-            int step = quickScan ? 4 : 2;
-            float bestDist = float.MaxValue;
-
-            for (int dx = -scanRadius; dx <= scanRadius; dx += step)
-            {
-                for (int dz = -scanRadius; dz <= scanRadius; dz += step)
-                {
-                    int ax = px + dx;
-                    int az = pz + dz;
-                    if (IsAnchorClaimed(ax, az))
-                    {
-                        continue;
-                    }
-
-                    if (!TryResolveClaimableMatch(world, ax, az, out var definition, out _, out int anchorY, quickScan))
-                    {
-                        continue;
-                    }
-
-                    if (!ClaimableStructureMap.IsClaimable(definition.Id))
-                    {
-                        continue;
-                    }
-
-                    float dist = Vector2.DistanceSquared(
-                        new Vector2(playerPos.X, playerPos.Z),
-                        new Vector2(ax + 0.5f, az + 0.5f));
-                    if (dist > radius * radius || dist >= bestDist)
-                    {
-                        continue;
-                    }
-
-                    bestDist = dist;
-                    anchorX = ax;
-                    anchorZ = az;
-                    matched = definition;
-                }
-            }
-
-            return matched != null;
-        }
+            bool quickScan = false) =>
+            _founding.TryFindClaimableStructure(world, playerPos, radius, out anchorX, out anchorZ, out matched, quickScan);
 
         public bool TryClaimStructure(VoxelWorld world, int anchorX, int anchorZ, out Village? village)
         {
-            village = null;
-            if (IsAnchorClaimed(anchorX, anchorZ))
+            var ok = _founding.TryClaimStructure(_villages, world, anchorX, anchorZ, out village);
+            if (ok)
             {
-                ShowToast?.Invoke("This outpost is already claimed.");
+                RebuildIndex();
+            }
+
+            return ok;
+        }
+
+        public bool TryClaimAtBlock(VoxelWorld world, int blockX, int blockY, int blockZ) =>
+            _founding.TryClaimAtBlock(_villages, world, blockX, blockY, blockZ);
+
+        public bool TryQueueBlueprint(
+            VoxelWorld world,
+            Village village,
+            string blueprintId,
+            int anchorX,
+            int anchorZ,
+            IItemContainer payer,
+            int anchorY = -1)
+        {
+            if (!_dispatcher.TryQueueBlueprint(world, village, blueprintId, anchorX, anchorZ, payer, anchorY))
+            {
                 return false;
             }
 
-            if (!TryResolveClaimableMatch(world, anchorX, anchorZ, out var matched, out float ratio, out int anchorY))
+            var site = village.BuildingSites[^1];
+            if (!site.IsComplete)
             {
-                ShowToast?.Invoke("No recognizable structure to claim.");
-                return false;
+                _dispatcher.TryAssignBuilderToSite(village, site);
             }
 
-            string blueprintId = ClaimableStructureMap.GetBlueprintId(matched.Id);
-            if (!PlayerStructureRegistry.TryGet(blueprintId, out var blueprint))
-            {
-                return false;
-            }
-
-            string name = ClaimableStructureMap.GetDefaultVillageName(matched.Id);
-            village = new Village(name, anchorX, anchorY, anchorZ);
-            _villages.Add(village);
-            village.RegisterClaimedBuilding(blueprint, anchorX, anchorY, anchorZ);
-            village.FoodStock = 3f;
-            village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 8));
-
-            var spawn = village.Center + new Vector3(0.5f, 0f, 0.5f);
-            var villager = _villagers.Spawn(village.Id, spawn, _worldSeed ^ (anchorX * 92821 + anchorZ));
-            villager.Role = VillagerRole.Peasant;
-            village.RegisterVillager(villager.Id);
-
-            RecordClaimedAnchor(anchorX, anchorZ);
-            ShowToast?.Invoke($"Claimed {matched.Id} ({ratio:P0} intact) as '{name}'.");
             return true;
         }
 
-        public bool TryClaimAtBlock(VoxelWorld world, int blockX, int blockY, int blockZ)
+        public bool CanPlaceBlueprint(
+            VoxelWorld world,
+            Village village,
+            BuildingBlueprint blueprint,
+            int anchorX,
+            int anchorZ,
+            IItemContainer payer,
+            int anchorY = -1) =>
+            _dispatcher.CanPlaceBlueprint(world, village, blueprint, anchorX, anchorZ, payer, anchorY);
+
+        public Village? GetVillageForBlock(int x, int y, int z) =>
+            GetVillageAt(new Vector3(x + 0.5f, y, z + 0.5f));
+
+        public bool TryMarkWorkBlock(VoxelWorld world, int x, int y, int z, out string message)
         {
-            for (int dx = -6; dx <= 6; dx += 2)
+            var village = GetVillageForBlock(x, y, z);
+            if (village == null)
             {
-                for (int dz = -6; dz <= 6; dz += 2)
+                message = "No village nearby.";
+                return false;
+            }
+
+            return _dispatcher.TryMarkWorkBlock(world, village, x, y, z, out message);
+        }
+
+        public bool TryMarkWorkZone(
+            VoxelWorld world,
+            Village village,
+            int ax,
+            int ay,
+            int az,
+            int bx,
+            int by,
+            int bz,
+            out string message)
+        {
+            var bounds = GatherWorkQueue.NormalizeBounds(ax, ay, az, bx, by, bz);
+            int added = village.WorkQueue.EnqueueZone(
+                world,
+                bounds.minX,
+                bounds.minY,
+                bounds.minZ,
+                bounds.maxX,
+                bounds.maxY,
+                bounds.maxZ);
+
+            if (added == 0)
+            {
+                message = "No gatherable blocks in that zone.";
+                return false;
+            }
+
+            _dispatcher.AssignIdleWorkersFromQueue(village, world);
+            message = $"Queued {added} block(s) for workers.";
+            return true;
+        }
+
+        public bool CanMarkWorkZone(Village village, int ax, int ay, int az, int bx, int by, int bz)
+        {
+            var bounds = GatherWorkQueue.NormalizeBounds(ax, ay, az, bx, by, bz);
+            var center = new Vector3(
+                (bounds.minX + bounds.maxX + 1) * 0.5f,
+                (bounds.minY + bounds.maxY) * 0.5f,
+                (bounds.minZ + bounds.maxZ + 1) * 0.5f);
+            return village.Contains(center);
+        }
+
+        public bool TryRecruit(Village village, VoxelWorld world)
+        {
+            VillageSettlementHealth.SyncPopulationRegistry(village, _villagers);
+            if (VillageSettlementHealth.GetLivePopulation(village, _villagers) == 0)
+            {
+                if (RepairVillageCitizens(village, world))
                 {
-                    int ax = blockX + dx;
-                    int az = blockZ + dz;
-                    if (TryClaimStructure(world, ax, az, out _))
-                    {
-                        return true;
-                    }
+                    return true;
                 }
-            }
 
-            return false;
-        }
-
-        public bool TryQueueBlueprint(VoxelWorld world, Village village, string blueprintId, int anchorX, int anchorZ, IItemContainer payer)
-        {
-            if (!PlayerStructureRegistry.TryGet(blueprintId, out var blueprint))
-            {
-                ShowToast?.Invoke("Unknown blueprint.");
+                ShowToast?.Invoke("Stand at the Town Heart and click SUMMON SETTLERS, or found a new settlement.");
                 return false;
             }
 
-            if (!blueprint.CanAfford(payer))
+            if (!village.CanRecruit(CreativeMode))
             {
-                ShowToast?.Invoke($"Cannot afford {blueprint.DisplayName}.");
+                if (village.Population >= village.PopulationCap)
+                {
+                    ShowToast?.Invoke("Cannot recruit: at housing cap. Queue peasant house in BUILDINGS tab.");
+                }
+                else
+                {
+                    ShowToast?.Invoke($"Cannot recruit: need {Village.RecruitFoodCost} oak planks in village storage.");
+                }
+
                 return false;
             }
 
-            int anchorY = StructureFingerprint.FindSurfaceAnchorY(world, anchorX, anchorZ);
-            blueprint.TryConsumeCosts(payer);
-            village.QueueBuild(blueprint, anchorX, anchorY, anchorZ);
-            ShowToast?.Invoke($"Queued {blueprint.DisplayName} for construction.");
-            return true;
-        }
-
-        public bool TryRecruit(Village village)
-        {
-            if (!village.CanRecruit())
-            {
-                ShowToast?.Invoke("Cannot recruit: at cap or need 4 oak planks.");
-                return false;
-            }
-
-            if (!village.TryRecruitCost())
+            if (!village.TryRecruitCost(CreativeMode))
             {
                 return false;
             }
 
-            var spawn = village.Center + new Vector3(0.5f, 0f, 0.5f);
+            var spawn = VillageSpawnHelper.FindSpawnPosition(world, village, _worldSeed ^ village.Population);
             var villager = _villagers.Spawn(village.Id, spawn, _worldSeed ^ village.Population);
+            villager.IsGrounded = true;
             village.RegisterVillager(villager.Id);
-            ShowToast?.Invoke($"{villager.Name} joined the village!");
+            _events?.OnRecruit(villager);
+            ShowToast?.Invoke($"{villager.Name} joined! Assign a job on the Villagers tab.");
             return true;
         }
 
-        public bool TryAssignJob(Village village, Villager villager, JobType job, Vector3? target = null, int? buildingSiteId = null)
+        public bool TryAssignJob(
+            Village village,
+            Villager villager,
+            JobType job,
+            Vector3? target = null,
+            int? buildingSiteId = null,
+            int? buildingId = null) =>
+            _dispatcher.TryAssignJob(village, villager, job, target, buildingSiteId, buildingId);
+
+        public bool TryAssignStockGoalWorker(Village village, VoxelWorld world, Villager villager, BlockType blockType) =>
+            _dispatcher.TryAssignStockGoalWorker(village, world, villager, blockType);
+
+        public void AutoAssignIdleWorkers(Village village, VoxelWorld world) =>
+            _dispatcher.AutoAssignIdleWorkers(village, world);
+
+        public void Update(float deltaTime, VoxelWorld world, float timeOfDay, AnimalManager animalManager)
         {
-            if (villager.VillageId != village.Id)
-            {
-                return false;
-            }
-
-            villager.Role = job switch
-            {
-                JobType.Build => VillagerRole.Builder,
-                JobType.Gather => VillagerRole.Lumberjack,
-                JobType.Craft when village.CountBuildings(BuildingKind.FarmPlot) > 0 => VillagerRole.Farmer,
-                _ => villager.Role
-            };
-
-            if (job == JobType.Build && !buildingSiteId.HasValue)
-            {
-                var site = village.GetNearestPendingSite(villager.Position);
-                buildingSiteId = site?.Id;
-            }
-
-            village.Scheduler.AssignJob(villager, job, target, buildingSiteId);
-            return true;
-        }
-
-        public void AutoAssignIdleWorkers(Village village, VoxelWorld world)
-        {
-            var goal = village.Scheduler.GetTopOpenGoal();
-            if (goal != null)
-            {
-                village.Scheduler.TryApplyGoal(village, world, this, goal);
-            }
-
-            foreach (var villagerId in village.VillagerIds)
-            {
-                if (!_villagers.TryGet(villagerId, out var villager) || villager.CurrentJob != JobType.Idle)
-                {
-                    continue;
-                }
-
-                var site = village.GetNearestPendingSite(villager.Position);
-                if (site != null)
-                {
-                    TryAssignJob(village, villager, JobType.Build, null, site.Id);
-                    continue;
-                }
-
-                if (village.CountBuildings(BuildingKind.FarmPlot) > 0 && villager.Role == VillagerRole.Farmer)
-                {
-                    TryAssignJob(village, villager, JobType.Craft, village.Center, null);
-                    continue;
-                }
-
-                var gatherTarget = FindNearbyGatherTarget(world, village.AnchorX, village.AnchorZ, 24);
-                if (gatherTarget.HasValue)
-                {
-                    TryAssignJob(village, villager, JobType.Gather, gatherTarget);
-                }
-            }
-        }
-
-        public void Update(float deltaTime, VoxelWorld world, float timeOfDay)
-        {
-            bool isNight = DayNightCycle.IsNight(timeOfDay);
-            bool morning = _wasNight && !isNight;
-            _wasNight = isNight;
-
-            foreach (var village in _villages)
-            {
-                village.UpdateSimulation(deltaTime, timeOfDay);
-                FinalizeCompletedSites(village, world);
-
-                if (morning)
-                {
-                    AutoAssignIdleWorkers(village, world);
-                }
-
-                var context = BuildContext(village);
-                float workMult = village.GetWorkSpeedMultiplier();
-
-                foreach (var villagerId in village.VillagerIds)
-                {
-                    if (!_villagers.TryGet(villagerId, out var villager))
-                    {
-                        continue;
-                    }
-
-                    villager.WorkSpeedMultiplier = workMult;
-                    if (isNight && villager.CurrentJob != JobType.Build)
-                    {
-                        if (villager.CurrentJob != JobType.Sleep)
-                        {
-                            villager.AssignJob(JobType.Sleep, villager.Position, null);
-                        }
-                    }
-                    else if (villager.CurrentJob == JobType.Sleep && !isNight)
-                    {
-                        villager.AssignJob(JobType.Idle, null, null);
-                    }
-
-                    villager.Update(deltaTime, world, context);
-                }
-            }
-
             _villagers.Update(deltaTime, world, _villages);
+            _simulation.Update(_villages, _finalizedSites, deltaTime, world, timeOfDay, animalManager);
         }
 
-        private void FinalizeCompletedSites(Village village, VoxelWorld world)
+        public void SetVillageEvents(VillageEvents events)
         {
-            foreach (var site in village.BuildingSites)
-            {
-                site.SyncWithWorld(world);
-                if (!site.IsComplete || _finalizedSites.Contains(site.Id))
-                {
-                    continue;
-                }
-
-                if (PlayerStructureRegistry.TryGet(site.BlueprintId, out var blueprint))
-                {
-                    village.CompleteBuilding(blueprint, site);
-                    _finalizedSites.Add(site.Id);
-                }
-            }
-        }
-
-        private VillageContext BuildContext(Village village)
-        {
-            return new VillageContext
-            {
-                Village = village,
-                VillageCenter = village.Center,
-                VillageRadius = village.Radius,
-                StoragePosition = village.StoragePosition,
-                Storage = village.Storage,
-                ResolveBuildingSite = id => village.TryGetBuildingSite(id, out var site) ? site : null
-            };
+            _events = events;
+            _simulation.SetVillageEvents(events);
         }
 
         public void LoadFromSave(
@@ -426,274 +483,28 @@ namespace Autonocraft.Village
             IEnumerable<VillagerSaveData> villagerData,
             IEnumerable<ClaimedAnchorSaveData>? claimedAnchors = null)
         {
-            _villages.Clear();
-            _finalizedSites.Clear();
-            _claimedAnchors.Clear();
-
-            var villageList = new List<VillageSaveData>(villageData);
-            var villagerList = new List<VillagerSaveData>(villagerData);
-
-            int maxVillageId = 0;
-            foreach (var entry in villageList)
-            {
-                maxVillageId = Math.Max(maxVillageId, entry.Id);
-            }
-
-            int maxSiteId = 0;
-            foreach (var entry in villageList)
-            {
-                foreach (var site in entry.BuildingSites)
-                {
-                    maxSiteId = Math.Max(maxSiteId, site.Id);
-                }
-            }
-
-            int maxVillagerId = 0;
-            foreach (var entry in villagerList)
-            {
-                maxVillagerId = Math.Max(maxVillagerId, entry.Id);
-            }
-
-            Village.ResetIdCounter(maxVillageId + 1);
-            BuildingSite.ResetIdCounter(maxSiteId + 1);
-            Villager.ResetIdCounter(maxVillagerId + 1);
-
-            _villagers.LoadVillagers(villagerList);
-
-            foreach (var entry in villageList)
-            {
-                var village = new Village(entry.Name, entry.AnchorX, entry.AnchorY, entry.AnchorZ, entry.StorageSlots, entry.Id);
-                village.Tier = (VillageTier)entry.Tier;
-                village.FoodStock = entry.FoodStock;
-                village.Happiness = entry.Happiness;
-                village.PopulationCap = entry.PopulationCap > 0 ? entry.PopulationCap : village.PopulationCap;
-                village.HousingCapacity = entry.HousingCapacity;
-
-                for (int i = 0; i < entry.Storage.Count && i < village.Storage.SlotCount; i++)
-                {
-                    village.Storage.SetSlot(i, WorldSaveManager.DeserializeItemStack(entry.Storage[i]));
-                }
-
-                foreach (var building in entry.Buildings)
-                {
-                    village.RestoreBuilding(building);
-                }
-
-                foreach (var siteEntry in entry.BuildingSites)
-                {
-                    if (PlayerStructureRegistry.TryGet(siteEntry.BlueprintId, out var blueprint))
-                    {
-                        village.RestoreBuildingSite(siteEntry, blueprint);
-                        if (siteEntry.IsComplete)
-                        {
-                            _finalizedSites.Add(siteEntry.Id);
-                        }
-                    }
-                }
-
-                foreach (int vid in entry.VillagerIds)
-                {
-                    village.RegisterVillager(vid);
-                }
-
-                village.UpdateTier();
-                _villages.Add(village);
-            }
-
-            if (claimedAnchors != null)
-            {
-                foreach (var anchor in claimedAnchors)
-                {
-                    RecordClaimedAnchor(anchor.X, anchor.Z);
-                }
-            }
+            _persistence.LoadFromSave(_villages, _finalizedSites, villageData, villagerData);
+            _founding.LoadClaimedAnchors(claimedAnchors);
+            RebuildIndex();
         }
 
-        public List<VillageSaveData> ExportVillages()
+        public List<VillageSaveData> ExportVillages() => _persistence.ExportVillages(_villages);
+
+        public List<ClaimedAnchorSaveData> ExportClaimedAnchors() => _founding.ExportClaimedAnchors();
+
+        public void RegisterVillageForTest(Village village)
         {
-            var result = new List<VillageSaveData>();
+            _villages.Add(village);
+            RebuildIndex();
+        }
+
+        private void RebuildIndex()
+        {
+            _villageIndex.Clear();
             foreach (var village in _villages)
             {
-                var storage = new List<InventorySlotSaveData>();
-                for (int i = 0; i < village.Storage.SlotCount; i++)
-                {
-                    storage.Add(WorldSaveManager.SerializeItemStack(village.Storage.GetSlot(i)));
-                }
-
-                var buildings = new List<BuildingSaveData>();
-                foreach (var building in village.Buildings)
-                {
-                    buildings.Add(new BuildingSaveData
-                    {
-                        Id = building.Id,
-                        BlueprintId = building.BlueprintId,
-                        Kind = (int)building.Kind,
-                        AnchorX = building.AnchorX,
-                        AnchorY = building.AnchorY,
-                        AnchorZ = building.AnchorZ,
-                        IsComplete = building.IsComplete
-                    });
-                }
-
-                var sites = new List<BuildingSiteSaveData>();
-                foreach (var site in village.BuildingSites)
-                {
-                    sites.Add(new BuildingSiteSaveData
-                    {
-                        Id = site.Id,
-                        VillageId = site.VillageId,
-                        BlueprintId = site.BlueprintId,
-                        AnchorX = site.AnchorX,
-                        AnchorY = site.AnchorY,
-                        AnchorZ = site.AnchorZ,
-                        IsComplete = site.IsComplete
-                    });
-                }
-
-                result.Add(new VillageSaveData
-                {
-                    Id = village.Id,
-                    Name = village.Name,
-                    AnchorX = village.AnchorX,
-                    AnchorY = village.AnchorY,
-                    AnchorZ = village.AnchorZ,
-                    Tier = (int)village.Tier,
-                    FoodStock = village.FoodStock,
-                    Happiness = village.Happiness,
-                    StorageSlots = village.Storage.SlotCount,
-                    PopulationCap = village.PopulationCap,
-                    HousingCapacity = village.HousingCapacity,
-                    Storage = storage,
-                    VillagerIds = new List<int>(village.VillagerIds),
-                    Buildings = buildings,
-                    BuildingSites = sites
-                });
-            }
-
-            return result;
-        }
-
-        public List<ClaimedAnchorSaveData> ExportClaimedAnchors()
-        {
-            var result = new List<ClaimedAnchorSaveData>();
-            foreach (long packed in _claimedAnchors)
-            {
-                result.Add(new ClaimedAnchorSaveData
-                {
-                    X = (int)(packed >> 32),
-                    Z = (int)(packed & 0xFFFFFFFF)
-                });
-            }
-
-            return result;
-        }
-
-        private static void ClearFootprint(VoxelWorld world, BuildingBlueprint blueprint, int anchorX, int anchorY, int anchorZ)
-        {
-            foreach (var block in blueprint.Template.Blocks)
-            {
-                int wx = anchorX + block.Dx;
-                int wy = anchorY + block.Dy;
-                int wz = anchorZ + block.Dz;
-                world.SetBlock(wx, wy, wz, BlockType.Air);
+                _villageIndex[village.Id] = village;
             }
         }
-
-        private static void PlaceBlueprintBlocks(VoxelWorld world, BuildingBlueprint blueprint, int anchorX, int anchorY, int anchorZ)
-        {
-            foreach (var block in blueprint.Template.Blocks)
-            {
-                int wx = anchorX + block.Dx;
-                int wy = anchorY + block.Dy;
-                int wz = anchorZ + block.Dz;
-                world.SetBlock(wx, wy, wz, block.Type);
-            }
-        }
-
-        private static Vector3? FindNearbyGatherTarget(VoxelWorld world, int centerX, int centerZ, int radius)
-        {
-            for (int r = 1; r <= radius; r++)
-            {
-                for (int dx = -r; dx <= r; dx++)
-                {
-                    for (int dz = -r; dz <= r; dz++)
-                    {
-                        if (Math.Abs(dx) != r && Math.Abs(dz) != r)
-                        {
-                            continue;
-                        }
-
-                        int x = centerX + dx;
-                        int z = centerZ + dz;
-                        int topY = world.GetHighestSolidY(x, z);
-                        for (int y = topY; y >= topY - 8 && y > 0; y--)
-                        {
-                            var block = world.GetBlock(x, y, z);
-                            if (block == BlockType.OakLog || block == BlockType.OakLeaves)
-                            {
-                                return new Vector3(x + 0.5f, y, z + 0.5f);
-                            }
-                        }
-                    }
-                }
-            }
-
-            return null;
-        }
-
-        private void RecordClaimedAnchor(int anchorX, int anchorZ)
-            => _claimedAnchors.Add(PackAnchor(anchorX, anchorZ));
-
-        private bool IsAnchorClaimed(int anchorX, int anchorZ)
-            => _claimedAnchors.Contains(PackAnchor(anchorX, anchorZ));
-
-        private static bool TryResolveClaimableMatch(
-            VoxelWorld world,
-            int anchorX,
-            int anchorZ,
-            out StructureDefinition matched,
-            out float matchRatio,
-            out int anchorY,
-            bool quickScan = false)
-        {
-            matched = StructureRegistry.All[0];
-            matchRatio = 0f;
-            anchorY = 0;
-            int surfaceSearch = quickScan ? 1 : 8;
-            int surfaceY = StructureFingerprint.FindSurfaceAnchorY(world, anchorX, anchorZ, surfaceSearch);
-            float bestRatio = 0f;
-            StructureDefinition? best = null;
-            int bestY = surfaceY - 1;
-
-            for (int y = surfaceY - 4; y <= surfaceY + 1; y++)
-            {
-                if (!StructureFingerprint.TryMatchWorldStructure(world, anchorX, y, anchorZ, out var candidate, out float ratio))
-                {
-                    continue;
-                }
-
-                if (!ClaimableStructureMap.IsClaimable(candidate.Id) || ratio <= bestRatio)
-                {
-                    continue;
-                }
-
-                bestRatio = ratio;
-                best = candidate;
-                bestY = y;
-            }
-
-            if (best == null)
-            {
-                return false;
-            }
-
-            matched = best;
-            matchRatio = bestRatio;
-            anchorY = bestY;
-            return true;
-        }
-
-        private static long PackAnchor(int anchorX, int anchorZ)
-            => ((long)anchorX << 32) | (uint)anchorZ;
     }
 }

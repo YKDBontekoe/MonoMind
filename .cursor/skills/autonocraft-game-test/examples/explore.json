@@ -7,7 +7,7 @@
     {"teleport": {"x": 16, "y": 72, "z": 16}},
     {"look": {"yaw": 0, "pitch": -25}},
     {"screenshot": "test_output/scenarios/explore_02_overview.png"},
-    {"set_flying": false},
+    {"set_creative": false},
     {"move": {"forward": 2.0}},
     {"look": {"dx": 45, "dy": 0}},
     {"screenshot": "test_output/scenarios/explore_03_moved.png"},

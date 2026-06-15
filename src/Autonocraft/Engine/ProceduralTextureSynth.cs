@@ -63,20 +63,30 @@ namespace Autonocraft.Engine
 
         public static Color[] GrassFringe(int tileSize, string name, Color[] palette)
         {
-            var pixels = PixelCluster(tileSize, name, palette[0], palette, CellOrganic, 18);
+            var pixels = new Color[tileSize * tileSize];
+            Array.Fill(pixels, Color.Transparent);
             var image = new TileImage(pixels, tileSize);
             int fringeRows = Math.Max(8, tileSize * 42 / 100);
+            int solidHeight = Math.Max(2, tileSize * 12 / 100);
 
-            for (int i = 0; i < 64; i++)
+            for (int y = 0; y < solidHeight; y++)
+            {
+                for (int x = 0; x < tileSize; x++)
+                {
+                    SetPixel(image, x, y, palette[Noise(name, x, y, 0) % palette.Length]);
+                }
+            }
+
+            for (int i = 0; i < 128; i++)
             {
                 int x = Noise(name, i, 3, 5) % tileSize;
-                int len = 6 + Noise(name, i, 7, 9) % fringeRows;
+                int len = solidHeight + Noise(name, i, 7, 9) % (fringeRows - solidHeight);
                 Color blade = palette[Noise(name, i, 11, 13) % palette.Length];
-                for (int d = 0; d < len; d++)
+                for (int d = solidHeight; d < len; d++)
                 {
                     int y = d;
                     int sway = (Noise(name, i, 17, 19) % 3) - 1;
-                    SetPixel(image, x + sway, y, d == 0 ? Lighten(blade, 8) : blade);
+                    SetPixel(image, x + sway, y, blade);
                 }
             }
 
@@ -272,6 +282,208 @@ namespace Autonocraft.Engine
 
             FillEllipse(image, cx - 12, cy - 10, cx + 12, cy + 10, center);
             FillEllipse(image, cx - 6, cy - 5, cx + 2, cy + 1, Lighten(center, 16));
+            return image.Pixels;
+        }
+
+        public static Color[] WheatCropSprite(int tileSize, string name, Color stem, Color head)
+        {
+            var image = new TileImage(FillSolid(tileSize, Color.Transparent), tileSize);
+            int cx = tileSize / 2;
+            DrawBlade(image, cx, tileSize - 2, cx, tileSize / 3, stem, 3);
+            for (int i = -2; i <= 2; i++)
+            {
+                int top = tileSize / 3 - i * 4;
+                DrawBlade(image, cx, top + 10, cx + i * 5, top, Darken(head, i * 4), 2);
+            }
+
+            FillEllipse(image, cx - 8, tileSize / 4 - 6, cx + 8, tileSize / 4 + 8, head);
+            return image.Pixels;
+        }
+
+        public static Color[] CarrotCropSprite(int tileSize, string name, Color stem, Color root)
+        {
+            var image = new TileImage(FillSolid(tileSize, Color.Transparent), tileSize);
+            int cx = tileSize / 2;
+            DrawBlade(image, cx, tileSize - 2, cx, tileSize / 2, stem, 3);
+            DrawBlade(image, cx - 4, tileSize / 2, cx - 10, tileSize / 2 + 6, Darken(stem, 8), 2);
+            DrawBlade(image, cx + 4, tileSize / 2, cx + 10, tileSize / 2 + 6, Darken(stem, 8), 2);
+            FillEllipse(image, cx - 7, tileSize / 2 + 4, cx + 7, tileSize - 4, root);
+            FillEllipse(image, cx - 4, tileSize / 2 + 8, cx + 4, tileSize - 6, Lighten(root, 12));
+            return image.Pixels;
+        }
+
+        public static Color[] FernSprite(int tileSize, string name, Color[] palette)
+        {
+            var image = new TileImage(FillSolid(tileSize, Color.Transparent), tileSize);
+            int cx = tileSize / 2;
+            DrawBlade(image, cx, tileSize - 2, cx, tileSize / 3, palette[0], 2);
+            for (int i = 0; i < 12; i++)
+            {
+                int y = tileSize - 4 - i * (tileSize / 16);
+                bool left = i % 2 == 0;
+                int length = Math.Max(4, tileSize / 3 - i * (tileSize / 30));
+                Color frondColor = palette[Noise(name, i, 5, 7) % palette.Length];
+                int dx = left ? -length : length;
+                int dy = -length / 2;
+                DrawBlade(image, cx, y, cx + dx, y + dy, frondColor, 2);
+                SetPixel(image, cx + dx, y + dy, Lighten(frondColor, 15));
+            }
+            return image.Pixels;
+        }
+
+        public static Color[] MushroomSprite(int tileSize, string name, Color capColor, Color? spotColor)
+        {
+            var image = new TileImage(FillSolid(tileSize, Color.Transparent), tileSize);
+            int cx = tileSize / 2 + (Noise(name, 0, 1, 0) % 5) - 2;
+            Color stemColor = new Color(230, 225, 220);
+            for (int y = tileSize - tileSize / 3; y < tileSize - 1; y++)
+            {
+                for (int x = cx - 2; x <= cx + 2; x++)
+                {
+                    SetPixel(image, x, y, stemColor);
+                }
+            }
+            int capY = tileSize - tileSize / 3;
+            int capR = tileSize / 4 + 1;
+            FillEllipse(image, cx - capR, capY - capR / 2, cx + capR, capY + capR / 2, capColor);
+
+            if (spotColor.HasValue)
+            {
+                for (int i = 0; i < 5; i++)
+                {
+                    int sx = cx - capR + 2 + Noise(name, i, 9, 0) % (capR * 2 - 3);
+                    int sy = capY - capR / 2 + 1 + Noise(name, i, 13, 0) % (capR - 2);
+                    SetPixel(image, sx, sy, spotColor.Value);
+                }
+            }
+            return image.Pixels;
+        }
+
+        public static Color[] DeadBushSprite(int tileSize, string name, Color[] palette)
+        {
+            var image = new TileImage(FillSolid(tileSize, Color.Transparent), tileSize);
+            for (int i = 0; i < 10; i++)
+            {
+                int x1 = tileSize / 2;
+                int y1 = tileSize - 2;
+                Color branchColor = palette[Noise(name, i, 1, 0) % palette.Length];
+                int x2 = Noise(name, i, 3, 0) % tileSize;
+                int y2 = tileSize / 3 + Noise(name, i, 5, 0) % (tileSize / 3);
+                DrawBlade(image, x1, y1, x2, y2, branchColor, 1);
+                if (i % 2 == 0)
+                {
+                    int bx = (x1 + x2) / 2;
+                    int by = (y1 + y2) / 2;
+                    int bx2 = bx + (Noise(name, i, 7, 0) % (tileSize / 3)) - tileSize / 6;
+                    int by2 = by - (Noise(name, i, 9, 0) % (tileSize / 4));
+                    DrawBlade(image, bx, by, bx2, by2, Darken(branchColor, 10), 1);
+                }
+            }
+            return image.Pixels;
+        }
+
+        public static Color[] LilyPadSprite(int tileSize, string name)
+        {
+            var image = new TileImage(FillSolid(tileSize, Color.Transparent), tileSize);
+            int cx = tileSize / 2;
+            int cy = tileSize / 2;
+            int r = tileSize / 2 - 6;
+            Color color = new Color(58, 128, 48);
+            FillEllipse(image, cx - r, cy - r, cx + r, cy + r, color);
+
+            Color veinColor = new Color(78, 158, 58);
+            for (int i = 0; i < 8; i++)
+            {
+                if (i == 0) continue;
+                double rad = i * (6.28318 / 8);
+                int tx = (int)(cx + Math.Cos(rad) * r);
+                int ty = (int)(cy + Math.Sin(rad) * r);
+                DrawBlade(image, cx, cy, tx, ty, veinColor, 1);
+            }
+
+            for (int y = 0; y < tileSize; y++)
+            {
+                for (int x = cx; x < tileSize; x++)
+                {
+                    int dy = y - cy;
+                    int dx = x - cx;
+                    if (dx > 0 && Math.Abs(dy) <= dx * 0.58)
+                    {
+                        SetPixel(image, x, y, Color.Transparent);
+                    }
+                }
+            }
+
+            return image.Pixels;
+        }
+
+        public static Color[] VineSprite(int tileSize, string name, Color[] palette)
+        {
+            var image = new TileImage(FillSolid(tileSize, Color.Transparent), tileSize);
+            for (int i = 0; i < 3; i++)
+            {
+                int cx = tileSize / 4 + i * (tileSize / 4) + (Noise(name, i, 3, 0) % 7) - 3;
+                Color color = palette[Noise(name, i, 5, 0) % palette.Length];
+                int length = tileSize - 2 - (Noise(name, i, 7, 0) % (tileSize / 3));
+                DrawBlade(image, cx, 0, cx, length, Darken(color, 10), 2);
+                for (int y = 2; y < length; y += 4)
+                {
+                    Color leafColor = palette[Noise(name, i, y, 0) % palette.Length];
+                    bool left = Noise(name, i, y, 1) % 2 == 0;
+                    int lx = left ? cx - 2 : cx + 2;
+                    SetPixel(image, lx, y, leafColor);
+                    SetPixel(image, lx - 1, y, leafColor);
+                    SetPixel(image, lx + 1, y, leafColor);
+                    SetPixel(image, lx, y - 1, leafColor);
+                    SetPixel(image, lx, y + 1, leafColor);
+                }
+            }
+            return image.Pixels;
+        }
+
+        public static Color[] BerryBushSprite(int tileSize, string name, Color[] palette)
+        {
+            var image = new TileImage(FillSolid(tileSize, Color.Transparent), tileSize);
+            int cx = tileSize / 2;
+            int cy = tileSize / 2 + 4;
+            int r = tileSize / 3;
+            FillEllipse(image, cx - r, cy - r, cx + r, cy + r, palette[1]);
+            for (int i = 0; i < 6; i++)
+            {
+                int offsetX = (Noise(name, i, 3, 0) % (r * 2)) - r;
+                int offsetY = (Noise(name, i, 5, 0) % (r * 2)) - r;
+                int cr = r / 2 + Noise(name, i, 7, 0) % (r / 3);
+                Color leafColor = palette[Noise(name, i, 9, 0) % palette.Length];
+                FillEllipse(image, cx + offsetX - cr, cy + offsetY - cr, cx + offsetX + cr, cy + offsetY + cr, leafColor);
+            }
+            Color berryColor = new Color(220, 40, 40);
+            for (int i = 0; i < 8; i++)
+            {
+                int bx = cx - r + 3 + Noise(name, i, 11, 0) % (r * 2 - 6);
+                int by = cy - r + 3 + Noise(name, i, 13, 0) % (r * 2 - 6);
+                FillEllipse(image, bx - 1, by - 1, bx + 1, by + 1, berryColor);
+            }
+            return image.Pixels;
+        }
+
+        public static Color[] SeagrassSprite(int tileSize, string name, Color[] palette)
+        {
+            var image = new TileImage(FillSolid(tileSize, Color.Transparent), tileSize);
+            for (int i = 0; i < 6; i++)
+            {
+                int x = tileSize / 4 + i * (tileSize / 8) + (Noise(name, i, 3, 0) % 5) - 2;
+                Color color = palette[Noise(name, i, 5, 0) % palette.Length];
+                int prevX = x;
+                int height = tileSize / 2 + Noise(name, i, 7, 0) % (tileSize / 3);
+                for (int step = 0; step < height; step++)
+                {
+                    int currY = tileSize - 2 - step;
+                    int wave = (int)(Math.Sin(step * 0.3 + i) * 3);
+                    int currX = x + wave;
+                    DrawBlade(image, prevX, currY + 1, currX, currY, color, 2);
+                    prevX = currX;
+                }
+            }
             return image.Pixels;
         }
 

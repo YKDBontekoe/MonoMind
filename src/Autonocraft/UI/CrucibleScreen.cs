@@ -186,8 +186,8 @@ namespace Autonocraft.UI
             float panelX = cx - panelW / 2f;
             float panelY = cy - panelH / 2f;
 
-            _ui.DrawFullscreenBackground(new Color(0.02f, 0.03f, 0.06f) * 0.72f);
-            _ui.DrawPanel(panelX, panelY, panelW, panelH, new Color(0.05f, 0.07f, 0.11f), new Color(0.2f, 0.45f, 0.55f));
+            _ui.DrawFullscreenBackground(UiTheme.PanelFill * 0.72f);
+            _ui.DrawPanel(panelX, panelY, panelW, panelH, UiTheme.PanelBgMuted, UiTheme.PanelBorder);
 
             string title = session.StationType switch
             {
@@ -195,7 +195,7 @@ namespace Autonocraft.UI
                 BlockType.StationCrucible => "ALCHEMY CRUCIBLE",
                 _ => "BENCH CRUCIBLE"
             };
-            _ui.DrawCenteredText(title, panelY + layout.S(18f), layout.S(1.5f), new Color(0.75f, 0.92f, 1f));
+            _ui.DrawCenteredText(title, panelY + layout.S(18f), layout.S(UiTheme.ScaleTitle), UiTheme.Title);
 
             GetOrbPositions(layout, cx, cy, out float[] orbX, out float[] orbY);
 
@@ -209,14 +209,14 @@ namespace Autonocraft.UI
                 float drawX = orbX[i] - orbOffset;
                 float drawY = orbY[i] - orbOffset;
 
-                Color fill = hovered ? new Color(0.18f, 0.28f, 0.38f) : new Color(0.10f, 0.14f, 0.20f);
+                Color fill = hovered ? UiTheme.PanelBgHighlight : UiTheme.PanelBgMuted;
                 if (_transmuteAnimating)
                 {
                     float glow = 0.5f + 0.5f * MathF.Sin(TransmuteProgress * MathF.PI * 4f);
-                    fill = Color.Lerp(fill, new Color(0.25f, 0.55f, 0.75f), glow * 0.5f);
+                    fill = Color.Lerp(fill, UiTheme.Accent, glow * 0.5f);
                 }
 
-                _ui.DrawPanel(drawX, drawY, orbSize, orbSize, fill, hovered ? new Color(0.3f, 0.8f, 1f) : new Color(0.2f, 0.3f, 0.4f));
+                _ui.DrawPanel(drawX, drawY, orbSize, orbSize, fill, hovered ? UiTheme.Accent : UiTheme.Rule);
 
                 if (session.InputSlots[i] != BlockType.Air)
                 {
@@ -227,7 +227,7 @@ namespace Autonocraft.UI
 
             float outputX = cx - layout.S(OutputSize) / 2f;
             float outputY = cy - layout.S(OutputSize) / 2f;
-            _ui.DrawPanel(outputX, outputY, layout.S(OutputSize), layout.S(OutputSize), new Color(0.08f, 0.10f, 0.14f), new Color(0.45f, 0.65f, 0.75f));
+            _ui.DrawPanel(outputX, outputY, layout.S(OutputSize), layout.S(OutputSize), UiTheme.PanelBgMuted, UiTheme.PanelBorder);
 
             if (_transmuteAnimating)
             {
@@ -238,14 +238,14 @@ namespace Autonocraft.UI
 
             float buttonX = cx - layout.S(ButtonWidth) / 2f;
             float buttonY = panelY + panelH - layout.S(72f);
-            _ui.DrawButton(buttonX, buttonY, layout.S(ButtonWidth), layout.S(ButtonHeight), "TRANSMUTE", _transmuteHovered, _transmutePressed, layout.S(1.4f));
+            _ui.DrawButton(buttonX, buttonY, layout.S(ButtonWidth), layout.S(ButtonHeight), "TRANSMUTE", _transmuteHovered, _transmutePressed, layout.S(UiTheme.ScaleTitle));
 
             if (_statusTimer > 0f && !string.IsNullOrEmpty(_statusMessage))
             {
-                _ui.DrawCenteredText(_statusMessage, panelY + panelH - layout.S(28f), layout.S(1.1f), new Color(0.9f, 0.75f, 0.45f));
+                _ui.DrawCenteredText(_statusMessage, panelY + panelH - layout.S(28f), layout.S(UiTheme.ScaleNormal), UiTheme.Subtitle);
             }
 
-            _ui.DrawCenteredText("L-CLICK ORB: DEPOSIT  R-CLICK: WITHDRAW  ESC: CLOSE", panelY + panelH + layout.S(8f), layout.S(1.0f), new Color(0.55f, 0.6f, 0.65f));
+            _ui.DrawCenteredText("L-CLICK ORB: DEPOSIT  R-CLICK: WITHDRAW  ESC: CLOSE", panelY + panelH + layout.S(8f), layout.S(UiTheme.ScaleSmall), UiTheme.Hint);
         }
 
         private void DrawTransmuteRing(UiLayout layout, float cx, float cy, float progress)
@@ -270,12 +270,12 @@ namespace Autonocraft.UI
             string water = env.HasAdjacentWater ? "WATER OK" : "NO WATER";
             string heat = env.HasAdjacentHeat || env.HasFuelInInputs ? "HEAT OK" : "NO HEAT";
 
-            Color waterColor = env.HasAdjacentWater ? new Color(0.3f, 0.85f, 1f) : new Color(0.9f, 0.35f, 0.35f);
-            Color heatColor = env.HasAdjacentHeat || env.HasFuelInInputs ? new Color(1f, 0.65f, 0.25f) : new Color(0.9f, 0.35f, 0.35f);
+            Color waterColor = env.HasAdjacentWater ? new Color(0.3f, 0.85f, 1f) : UiTheme.Danger;
+            Color heatColor = env.HasAdjacentHeat || env.HasFuelInInputs ? new Color(1f, 0.65f, 0.25f) : UiTheme.Danger;
 
-            _ui.DrawString($"{biome} | {phase}", x + pad, y, layout.S(1.2f), new Color(0.7f, 0.8f, 0.9f));
-            _ui.DrawString(water, x + pad, y + layout.S(18f), layout.S(1.1f), waterColor);
-            _ui.DrawString(heat, x + pad + layout.S(120f), y + layout.S(18f), layout.S(1.1f), heatColor);
+            _ui.DrawString($"{biome} | {phase}", x + pad, y, layout.S(UiTheme.ScaleSection), UiTheme.Subtitle);
+            _ui.DrawString(water, x + pad, y + layout.S(18f), layout.S(UiTheme.ScaleSmall), waterColor);
+            _ui.DrawString(heat, x + pad + layout.S(120f), y + layout.S(18f), layout.S(UiTheme.ScaleSmall), heatColor);
         }
 
         private static void GetOrbPositions(UiLayout layout, float cx, float cy, out float[] orbX, out float[] orbY)

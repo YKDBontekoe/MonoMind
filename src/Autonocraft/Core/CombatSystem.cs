@@ -186,7 +186,7 @@ namespace Autonocraft.Core
 
         public void HandleLandingEffects(Player player, ParticleSystem particles, InteractionAnimator animator)
         {
-            if (player.FlyingMode || !player.JustLanded)
+            if (player.CreativeMode || !player.JustLanded)
             {
                 return;
             }
@@ -218,7 +218,7 @@ namespace Autonocraft.Core
 
         private void HandleFallDamage(Player player, VoxelWorld world, InteractionAnimator animator)
         {
-            if (player.FlyingMode || !player.JustLanded)
+            if (player.CreativeMode || !player.JustLanded)
             {
                 return;
             }
@@ -247,7 +247,7 @@ namespace Autonocraft.Core
 
         private static void HandleDrowning(float deltaTime, Player player, InteractionAnimator animator)
         {
-            if (player.FlyingMode || !player.HeadUnderwater || player.Oxygen > 0f)
+            if (player.CreativeMode || !player.HeadUnderwater || player.Oxygen > 0f)
             {
                 return;
             }

@@ -24,6 +24,9 @@ namespace Autonocraft.Ai
         public string? PendingConfirmation { get; private set; }
         public string? PendingToolName { get; private set; }
         public string? PendingToolArgs { get; private set; }
+        public IReadOnlyList<string> LastExecutedActions => _lastExecutedActions;
+
+        private readonly List<string> _lastExecutedActions = new();
 
         public VillageAiOrchestrator(IOpenRouterClient? client = null, GameSettings? settings = null)
         {
@@ -47,7 +50,7 @@ namespace Autonocraft.Ai
                 return string.Empty;
             }
 
-            VillageEntity? village = session.Villages.GetPrimaryVillage();
+            VillageEntity? village = session.Villages.GetActiveVillage(session.Player.Position);
             if (village == null)
             {
                 return "No village has been founded yet.";
@@ -89,7 +92,11 @@ namespace Autonocraft.Ai
                         session.Villages,
                         session.Villagers,
                         village,
+                        session.Grid,
                         GetPlayerContainer(session.Player));
+
+                    _lastExecutedActions.Clear();
+                    _lastExecutedActions.Add($"{toolName}: {toolMessage}");
 
                     reply = success
                         ? AppendToolResult(reply, toolMessage)
@@ -113,6 +120,21 @@ namespace Autonocraft.Ai
             PendingConfirmation = null;
             PendingToolName = null;
             PendingToolArgs = null;
+        }
+
+        public async Task<string> ConfirmPendingAsync(GameSession session, bool confirmed, string target = "mayor")
+        {
+            var village = session.Villages.GetActiveVillage(session.Player.Position);
+            if (village == null)
+            {
+                return "No village has been founded yet.";
+            }
+
+            return await HandleConfirmationAsync(
+                confirmed ? "yes" : "no",
+                target,
+                session,
+                village).ConfigureAwait(false);
         }
 
         private async Task<string> HandleConfirmationAsync(
@@ -150,7 +172,11 @@ namespace Autonocraft.Ai
                 session.Villages,
                 session.Villagers,
                 village,
+                session.Grid,
                 GetPlayerContainer(session.Player));
+
+            _lastExecutedActions.Clear();
+            _lastExecutedActions.Add($"{toolName}: {toolMessage}");
 
             string reply = success ? toolMessage : $"Failed: {toolMessage}";
             _conversation.AddMessage(target, "assistant", reply);
@@ -167,8 +193,10 @@ namespace Autonocraft.Ai
             return $"{persona}\n" +
                 "Village context JSON:\n" +
                 $"{context}\n\n" +
-                "When you need to act, respond with JSON like {{\"tool\":\"assign_job\",\"args\":{{\"villager_id\":1,\"job\":\"Gather\"}},\"reply\":\"short player-facing text\"}}.\n" +
+                "When you need to act, respond with JSON like {{\"tool\":\"assign_job\",\"args\":{{\"villager_id\":1,\"job\":\"Lumber\"}},\"reply\":\"short player-facing text\"}}.\n" +
+                "Jobs: Idle, Lumber, Mine, Farm, Build, Haul (Gather is an alias for Lumber).\n" +
                 "Available tools: get_village_summary, list_villagers, assign_job, recruit_villager, queue_build, mark_resource, cancel_job, set_village_goal.\n" +
+                "set_village_goal supports kind=stock (block_type, target_count) or kind=build (blueprint_id), or a natural-language description like \"Stock 64 Cobblestone\" or \"Build peasant house\".\n" +
                 "For normal conversation, reply with plain text only.";
         }
 

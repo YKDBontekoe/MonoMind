@@ -20,7 +20,7 @@ Compare PNGs for lighting, chunk mesh, or HUD differences.
 python3 tests/interact.py wait
 python3 tests/interact.py action dev cmd_line="give tool pickaxe stone"
 python3 tests/interact.py action select_slot slot=0
-python3 tests/interact.py action set_flying flying=false
+python3 tests/interact.py action set_creative creative=false
 python3 tests/interact.py action teleport x=16 y=65 z=16
 
 # Aim down at ground (adjust pitch/yaw from state)

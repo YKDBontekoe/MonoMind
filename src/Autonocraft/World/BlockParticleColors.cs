@@ -31,6 +31,8 @@ namespace Autonocraft.World
                 BlockType.Reed => new Vector3(0.38f, 0.72f, 0.42f),
                 BlockType.Sunflower => new Vector3(0.92f, 0.78f, 0.28f),
                 BlockType.HayBale => new Vector3(0.82f, 0.68f, 0.28f),
+                BlockType.Wheat or BlockType.WheatSprout => new Vector3(0.78f, 0.72f, 0.28f),
+                BlockType.Carrot or BlockType.CarrotSprout => new Vector3(0.88f, 0.52f, 0.22f),
                 BlockType.Ice => new Vector3(0.72f, 0.88f, 0.96f),
                 BlockType.CoalOre => new Vector3(0.28f, 0.28f, 0.30f),
                 BlockType.IronOre => new Vector3(0.62f, 0.52f, 0.46f),
@@ -45,6 +47,14 @@ namespace Autonocraft.World
                 BlockType.Cactus => new Vector3(0.38f, 0.62f, 0.28f),
                 BlockType.TallGrass => new Vector3(0.48f, 0.72f, 0.32f),
                 BlockType.Flower => new Vector3(0.92f, 0.42f, 0.58f),
+                BlockType.Fern => new Vector3(0.38f, 0.68f, 0.28f),
+                BlockType.MushroomRed => new Vector3(0.88f, 0.28f, 0.28f),
+                BlockType.MushroomBrown => new Vector3(0.58f, 0.42f, 0.32f),
+                BlockType.DeadBush => new Vector3(0.68f, 0.58f, 0.42f),
+                BlockType.LilyPad => new Vector3(0.32f, 0.68f, 0.28f),
+                BlockType.Vine => new Vector3(0.36f, 0.66f, 0.26f),
+                BlockType.BerryBush => new Vector3(0.38f, 0.68f, 0.28f),
+                BlockType.Seagrass => new Vector3(0.28f, 0.62f, 0.52f),
                 _ => new Vector3(0.75f, 0.72f, 0.68f)
             };
         }

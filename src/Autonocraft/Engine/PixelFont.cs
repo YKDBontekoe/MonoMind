@@ -79,10 +79,17 @@ namespace Autonocraft.Engine
                     {
                         if (((rowVal >> (4 - col)) & 1) == 1)
                         {
-                            int px = (int)(curX + col * pixelSize);
-                            int py = (int)(startY + r * pixelSize);
-                            int sz = (int)Math.Max(1f, pixelSize);
-                            sb.Draw(whiteTexture, new Rectangle(px, py, sz, sz), drawCol);
+                            float xMin = curX + col * pixelSize;
+                            float xMax = curX + (col + 1) * pixelSize;
+                            float yMin = startY + r * pixelSize;
+                            float yMax = startY + (r + 1) * pixelSize;
+
+                            int px = (int)MathF.Round(xMin);
+                            int py = (int)MathF.Round(yMin);
+                            int w = Math.Max(1, (int)MathF.Round(xMax) - px);
+                            int h = Math.Max(1, (int)MathF.Round(yMax) - py);
+
+                            sb.Draw(whiteTexture, new Rectangle(px, py, w, h), drawCol);
                         }
                     }
                 }

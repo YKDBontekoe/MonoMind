@@ -144,7 +144,7 @@ namespace Autonocraft.World
         {
             return new WorldSaveData
             {
-                Version = 6,
+                Version = 7,
                 SlotId = snapshot.SlotId,
                 SlotName = snapshot.SlotName,
                 Seed = snapshot.Seed,
@@ -352,7 +352,7 @@ namespace Autonocraft.World
                 Pitch = player.Pitch,
                 Health = player.Health,
                 MaxHealth = player.MaxHealth,
-                FlyingMode = player.FlyingMode,
+                CreativeMode = player.CreativeMode,
                 SelectedSlot = player.SelectedSlot,
                 Hotbar = SerializeHotbar(player),
                 MiningLevel = player.Skills.Mining.Level,
@@ -373,7 +373,7 @@ namespace Autonocraft.World
             player.Pitch = data.Pitch;
             player.MaxHealth = Math.Max(1, data.MaxHealth);
             player.Health = Math.Clamp(data.Health, 0, player.MaxHealth);
-            player.FlyingMode = data.FlyingMode;
+            player.CreativeMode = data.CreativeMode || data.FlyingModeLegacy == true;
             player.SelectedSlot = Math.Clamp(data.SelectedSlot, 0, 8);
 
             for (int i = 0; i < player.Hotbar.Length; i++)
@@ -447,7 +447,8 @@ namespace Autonocraft.World
                 ToolsBroken = stats.ToolsBroken,
                 FallDamageEvents = stats.FallDamageEvents,
                 TimesDrowned = stats.TimesDrowned,
-                ItemsCrafted = stats.ItemsCrafted
+                ItemsCrafted = stats.ItemsCrafted,
+                VillageTutorialStage = stats.VillageTutorialStage
             };
         }
 
@@ -477,6 +478,7 @@ namespace Autonocraft.World
             stats.FallDamageEvents = data.FallDamageEvents;
             stats.TimesDrowned = data.TimesDrowned;
             stats.ItemsCrafted = data.ItemsCrafted;
+            stats.VillageTutorialStage = data.VillageTutorialStage;
         }
 
         private static List<InventorySlotSaveData> SerializeHotbar(Player player)
@@ -600,6 +602,20 @@ namespace Autonocraft.World
                 }
 
                 data.Version = 6;
+            }
+
+            if (data.Version < 7)
+            {
+                foreach (var village in data.Villages)
+                {
+                    village.OutputChests ??= new List<OutputChestSaveData>();
+                    if (village.Radius <= 0f)
+                    {
+                        village.Radius = 32f;
+                    }
+                }
+
+                data.Version = 7;
             }
         }
 

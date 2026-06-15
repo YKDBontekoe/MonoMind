@@ -104,13 +104,13 @@ namespace Autonocraft.UI
             float respawnY = layout.CenterY + layout.S(12f) + offsetY;
             float mainMenuY = respawnY + buttonH + buttonSpacing;
 
-            _ui.DrawCenteredText("YOU DIED", titleY, layout.S(2.4f), new Color(0.95f, 0.35f, 0.35f), alpha);
-            _ui.DrawCenteredText("YOUR ADVENTURE ISN'T OVER", subtitleY, layout.S(1.1f), new Color(0.65f, 0.5f, 0.52f), alpha);
+            _ui.DrawCenteredText("YOU DIED", titleY, layout.S(2.4f), UiTheme.Danger, alpha);
+            _ui.DrawCenteredText("YOUR ADVENTURE ISN'T OVER", subtitleY, layout.S(UiTheme.ScaleSection), new Color(0.85f, 0.72f, 0.74f), alpha);
 
             DrawButton(cx, respawnY, buttonW, buttonH, "RESPAWN", 0, layout.S(1.5f), alpha);
             DrawButton(cx, mainMenuY, buttonW, buttonH, "MAIN MENU", 1, layout.S(1.4f), alpha);
 
-            _ui.DrawCenteredText("CLICK OR PRESS ENTER TO RESPAWN", layout.Height - layout.S(28f) + offsetY, layout.S(0.95f), new Color(0.5f, 0.42f, 0.44f), 0.85f * alpha);
+            _ui.DrawCenteredText("CLICK OR PRESS ENTER TO RESPAWN", layout.Height - layout.S(28f) + offsetY, layout.S(UiTheme.ScaleSmall), new Color(0.72f, 0.65f, 0.67f), 0.85f * alpha);
         }
 
         private void DrawButton(float centerX, float y, float width, float height, string label, int buttonIndex, float textPixelSize, float alpha = 1f)

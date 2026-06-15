@@ -153,7 +153,7 @@ Each level has its own vertex/index buffers on the GPU.
 
 `Core/Player.cs`:
 
-- **Flying mode** (default off at spawn): no gravity, free vertical movement with Space/Shift.
+- **Creative mode** (default off at spawn): no gravity, free vertical movement with Space/Shift, unlimited resources.
 - **Physics mode**: gravity, ground collision, jumping, fall damage, swimming, drowning.
 - **Inventory**: 9-slot hotbar with `ItemStack` (blocks, tools with durability, fluid containers).
 - **Skills**: mining, woodcutting, combat — XP and levels affect mining speed.
@@ -222,7 +222,7 @@ Crucible transmutation recipes with environment requirements (time of day, nearb
 `World/WorldSaveManager.cs` stores per-slot data as `world.json` (version 6):
 
 - World seed and spawn coordinates
-- Player position, velocity, health, flying mode, hotbar (`ItemStack` with tool durability)
+- Player position, velocity, health, creative mode, hotbar (`ItemStack` with tool durability)
 - Player skills (mining/woodcutting/combat levels and XP)
 - Block and fluid modifications
 - Unlocked crafting discovery IDs
@@ -279,16 +279,23 @@ Villages are the default gameplay loop — not an optional side system.
 
 | Component | Role |
 |-----------|------|
-| `VillageManager` | Found/claim settlements, recruit, assign jobs, starter init, save v6 export |
-| `Village` | Storage, food/happiness sim, farm production, tier requirements, building sites |
-| `Villager` / `VillagerManager` | Gather → haul → build AI, sleep cycle, farmer craft jobs |
-| `VillageScreen` | Three-tab UI: overview, building queue, villager job assign |
-| `ClaimableStructureMap` | Maps world structures to player blueprints |
-| `JobScheduler` | Goals drive auto-queue (`expand_storage`, `farm`) on morning tick |
+| `VillageManager` | Facade over founding, job dispatch, simulation, persistence |
+| `VillageFoundingService` | Starter settlement, found/claim structures |
+| `JobDispatcher` / `HaulCoordinator` | Job assignment, haul logistics |
+| `VillageSimulation` | Per-frame tick, sleep cycle, building finalization |
+| `VillagePersistence` | Save v7 export/load |
+| `Village/Jobs/*` | Per-job AI handlers (`IVillagerJob`, `JobRegistry`) |
+| `VillageEvents` / `VillageGuidance` | Player feedback toasts and next-best-action hints |
+| `Village` | Storage, food/happiness sim, tier progression, building sites |
+| `Villager` / `VillagerManager` | Entity state + registry; AI delegated to job handlers |
+| `VillageScreen` + `VillageViewModel` | Town board UI with plain-language villager activity |
+| `VillageAiOrchestrator` (on `GameSession`) | Shared in-game + HTTP steward chat |
 
-**Economy:** Villagers gather logs into village storage; farm plots and farmers add `FoodStock`; daily consumption affects happiness and work speed. `storage_crate` expands `VillageStorage` slot count.
+**Jobs:** Idle, Lumber, Mine, Farm, Build, Haul, Craft, Hunt, Mason, Cook (+ Sleep at night).
 
-**Persistence (v6):** `world.json` version 6 stores buildings, building sites, population/housing caps, claimed structure anchors, and stable village/villager IDs with inventories.
+**Economy:** `VillageEconomy` tracks supply/demand; farmers/hunters/cooks add `FoodStock`; daily consumption affects happiness.
+
+**Persistence (v7):** Extended villager mid-task state (haul, equipped tool, AI phase), output chest buffers, village radius, onboarding flag.
 
 ---
 

@@ -25,9 +25,10 @@ namespace Autonocraft.Engine
 
         private static readonly CloudLayerSpec[] Layers =
         {
-            new() { Elevation = 0.28f, Width = 460f, Depth = 300f, WindScale = 1.0f, WindOffset = 0f, AlphaScale = 1.0f, HeightOffset = 0f },
-            new() { Elevation = 0.38f, Width = 390f, Depth = 260f, WindScale = 0.72f, WindOffset = 140f, AlphaScale = 0.82f, HeightOffset = 18f },
-            new() { Elevation = 0.48f, Width = 330f, Depth = 220f, WindScale = 0.55f, WindOffset = -110f, AlphaScale = 0.68f, HeightOffset = 34f },
+            new() { Elevation = 0.26f, Width = 520f, Depth = 340f, WindScale = 1.0f, WindOffset = 0f, AlphaScale = 1.0f, HeightOffset = 0f },
+            new() { Elevation = 0.36f, Width = 440f, Depth = 290f, WindScale = 0.78f, WindOffset = 160f, AlphaScale = 0.88f, HeightOffset = 20f },
+            new() { Elevation = 0.46f, Width = 370f, Depth = 250f, WindScale = 0.58f, WindOffset = -130f, AlphaScale = 0.74f, HeightOffset = 38f },
+            new() { Elevation = 0.56f, Width = 300f, Depth = 210f, WindScale = 0.42f, WindOffset = 90f, AlphaScale = 0.55f, HeightOffset = 54f },
         };
 
         public CloudLayerRenderer(GraphicsDevice device)
@@ -46,13 +47,13 @@ namespace Autonocraft.Engine
             float timeOfDay,
             SceneLighting lighting)
         {
-            if (lighting.DayLight < 0.08f)
+            if (lighting.DayLight < 0.06f)
             {
                 return;
             }
 
-            float alpha = MathHelper.Lerp(0.16f, 0.4f, lighting.DayLight);
-            var warmTint = Color.Lerp(Color.White, new Color(1f, 0.78f, 0.58f), lighting.SunsetFactor * 0.65f);
+            float alpha = MathHelper.Lerp(0.22f, 0.48f, lighting.DayLight);
+            var warmTint = Color.Lerp(Color.White, new Color(1f, 0.82f, 0.62f), lighting.SunsetFactor * 0.72f);
 
             device.DepthStencilState = DepthStencilState.None;
             device.RasterizerState = RasterizerState.CullNone;

@@ -32,6 +32,7 @@ namespace Autonocraft.World
 
                     if (column.Biome.Primary == BiomeType.Ocean || column.IsRiver || column.IsLake)
                     {
+                        TryPlaceWaterFlora(chunk, world, wx, wz, lx, lz, column);
                         continue;
                     }
 
@@ -132,7 +133,21 @@ namespace Autonocraft.World
                             continue;
                         }
 
-                        SetBlockIfAir(chunk, world, leafWx, leafWz, leafLx, leafLz, y, leafType);
+                        if (SetBlockIfAir(chunk, world, leafWx, leafWz, leafLx, leafLz, y, leafType))
+                        {
+                            if ((column.Profile.Type == BiomeType.Forest || column.Profile.Type == BiomeType.Swamp) && (leafWx * 13 + leafWz * 37 + y * 7) % 15 == 0)
+                            {
+                                int vineLength = 1 + Math.Abs(leafWx * 7 + leafWz * 11) % 3;
+                                for (int vy = 1; vy <= vineLength; vy++)
+                                {
+                                    int vineY = y - vy;
+                                    if (vineY > surfaceHeight)
+                                    {
+                                        SetBlockIfAir(chunk, world, leafWx, leafWz, leafLx, leafLz, vineY, BlockType.Vine);
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -179,9 +194,91 @@ namespace Autonocraft.World
                 }
             }
 
+            // New flora additions: Fern, Mushrooms, Dead Bush, Berry Bush
+            if (column.Profile.Type == BiomeType.Forest && floraSample > 0.76f && hash % 6 == 0)
+            {
+                SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.Fern);
+            }
+            else if ((column.Profile.Type == BiomeType.Forest || column.Profile.Type == BiomeType.Swamp) && floraSample > 0.65f)
+            {
+                if (hash % 41 == 0)
+                {
+                    SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.MushroomRed);
+                }
+                else if (hash % 47 == 0)
+                {
+                    SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.MushroomBrown);
+                }
+            }
+            else if ((column.Profile.Type == BiomeType.Desert || column.Profile.Type == BiomeType.Mountains) && floraSample > 0.70f && hash % 13 == 0)
+            {
+                SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.DeadBush);
+            }
+            else if ((column.Profile.Type == BiomeType.Plains || column.Profile.Type == BiomeType.Forest) && floraSample > 0.82f && hash % 17 == 0)
+            {
+                SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.BerryBush);
+            }
+
             if (column.Biome.Primary == BiomeType.Swamp && floraSample > 0.70f && hash % 5 == 0)
             {
                 SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.Reed);
+            }
+        }
+
+        private void TryPlaceWaterFlora(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, TerrainColumn column)
+        {
+            int waterY = -1;
+            for (int y = Chunk.Height - 1; y >= 0; y--)
+            {
+                if (chunk.GetBlock(lx, y, lz) == BlockType.Water)
+                {
+                    waterY = y;
+                    break;
+                }
+            }
+
+            if (waterY == -1)
+            {
+                return;
+            }
+
+            int hash = Hash(wx, wz, 23);
+
+            // 1. Place Lily Pads (Swamp water surface only)
+            if (column.Biome.Primary == BiomeType.Swamp && hash % 7 == 0)
+            {
+                int padY = waterY + 1;
+                if (padY < Chunk.Height && chunk.GetBlock(lx, padY, lz) == BlockType.Air)
+                {
+                    SetBlockIfAir(chunk, world, wx, wz, lx, lz, padY, BlockType.LilyPad);
+                }
+            }
+
+            // 2. Place Seagrass (underwater floor)
+            int floorY = -1;
+            for (int y = waterY - 1; y >= 0; y--)
+            {
+                if (chunk.GetBlock(lx, y, lz) != BlockType.Water)
+                {
+                    floorY = y;
+                    break;
+                }
+            }
+
+            if (floorY != -1)
+            {
+                BlockType floorType = chunk.GetBlock(lx, floorY, lz);
+                if (floorType == BlockType.Sand || floorType == BlockType.Dirt || floorType == BlockType.Grass || floorType == BlockType.Mud || floorType == BlockType.Clay)
+                {
+                    int grassY = floorY + 1;
+                    if (grassY < Chunk.Height && chunk.GetBlock(lx, grassY, lz) == BlockType.Water)
+                    {
+                        if (hash % 6 == 0)
+                        {
+                            SetBlock(chunk, world, wx, wz, lx, lz, grassY, BlockType.Seagrass);
+                        }
+                    }
+                }
             }
         }
 
@@ -289,11 +386,11 @@ namespace Autonocraft.World
             }
         }
 
-        private static void SetBlockIfAir(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, int y, BlockType type)
+        private static bool SetBlockIfAir(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, int y, BlockType type)
         {
             if (y <= 0 || y >= Chunk.Height)
             {
-                return;
+                return false;
             }
 
             if (world != null)
@@ -301,8 +398,9 @@ namespace Autonocraft.World
                 if (world.GetBlock(wx, y, wz) == BlockType.Air)
                 {
                     world.SetBlockDuringGeneration(wx, y, wz, type);
+                    return true;
                 }
-                return;
+                return false;
             }
 
             if (lx >= 0 && lx < Chunk.Width && lz >= 0 && lz < Chunk.Depth)
@@ -310,8 +408,10 @@ namespace Autonocraft.World
                 if (chunk.GetBlock(lx, y, lz) == BlockType.Air)
                 {
                     chunk.SetBlock(lx, y, lz, type);
+                    return true;
                 }
             }
+            return false;
         }
 
         private int Hash(int wx, int wz, int salt)

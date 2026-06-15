@@ -50,11 +50,41 @@ namespace Autonocraft.Entities
 
             float epsilon = 0.001f;
 
-            for (int y = startY; y <= endY; y++)
+            int yStart = startY;
+            int yEnd = endY;
+            int yStep = 1;
+            if (axis == 1 && state.Velocity.Y < 0)
             {
-                for (int z = startZ; z <= endZ; z++)
+                yStart = endY;
+                yEnd = startY;
+                yStep = -1;
+            }
+
+            int zStart = startZ;
+            int zEnd = endZ;
+            int zStep = 1;
+            if (axis == 2 && state.Velocity.Z < 0)
+            {
+                zStart = endZ;
+                zEnd = startZ;
+                zStep = -1;
+            }
+
+            int xStart = startX;
+            int xEnd = endX;
+            int xStep = 1;
+            if (axis == 0 && state.Velocity.X < 0)
+            {
+                xStart = endX;
+                xEnd = startX;
+                xStep = -1;
+            }
+
+            for (int y = yStart; yStep > 0 ? y <= yEnd : y >= yEnd; y += yStep)
+            {
+                for (int z = zStart; zStep > 0 ? z <= zEnd : z >= zEnd; z += zStep)
                 {
-                    for (int x = startX; x <= endX; x++)
+                    for (int x = xStart; xStep > 0 ? x <= xEnd : x >= xEnd; x += xStep)
                     {
                         if (!world.GetBlock(x, y, z).IsCollidable())
                         {
@@ -111,6 +141,15 @@ namespace Autonocraft.Entities
                         endY = (int)MathF.Floor(maxY);
                         startZ = (int)MathF.Floor(minZ);
                         endZ = (int)MathF.Floor(maxZ);
+
+                        yStart = startY; yEnd = endY;
+                        if (axis == 1 && state.Velocity.Y < 0) { yStart = endY; yEnd = startY; }
+
+                        zStart = startZ; zEnd = endZ;
+                        if (axis == 2 && state.Velocity.Z < 0) { zStart = endZ; zEnd = startZ; }
+
+                        xStart = startX; xEnd = endX;
+                        if (axis == 0 && state.Velocity.X < 0) { xStart = endX; xEnd = startX; }
                     }
                 }
             }

@@ -7,7 +7,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-DEFAULT_HOST = "localhost"
+DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 5001
 
 
@@ -21,7 +21,9 @@ def query_api(base_url: str, endpoint: str, method="GET", params=None, timeout=5
         query_string = urllib.parse.urlencode(params)
         url = f"{url}?{query_string}"
 
-    req = urllib.request.Request(url, method=method)
+    req = urllib.request.Request(url, method=method, data=b"" if method == "POST" else None)
+    if method == "POST":
+        req.add_header("Content-Length", "0")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as response:
             if response.headers.get_content_type() == "image/png":

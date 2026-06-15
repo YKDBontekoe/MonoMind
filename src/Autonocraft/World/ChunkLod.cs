@@ -6,8 +6,9 @@ namespace Autonocraft.World
     {
         public static (int lod0Max, int lod1Max) GetBandThresholds(int renderDistance)
         {
-            int lod0Max = Math.Max(1, renderDistance / 3);
-            int lod1Max = Math.Max(lod0Max + 1, (renderDistance * 2) / 3);
+            int lod0Max = Math.Max(2, renderDistance / 4);
+            int shellBand = Math.Max(6, renderDistance / 5);
+            int lod1Max = Math.Max(lod0Max + 2, renderDistance - shellBand);
             return (lod0Max, lod1Max);
         }
 
@@ -34,20 +35,28 @@ namespace Autonocraft.World
         /// </summary>
         public static ChunkMeshDetail SelectBuildDetail(Chunk chunk, int chunkDistance, int renderDistance, bool restrictLod = false)
         {
-            var target = SelectRenderTarget(chunkDistance, renderDistance, restrictLod);
+            var target = SelectRenderTarget(chunk, chunkDistance, renderDistance, restrictLod);
             return SelectBuildDetailToward(chunk, target);
         }
 
-        public static ChunkMeshDetail SelectRenderTarget(int chunkDistance, int renderDistance, bool restrictLod)
+        public static ChunkMeshDetail SelectRenderTarget(Chunk chunk, int chunkDistance, int renderDistance, bool restrictLod)
         {
             var detail = SelectDetail(chunkDistance, renderDistance);
-            if (!restrictLod || chunkDistance <= 1)
+            if (restrictLod && chunkDistance > 1 && detail == ChunkMeshDetail.Full)
             {
-                return detail;
+                detail = ChunkMeshDetail.Surface;
             }
 
-            // Fast travel: keep Full only in the immediate ring; mid/far bands unchanged.
-            return detail == ChunkMeshDetail.Full ? ChunkMeshDetail.Surface : detail;
+            if (detail == ChunkMeshDetail.Shell && chunk.HasAlphaCutoutBlocks)
+            {
+                int leafSurfaceMax = Math.Max(10, (renderDistance * 2) / 3);
+                if (chunkDistance <= leafSurfaceMax)
+                {
+                    detail = ChunkMeshDetail.Surface;
+                }
+            }
+
+            return detail;
         }
 
         private static ChunkMeshDetail SelectBuildDetailToward(Chunk chunk, ChunkMeshDetail target)
@@ -93,11 +102,17 @@ namespace Autonocraft.World
                 return true;
             }
 
-            var target = SelectRenderTarget(chunkDistance, renderDistance, restrictLod);
+            var target = SelectRenderTarget(chunk, chunkDistance, renderDistance, restrictLod);
             return !chunk.HasMesh(target);
         }
 
         public static bool ShouldBuildFlora(int chunkDistance, int renderDistance)
+        {
+            int floraMax = Math.Max(6, (renderDistance * 1) / 2);
+            return chunkDistance <= floraMax;
+        }
+
+        public static bool ShouldAnimateFloraEveryFrame(int chunkDistance, int renderDistance)
         {
             var (lod0Max, _) = GetBandThresholds(renderDistance);
             return chunkDistance <= lod0Max;
@@ -133,6 +148,11 @@ namespace Autonocraft.World
                 actual = ChunkMeshDetail.Shell;
                 return true;
             }
+            else if (desired == ChunkMeshDetail.Shell && chunk.HasMesh(ChunkMeshDetail.Surface))
+            {
+                actual = ChunkMeshDetail.Surface;
+                return true;
+            }
 
             actual = default;
             return false;
@@ -147,13 +167,13 @@ namespace Autonocraft.World
 
         public static float GetFogEnd(int renderDistance, float twilightFactor = 0f)
         {
-            float end = MathF.Max(32f, (renderDistance - 1f) * Chunk.Width * 0.88f);
+            float end = MathF.Max(48f, (renderDistance - 0.5f) * Chunk.Width * 0.94f);
             return end * (1f - twilightFactor * 0.14f);
         }
 
         public static float GetFogStart(int renderDistance, float twilightFactor = 0f)
         {
-            return GetFogEnd(renderDistance, twilightFactor) * 0.35f;
+            return GetFogEnd(renderDistance, twilightFactor) * 0.22f;
         }
 
         public static (float start, float end) GetFogRange(int renderDistance, ChunkMeshDetail detail, float twilightFactor = 0f)
@@ -163,8 +183,8 @@ namespace Autonocraft.World
 
             return detail switch
             {
-                ChunkMeshDetail.Surface => (start * 0.8f, end * 0.94f),
-                ChunkMeshDetail.Shell => (start * 0.5f, end * 0.76f),
+                ChunkMeshDetail.Surface => (start * 0.85f, end * 0.97f),
+                ChunkMeshDetail.Shell => (start * 0.65f, end * 0.90f),
                 _ => (start, end)
             };
         }

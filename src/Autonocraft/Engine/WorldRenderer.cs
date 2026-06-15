@@ -4,6 +4,7 @@ using System.Numerics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Autonocraft.Core;
+using Autonocraft.Domain.Village;
 using Autonocraft.Entities;
 using Autonocraft.World;
 using Vector3 = System.Numerics.Vector3;
@@ -15,11 +16,13 @@ namespace Autonocraft.Engine
     {
         public Chunk Chunk { get; }
         public ChunkMeshDetail RenderDetail { get; }
+        public int ChunkDistance { get; }
 
-        public VisibleChunkDrawInfo(Chunk chunk, ChunkMeshDetail renderDetail)
+        public VisibleChunkDrawInfo(Chunk chunk, ChunkMeshDetail renderDetail, int chunkDistance)
         {
             Chunk = chunk;
             RenderDetail = renderDetail;
+            ChunkDistance = chunkDistance;
         }
     }
 
@@ -38,6 +41,16 @@ namespace Autonocraft.Engine
         private readonly SpriteBatch _spriteBatch;
         private readonly Microsoft.Xna.Framework.Vector4[] _frustumPlanes = new Microsoft.Xna.Framework.Vector4[6];
         private readonly List<VisibleChunkDrawInfo> _visibleChunksScratch = new();
+
+        private readonly System.Diagnostics.Stopwatch _drawStopwatch = System.Diagnostics.Stopwatch.StartNew();
+        private Vector3 _currentSkyHorizon;
+        private Vector3 _currentSkyZenith;
+        private Vector3 _currentAmbientColor;
+        private Vector3 _currentSunColor;
+        private Vector3 _currentMoonColor;
+        private float _currentFogMultiplier = 1.0f;
+        private bool _isLightingInitialized = false;
+        private Vertex[] _waterScratch = Array.Empty<Vertex>();
 
         private static readonly Vertex[] TexturedBoxVertices = new Vertex[24];
         private static readonly short[] TexturedBoxIndices = BuildBoxIndices();
@@ -83,6 +96,11 @@ namespace Autonocraft.Engine
 
         public void Draw(GameRenderContext ctx)
         {
+            if (ctx.Grid == null)
+            {
+                return;
+            }
+
             float sw = _device.Viewport.Width;
             float sh = _device.Viewport.Height;
             float aspect = sw / sh;
@@ -91,7 +109,60 @@ namespace Autonocraft.Engine
             int renderDistance = ctx.RenderDistance;
             var proj = ctx.Camera.GetProjectionMatrix(aspect, ChunkLod.GetProjectionFarPlane(renderDistance));
 
-            var lighting = SceneLighting.FromTimeOfDay(ctx.TimeOfDay);
+            // Get player's active biome smoothly
+            int px = (int)MathF.Round(ctx.Camera.Position.X);
+            int pz = (int)MathF.Round(ctx.Camera.Position.Z);
+            BiomeType playerBiome = ctx.Grid.SampleBiome(px, pz).Primary;
+
+            var targetLighting = SceneLighting.FromTimeOfDay(
+                ctx.TimeOfDay,
+                playerBiome,
+                ctx.Weather.RainIntensity,
+                ctx.Weather.CloudIntensity,
+                ctx.Weather.LightningIntensity);
+
+            float dt = (float)_drawStopwatch.Elapsed.TotalSeconds;
+            _drawStopwatch.Restart();
+            dt = Math.Clamp(dt, 0f, 0.1f);
+
+            if (!_isLightingInitialized)
+            {
+                _currentSkyHorizon = targetLighting.SkyHorizon;
+                _currentSkyZenith = targetLighting.SkyZenith;
+                _currentAmbientColor = targetLighting.AmbientColor;
+                _currentSunColor = targetLighting.SunColor;
+                _currentMoonColor = targetLighting.MoonColor;
+                _currentFogMultiplier = targetLighting.FogMultiplier;
+                _isLightingInitialized = true;
+            }
+            else
+            {
+                // Smoothly interpolate towards target biome/time parameters.
+                float lerpFactor = 1.5f * dt;
+                _currentSkyHorizon = Vector3.Lerp(_currentSkyHorizon, targetLighting.SkyHorizon, lerpFactor);
+                _currentSkyZenith = Vector3.Lerp(_currentSkyZenith, targetLighting.SkyZenith, lerpFactor);
+                _currentAmbientColor = Vector3.Lerp(_currentAmbientColor, targetLighting.AmbientColor, lerpFactor);
+                _currentSunColor = Vector3.Lerp(_currentSunColor, targetLighting.SunColor, lerpFactor);
+                _currentMoonColor = Vector3.Lerp(_currentMoonColor, targetLighting.MoonColor, lerpFactor);
+                _currentFogMultiplier = MathHelper.Lerp(_currentFogMultiplier, targetLighting.FogMultiplier, lerpFactor);
+            }
+
+            // Create custom interpolated SceneLighting instance for rendering
+            var lighting = new SceneLighting
+            {
+                SunDirection = targetLighting.SunDirection,
+                MoonDirection = targetLighting.MoonDirection,
+                DayLight = targetLighting.DayLight,
+                SunsetFactor = targetLighting.SunsetFactor,
+                TwilightFactor = targetLighting.TwilightFactor,
+                SkyHorizon = _currentSkyHorizon,
+                SkyZenith = _currentSkyZenith,
+                AmbientColor = _currentAmbientColor,
+                SunColor = _currentSunColor,
+                MoonColor = _currentMoonColor,
+                FogMultiplier = _currentFogMultiplier
+            };
+
             var sunDir = lighting.SunDirection;
             var moonDir = lighting.MoonDirection;
 
@@ -165,10 +236,12 @@ namespace Autonocraft.Engine
                 monoMoonLight,
                 lighting.MoonEnabled,
                 renderDistance,
-                twilightFactor);
+                twilightFactor,
+                lighting.FogMultiplier,
+                ctx.WaterAnimTime);
 
-            var floraFogStart = ChunkLod.GetFogStart(renderDistance);
-            var floraFogEnd = ChunkLod.GetFogEnd(renderDistance, twilightFactor);
+            var floraFogStart = ChunkLod.GetFogStart(renderDistance) * lighting.FogMultiplier;
+            var floraFogEnd = ChunkLod.GetFogEnd(renderDistance, twilightFactor) * lighting.FogMultiplier;
             _floraRenderer.Draw(
                 _visibleChunksScratch,
                 monoView,
@@ -176,6 +249,7 @@ namespace Autonocraft.Engine
                 lighting,
                 floraFogStart,
                 floraFogEnd,
+                renderDistance,
                 ctx.WaterAnimTime,
                 _atlasTexture);
 
@@ -188,7 +262,10 @@ namespace Autonocraft.Engine
                 monoView,
                 monoProj,
                 ctx.Camera,
-                ctx.BlockInteraction.AnimTime);
+                ctx.BlockInteraction.AnimTime,
+                ctx.BlueprintPlacement,
+                ctx.PendingConstructionSites,
+                ctx.WorkZonePlacement);
 
             if (underwaterFactor > 0f)
             {
@@ -246,8 +323,8 @@ namespace Autonocraft.Engine
             _worldEffect.DirectionalLight1.DiffuseColor = lighting.ToMono(lighting.MoonColor);
             _worldEffect.FogEnabled = true;
             _worldEffect.FogColor = lighting.ToMono(lighting.SkyHorizon);
-            _worldEffect.FogStart = ChunkLod.GetFogStart(renderDistance);
-            _worldEffect.FogEnd = ChunkLod.GetFogEnd(renderDistance, lighting.TwilightFactor);
+            _worldEffect.FogStart = ChunkLod.GetFogStart(renderDistance) * lighting.FogMultiplier;
+            _worldEffect.FogEnd = ChunkLod.GetFogEnd(renderDistance, lighting.TwilightFactor) * lighting.FogMultiplier;
 
             foreach (var animal in animals)
             {
@@ -333,10 +410,26 @@ namespace Autonocraft.Engine
             _worldEffect.DirectionalLight0.DiffuseColor = lighting.ToMono(lighting.SunColor);
             _worldEffect.FogEnabled = true;
             _worldEffect.FogColor = lighting.ToMono(lighting.SkyHorizon);
-            _worldEffect.FogStart = ChunkLod.GetFogStart(renderDistance);
-            _worldEffect.FogEnd = ChunkLod.GetFogEnd(renderDistance, lighting.TwilightFactor);
+            _worldEffect.FogStart = ChunkLod.GetFogStart(renderDistance) * lighting.FogMultiplier;
+            _worldEffect.FogEnd = ChunkLod.GetFogEnd(renderDistance, lighting.TwilightFactor) * lighting.FogMultiplier;
 
-            var bodyUV = BlockAtlas.GetTileUVs(2, 3);
+            int bodyCol = 6;
+            int bodyRow = 6;
+            int headCol = 7;
+            int headRow = 6;
+            if (BlockAtlas.LayoutData.Villagers.TryGetValue("Default", out var villagerTiles))
+            {
+                var body = BlockAtlas.LayoutData.GetTile(villagerTiles.Body);
+                var head = BlockAtlas.LayoutData.GetTile(villagerTiles.Head);
+                bodyCol = body.Col;
+                bodyRow = body.Row;
+                headCol = head.Col;
+                headRow = head.Row;
+            }
+
+            var bodyUV = BlockAtlas.GetTileUVs(bodyCol, bodyRow);
+            var headUV = BlockAtlas.GetTileUVs(headCol, headRow);
+
             foreach (var villager in villagers)
             {
                 float yawRad = MathHelper.ToRadians(-villager.Yaw);
@@ -344,14 +437,37 @@ namespace Autonocraft.Engine
                 var translation = Matrix.CreateTranslation(villager.Position.X, villager.Position.Y, villager.Position.Z);
                 var villagerWorld = rotation * translation;
 
-                DrawTexturedBox(villagerWorld, Villager.Width * 0.45f, Villager.Height * 0.45f, Villager.Width * 0.45f, 0f, Villager.Height * 0.45f, 0f, bodyUV, bodyUV);
+                float bodyHeight = Villager.Height * 0.55f;
+                float bodyCenterY = Villager.Height * 0.35f;
+                DrawTexturedBox(villagerWorld, Villager.Width * 0.45f, bodyHeight * 0.5f, Villager.Width * 0.45f, 0f, bodyCenterY, 0f, bodyUV, bodyUV);
 
-                if (villager.CurrentJob != Domain.Village.JobType.Idle && villager.CurrentJob != Domain.Village.JobType.Sleep)
+                float headSize = Villager.Width * 0.22f;
+                float headCenterY = Villager.Height * 0.72f;
+                float headForward = Villager.Width * 0.35f;
+                DrawTexturedBox(villagerWorld, headSize, headSize, headSize, 0f, headCenterY, headForward, bodyUV, headUV);
+
+                var roleColor = VillagerVisuals.GetRoleColor(villager.Role);
+                _worldEffect.TextureEnabled = false;
+                float vestHeight = bodyHeight * 0.35f;
+                DrawColoredBox(villagerWorld, Villager.Width * 0.38f, vestHeight * 0.5f, Villager.Width * 0.12f, 0f, bodyCenterY, Villager.Width * 0.38f, roleColor * 0.85f);
+
+                if (villager.Role == VillagerRole.Lumberjack)
                 {
-                    _worldEffect.TextureEnabled = false;
-                    DrawColoredBox(villagerWorld, 0.12f, 0.12f, 0.12f, 0f, Villager.Height + 0.2f, 0f, new Color(0.9f, 0.85f, 0.3f, 0.9f));
-                    _worldEffect.TextureEnabled = true;
+                    DrawColoredBox(villagerWorld, 0.06f, 0.06f, 0.14f, Villager.Width * 0.35f, bodyCenterY + 0.05f, Villager.Width * 0.42f, new Color(0.55f, 0.35f, 0.18f, 0.95f));
                 }
+                else if (villager.Role == VillagerRole.Builder)
+                {
+                    DrawColoredBox(villagerWorld, Villager.Width * 0.42f, 0.04f, Villager.Width * 0.42f, 0f, headCenterY + headSize * 0.6f, 0f, new Color(0.95f, 0.55f, 0.15f, 0.95f));
+                }
+
+                if (VillagerVisuals.ShouldDrawJobIndicator(villager.CurrentJob))
+                {
+                    var jobColor = VillagerVisuals.GetJobIndicatorColor(villager.CurrentJob);
+                    float indicatorSize = villager.CurrentJob == JobType.Sleep ? 0.1f : 0.12f;
+                    DrawColoredBox(villagerWorld, indicatorSize, indicatorSize, indicatorSize, 0f, Villager.Height + 0.18f, 0f, jobColor);
+                }
+
+                _worldEffect.TextureEnabled = true;
             }
 
             _worldEffect.TextureEnabled = prevTextureEnabled;
@@ -502,13 +618,13 @@ namespace Autonocraft.Engine
                 }
 
                 int chunkDistance = ChunkLod.GetChunkDistance(chunk.ChunkX, chunk.ChunkZ, agentChunkX, agentChunkZ);
-                var desiredDetail = ChunkLod.SelectDetail(chunkDistance, renderDistance);
+                var desiredDetail = ChunkLod.SelectRenderTarget(chunk, chunkDistance, renderDistance, restrictLod: false);
                 if (!ChunkLod.TryGetRenderableDetail(chunk, desiredDetail, out var renderDetail))
                 {
                     continue;
                 }
 
-                _visibleChunksScratch.Add(new VisibleChunkDrawInfo(chunk, renderDetail));
+                _visibleChunksScratch.Add(new VisibleChunkDrawInfo(chunk, renderDetail, chunkDistance));
             }
         }
 
@@ -590,7 +706,9 @@ namespace Autonocraft.Engine
             Microsoft.Xna.Framework.Vector3 monoMoonLight,
             bool moonEnabled,
             int renderDistance,
-            float twilightFactor)
+            float twilightFactor,
+            float fogMultiplier,
+            float waterAnimTime)
         {
             _blockTerrainEffect.ApplyTerrainPassBase(
                 monoWorld,
@@ -607,8 +725,10 @@ namespace Autonocraft.Engine
                 _atlasTexture);
 
             DrawTerrainPass(
+                waterAnimTime,
                 renderDistance,
                 twilightFactor,
+                fogMultiplier,
                 BlendState.Opaque,
                 DepthStencilState.Default,
                 waterOnly: false,
@@ -616,8 +736,10 @@ namespace Autonocraft.Engine
                 TerrainPassKind.Opaque);
 
             DrawTerrainPass(
+                waterAnimTime,
                 renderDistance,
                 twilightFactor,
+                fogMultiplier,
                 BlendState.AlphaBlend,
                 DepthStencilState.DepthRead,
                 waterOnly: true,
@@ -625,8 +747,10 @@ namespace Autonocraft.Engine
                 TerrainPassKind.Water);
 
             DrawTerrainPass(
+                waterAnimTime,
                 renderDistance,
                 twilightFactor,
+                fogMultiplier,
                 BlendState.AlphaBlend,
                 DepthStencilState.DepthRead,
                 waterOnly: false,
@@ -642,8 +766,10 @@ namespace Autonocraft.Engine
         }
 
         private void DrawTerrainPass(
+            float waterAnimTime,
             int renderDistance,
             float twilightFactor,
+            float fogMultiplier,
             BlendState blendState,
             DepthStencilState depthState,
             bool waterOnly,
@@ -668,7 +794,7 @@ namespace Autonocraft.Engine
                 }
 
                 var (fogStart, detailFogEnd) = ChunkLod.GetFogRange(renderDistance, bandDetail, twilightFactor);
-                _blockTerrainEffect.SetFogRange(fogStart, detailFogEnd);
+                _blockTerrainEffect.SetFogRange(fogStart * fogMultiplier, detailFogEnd * fogMultiplier);
 
                 foreach (var entry in _visibleChunksScratch)
                 {
@@ -687,10 +813,32 @@ namespace Autonocraft.Engine
                         continue;
                     }
 
-                    var (vb, ib, count) = entry.Chunk.GetMesh(entry.RenderDetail);
+                    var (vb, ib, count) = waterOnly
+                        ? entry.Chunk.GetWaterMesh(entry.RenderDetail)
+                        : entry.Chunk.GetMesh(entry.RenderDetail);
                     if (vb == null || ib == null || count <= 0)
                     {
                         continue;
+                    }
+
+                    if (waterOnly)
+                    {
+                        var waterVertices = entry.Chunk.GetWaterVertices(entry.RenderDetail);
+                        if (waterVertices != null && waterVertices.Length > 0)
+                        {
+                            EnsureWaterScratch(waterVertices.Length);
+                            for (int i = 0; i < waterVertices.Length; i++)
+                            {
+                                var v = waterVertices[i];
+                                if (v.Normal.Y > 0.9f)
+                                {
+                                    float wave = MathF.Sin(waterAnimTime * 2.2f + (v.Position.X * 0.45f) + (v.Position.Z * 0.45f)) * 0.08f;
+                                    v.Position.Y += wave;
+                                }
+                                _waterScratch[i] = v;
+                            }
+                            vb.SetData(_waterScratch, 0, waterVertices.Length);
+                        }
                     }
 
                     _device.SetVertexBuffer(vb);
@@ -717,6 +865,15 @@ namespace Autonocraft.Engine
             }
         }
 
+        private void EnsureWaterScratch(int size)
+        {
+            if (_waterScratch.Length < size)
+            {
+                int capacity = Math.Max(size, _waterScratch.Length < 1 ? 2048 : _waterScratch.Length * 2);
+                _waterScratch = new Vertex[capacity];
+            }
+        }
+
         private bool BandHasDrawableChunks(ChunkMeshDetail bandDetail, bool waterOnly, bool alphaCutoutOnly)
         {
             foreach (var entry in _visibleChunksScratch)
@@ -736,7 +893,9 @@ namespace Autonocraft.Engine
                     continue;
                 }
 
-                var (_, _, count) = entry.Chunk.GetMesh(entry.RenderDetail);
+                var (_, _, count) = waterOnly
+                    ? entry.Chunk.GetWaterMesh(entry.RenderDetail)
+                    : entry.Chunk.GetMesh(entry.RenderDetail);
                 if (count > 0)
                 {
                     return true;

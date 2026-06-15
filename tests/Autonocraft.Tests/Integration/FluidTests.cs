@@ -42,7 +42,7 @@ public static class FluidTests
 
         player.Position = new Vector3(x + 0.5f, y + 0.1f, z + 0.5f);
         player.Velocity = Vector3.Zero;
-        player.FlyingMode = false;
+        player.CreativeMode = false;
 
         float startY = player.Position.Y;
         float dt = 0.016f;
@@ -94,7 +94,7 @@ public static class FluidTests
         world.SetBlock(x, y - 1, z, BlockType.Stone);
 
         player.Health = 20f;
-        player.FlyingMode = false;
+        player.CreativeMode = false;
         player.Position = new Vector3(x + 0.5f, y + 0.2f, z + 0.5f);
         player.Velocity = Vector3.Zero;
         player.ClearInvulnerability();
@@ -151,7 +151,7 @@ public static class FluidTests
             world.SetBlock(x, y, z, BlockType.Water);
         }
 
-        player.FlyingMode = false;
+        player.CreativeMode = false;
         player.Health = 20f;
         player.Velocity = Vector3.Zero;
         player.Position = new Vector3(x + 0.5f, targetY + 11f, z + 0.5f);
@@ -326,7 +326,7 @@ public static class FluidTests
 
         player.Position = new Vector3(baseX + 0.5f, baseY + 0.2f, z + 0.5f);
         player.Velocity = Vector3.Zero;
-        player.FlyingMode = false;
+        player.CreativeMode = false;
 
         float startY = player.Position.Y;
         float dt = 0.016f;

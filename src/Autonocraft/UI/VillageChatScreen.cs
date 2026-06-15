@@ -7,6 +7,8 @@ using Microsoft.Xna.Framework.Input;
 using Autonocraft.Ai;
 using Autonocraft.Core;
 using Autonocraft.Engine;
+using Autonocraft.Entities;
+using Autonocraft.Village;
 using VillageEntity = Autonocraft.Village.Village;
 
 namespace Autonocraft.UI
@@ -39,6 +41,14 @@ namespace Autonocraft.UI
             _orchestrator = orchestrator ?? new VillageAiOrchestrator();
         }
 
+        private string? _villagerDisplayName;
+
+        public void OpenWithVillager(VillageEntity village, int villagerId, string villagerName)
+        {
+            _villagerDisplayName = villagerName;
+            Open(village, villagerId.ToString(), stewardMode: false);
+        }
+
         public void Open(VillageEntity village, string target = "mayor", bool stewardMode = true)
         {
             _village = village;
@@ -48,7 +58,25 @@ namespace Autonocraft.UI
             _input = string.Empty;
             _hoveredButton = -1;
             _history.Clear();
-            _history.Add(_stewardMode ? "Steward: How may I serve the village?" : "Villager: Yes?");
+            if (_stewardMode)
+            {
+                _history.Add("Steward: How may I serve the village?");
+            }
+            else
+            {
+                string villagerName = _villagerDisplayName ?? $"Villager {target}";
+                _history.Add($"{villagerName}: Yes?");
+            }
+        }
+
+        public string GetChatHeaderLabel()
+        {
+            if (_stewardMode || _village == null)
+            {
+                return "VILLAGE STEWARD";
+            }
+
+            return (_villagerDisplayName ?? "VILLAGER").ToUpperInvariant();
         }
 
         public void Close()
@@ -57,6 +85,7 @@ namespace Autonocraft.UI
             _village = null;
             _input = string.Empty;
             _waitingForReply = false;
+            _villagerDisplayName = null;
             _orchestrator.ClearPendingConfirmation();
         }
 
@@ -85,7 +114,7 @@ namespace Autonocraft.UI
                 return;
             }
 
-            UpdateModeButtons(viewport, mouse, prevMouse);
+            UpdateModeButtons(viewport, session, mouse, prevMouse);
 
             if (_waitingForReply)
             {
@@ -141,11 +170,11 @@ namespace Autonocraft.UI
             float inputY = panelY + panelH - layout.S(72f);
 
             _ui.DrawFullscreenBackground(new Color(0.02f, 0.03f, 0.06f) * (0.65f * alpha));
-            _ui.DrawPanel(panelX, panelY, panelW, panelH, new Color(0.05f, 0.07f, 0.11f) * alpha, new Color(0.35f, 0.55f, 0.45f) * alpha);
+            _ui.DrawFramedPanel(panelX, panelY, panelW, panelH, UiTheme.PanelFill * alpha, UiTheme.PanelBorder, alpha);
 
-            string title = _stewardMode ? "VILLAGE STEWARD" : "VILLAGER CHAT";
-            _ui.DrawCenteredText(title, panelY + layout.S(16f), layout.S(1.5f), new Color(0.8f, 0.95f, 0.85f) * alpha);
-            _ui.DrawCenteredText(_village.Name.ToUpperInvariant(), panelY + layout.S(34f), layout.S(1.0f), new Color(0.55f, 0.65f, 0.75f) * alpha);
+            string title = GetChatHeaderLabel();
+            _ui.DrawCenteredText(title, panelY + layout.S(16f), layout.S(1.5f), UiTheme.Title * alpha);
+            _ui.DrawCenteredText(_village.Name.ToUpperInvariant(), panelY + layout.S(34f), layout.S(UiTheme.ScaleNormal), UiTheme.Subtitle * alpha);
 
             _ui.DrawButton(stewardX, modeY, buttonW, buttonH, "STEWARD", _hoveredButton == 0, _stewardMode, layout.S(1.05f), alpha);
             _ui.DrawButton(villagerX, modeY, buttonW, buttonH, "VILLAGER", _hoveredButton == 1, !_stewardMode, layout.S(1.05f), alpha);
@@ -154,24 +183,24 @@ namespace Autonocraft.UI
             int start = Math.Max(0, _history.Count - MaxHistoryLines);
             for (int i = start; i < _history.Count; i++)
             {
-                _ui.DrawString(Truncate(_history[i], 64), left, y, layout.S(0.95f), new Color(0.85f, 0.88f, 0.92f) * alpha);
+                _ui.DrawString(Truncate(_history[i], 64), left, y, layout.S(UiTheme.ScaleSmall), UiTheme.Subtitle * alpha);
                 y += layout.S(16f);
             }
 
             string prompt = _waitingForReply ? "THINKING..." : "> " + _input + (_waitingForReply ? "" : "_");
-            _ui.DrawString(prompt, left, inputY, layout.S(1.05f), new Color(0.72f, 0.78f, 0.86f) * alpha);
+            _ui.DrawString(prompt, left, inputY, layout.S(UiTheme.ScaleNormal), UiTheme.Meta * alpha);
 
             if (_statusTimer > 0f && !string.IsNullOrEmpty(_statusMessage))
             {
-                _ui.DrawCenteredText(_statusMessage, panelY + panelH - layout.S(28f), layout.S(0.95f), new Color(0.55f, 0.75f, 0.65f) * alpha);
+                _ui.DrawCenteredText(_statusMessage, panelY + panelH - layout.S(28f), layout.S(UiTheme.ScaleSmall), UiTheme.Section * alpha);
             }
             else
             {
-                _ui.DrawCenteredText("ENTER TO SEND  ESC TO CLOSE", panelY + panelH - layout.S(28f), layout.S(0.95f), new Color(0.45f, 0.5f, 0.58f) * alpha);
+                _ui.DrawCenteredText("ENTER TO SEND  ESC TO CLOSE", panelY + panelH - layout.S(28f), layout.S(UiTheme.ScaleSmall), UiTheme.Hint * alpha);
             }
         }
 
-        private void UpdateModeButtons(Viewport viewport, MouseState mouse, MouseState prevMouse)
+        private void UpdateModeButtons(Viewport viewport, GameSession session, MouseState mouse, MouseState prevMouse)
         {
             var layout = new UiLayout(viewport);
             float panelX = layout.CenterX - layout.S(PanelWidth) / 2f;
@@ -209,7 +238,20 @@ namespace Autonocraft.UI
             else if (_hoveredButton == 1)
             {
                 _stewardMode = false;
-                _target = _village?.VillagerIds.Count > 0 ? _village.VillagerIds[0].ToString() : "villager";
+                if (_village != null)
+                {
+                    session.Villages.SyncCitizensForVillage(_village);
+                    foreach (var citizen in VillageSettlementHealth.EnumerateLiveCitizens(_village, session.Villagers))
+                    {
+                        _target = citizen.Id.ToString();
+                        break;
+                    }
+                }
+
+                if (_target == "mayor")
+                {
+                    _target = "villager";
+                }
             }
         }
 

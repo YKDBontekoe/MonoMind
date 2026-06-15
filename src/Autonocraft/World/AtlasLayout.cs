@@ -13,6 +13,7 @@ namespace Autonocraft.World
         public Dictionary<string, TileSlot> Tiles { get; init; } = new();
         public Dictionary<string, BlockFaceMapping> BlockFaces { get; init; } = new();
         public Dictionary<string, AnimalTileMapping> Animals { get; init; } = new();
+        public Dictionary<string, AnimalTileMapping> Villagers { get; init; } = new();
 
         public float AtlasWidth => GridCols * TileSize;
         public float AtlasHeight => GridRows * TileSize;

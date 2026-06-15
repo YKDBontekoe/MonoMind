@@ -1,8 +1,11 @@
+using System;
 using System.Numerics;
 using System.Text.Json;
 using Autonocraft.Domain.Village;
+using Autonocraft.Domain.World;
 using Autonocraft.Entities;
 using Autonocraft.Items;
+using Autonocraft.Village;
 using Autonocraft.World;
 using VillageEntity = Autonocraft.Village.Village;
 
@@ -16,6 +19,7 @@ namespace Autonocraft.Ai
             Autonocraft.Village.VillageManager villageManager,
             VillagerManager villagerManager,
             VillageEntity village,
+            VoxelWorld world,
             IItemContainer? payer = null)
         {
             try
@@ -28,7 +32,7 @@ namespace Autonocraft.Ai
                     "get_village_summary" => (true, VillageContextBuilder.BuildSummary(villageManager, village, villagerManager)),
                     "list_villagers" => ListVillagers(villagerManager, village),
                     "assign_job" => AssignJob(villageManager, villagerManager, village, root),
-                    "recruit_villager" => Recruit(villageManager, village),
+                    "recruit_villager" => Recruit(villageManager, village, world),
                     "queue_build" => QueueBuild(villageManager, villagerManager, village, root, payer),
                     "mark_resource" => MarkResource(villagerManager, village, root),
                     "cancel_job" => CancelJob(village, villagerManager, root),
@@ -48,14 +52,11 @@ namespace Autonocraft.Ai
 
         private static (bool success, string message) ListVillagers(VillagerManager villagerManager, VillageEntity village)
         {
-            var lines = new List<string>();
-            foreach (int villagerId in village.VillagerIds)
-            {
-                if (!villagerManager.TryGet(villagerId, out var villager))
-                {
-                    continue;
-                }
+            VillageSettlementHealth.SyncPopulationRegistry(village, villagerManager);
 
+            var lines = new List<string>();
+            foreach (var villager in VillageSettlementHealth.EnumerateLiveCitizens(village, villagerManager))
+            {
                 lines.Add($"{villager.Id}: {villager.Name} ({villager.Role}, {villager.CurrentJob})");
             }
 
@@ -102,11 +103,16 @@ namespace Autonocraft.Ai
             return (true, $"Assigned {villager.Name} to {job}.");
         }
 
-        private static (bool success, string message) Recruit(Autonocraft.Village.VillageManager villageManager, VillageEntity village)
+        private static (bool success, string message) Recruit(
+            Autonocraft.Village.VillageManager villageManager,
+            VillageEntity village,
+            VoxelWorld world)
         {
-            if (!villageManager.TryRecruit(village))
+            if (!villageManager.TryRecruit(village, world))
             {
-                return (false, "Cannot recruit: at population cap or need 4 oak planks in storage.");
+                return (false, village.Population == 0
+                    ? "Cannot recruit yet — found or claim a settlement to welcome your first settler."
+                    : "Cannot recruit: at population cap or need 4 oak planks in storage.");
             }
 
             return (true, "A new villager joined the village.");
@@ -169,10 +175,29 @@ namespace Autonocraft.Ai
                 return (false, "x, y, and z are required.");
             }
 
-            villager.MarkedResource = new Vector3(x + 0.5f, y, z + 0.5f);
-            if (villager.CurrentJob == JobType.Idle)
+            VoxelWorld? world = villagerManager.World;
+            if (world != null)
             {
-                villager.AssignJob(JobType.Gather, villager.MarkedResource, null);
+                var block = world.GetBlock(x, y, z);
+                if (GatherBlockClassifier.IsGatherable(block))
+                {
+                    village.WorkQueue.Enqueue(x, y, z);
+                }
+            }
+
+            villager.MarkedResource = new Vector3(x + 0.5f, y, z + 0.5f);
+            if (villager.CurrentJob == JobType.Idle && world != null)
+            {
+                var block = world.GetBlock(x, y, z);
+                JobType job = block switch
+                {
+                    _ when FarmCropHelper.IsCropBlock(block) || block == BlockType.Dirt => JobType.Farm,
+                    _ when GatherBlockClassifier.GetCategory(block) == GatherCategory.Mine => JobType.Mine,
+                    _ when GatherBlockClassifier.GetCategory(block) == GatherCategory.Lumber => JobType.Lumber,
+                    _ => JobType.Lumber
+                };
+
+                villager.AssignJob(job, villager.MarkedResource, null);
             }
 
             return (true, $"Marked resource at ({x}, {y}, {z}) for {villager.Name}.");
@@ -195,16 +220,66 @@ namespace Autonocraft.Ai
 
         private static (bool success, string message) SetVillageGoal(VillageEntity village, JsonElement root)
         {
-            if (!root.TryGetProperty("description", out var descNode) ||
-                descNode.ValueKind != JsonValueKind.String)
+            int priority = TryGetInt(root, "priority", out int p) ? p : 0;
+
+            if (root.TryGetProperty("kind", out var kindNode) &&
+                kindNode.ValueKind == JsonValueKind.String)
             {
-                return (false, "description is required.");
+                string kind = kindNode.GetString() ?? string.Empty;
+                if (string.Equals(kind, "stock", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!root.TryGetProperty("block_type", out var blockNode) ||
+                        blockNode.ValueKind != JsonValueKind.String ||
+                        !VillageGoalParser.TryParseBlockType(blockNode.GetString() ?? string.Empty, out var blockType))
+                    {
+                        return (false, "block_type is required for stock goals (e.g. Cobblestone).");
+                    }
+
+                    if (!TryGetInt(root, "target_count", out int targetCount) || targetCount <= 0)
+                    {
+                        return (false, "target_count must be a positive integer.");
+                    }
+
+                    string description = root.TryGetProperty("description", out var descNode) &&
+                        descNode.ValueKind == JsonValueKind.String
+                        ? descNode.GetString() ?? $"Stock {targetCount} {blockType}"
+                        : $"Stock {targetCount} {blockType}";
+                    int goalId = village.Scheduler.AddStockGoal(blockType, targetCount, priority, description);
+                    return (true, $"Set stock goal #{goalId}: {description}");
+                }
+
+                if (string.Equals(kind, "build", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!root.TryGetProperty("blueprint_id", out var blueprintNode) ||
+                        blueprintNode.ValueKind != JsonValueKind.String)
+                    {
+                        return (false, "blueprint_id is required for build goals (e.g. peasant_house).");
+                    }
+
+                    string blueprintId = blueprintNode.GetString() ?? string.Empty;
+                    if (!PlayerStructureRegistry.TryGet(blueprintId, out _))
+                    {
+                        return (false, $"Unknown blueprint '{blueprintId}'.");
+                    }
+
+                    string description = root.TryGetProperty("description", out var descNode) &&
+                        descNode.ValueKind == JsonValueKind.String
+                        ? descNode.GetString() ?? $"Build {blueprintId}"
+                        : $"Build {blueprintId}";
+                    int goalId = village.Scheduler.AddBuildGoal(blueprintId, priority, description);
+                    return (true, $"Set build goal #{goalId}: {description}");
+                }
             }
 
-            int priority = TryGetInt(root, "priority", out int p) ? p : 0;
-            string description = descNode.GetString() ?? string.Empty;
-            int goalId = village.Scheduler.AddGoal(description, priority);
-            return (true, $"Set village goal #{goalId}: {description}");
+            if (!root.TryGetProperty("description", out var descriptionNode) ||
+                descriptionNode.ValueKind != JsonValueKind.String)
+            {
+                return (false, "description is required (or use kind=stock/build with structured fields).");
+            }
+
+            string goalDescription = descriptionNode.GetString() ?? string.Empty;
+            int parsedGoalId = village.Scheduler.AddGoal(goalDescription, priority);
+            return (true, $"Set village goal #{parsedGoalId}: {goalDescription}");
         }
 
         private static bool TryParseJob(JsonElement root, out JobType job)
@@ -216,6 +291,12 @@ namespace Autonocraft.Ai
             }
 
             string raw = jobNode.GetString() ?? string.Empty;
+            if (string.Equals(raw, "Gather", StringComparison.OrdinalIgnoreCase))
+            {
+                job = JobType.Lumber;
+                return true;
+            }
+
             return Enum.TryParse(raw, ignoreCase: true, out job);
         }
 

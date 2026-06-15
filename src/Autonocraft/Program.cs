@@ -15,7 +15,7 @@ namespace Autonocraft
             Console.WriteLine("  --test        Run headless integration tests and exit");
             Console.WriteLine("  --skip-menu   Skip main menu and load a world immediately");
             Console.WriteLine("  --agent-port  Agent HTTP API port (default: 5001; macOS often blocks 5000)");
-            Console.WriteLine("  --render-distance  Override render distance for this session (2-12)");
+            Console.WriteLine($"  --render-distance  Override render distance for this session ({GameSettings.MinRenderDistance}-{GameSettings.MaxRenderDistance})");
             Console.WriteLine("  --debug-input Trace mouse/focus/streaming to input_debug.log");
             Console.WriteLine("  --debug-metrics Write CPU/memory/frame metrics to metrics.log + /metrics API");
             Console.WriteLine("  --help        Show this help text");
@@ -65,13 +65,13 @@ namespace Autonocraft
                 {
                     if (i + 1 >= args.Length)
                     {
-                        Console.WriteLine("Error: --render-distance requires a number between 2 and 12.");
+                        Console.WriteLine($"Error: --render-distance requires a number between {GameSettings.MinRenderDistance} and {GameSettings.MaxRenderDistance}.");
                         Environment.Exit(1);
                     }
 
                     if (!int.TryParse(args[++i], out int parsedRenderDistance))
                     {
-                        Console.WriteLine("Error: --render-distance requires a number between 2 and 12.");
+                        Console.WriteLine($"Error: --render-distance requires a number between {GameSettings.MinRenderDistance} and {GameSettings.MaxRenderDistance}.");
                         Environment.Exit(1);
                     }
 

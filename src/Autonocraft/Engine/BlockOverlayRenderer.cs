@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Autonocraft.Core;
 using Autonocraft.Engine.Animation;
+using Autonocraft.Village;
 using Autonocraft.World;
 using Vector3 = System.Numerics.Vector3;
 using Vector2 = System.Numerics.Vector2;
@@ -39,7 +40,10 @@ namespace Autonocraft.Engine
             Matrix view,
             Matrix projection,
             Camera camera,
-            float animTime)
+            float animTime,
+            BlueprintPlacementPreview? blueprintPlacement = null,
+            IReadOnlyList<BlueprintPlacementPreview>? constructionSites = null,
+            WorkZonePlacementPreview? workZonePlacement = null)
         {
             _device.DepthStencilState = DepthStencilState.Default;
             _device.RasterizerState = RasterizerState.CullNone;
@@ -49,6 +53,24 @@ namespace Autonocraft.Engine
             _overlayEffect.View = view;
             _overlayEffect.Projection = projection;
             _overlayEffect.Alpha = 1f;
+
+            if (blueprintPlacement != null)
+            {
+                DrawBlueprintGhost(blueprintPlacement);
+            }
+
+            if (constructionSites != null)
+            {
+                foreach (var site in constructionSites)
+                {
+                    DrawBlueprintGhost(site);
+                }
+            }
+
+            if (workZonePlacement != null && workZonePlacement.HasFirstCorner)
+            {
+                DrawWorkZonePreview(workZonePlacement);
+            }
 
             if (interaction.TargetBlockPos.HasValue && interaction.TargetBlockType != BlockType.Air)
             {
@@ -86,6 +108,111 @@ namespace Autonocraft.Engine
             }
 
             DrawParticles(particles, camera);
+        }
+
+        private void DrawBlueprintGhost(BlueprintPlacementPreview preview)
+        {
+            var tint = preview.IsQueuedConstruction
+                ? new Color(0.95f, 0.72f, 0.18f, 0.48f)
+                : preview.Valid
+                    ? new Color(0.35f, 0.92f, 0.45f, 0.52f)
+                    : new Color(0.95f, 0.28f, 0.28f, 0.45f);
+
+            if (!preview.IsQueuedConstruction)
+            {
+                foreach (var block in preview.Blueprint.Template.Blocks)
+                {
+                    if (block.Type == BlockType.Air)
+                    {
+                        continue;
+                    }
+
+                    int wx = preview.AnchorX + block.Dx;
+                    int wy = preview.AnchorY + block.Dy;
+                    int wz = preview.AnchorZ + block.Dz;
+                    DrawGhostBlock(new Vector3(wx, wy, wz), block.Type, tint);
+                }
+            }
+
+            BlueprintPlacementHelper.GetWorldBounds(
+                preview.Blueprint,
+                preview.AnchorX,
+                preview.AnchorY,
+                preview.AnchorZ,
+                out int minX,
+                out int minY,
+                out int minZ,
+                out int maxX,
+                out int maxY,
+                out int maxZ);
+
+            var frame = preview.IsQueuedConstruction
+                ? new Color(0.95f, 0.72f, 0.18f, 0.9f)
+                : preview.Valid
+                    ? new Color(0.35f, 0.92f, 0.45f, 0.9f)
+                    : new Color(0.95f, 0.28f, 0.28f, 0.9f);
+            DrawBoundsWireframe(minX, minY, minZ, maxX + 1, maxY + 1, maxZ + 1, frame);
+        }
+
+        private void DrawWorkZonePreview(WorkZonePlacementPreview preview)
+        {
+            var tint = preview.Valid
+                ? new Color(0.95f, 0.72f, 0.18f, 0.75f)
+                : new Color(0.95f, 0.28f, 0.28f, 0.65f);
+
+            DrawBoundsWireframe(
+                preview.MinX,
+                preview.MinY,
+                preview.MinZ,
+                preview.MaxX + 1,
+                preview.MaxY + 1,
+                preview.MaxZ + 1,
+                tint);
+        }
+
+        private void DrawBoundsWireframe(int minX, int minY, int minZ, int maxX, int maxY, int maxZ, Color color)
+        {
+            float x0 = minX + 0.002f;
+            float y0 = minY + 0.002f;
+            float z0 = minZ + 0.002f;
+            float x1 = maxX - 0.002f;
+            float y1 = maxY - 0.002f;
+            float z1 = maxZ - 0.002f;
+
+            var vertices = new VertexPositionColor[24];
+            int i = 0;
+
+            void AddLine(Vector3 a, Vector3 b)
+            {
+                vertices[i++] = new VertexPositionColor(ToMono(a), color);
+                vertices[i++] = new VertexPositionColor(ToMono(b), color);
+            }
+
+            AddLine(new Vector3(x0, y0, z0), new Vector3(x1, y0, z0));
+            AddLine(new Vector3(x1, y0, z0), new Vector3(x1, y0, z1));
+            AddLine(new Vector3(x1, y0, z1), new Vector3(x0, y0, z1));
+            AddLine(new Vector3(x0, y0, z1), new Vector3(x0, y0, z0));
+
+            AddLine(new Vector3(x0, y1, z0), new Vector3(x1, y1, z0));
+            AddLine(new Vector3(x1, y1, z0), new Vector3(x1, y1, z1));
+            AddLine(new Vector3(x1, y1, z1), new Vector3(x0, y1, z1));
+            AddLine(new Vector3(x0, y1, z1), new Vector3(x0, y1, z0));
+
+            AddLine(new Vector3(x0, y0, z0), new Vector3(x0, y1, z0));
+            AddLine(new Vector3(x1, y0, z0), new Vector3(x1, y1, z0));
+            AddLine(new Vector3(x1, y0, z1), new Vector3(x1, y1, z1));
+            AddLine(new Vector3(x0, y0, z1), new Vector3(x0, y1, z1));
+
+            _overlayEffect.World = Matrix.Identity;
+            _overlayEffect.TextureEnabled = false;
+
+            foreach (var pass in _overlayEffect.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                _device.DrawUserPrimitives(PrimitiveType.LineList, vertices, 0, 12);
+            }
+
+            _overlayEffect.TextureEnabled = true;
         }
 
         private void DrawWireframeCube(Vector3 blockPos, Color color)
@@ -360,6 +487,11 @@ namespace Autonocraft.Engine
                 float size = particle.Size * (0.5f + 0.5f * lifeRatio);
 
                 GetBillboardAxes(camera, particle.Rotation, size, out var right, out var up);
+                if (particle.Kind == ParticleKind.RainDrop)
+                {
+                    right = camera.Right * (size * 0.12f);
+                    up = Vector3.UnitY * (size * 3.0f);
+                }
                 var pos = particle.Position;
 
                 if (particle.UseTexture)
@@ -446,6 +578,11 @@ namespace Autonocraft.Engine
                 ParticleKind.Hint => lifeRatio * 0.85f,
                 ParticleKind.Dust => lifeRatio * 0.7f,
                 ParticleKind.Bubble => lifeRatio * 0.55f,
+                ParticleKind.DustMote => Math.Clamp(lifeRatio * (1f - lifeRatio) * 4f, 0f, 1f) * 0.45f,
+                ParticleKind.Firefly => (0.4f + 0.6f * MathF.Sin(lifeRatio * MathF.PI * 8f)) * Math.Clamp(lifeRatio * (1f - lifeRatio) * 4f, 0f, 1f),
+                ParticleKind.FallingLeaf => lifeRatio * 0.9f,
+                ParticleKind.RainDrop => 0.45f * lifeRatio,
+                ParticleKind.SnowFlake => 0.85f * lifeRatio,
                 _ => lifeRatio
             };
         }

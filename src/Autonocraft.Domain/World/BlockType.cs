@@ -44,7 +44,19 @@ namespace Autonocraft.Domain.World
         Reed = 39,
         Sunflower = 40,
         HayBale = 41,
-        Ice = 42
+        Ice = 42,
+        WheatSprout = 43,
+        Wheat = 44,
+        CarrotSprout = 45,
+        Carrot = 46,
+        Fern = 47,
+        MushroomRed = 48,
+        MushroomBrown = 49,
+        DeadBush = 50,
+        LilyPad = 51,
+        Vine = 52,
+        BerryBush = 53,
+        Seagrass = 54
     }
 
     public static class BlockTypeExtensions
@@ -63,7 +75,19 @@ namespace Autonocraft.Domain.World
                 || type == BlockType.Reed
                 || type == BlockType.Sunflower
                 || type == BlockType.Cactus
-                || type == BlockType.Glass;
+                || type == BlockType.WheatSprout
+                || type == BlockType.Wheat
+                || type == BlockType.CarrotSprout
+                || type == BlockType.Carrot
+                || type == BlockType.Glass
+                || type == BlockType.Fern
+                || type == BlockType.MushroomRed
+                || type == BlockType.MushroomBrown
+                || type == BlockType.DeadBush
+                || type == BlockType.LilyPad
+                || type == BlockType.Vine
+                || type == BlockType.BerryBush
+                || type == BlockType.Seagrass;
         }
 
         public static bool IsPassable(this BlockType type)
@@ -86,7 +110,11 @@ namespace Autonocraft.Domain.World
         public static bool IsFloraModel(this BlockType type)
         {
             return type is BlockType.TallGrass or BlockType.Sunflower or BlockType.Flower or BlockType.Reed
-                or BlockType.Cactus;
+                or BlockType.Cactus or BlockType.WheatSprout or BlockType.Wheat
+                or BlockType.CarrotSprout or BlockType.Carrot or BlockType.Fern
+                or BlockType.MushroomRed or BlockType.MushroomBrown or BlockType.DeadBush
+                or BlockType.LilyPad or BlockType.Vine or BlockType.BerryBush
+                or BlockType.Seagrass;
         }
 
         public static bool IsAlphaCutout(this BlockType type)
@@ -117,6 +145,11 @@ namespace Autonocraft.Domain.World
                 BlockType.Air => 0f,
                 BlockType.TallGrass => 0.1f,
                 BlockType.Flower => 0.1f,
+                BlockType.Fern or BlockType.MushroomRed or BlockType.MushroomBrown
+                    or BlockType.DeadBush or BlockType.LilyPad or BlockType.Vine
+                    or BlockType.BerryBush or BlockType.Seagrass => 0.1f,
+                BlockType.WheatSprout or BlockType.CarrotSprout => 0.1f,
+                BlockType.Wheat or BlockType.Carrot => 0.15f,
                 BlockType.OakLeaves => 0.15f,
                 BlockType.BirchLeaves => 0.15f,
                 BlockType.PineLeaves => 0.15f,

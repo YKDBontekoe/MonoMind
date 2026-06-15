@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using Autonocraft.Core;
 using Microsoft.Xna.Framework;
@@ -13,7 +14,16 @@ namespace Autonocraft.Engine
     {
         private readonly GraphicsDevice _device;
         private readonly FloraEffect _effect;
+
+        // Batched GPU buffers
+        private DynamicVertexBuffer? _batchedVertexBuffer;
+        private DynamicIndexBuffer? _batchedIndexBuffer;
+        private int _batchedVertexCapacity = 0;
+        private int _batchedIndexCapacity = 0;
+
+        // CPU scratch arrays
         private VertexPositionColorTexture[] _vertexScratch = Array.Empty<VertexPositionColorTexture>();
+        private uint[] _indexScratch = Array.Empty<uint>();
 
         public FloraRenderer(GraphicsDevice device, Texture2D atlas)
         {
@@ -33,13 +43,46 @@ namespace Autonocraft.Engine
             SceneLighting lighting,
             float fogStart,
             float fogEnd,
+            int renderDistance,
             float animTime,
             Texture2D atlas)
         {
             var sw = Stopwatch.StartNew();
             int totalVertices = 0;
-            int drawCalls = 0;
+            int totalIndices = 0;
 
+            // 1. Calculate total vertex/index counts
+            foreach (var entry in visibleChunks)
+            {
+                if (!entry.Chunk.HasFloraMesh())
+                {
+                    continue;
+                }
+
+                var (vertices, indices, indexCount) = entry.Chunk.GetFloraMesh();
+                if (vertices == null || indices == null || indexCount <= 0)
+                {
+                    continue;
+                }
+
+                totalVertices += vertices.Length;
+                totalIndices += indexCount;
+            }
+
+            if (totalVertices == 0 || totalIndices == 0)
+            {
+                sw.Stop();
+                PerfCounters.FloraVertexCount = 0;
+                PerfCounters.FloraDrawCalls = 0;
+                PerfCounters.FloraDrawMs = (float)sw.Elapsed.TotalMilliseconds;
+                return;
+            }
+
+            // 2. Ensure capacities
+            EnsureScratchCapacity(totalVertices, totalIndices);
+            EnsureGpuBuffers(totalVertices, totalIndices);
+
+            // 3. Setup lighting multipliers
             var amb = lighting.AmbientColor * 1.15f;
             var sun = lighting.SunEnabled ? lighting.SunColor * 0.35f : System.Numerics.Vector3.Zero;
             var moon = lighting.MoonEnabled ? lighting.MoonColor * 0.15f : System.Numerics.Vector3.Zero;
@@ -47,6 +90,60 @@ namespace Autonocraft.Engine
             float litY = amb.Y + sun.Y + moon.Y;
             float litZ = amb.Z + sun.Z + moon.Z;
 
+            // 4. Populate batched data
+            int vertexOffset = 0;
+            int indexOffset = 0;
+
+            foreach (var entry in visibleChunks)
+            {
+                if (!entry.Chunk.HasFloraMesh())
+                {
+                    continue;
+                }
+
+                var (vertices, indices, indexCount) = entry.Chunk.GetFloraMesh();
+                if (vertices == null || indices == null || indexCount <= 0)
+                {
+                    continue;
+                }
+
+                bool animate = ChunkLod.ShouldAnimateFloraEveryFrame(entry.ChunkDistance, renderDistance);
+                int chunkVertexCount = vertices.Length;
+
+                for (int i = 0; i < chunkVertexCount; i++)
+                {
+                    var source = vertices[i];
+                    float phase = source.WindPhase * MathHelper.TwoPi;
+                    float sway = animate
+                        ? MathF.Sin(animTime * 1.8f + phase) * source.HeightFactor * 0.06f
+                        : 0f;
+                    var pos = source.Position;
+                    pos.X += sway;
+                    pos.Z += sway * 0.7f;
+
+                    _vertexScratch[vertexOffset + i] = new VertexPositionColorTexture(
+                        new Vector3(pos.X, pos.Y, pos.Z),
+                        new Color(
+                            MathHelper.Clamp(source.Color.X * litX, 0f, 1f),
+                            MathHelper.Clamp(source.Color.Y * litY, 0f, 1f),
+                            MathHelper.Clamp(source.Color.Z * litZ, 0f, 1f)),
+                        new Vector2(source.TexCoords.X, source.TexCoords.Y));
+                }
+
+                for (int i = 0; i < indexCount; i++)
+                {
+                    _indexScratch[indexOffset + i] = (uint)(indices[i] + vertexOffset);
+                }
+
+                vertexOffset += chunkVertexCount;
+                indexOffset += indexCount;
+            }
+
+            // 5. Upload to GPU
+            _batchedVertexBuffer!.SetData(_vertexScratch, 0, totalVertices, SetDataOptions.Discard);
+            _batchedIndexBuffer!.SetData(_indexScratch, 0, totalIndices, SetDataOptions.Discard);
+
+            // 6. Bind states and draw
             _device.RasterizerState = RasterizerState.CullNone;
             _device.SamplerStates[0] = SamplerState.PointClamp;
             _device.DepthStencilState = DepthStencilState.Default;
@@ -61,71 +158,65 @@ namespace Autonocraft.Engine
                 fogStart,
                 fogEnd);
 
-            foreach (var entry in visibleChunks)
+            _device.SetVertexBuffer(_batchedVertexBuffer);
+            _device.Indices = _batchedIndexBuffer;
+
+            foreach (var pass in _effect.CurrentTechnique.Passes)
             {
-                if (!entry.Chunk.HasFloraMesh())
-                {
-                    continue;
-                }
-
-                entry.Chunk.EnsureFloraGpuBuffers(_device);
-                var (vertexBuffer, indexBuffer, indexCount, sourceVertices) = entry.Chunk.GetFloraGpuDrawInfo();
-                if (vertexBuffer == null || indexBuffer == null || indexCount <= 0 || sourceVertices == null || sourceVertices.Length == 0)
-                {
-                    continue;
-                }
-
-                int vertexCount = sourceVertices.Length;
-                EnsureVertexScratch(vertexCount);
-                for (int i = 0; i < vertexCount; i++)
-                {
-                    var source = sourceVertices[i];
-                    float phase = source.WindPhase * MathHelper.TwoPi;
-                    float sway = MathF.Sin(animTime * 1.8f + phase) * source.HeightFactor * 0.06f;
-                    var pos = source.Position;
-                    pos.X += sway;
-                    pos.Z += sway * 0.7f;
-
-                    _vertexScratch[i] = new VertexPositionColorTexture(
-                        new Vector3(pos.X, pos.Y, pos.Z),
-                        new Color(
-                            MathHelper.Clamp(source.Color.X * litX, 0f, 1f),
-                            MathHelper.Clamp(source.Color.Y * litY, 0f, 1f),
-                            MathHelper.Clamp(source.Color.Z * litZ, 0f, 1f)),
-                        new Vector2(source.TexCoords.X, source.TexCoords.Y));
-                }
-
-                vertexBuffer.SetData(_vertexScratch, 0, vertexCount, SetDataOptions.Discard);
-                _device.SetVertexBuffer(vertexBuffer);
-                _device.Indices = indexBuffer;
-                foreach (var pass in _effect.CurrentTechnique.Passes)
-                {
-                    pass.Apply();
-                    _device.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, indexCount / 3);
-                }
-
-                totalVertices += vertexCount;
-                drawCalls++;
+                pass.Apply();
+                _device.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, totalIndices / 3);
             }
 
             sw.Stop();
             PerfCounters.FloraVertexCount = totalVertices;
-            PerfCounters.FloraDrawCalls = drawCalls;
+            PerfCounters.FloraDrawCalls = 1;
             PerfCounters.FloraDrawMs = (float)sw.Elapsed.TotalMilliseconds;
         }
 
-        private void EnsureVertexScratch(int vertexCount)
+        private void EnsureScratchCapacity(int vertexCount, int indexCount)
         {
             if (_vertexScratch.Length < vertexCount)
             {
-                int capacity = Math.Max(vertexCount, _vertexScratch.Length < 1 ? 4096 : _vertexScratch.Length * 2);
-                _vertexScratch = new VertexPositionColorTexture[capacity];
+                int newCap = Math.Max(vertexCount, _vertexScratch.Length == 0 ? 8192 : _vertexScratch.Length * 2);
+                Array.Resize(ref _vertexScratch, newCap);
+            }
+            if (_indexScratch.Length < indexCount)
+            {
+                int newCap = Math.Max(indexCount, _indexScratch.Length == 0 ? 12288 : _indexScratch.Length * 2);
+                Array.Resize(ref _indexScratch, newCap);
+            }
+        }
+
+        private void EnsureGpuBuffers(int vertexCount, int indexCount)
+        {
+            if (_batchedVertexBuffer == null || _batchedVertexCapacity < vertexCount)
+            {
+                _batchedVertexBuffer?.Dispose();
+                _batchedVertexCapacity = Math.Max(vertexCount, _batchedVertexCapacity == 0 ? 8192 : _batchedVertexCapacity * 2);
+                _batchedVertexBuffer = new DynamicVertexBuffer(
+                    _device,
+                    VertexPositionColorTexture.VertexDeclaration,
+                    _batchedVertexCapacity,
+                    BufferUsage.WriteOnly);
+            }
+
+            if (_batchedIndexBuffer == null || _batchedIndexCapacity < indexCount)
+            {
+                _batchedIndexBuffer?.Dispose();
+                _batchedIndexCapacity = Math.Max(indexCount, _batchedIndexCapacity == 0 ? 12288 : _batchedIndexCapacity * 2);
+                _batchedIndexBuffer = new DynamicIndexBuffer(
+                    _device,
+                    IndexElementSize.ThirtyTwoBits,
+                    _batchedIndexCapacity,
+                    BufferUsage.WriteOnly);
             }
         }
 
         public void Dispose()
         {
             _effect.Dispose();
+            _batchedVertexBuffer?.Dispose();
+            _batchedIndexBuffer?.Dispose();
         }
     }
 }

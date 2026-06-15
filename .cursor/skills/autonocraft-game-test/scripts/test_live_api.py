@@ -73,7 +73,7 @@ class TestSuite:
         snap = self.client.snapshot()
         required = [
             "gameState", "worldSeed", "position", "velocity", "yaw", "pitch",
-            "flyingMode", "isGrounded", "health", "maxHealth", "hotbar", "skills",
+            "creativeMode", "isGrounded", "health", "maxHealth", "hotbar", "skills",
             "animals", "targetBlock", "unlockedRecipes", "playWithAi", "aiProvider",
         ]
         for key in required:
@@ -108,7 +108,7 @@ class TestSuite:
         assert after.raw["yaw"] != before.raw["yaw"] or after.raw["pitch"] != before.raw["pitch"]
 
     def test_movement_changes_position(self) -> None:
-        self.client.set_flying(False)
+        self.client.set_creative(False)
         self.client.teleport(16, 65, 16)
         start = self.client.snapshot().position
         self.client.move(forward=1.5)

@@ -7,6 +7,10 @@ namespace Autonocraft.Domain.Village
         FarmPlot = 2,
         LumberCamp = 3,
         Storage = 4,
-        Workshop = 5
+        Workshop = 5,
+        Quarry = 6,
+        Kitchen = 7,
+        Well = 8,
+        Market = 9
     }
 }

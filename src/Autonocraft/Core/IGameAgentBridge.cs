@@ -23,6 +23,8 @@ namespace Autonocraft.Core
         void SaveScreenshot(string path);
         void SimulateClick(MouseButton button);
         void RequestExit();
+        void RequestOpenVillageUi();
+        void RequestCloseVillageUi();
         void SetTimeOfDay(float value);
         void SetTimeScale(float scale);
     }

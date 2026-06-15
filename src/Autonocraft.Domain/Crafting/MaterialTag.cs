@@ -28,7 +28,10 @@ namespace Autonocraft.Domain.Crafting
                 BlockType.OakLeaves or BlockType.BirchLeaves or BlockType.PineLeaves
                     or BlockType.WillowLeaves or BlockType.PalmLeaves
                     or BlockType.TallGrass or BlockType.Flower or BlockType.Reed
-                    or BlockType.Sunflower or BlockType.Cactus => MaterialTag.Organic,
+                    or BlockType.Sunflower or BlockType.Cactus or BlockType.Fern
+                    or BlockType.MushroomRed or BlockType.MushroomBrown or BlockType.DeadBush
+                    or BlockType.LilyPad or BlockType.Vine or BlockType.BerryBush
+                    or BlockType.Seagrass => MaterialTag.Organic,
                 BlockType.CoalOre => MaterialTag.Fuel | MaterialTag.Ore,
                 BlockType.IronOre or BlockType.GoldOre or BlockType.IronBlock or BlockType.GoldBlock => MaterialTag.Ore,
                 BlockType.Stone or BlockType.Sandstone or BlockType.Cobblestone

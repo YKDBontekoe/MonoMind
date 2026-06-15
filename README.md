@@ -38,9 +38,9 @@ On macOS you can also double-click `start.command` or run `./run.sh`.
 |-------|--------|
 | Mouse | Look around |
 | WASD | Move |
-| Space | Jump (physics) / swim up / fly up (flying mode) |
-| Left Shift | Swim down / fly down (flying mode) |
-| G | Toggle physics / flying mode |
+| Space | Jump (physics) / swim up / fly up (creative mode) |
+| Left Shift | Swim down / fly down (creative mode) |
+| G | Toggle survival / creative mode |
 | Left click | Attack animals or mine blocks (5-block range) |
 | Right click | Place block or open crafting station UI |
 | Shift + Right click | Activate sigil pattern → crafting station |
