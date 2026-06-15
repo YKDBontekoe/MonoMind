@@ -163,7 +163,7 @@ namespace Autonocraft.Village.Jobs
             }
 
             villager.WorkTimer = 0f;
-            
+
             // Cooking raw ingredients produces higher value FoodStock than raw items directly
             float outputFoodValue = _activeIngredient == BlockType.Carrot ? 2.5f : 2.0f;
             context.Village.AddFarmFood(outputFoodValue);

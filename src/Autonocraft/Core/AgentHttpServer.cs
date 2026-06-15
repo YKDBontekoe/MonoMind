@@ -52,13 +52,14 @@ namespace Autonocraft.Core
                 throw new ArgumentOutOfRangeException(nameof(port), port, "Agent HTTP port must be between 1 and 65535.");
             }
 
+            // IPv6 literal [::1] prefixes break HttpListener.Start on Linux (managed parser bug).
             string[] prefixes =
             [
                 $"http://127.0.0.1:{port}/",
                 $"http://localhost:{port}/",
             ];
 
-            if (!OperatingSystem.IsMacOS())
+            if (OperatingSystem.IsWindows())
             {
                 prefixes =
                 [

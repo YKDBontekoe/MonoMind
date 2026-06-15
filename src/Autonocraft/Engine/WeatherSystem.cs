@@ -19,14 +19,14 @@ namespace Autonocraft.Engine
 
         public WeatherKind CurrentWeather { get; private set; } = WeatherKind.Clear;
         public WeatherKind TargetWeather { get; private set; } = WeatherKind.Clear;
-        
+
         // Progress of transition from CurrentWeather to TargetWeather (0.0 to 1.0)
         public float TransitionProgress { get; private set; } = 1.0f;
 
         // Overall intensity: 0.0 (fully clear) to 1.0 (maximum storm/rain)
         public float RainIntensity { get; private set; } = 0.0f;
         public float CloudIntensity { get; private set; } = 0.0f;
-        
+
         // Lightning parameters
         public bool LightningActive { get; private set; }
         private float _lightningTimer;

@@ -743,12 +743,12 @@ namespace Autonocraft.Engine
             float cardX = layout.Padding;
             float barY = layout.Height - layout.S(72f);
             float textSize = layout.S(UiTheme.ScaleSmall);
-            
+
             // Draw a subtle dark background pill for the hints
             float textWidth = PixelFont.MeasureString(hintsText, textSize);
             float pillW = textWidth + layout.S(16f);
             float pillH = layout.S(20f);
-            
+
             _spriteBatch.Draw(_whiteTexture, new Rectangle((int)cardX, (int)barY, (int)pillW, (int)pillH), Color.Black * 0.45f);
             DrawRectOutline(_spriteBatch, cardX, barY, pillW, pillH, 1f, new Color(0.2f, 0.25f, 0.3f) * 0.6f, 0.7f);
             PixelFont.DrawString(_spriteBatch, _whiteTexture, hintsText, cardX + layout.S(8f), barY + layout.S(4f), textSize, UiTheme.Hint, 0.95f);

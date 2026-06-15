@@ -59,23 +59,23 @@ namespace Autonocraft.Village
                 village.UpdateSimulation(deltaTime, timeOfDay);
                 if (village.DailyNeedsSimulatedThisFrame)
                 {
-                if (village.ConsecutiveDaysWithoutFood >= 4 && VillageSettlementHealth.GetLivePopulation(village, _villagers) > 0)
-                {
-                    Villager? starveling = null;
-                    foreach (var citizen in VillageSettlementHealth.EnumerateLiveCitizens(village, _villagers))
+                    if (village.ConsecutiveDaysWithoutFood >= 4 && VillageSettlementHealth.GetLivePopulation(village, _villagers) > 0)
                     {
-                        starveling = citizen;
-                        break;
-                    }
+                        Villager? starveling = null;
+                        foreach (var citizen in VillageSettlementHealth.EnumerateLiveCitizens(village, _villagers))
+                        {
+                            starveling = citizen;
+                            break;
+                        }
 
-                    if (starveling != null)
-                    {
-                        _events?.ShowToast?.Invoke($"{starveling.Name} left the village (starving)");
-                        _events?.PlaySfx?.Invoke("food");
-                        village.UnregisterVillager(starveling.Id);
-                        _villagers.Despawn(starveling.Id);
+                        if (starveling != null)
+                        {
+                            _events?.ShowToast?.Invoke($"{starveling.Name} left the village (starving)");
+                            _events?.PlaySfx?.Invoke("food");
+                            village.UnregisterVillager(starveling.Id);
+                            _villagers.Despawn(starveling.Id);
+                        }
                     }
-                }
                 }
                 FarmCropGrowth.Advance(world, village, deltaTime, timeOfDay);
                 village.WorkQueue.SyncWithWorld(world);
