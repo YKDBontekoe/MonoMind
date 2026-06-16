@@ -8,8 +8,8 @@ namespace Autonocraft.Entities
 {
     public class AnimalManager
     {
-        public const int MaxAnimalsGlobal = 48;
-        public const int MaxAnimalsPerChunk = 2;
+        public const int MaxAnimalsGlobal = 80;
+        public const int MaxAnimalsPerChunk = 4;
 
         private readonly List<Animal> _animals = new List<Animal>();
         private readonly List<Animal> _rangeScratch = new();
@@ -119,7 +119,7 @@ namespace Autonocraft.Entities
             }
 
             var rng = new Random(HashChunk(_worldSeed, cx, cz));
-            int spawnAttempts = 3 + rng.Next(3);
+            int spawnAttempts = 6 + rng.Next(5);
             int spawned = 0;
 
             for (int attempt = 0; attempt < spawnAttempts && spawned < MaxAnimalsPerChunk && _animals.Count < MaxAnimalsGlobal; attempt++)
@@ -132,7 +132,7 @@ namespace Autonocraft.Entities
                     continue;
                 }
 
-                if (IsOccupied(spawnPos, 1.5f))
+                if (IsOccupied(spawnPos, 1.2f))
                 {
                     continue;
                 }

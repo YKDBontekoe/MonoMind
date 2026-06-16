@@ -399,22 +399,31 @@ namespace Autonocraft.Engine
                 var bodyUV = BlockAtlas.GetTileUVs(bodyCol, bodyRow);
                 var headUV = BlockAtlas.GetTileUVs(headCol, headRow);
 
-                float bodyHeight = stats.Height * 0.55f;
-                float bodyCenterY = stats.Height * 0.35f;
+                var shape = AnimalVisuals.GetShape(animal.Type);
+                var layout = AnimalBodyLayout.From(shape, stats);
+                float walkPhase = AnimalVisuals.GetWalkPhase(animal);
 
-                DrawTexturedBox(animalWorld, stats.Width * 0.45f, bodyHeight * 0.5f, stats.Width * 0.45f, 0f, bodyCenterY, 0f, bodyUV, bodyUV);
+                _worldEffect.TextureEnabled = false;
+                AnimalVisuals.DrawLegs(animalWorld, animal.Type, stats, shape, walkPhase, DrawColoredBox);
+                _worldEffect.TextureEnabled = true;
 
-                float headSize = stats.Width * 0.22f;
-                float headCenterY = stats.Height * 0.72f;
-                float headForward = stats.Width * 0.35f;
+                DrawTexturedBox(animalWorld, layout.BodyHalfW, layout.BodyHalfH, layout.BodyHalfD, 0f, layout.BodyCenterY, 0f, bodyUV, bodyUV);
 
-                DrawTexturedBox(animalWorld, headSize, headSize, headSize, 0f, headCenterY, headForward, bodyUV, headUV);
+                _worldEffect.TextureEnabled = false;
+                AnimalVisuals.DrawNeck(animalWorld, animal.Type, stats, shape, DrawColoredBox);
+                _worldEffect.TextureEnabled = true;
 
-                if (stats.HasAccent)
+                DrawTexturedBox(animalWorld, layout.HeadHalfW, layout.HeadHalfH, layout.HeadHalfD, 0f, layout.HeadCenterY, layout.HeadForward, bodyUV, headUV);
+
+                _worldEffect.TextureEnabled = false;
+                AnimalVisuals.DrawFeatures(animalWorld, animal.Type, stats, shape, walkPhase, DrawColoredBox);
+                _worldEffect.TextureEnabled = true;
+
+                if (stats.HasAccent && AnimalVisuals.UsesAccentBox(animal.Type))
                 {
                     _worldEffect.TextureEnabled = false;
-                    float accentSize = headSize * 0.45f;
-                    DrawColoredBox(animalWorld, accentSize, accentSize * 0.6f, accentSize * 0.8f, 0f, headCenterY, headForward + headSize * 1.2f, stats.AccentColor);
+                    float accentSize = layout.HeadSize * 0.45f;
+                    DrawColoredBox(animalWorld, accentSize, accentSize * 0.6f, accentSize * 0.8f, 0f, layout.HeadCenterY, layout.HeadForward + layout.HeadSize * 1.2f, stats.AccentColor);
                     _worldEffect.TextureEnabled = true;
                 }
 
@@ -477,28 +486,19 @@ namespace Autonocraft.Engine
                 var translation = Matrix.CreateTranslation(villager.Position.X, villager.Position.Y, villager.Position.Z);
                 var villagerWorld = rotation * translation;
 
-                float bodyHeight = Villager.Height * 0.55f;
-                float bodyCenterY = Villager.Height * 0.35f;
-                DrawTexturedBox(villagerWorld, Villager.Width * 0.45f, bodyHeight * 0.5f, Villager.Width * 0.45f, 0f, bodyCenterY, 0f, bodyUV, bodyUV);
-
-                float headSize = Villager.Width * 0.22f;
-                float headCenterY = Villager.Height * 0.72f;
-                float headForward = Villager.Width * 0.35f;
-                DrawTexturedBox(villagerWorld, headSize, headSize, headSize, 0f, headCenterY, headForward, bodyUV, headUV);
-
+                var layout = VillagerBodyLayout.Default;
                 var roleColor = VillagerVisuals.GetRoleColor(villager.Role);
                 _worldEffect.TextureEnabled = false;
-                float vestHeight = bodyHeight * 0.35f;
-                DrawColoredBox(villagerWorld, Villager.Width * 0.38f, vestHeight * 0.5f, Villager.Width * 0.12f, 0f, bodyCenterY, Villager.Width * 0.38f, roleColor * 0.85f);
+                float walkPhase = VillagerVisuals.GetWalkPhase(villager);
+                VillagerVisuals.DrawModelExtras(villagerWorld, villager, layout, walkPhase, DrawColoredBox);
+                _worldEffect.TextureEnabled = true;
 
-                if (villager.Role == VillagerRole.Lumberjack)
-                {
-                    DrawColoredBox(villagerWorld, 0.06f, 0.06f, 0.14f, Villager.Width * 0.35f, bodyCenterY + 0.05f, Villager.Width * 0.42f, new Color(0.55f, 0.35f, 0.18f, 0.95f));
-                }
-                else if (villager.Role == VillagerRole.Builder)
-                {
-                    DrawColoredBox(villagerWorld, Villager.Width * 0.42f, 0.04f, Villager.Width * 0.42f, 0f, headCenterY + headSize * 0.6f, 0f, new Color(0.95f, 0.55f, 0.15f, 0.95f));
-                }
+                DrawTexturedBox(villagerWorld, layout.BodyHalfW, layout.BodyHalfH, layout.BodyHalfD, 0f, layout.BodyCenterY, 0f, bodyUV, bodyUV);
+                DrawTexturedBox(villagerWorld, layout.HeadSize, layout.HeadSize, layout.HeadSize, 0f, layout.HeadCenterY, layout.HeadForward, bodyUV, headUV);
+
+                _worldEffect.TextureEnabled = false;
+                float vestHeight = layout.BodyHalfH * 0.72f;
+                DrawColoredBox(villagerWorld, Villager.Width * 0.34f, vestHeight * 0.5f, Villager.Width * 0.09f, 0f, layout.BodyCenterY + layout.BodyHalfH * 0.02f, layout.HeadForward * 0.95f, roleColor * 0.88f);
 
                 if (VillagerVisuals.ShouldDrawJobIndicator(villager.CurrentJob))
                 {
