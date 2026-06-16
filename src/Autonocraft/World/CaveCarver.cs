@@ -76,7 +76,8 @@ namespace Autonocraft.World
                             float cave = _caveNoise.Noise(caveX, caveY, caveZ);
                             if (cave > 0.34f)
                             {
-                                chunk.SetBlockUnchecked(lx, y, lz, BlockType.Air);
+                                BlockType carveBlock = y < 10 ? BlockType.Lava : BlockType.Air;
+                                chunk.SetBlockUnchecked(lx, y, lz, carveBlock);
                                 continue;
                             }
                         }
@@ -90,7 +91,8 @@ namespace Autonocraft.World
                                 float wormB = _wormNoise.Noise(wormXb, wormY + 100f, wormZb);
                                 if (MathF.Abs(wormB) < 0.05f)
                                 {
-                                    chunk.SetBlockUnchecked(lx, y, lz, BlockType.Air);
+                                    BlockType carveBlock = y < 10 ? BlockType.Lava : BlockType.Air;
+                                    chunk.SetBlockUnchecked(lx, y, lz, carveBlock);
                                 }
                             }
                         }

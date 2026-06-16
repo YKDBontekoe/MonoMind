@@ -811,6 +811,65 @@ namespace Autonocraft.Engine
                 FillRect(image, cx - 4, margin - 6, 9, 8, new Color(220, 30, 30));
                 FillRect(image, cx - 3, cy + beakSize + 1, 6, 7, new Color(220, 30, 30));
             }
+            else if (animalType == "cow")
+            {
+                int eyeY = cy - tileSize / 16;
+                int eyeOffset = tileSize / 4;
+                FillRect(image, cx - eyeOffset - 4, eyeY - 2, 8, 5, new Color(255, 255, 255));
+                FillRect(image, cx - eyeOffset - 2, eyeY - 2, 4, 5, new Color(0, 0, 0));
+                FillRect(image, cx + eyeOffset - 4, eyeY - 2, 8, 5, new Color(255, 255, 255));
+                FillRect(image, cx + eyeOffset - 2, eyeY - 2, 4, 5, new Color(0, 0, 0));
+
+                FillRect(image, margin + 2, margin + 2, 12, 12, accent);
+                FillRect(image, tileSize - margin - 14, margin + 2, 12, 12, accent);
+
+                FillRect(image, cx - 16, cy + tileSize / 8, 33, 9, new Color(245, 170, 180));
+                SetPixel(image, cx - 6, cy + tileSize / 8 + 3, new Color(100, 50, 60));
+                SetPixel(image, cx + 6, cy + tileSize / 8 + 3, new Color(100, 50, 60));
+            }
+            else if (animalType == "bear")
+            {
+                int eyeY = cy - tileSize / 12;
+                int eyeOffset = tileSize / 4;
+                FillRect(image, cx - eyeOffset - 2, eyeY - 2, 4, 4, new Color(0, 0, 0));
+                FillRect(image, cx + eyeOffset - 2, eyeY - 2, 4, 4, new Color(0, 0, 0));
+
+                FillRect(image, cx - 10, cy + 4, 21, 11, accent);
+                FillRect(image, cx - 4, cy + 4, 9, 5, new Color(10, 10, 10));
+
+                FillRect(image, margin, margin - 4, 13, 9, baseColor);
+                FillRect(image, tileSize - margin - 12, margin - 4, 13, 9, baseColor);
+            }
+            else if (animalType == "fox")
+            {
+                int eyeY = cy - tileSize / 16;
+                int eyeOffset = tileSize / 4;
+                FillRect(image, cx - eyeOffset - 2, eyeY - 2, 4, 4, new Color(0, 0, 0));
+                FillRect(image, cx + eyeOffset - 2, eyeY - 2, 4, 4, new Color(0, 0, 0));
+
+                FillRect(image, margin + 2, cy + 2, 15, tileSize - margin - cy - 4, accent);
+                FillRect(image, tileSize - margin - 16, cy + 2, 15, tileSize - margin - cy - 4, accent);
+
+                FillRect(image, cx - 4, tileSize - margin - 6, 9, 5, new Color(10, 10, 10));
+
+                FillTriangle(image, margin, margin + 8, margin, margin - 6, margin + 12, margin + 8, baseColor);
+                FillTriangle(image, tileSize - margin, margin + 8, tileSize - margin, margin - 6, tileSize - margin - 12, margin + 8, baseColor);
+            }
+            else if (animalType == "deer")
+            {
+                int eyeY = cy - tileSize / 12;
+                int eyeOffset = tileSize / 4;
+                FillRect(image, cx - eyeOffset - 3, eyeY - 3, 6, 6, new Color(0, 0, 0));
+                FillRect(image, cx + eyeOffset - 3, eyeY - 3, 6, 6, new Color(0, 0, 0));
+
+                SetPixel(image, cx - eyeOffset + 1, eyeY - 2, new Color(255, 255, 255));
+                SetPixel(image, cx + eyeOffset - 2, eyeY - 2, new Color(255, 255, 255));
+
+                DrawLine(image, cx - 8, margin, cx - 12, margin - 10, new Color(140, 100, 70), 2);
+                DrawLine(image, cx - 12, margin - 10, cx - 18, margin - 14, new Color(140, 100, 70), 2);
+                DrawLine(image, cx + 8, margin, cx + 12, margin - 10, new Color(140, 100, 70), 2);
+                DrawLine(image, cx + 12, margin - 10, cx + 18, margin - 14, new Color(140, 100, 70), 2);
+            }
 
             ApplyCellRims(image, CellOrganic, -8, 6);
             return image.Pixels;
@@ -1078,6 +1137,102 @@ namespace Autonocraft.Engine
             DrawLine(image, inset, inset, inset, tileSize - inset, Lighten(baseColor, 12), 2);
             ApplyCellRims(image, CellEarth, -8, 6);
             return image.Pixels;
+        }
+
+        public static Color[] CowBody(int tileSize, string name)
+        {
+            var baseColor = new Color(230, 230, 230);
+            var palette = ExpandPalette(baseColor, Darken(baseColor, 10), Lighten(baseColor, 10));
+            var image = new TileImage(PixelCluster(tileSize, name, baseColor, palette, CellOrganic, 5), tileSize);
+            for (int i = 0; i < 6; i++)
+            {
+                int cx = Noise(name, i, 11, 13) % tileSize;
+                int cy = Noise(name, i, 17, 19) % tileSize;
+                int r = 14 + Noise(name, i, 23, 29) % 12;
+                FillEllipse(image, cx - r, cy - r, cx + r, cy + r, new Color(40, 40, 42));
+                FillEllipse(image, cx - r + 2, cy - r + 2, cx + r - 2, cy + r - 2, new Color(55, 55, 58));
+            }
+            return image.Pixels;
+        }
+
+        public static Color[] BearBody(int tileSize, string name)
+        {
+            var baseColor = new Color(75, 45, 30);
+            var palette = ExpandPalette(baseColor, Darken(baseColor, 12), Lighten(baseColor, 12));
+            var image = new TileImage(PixelCluster(tileSize, name, baseColor, palette, CellOrganic, 8), tileSize);
+            for (int i = 0; i < 4; i++)
+            {
+                int cx = Noise(name, i, 15, 17) % tileSize;
+                int cy = Noise(name, i, 19, 21) % tileSize;
+                int r = 16 + Noise(name, i, 25, 31) % 10;
+                FillEllipse(image, cx - r, cy - r, cx + r, cy + r, new Color(55, 30, 20));
+            }
+            return image.Pixels;
+        }
+
+        public static Color[] FoxBody(int tileSize, string name)
+        {
+            var baseColor = new Color(220, 95, 30);
+            var palette = ExpandPalette(baseColor, Darken(baseColor, 12), Lighten(baseColor, 12));
+            var image = new TileImage(PixelCluster(tileSize, name, baseColor, palette, CellOrganic, 8), tileSize);
+            for (int i = 0; i < 3; i++)
+            {
+                int cx = Noise(name, i, 5, 11) % tileSize;
+                int cy = tileSize - 10 - Noise(name, i, 13, 17) % 15;
+                int r = 10 + Noise(name, i, 19, 23) % 8;
+                FillEllipse(image, cx - r, cy - r, cx + r, cy + r, new Color(240, 235, 225));
+            }
+            return image.Pixels;
+        }
+
+        public static Color[] DeerBody(int tileSize, string name)
+        {
+            var baseColor = new Color(175, 115, 75);
+            var palette = ExpandPalette(baseColor, Darken(baseColor, 10), Lighten(baseColor, 10));
+            var image = new TileImage(PixelCluster(tileSize, name, baseColor, palette, CellOrganic, 6), tileSize);
+            for (int i = 0; i < 16; i++)
+            {
+                int cx = Noise(name, i, 3, 11) % tileSize;
+                int cy = Noise(name, i, 7, 13) % tileSize;
+                FillRect(image, cx, cy, 3, 3, new Color(245, 245, 240));
+            }
+            return image.Pixels;
+        }
+
+        private static void FillTriangle(TileImage image, int x0, int y0, int x1, int y1, int x2, int y2, Color color)
+        {
+            FillPolygon(image, new[] { (x0, y0), (x1, y1), (x2, y2) }, color);
+        }
+
+        private static void FillPolygon(TileImage image, (int x, int y)[] points, Color color)
+        {
+            int minY = points.Min(p => p.y);
+            int maxY = points.Max(p => p.y);
+            for (int y = minY; y <= maxY; y++)
+            {
+                var intersections = new System.Collections.Generic.List<int>();
+                for (int i = 0; i < points.Length; i++)
+                {
+                    var a = points[i];
+                    var b = points[(i + 1) % points.Length];
+                    if (a.y == b.y)
+                    {
+                        continue;
+                    }
+
+                    if (y >= Math.Min(a.y, b.y) && y < Math.Max(a.y, b.y))
+                    {
+                        int x = a.x + (y - a.y) * (b.x - a.x) / (b.y - a.y);
+                        intersections.Add(x);
+                    }
+                }
+
+                intersections.Sort();
+                for (int i = 0; i + 1 < intersections.Count; i += 2)
+                {
+                    DrawLine(image, intersections[i], y, intersections[i + 1], y, color, 1);
+                }
+            }
         }
 
         private static Color[] PixelCluster(int tileSize, string name, Color baseColor, Color[] palette, int cellSize, int variation)

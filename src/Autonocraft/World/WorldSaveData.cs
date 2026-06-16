@@ -73,6 +73,11 @@ namespace Autonocraft.World
         public int SheepKilled { get; set; }
         public int PigKilled { get; set; }
         public int ChickenKilled { get; set; }
+        public int CowKilled { get; set; }
+        public int BearKilled { get; set; }
+        public int FoxKilled { get; set; }
+        public int DeerKilled { get; set; }
+        public int WolfKilled { get; set; }
         public float DamageDealt { get; set; }
         public float DamageTaken { get; set; }
         public int PlayerDeaths { get; set; }

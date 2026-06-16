@@ -144,13 +144,19 @@ namespace Autonocraft.Crafting
         {
             return symbol switch
             {
-                'P' => block is BlockType.OakPlank or BlockType.BirchPlank or BlockType.PinePlank,
+                'P' => block is BlockType.OakPlank or BlockType.BirchPlank or BlockType.PinePlank
+                    or BlockType.CherryPlank or BlockType.MahoganyPlank or BlockType.MaplePlank,
                 'L' => block.IsAnyLog(),
                 'T' => false,
-                'S' => block == BlockType.Stone,
+                'S' => block == BlockType.Stone || block == BlockType.Marble || block == BlockType.Basalt
+                    || block == BlockType.Slate || block == BlockType.Limestone || block == BlockType.Granite,
                 'C' => block == BlockType.Cobblestone,
                 'I' => block == BlockType.IronBlock,
                 'G' => block == BlockType.GoldBlock,
+                'U' => block == BlockType.CopperBlock,
+                'V' => block == BlockType.SilverBlock,
+                'H' => block == BlockType.DiamondBlock,
+                'E' => block == BlockType.EmeraldBlock,
                 'W' => block == BlockType.Wheat,
                 'D' => block == BlockType.Dirt,
                 'A' => block == BlockType.Sand,

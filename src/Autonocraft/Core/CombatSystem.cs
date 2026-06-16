@@ -49,6 +49,7 @@ namespace Autonocraft.Core
 
             HandleFallDamage(player, world, animator);
             HandleDrowning(deltaTime, player, animator);
+            HandleEnvironmentalHazards(deltaTime, player, world, animator);
 
             if (!player.IsAlive)
             {
@@ -232,7 +233,7 @@ namespace Autonocraft.Core
                 return;
             }
 
-            if (WaterQuery.IsLandingInWater(world, player.Position))
+            if (WaterQuery.IsLandingInWater(world, player.Position) || LavaQuery.IsLandingInLava(world, player.Position))
             {
                 damage = MathF.Min(damage, 2f);
             }
@@ -265,6 +266,39 @@ namespace Autonocraft.Core
                 }
 
                 animator.TriggerDamage(0.5f);
+            }
+        }
+
+        private void HandleEnvironmentalHazards(float deltaTime, Player player, VoxelWorld world, InteractionAnimator animator)
+        {
+            if (player.CreativeMode || !player.IsAlive)
+            {
+                return;
+            }
+
+            // Lava damage: if in lava, take damage
+            if (player.InLava)
+            {
+                if (player.TakeDamage(4.0f, out _))
+                {
+                    player.LastDeathCause = DeathCause.Lava;
+                    animator.TriggerDamage(1.0f);
+                    PlaySfx?.Invoke(SfxKind.PlayerHurt, 1f);
+                }
+            }
+
+            // Quicksand suffocation: if head is in quicksand, take suffocation damage
+            int eyeX = (int)MathF.Floor(player.Position.X);
+            int eyeY = (int)MathF.Floor(player.Position.Y + Player.EyeHeight);
+            int eyeZ = (int)MathF.Floor(player.Position.Z);
+            if (world.GetBlock(eyeX, eyeY, eyeZ) == BlockType.Quicksand)
+            {
+                if (player.TakeDamage(2.0f, out _))
+                {
+                    player.LastDeathCause = DeathCause.Suffocate;
+                    animator.TriggerDamage(0.6f);
+                    PlaySfx?.Invoke(SfxKind.PlayerHurt, 1f);
+                }
             }
         }
 

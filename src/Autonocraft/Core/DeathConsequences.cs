@@ -9,7 +9,9 @@ namespace Autonocraft.Core
         Drown,
         Animal,
         Starvation,
-        Wolf
+        Wolf,
+        Lava,
+        Suffocate
     }
 
     public static class DeathConsequences

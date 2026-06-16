@@ -68,6 +68,7 @@ namespace Autonocraft.Core
         private float _timeScale = 0.01f;
         private float _waterAnimTime;
         private bool _playerWasInWater;
+        private bool _playerWasInLava;
         private float _underwaterBubbleTimer;
         private float _titleUpdateTimer;
         private bool _timePaused;
@@ -1705,6 +1706,23 @@ namespace Autonocraft.Core
 
                 _playerWasInWater = _session.Player.InWater;
 
+                if (_session.Player.InLava && !_playerWasInLava)
+                {
+                    _session.Particles.SpawnWaterSplash(_session.Player.Position + new Vector3(0f, 0.2f, 0f), 0.9f);
+                    _session.PlayWaterSplashSound();
+                }
+                else if (!_session.Player.InLava && _playerWasInLava)
+                {
+                    _session.Particles.SpawnWaterSplash(_session.Player.Position, 1.0f);
+                    _session.PlayWaterSplashSound();
+                }
+                else if (_session.Player.JustLanded && LavaQuery.IsLandingInLava(_session.Grid, _session.Player.Position))
+                {
+                    _session.Particles.SpawnWaterSplash(_session.Player.Position, 1.3f);
+                    _session.PlayWaterSplashSound();
+                }
+                _playerWasInLava = _session.Player.InLava;
+
                 if (_session.Player.HeadUnderwater)
                 {
                     _underwaterBubbleTimer += deltaTime;
@@ -2199,6 +2217,8 @@ namespace Autonocraft.Core
             DeathCause.Starvation => "You starved.",
             DeathCause.Wolf => "A wolf killed you.",
             DeathCause.Animal => "An animal killed you.",
+            DeathCause.Lava => "You tried to swim in lava.",
+            DeathCause.Suffocate => "You suffocated.",
             _ => "YOUR ADVENTURE ISN'T OVER"
         };
 

@@ -217,7 +217,7 @@ namespace Autonocraft.Entities
 
         public string GetCountSummary()
         {
-            int sheep = 0, pig = 0, chicken = 0;
+            int sheep = 0, pig = 0, chicken = 0, wolf = 0, cow = 0, bear = 0, fox = 0, deer = 0;
             foreach (var animal in _animals)
             {
                 switch (animal.Type)
@@ -225,10 +225,15 @@ namespace Autonocraft.Entities
                     case AnimalType.Sheep: sheep++; break;
                     case AnimalType.Pig: pig++; break;
                     case AnimalType.Chicken: chicken++; break;
+                    case AnimalType.Wolf: wolf++; break;
+                    case AnimalType.Cow: cow++; break;
+                    case AnimalType.Bear: bear++; break;
+                    case AnimalType.Fox: fox++; break;
+                    case AnimalType.Deer: deer++; break;
                 }
             }
 
-            return $"Animals: {Count} total (Sheep: {sheep}, Pig: {pig}, Chicken: {chicken})";
+            return $"Animals: {Count} total (Sheep: {sheep}, Pig: {pig}, Chicken: {chicken}, Wolf: {wolf}, Cow: {cow}, Bear: {bear}, Fox: {fox}, Deer: {deer})";
         }
 
         private static int HashChunk(int seed, int cx, int cz)
@@ -272,13 +277,67 @@ namespace Autonocraft.Entities
                 }
             }
 
+            var biome = world.SampleBiome(wx, wz).Primary;
             int typeRoll = rng.Next(100);
-            type = typeRoll switch
+
+            if (biome == BiomeType.Forest)
             {
-                < 40 => AnimalType.Sheep,
-                < 75 => AnimalType.Pig,
-                _ => AnimalType.Chicken
-            };
+                type = typeRoll switch
+                {
+                    < 20 => AnimalType.Deer,
+                    < 40 => AnimalType.Bear,
+                    < 60 => AnimalType.Fox,
+                    < 75 => AnimalType.Pig,
+                    < 90 => AnimalType.Chicken,
+                    _ => AnimalType.Cow
+                };
+            }
+            else if (biome == BiomeType.Plains)
+            {
+                type = typeRoll switch
+                {
+                    < 30 => AnimalType.Sheep,
+                    < 55 => AnimalType.Cow,
+                    < 75 => AnimalType.Deer,
+                    < 90 => AnimalType.Pig,
+                    _ => AnimalType.Fox
+                };
+            }
+            else if (biome == BiomeType.Swamp)
+            {
+                type = typeRoll switch
+                {
+                    < 40 => AnimalType.Pig,
+                    < 70 => AnimalType.Chicken,
+                    _ => AnimalType.Bear
+                };
+            }
+            else if (biome == BiomeType.Mountains)
+            {
+                type = typeRoll switch
+                {
+                    < 40 => AnimalType.Sheep,
+                    < 70 => AnimalType.Cow,
+                    _ => AnimalType.Bear
+                };
+            }
+            else if (biome == BiomeType.SnowyPeaks)
+            {
+                type = typeRoll switch
+                {
+                    < 50 => AnimalType.Fox,
+                    _ => AnimalType.Sheep
+                };
+            }
+            else
+            {
+                type = typeRoll switch
+                {
+                    < 35 => AnimalType.Sheep,
+                    < 70 => AnimalType.Pig,
+                    _ => AnimalType.Chicken
+                };
+            }
 
             var stats = AnimalStats.For(type);
             position = new Vector3(wx + 0.5f, surfaceY + 1f, wz + 0.5f);

@@ -39,6 +39,9 @@ namespace Autonocraft.Core
         public bool InWater { get; private set; }
         public bool HeadUnderwater { get; private set; }
         public bool OnWaterSurface { get; private set; }
+        public bool InLava { get; private set; }
+        public bool HeadInLava { get; private set; }
+        public bool OnLavaSurface { get; private set; }
         public float Oxygen { get; private set; } = MaxOxygen;
         public bool CreativeMode { get; set; } = false;
         public bool IsSprinting { get; set; } = false;
@@ -57,6 +60,7 @@ namespace Autonocraft.Core
 
         private bool _wasGrounded = true;
         private bool _wasInWater;
+        private bool _wasInLava;
         private float _fallStartY;
         private float _invulnerabilityTimer;
         private float _starvationTimer;
@@ -540,6 +544,9 @@ namespace Autonocraft.Core
                 InWater = false;
                 HeadUnderwater = false;
                 OnWaterSurface = false;
+                InLava = false;
+                HeadInLava = false;
+                OnLavaSurface = false;
             }
             else
             {
@@ -552,6 +559,10 @@ namespace Autonocraft.Core
                     if (InWater)
                     {
                         speed = CustomMoveSpeed > 0f ? CustomMoveSpeed : SwimSpeed;
+                    }
+                    else if (InLava)
+                    {
+                        speed = CustomMoveSpeed > 0f ? CustomMoveSpeed : (SwimSpeed * 0.7f);
                     }
                     else if (IsSprinting)
                     {
@@ -593,6 +604,9 @@ namespace Autonocraft.Core
                 InWater = state.InWater;
                 HeadUnderwater = state.HeadUnderwater;
                 OnWaterSurface = state.OnWaterSurface;
+                InLava = state.InLava;
+                HeadInLava = state.HeadInLava;
+                OnLavaSurface = state.OnLavaSurface;
 
                 if (HeadUnderwater)
                 {
@@ -612,11 +626,11 @@ namespace Autonocraft.Core
                 {
                     _fallStartY = Position.Y;
                 }
-                else if (!IsGrounded && !InWater)
+                else if (!IsGrounded && !InWater && !InLava)
                 {
                     _fallStartY = MathF.Max(_fallStartY, Position.Y);
                 }
-                else if (!_wasInWater && InWater && !_wasGrounded)
+                else if (((!_wasInWater && InWater) || (!_wasInLava && InLava)) && !_wasGrounded)
                 {
                     JustLanded = true;
                     FallDistance = MathF.Max(0f, _fallStartY - Position.Y);
@@ -629,6 +643,7 @@ namespace Autonocraft.Core
 
                 _wasGrounded = IsGrounded;
                 _wasInWater = InWater;
+                _wasInLava = InLava;
             }
 
             Stats.RecordMovement(prevPos, Position, CreativeMode, IsGrounded);
