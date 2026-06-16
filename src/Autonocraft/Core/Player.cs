@@ -70,6 +70,7 @@ namespace Autonocraft.Core
         {
             _wasGrounded = IsGrounded;
             _wasInWater = InWater;
+            _wasInLava = InLava;
             _fallStartY = Position.Y;
             JustLanded = false;
             FallDistance = 0f;
@@ -80,6 +81,7 @@ namespace Autonocraft.Core
             IsGrounded = false;
             _wasGrounded = false;
             _wasInWater = InWater;
+            _wasInLava = InLava;
             _fallStartY = Position.Y;
             JustLanded = false;
             FallDistance = 0f;
@@ -666,6 +668,11 @@ namespace Autonocraft.Core
             {
                 Velocity.Y = JumpForce * 0.85f;
                 Console.WriteLine("[Player] Jumped from water!");
+            }
+            else if (OnLavaSurface)
+            {
+                Velocity.Y = JumpForce * 0.85f;
+                Console.WriteLine("[Player] Jumped from lava surface!");
             }
         }
 

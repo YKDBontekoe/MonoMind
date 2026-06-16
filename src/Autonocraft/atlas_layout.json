@@ -158,7 +158,9 @@
     "tool_emerald_pickaxe": { "col": 5, "row": 19, "file": "tool_emerald_pickaxe.png" },
     "tool_emerald_axe": { "col": 6, "row": 19, "file": "tool_emerald_axe.png" },
     "tool_emerald_shovel": { "col": 7, "row": 19, "file": "tool_emerald_shovel.png" },
-    "tool_emerald_sword": { "col": 0, "row": 20, "file": "tool_emerald_sword.png" }
+    "tool_emerald_sword": { "col": 0, "row": 20, "file": "tool_emerald_sword.png" },
+    "wolf_body": { "col": 1, "row": 20, "file": "wolf_body.png" },
+    "wolf_head": { "col": 2, "row": 20, "file": "wolf_head.png" }
   },
   "blockFaces": {
     "Grass": { "top": "grass_top", "bottom": "dirt", "side": "grass_side" },
@@ -269,7 +271,8 @@
     "Cow": { "body": "cow_body", "head": "cow_head" },
     "Bear": { "body": "bear_body", "head": "bear_head" },
     "Fox": { "body": "fox_body", "head": "fox_head" },
-    "Deer": { "body": "deer_body", "head": "deer_head" }
+    "Deer": { "body": "deer_body", "head": "deer_head" },
+    "Wolf": { "body": "wolf_body", "head": "wolf_head" }
   },
   "villagers": {
     "Default": { "body": "villager_body", "head": "villager_head" }

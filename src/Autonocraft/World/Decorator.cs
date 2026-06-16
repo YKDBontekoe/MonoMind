@@ -379,7 +379,7 @@ namespace Autonocraft.World
                             for (int ky = 1; ky <= kelpHeight; ky++)
                             {
                                 int kelpY = floorY + ky;
-                                if (kelpY < waterY && chunk.GetBlockUnchecked(lx, kelpY, lz) == BlockType.Water)
+                                if (kelpY < waterY && kelpY < Chunk.Height && chunk.GetBlockUnchecked(lx, kelpY, lz) == BlockType.Water)
                                 {
                                     SetBlock(chunk, world, wx, wz, lx, lz, kelpY, BlockType.Kelp);
                                 }

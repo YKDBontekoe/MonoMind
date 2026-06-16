@@ -412,22 +412,22 @@ def make_wheat_crop_sprite(name: str, tile: int, stem: tuple[int, int, int], hea
     img = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     cx = tile // 2
-    draw.line((cx, tile - 2, cx, tile // 3), fill=stem + (255,), width=3)
+    draw.line((cx, tile - 2, cx, tile // 3), fill=(*stem, 255), width=3)
     for i in range(-2, 3):
         top = tile // 3 - i * 4
-        draw.line((cx, top + 10, cx + i * 5, top), fill=shade(head, i * 4) + (255,), width=2)
-    draw.ellipse((cx - 8, tile // 4 - 6, cx + 8, tile // 4 + 8), fill=head + (255,))
+        draw.line((cx, top + 10, cx + i * 5, top), fill=(*shade(head, i * 4), 255), width=2)
+    draw.ellipse((cx - 8, tile // 4 - 6, cx + 8, tile // 4 + 8), fill=(*head, 255))
     return img
 
 def make_carrot_crop_sprite(name: str, tile: int, stem: tuple[int, int, int], root: tuple[int, int, int]) -> Image.Image:
     img = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     cx = tile // 2
-    draw.line((cx, tile - 2, cx, tile // 2), fill=stem + (255,), width=3)
-    draw.line((cx - 4, tile // 2, cx - 10, tile // 2 + 6), fill=shade(stem, 8) + (255,), width=2)
-    draw.line((cx + 4, tile // 2, cx + 10, tile // 2 + 6), fill=shade(stem, 8) + (255,), width=2)
-    draw.ellipse((cx - 7, tile // 2 + 4, cx + 7, tile - 4), fill=root + (255,))
-    draw.ellipse((cx - 4, tile // 2 + 8, cx + 4, tile - 6), fill=lighten(root, 12) + (255,))
+    draw.line((cx, tile - 2, cx, tile // 2), fill=(*stem, 255), width=3)
+    draw.line((cx - 4, tile // 2, cx - 10, tile // 2 + 6), fill=(*shade(stem, 8), 255), width=2)
+    draw.line((cx + 4, tile // 2, cx + 10, tile // 2 + 6), fill=(*shade(stem, 8), 255), width=2)
+    draw.ellipse((cx - 7, tile // 2 + 4, cx + 7, tile - 4), fill=(*root, 255))
+    draw.ellipse((cx - 4, tile // 2 + 8, cx + 4, tile - 6), fill=(*lighten(root, 12), 255))
     return img
 
 def make_flower_stem_sprite(name: str, tile: int, stem: tuple[int, int, int], petal_colors: list[tuple[int, int, int]], center: tuple[int, int, int]) -> Image.Image:
@@ -1633,6 +1633,35 @@ def make_procedural_tile(name: str, tile: int) -> Optional[Image.Image]:
         draw.line((cx - 12, margin - 10, cx - 18, margin - 14), fill=(140, 100, 70, 255), width=2)
         draw.line((cx + 8, margin, cx + 12, margin - 10), fill=(140, 100, 70, 255), width=2)
         draw.line((cx + 12, margin - 10, cx + 18, margin - 14), fill=(140, 100, 70, 255), width=2)
+        return img
+
+    if name == "wolf_body.png":
+        base = (85, 85, 90)
+        img = fill_noisy_tile(name, tile, base, 8)
+        draw = ImageDraw.Draw(img)
+        for i in range(3):
+            cx = noise_value(name, i, 5, 11) % tile
+            cy = tile - 10 - noise_value(name, i, 13, 17) % 15
+            r = 10 + noise_value(name, i, 19, 23) % 8
+            draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(160, 160, 165, 255))
+        return img
+
+    if name == "wolf_head.png":
+        base, accent = (85, 85, 90), (160, 160, 165)
+        img = fill_noisy_tile(name, tile, base, 7)
+        draw = ImageDraw.Draw(img)
+        margin = tile // 8
+        draw.rectangle((margin, margin, tile - margin, tile - margin), outline=shade(base, -30) + (255,), width=2)
+        cx, cy = tile // 2, tile // 2
+        eye_y = cy - tile // 16
+        eye_offset = tile // 4
+        draw.rectangle((cx - eye_offset - 2, eye_y - 2, cx - eye_offset + 1, eye_y + 1), fill=(0, 0, 0, 255))
+        draw.rectangle((cx + eye_offset - 2, eye_y - 2, cx + eye_offset + 1, eye_y + 1), fill=(0, 0, 0, 255))
+        draw.rectangle((margin + 2, cy + 2, margin + 16, tile - margin - 2), fill=accent + (255,))
+        draw.rectangle((tile - margin - 16, cy + 2, tile - margin - 2, tile - margin - 2), fill=accent + (255,))
+        draw.rectangle((cx - 4, tile - margin - 6, cx + 4, tile - margin - 2), fill=(10, 10, 10, 255))
+        draw.polygon([(margin, margin + 8), (margin, margin - 6), (margin + 12, margin + 8)], fill=base + (255,))
+        draw.polygon([(tile - margin, margin + 8), (tile - margin, margin - 6), (tile - margin - 12, margin + 8)], fill=base + (255,))
         return img
 
     if name == "wheat_sprout.png":

@@ -59,4 +59,42 @@ public class CraftPatternMatcherTests
         Assert.Single(consumption);
         Assert.Equal(1, consumption[1]);
     }
+
+    [Theory]
+    [InlineData(BlockType.Stone)]
+    [InlineData(BlockType.Marble)]
+    [InlineData(BlockType.Basalt)]
+    [InlineData(BlockType.Slate)]
+    [InlineData(BlockType.Limestone)]
+    [InlineData(BlockType.Granite)]
+    public void StoneToolPatternsAcceptAllStoneVariants(BlockType stoneVariant)
+    {
+        AssertStoneToolMatches(new[] { "SSS", " T ", " T " }, stoneVariant, stoneSlots: new[] { 0, 1, 2 }, stickSlots: new[] { 4, 7 });
+        AssertStoneToolMatches(new[] { "SS", "ST", " T" }, stoneVariant, stoneSlots: new[] { 0, 1, 3 }, stickSlots: new[] { 4, 7 });
+        AssertStoneToolMatches(new[] { " S", " T", " T" }, stoneVariant, stoneSlots: new[] { 1 }, stickSlots: new[] { 4, 7 });
+        AssertStoneToolMatches(new[] { " S", " S", " T" }, stoneVariant, stoneSlots: new[] { 1, 4 }, stickSlots: new[] { 7 });
+    }
+
+    private static void AssertStoneToolMatches(
+        string[] pattern,
+        BlockType stoneVariant,
+        int[] stoneSlots,
+        int[] stickSlots)
+    {
+        var slots = new ItemStack[9];
+        foreach (int slot in stoneSlots)
+        {
+            slots[slot] = ItemStack.CreateBlock(stoneVariant, 1);
+        }
+
+        foreach (int slot in stickSlots)
+        {
+            slots[slot] = ItemStack.CreateMaterial(ItemId.Stick, 1);
+        }
+
+        Assert.True(
+            CraftPatternMatcher.TryMatch(pattern, 3, slots, out var consumption),
+            $"Expected {stoneVariant} to match pattern {string.Join("/", pattern)}");
+        Assert.Equal(stoneSlots.Length + stickSlots.Length, consumption.Count);
+    }
 }

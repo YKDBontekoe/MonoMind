@@ -379,6 +379,48 @@ namespace Autonocraft.Engine
                         new Color(108, 108, 112),
                         ShiftColor(new Color(224, 184, 62), seedShift),
                         ShiftColor(new Color(255, 220, 98), seedShift)));
+                case "copper_ore":
+                    return FromSynth(ProceduralTextureSynth.Ore(
+                        _tileSize,
+                        name,
+                        new Color(108, 108, 112),
+                        ShiftColor(new Color(200, 95, 40), seedShift),
+                        ShiftColor(new Color(230, 135, 80), seedShift)));
+                case "silver_ore":
+                    return FromSynth(ProceduralTextureSynth.Ore(
+                        _tileSize,
+                        name,
+                        new Color(108, 108, 112),
+                        ShiftColor(new Color(180, 190, 195), seedShift),
+                        ShiftColor(new Color(220, 230, 235), seedShift)));
+                case "diamond_ore":
+                    return FromSynth(ProceduralTextureSynth.Ore(
+                        _tileSize,
+                        name,
+                        new Color(108, 108, 112),
+                        ShiftColor(new Color(60, 200, 220), seedShift),
+                        ShiftColor(new Color(120, 240, 255), seedShift)));
+                case "emerald_ore":
+                    return FromSynth(ProceduralTextureSynth.Ore(
+                        _tileSize,
+                        name,
+                        new Color(108, 108, 112),
+                        ShiftColor(new Color(40, 200, 100), seedShift),
+                        ShiftColor(new Color(100, 240, 160), seedShift)));
+                case "ruby_ore":
+                    return FromSynth(ProceduralTextureSynth.Ore(
+                        _tileSize,
+                        name,
+                        new Color(108, 108, 112),
+                        ShiftColor(new Color(220, 40, 80), seedShift),
+                        ShiftColor(new Color(255, 120, 150), seedShift)));
+                case "quartz_ore":
+                    return FromSynth(ProceduralTextureSynth.Ore(
+                        _tileSize,
+                        name,
+                        new Color(108, 108, 112),
+                        ShiftColor(new Color(225, 225, 230), seedShift),
+                        ShiftColor(new Color(255, 255, 255), seedShift)));
                 case "cactus":
                     return FromSynth(ProceduralTextureSynth.CactusSprite(
                         _tileSize,
@@ -973,13 +1015,13 @@ namespace Autonocraft.Engine
                 case "red_stained_glass":
                     {
                         var image = FillSolid(new Color(220, 40, 40, 80));
-                        DrawRectOutline(image, 0, 0, _tileSize, _tileSize, new Color(255, 80, 80, 180), 2);
+                        DrawRectOutline(image, 0, 0, _tileSize - 1, _tileSize - 1, new Color(255, 80, 80, 180), 2);
                         return image;
                     }
                 case "blue_stained_glass":
                     {
                         var image = FillSolid(new Color(40, 80, 220, 80));
-                        DrawRectOutline(image, 0, 0, _tileSize, _tileSize, new Color(80, 120, 255, 180), 2);
+                        DrawRectOutline(image, 0, 0, _tileSize - 1, _tileSize - 1, new Color(80, 120, 255, 180), 2);
                         return image;
                     }
                 case "station_smoker":
@@ -1100,6 +1142,10 @@ namespace Autonocraft.Engine
                     return FromSynth(ProceduralTextureSynth.DeerBody(_tileSize, name));
                 case "deer_head":
                     return FromSynth(ProceduralTextureSynth.AnimalHead(_tileSize, name, new Color(175, 115, 75), new Color(245, 245, 240), "deer"));
+                case "wolf_body":
+                    return FromSynth(ProceduralTextureSynth.FoxBody(_tileSize, name, new Color(85, 85, 90), new Color(160, 160, 165)));
+                case "wolf_head":
+                    return FromSynth(ProceduralTextureSynth.AnimalHead(_tileSize, name, new Color(85, 85, 90), new Color(160, 160, 165), "wolf"));
                 default:
                     {
                         string stem = name.Split('.')[0];

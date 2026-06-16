@@ -1170,17 +1170,18 @@ namespace Autonocraft.Engine
             return image.Pixels;
         }
 
-        public static Color[] FoxBody(int tileSize, string name)
+        public static Color[] FoxBody(int tileSize, string name, Color? baseColor = null, Color? bellyColor = null)
         {
-            var baseColor = new Color(220, 95, 30);
-            var palette = ExpandPalette(baseColor, Darken(baseColor, 12), Lighten(baseColor, 12));
-            var image = new TileImage(PixelCluster(tileSize, name, baseColor, palette, CellOrganic, 8), tileSize);
+            var bodyColor = baseColor ?? new Color(220, 95, 30);
+            var belly = bellyColor ?? new Color(240, 235, 225);
+            var palette = ExpandPalette(bodyColor, Darken(bodyColor, 12), Lighten(bodyColor, 12));
+            var image = new TileImage(PixelCluster(tileSize, name, bodyColor, palette, CellOrganic, 8), tileSize);
             for (int i = 0; i < 3; i++)
             {
                 int cx = Noise(name, i, 5, 11) % tileSize;
                 int cy = tileSize - 10 - Noise(name, i, 13, 17) % 15;
                 int r = 10 + Noise(name, i, 19, 23) % 8;
-                FillEllipse(image, cx - r, cy - r, cx + r, cy + r, new Color(240, 235, 225));
+                FillEllipse(image, cx - r, cy - r, cx + r, cy + r, belly);
             }
             return image.Pixels;
         }
