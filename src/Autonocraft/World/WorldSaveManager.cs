@@ -450,6 +450,11 @@ namespace Autonocraft.World
                 SheepKilled = stats.SheepKilled,
                 PigKilled = stats.PigKilled,
                 ChickenKilled = stats.ChickenKilled,
+                CowKilled = stats.CowKilled,
+                BearKilled = stats.BearKilled,
+                FoxKilled = stats.FoxKilled,
+                DeerKilled = stats.DeerKilled,
+                WolfKilled = stats.WolfKilled,
                 DamageDealt = stats.DamageDealt,
                 DamageTaken = stats.DamageTaken,
                 PlayerDeaths = stats.PlayerDeaths,
@@ -481,6 +486,11 @@ namespace Autonocraft.World
             stats.SheepKilled = data.SheepKilled;
             stats.PigKilled = data.PigKilled;
             stats.ChickenKilled = data.ChickenKilled;
+            stats.CowKilled = data.CowKilled;
+            stats.BearKilled = data.BearKilled;
+            stats.FoxKilled = data.FoxKilled;
+            stats.DeerKilled = data.DeerKilled;
+            stats.WolfKilled = data.WolfKilled;
             stats.DamageDealt = data.DamageDealt;
             stats.DamageTaken = data.DamageTaken;
             stats.PlayerDeaths = data.PlayerDeaths;

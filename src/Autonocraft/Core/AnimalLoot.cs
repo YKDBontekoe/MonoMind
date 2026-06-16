@@ -9,12 +9,18 @@ namespace Autonocraft.Core
             ItemStack loot = ItemStack.Empty;
             switch (type)
             {
+                case Entities.AnimalType.Cow:
+                    loot = ItemStack.CreateFood(ItemId.RawMeat, 3);
+                    break;
                 case Entities.AnimalType.Pig:
+                case Entities.AnimalType.Bear:
                     loot = ItemStack.CreateFood(ItemId.RawMeat, 2);
                     break;
                 case Entities.AnimalType.Sheep:
                 case Entities.AnimalType.Chicken:
                 case Entities.AnimalType.Wolf:
+                case Entities.AnimalType.Fox:
+                case Entities.AnimalType.Deer:
                     loot = ItemStack.CreateFood(ItemId.RawMeat, 1);
                     break;
             }

@@ -31,6 +31,57 @@ namespace Autonocraft.World
                     var column = columns[lx, lz];
                     int columnHash = Hash(wx, wz, 17);
 
+                    // Quicksand pockets in Desert biomes: replace surface sand with Quicksand
+                    if (column.Profile.Type == BiomeType.Desert && columnHash % 19 == 0)
+                    {
+                        for (int dy = 0; dy < 3; dy++)
+                        {
+                            int qy = column.SurfaceHeight - dy;
+                            if (qy > 0 && chunk.GetBlockUnchecked(lx, qy, lz) == BlockType.Sand)
+                            {
+                                SetBlock(chunk, world, wx, wz, lx, lz, qy, BlockType.Quicksand);
+                            }
+                        }
+                    }
+
+                    // Cave decorations: Glowshrooms
+                    for (int y = 4; y < column.SurfaceHeight - 3; y++)
+                    {
+                        if (y < 40 && chunk.GetBlockUnchecked(lx, y, lz) == BlockType.Air)
+                        {
+                            var below = chunk.GetBlockUnchecked(lx, y - 1, lz);
+                            if (below == BlockType.Stone || below == BlockType.Gravel || below == BlockType.Dirt)
+                            {
+                                int caveHash = Hash(wx, y, wz);
+                                if (caveHash % 157 == 0)
+                                {
+                                    SetBlock(chunk, world, wx, wz, lx, lz, y, BlockType.Glowshroom);
+                                }
+                            }
+                        }
+                    }
+
+                    // Hang ropes under mountain ledges
+                    if (column.Biome.Primary == BiomeType.Mountains && columnHash % 103 == 0)
+                    {
+                        for (int y = column.SurfaceHeight + 5; y < Chunk.Height - 5; y++)
+                        {
+                            if (chunk.GetBlockUnchecked(lx, y, lz).IsCollidable() && chunk.GetBlockUnchecked(lx, y - 1, lz) == BlockType.Air)
+                            {
+                                int ropeLength = 3 + columnHash % 4;
+                                for (int ry = 1; ry <= ropeLength; ry++)
+                                {
+                                    int ropeY = y - ry;
+                                    if (ropeY > 0 && chunk.GetBlockUnchecked(lx, ropeY, lz) == BlockType.Air)
+                                    {
+                                        SetBlock(chunk, world, wx, wz, lx, lz, ropeY, BlockType.Rope);
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+
                     if (column.Biome.Primary == BiomeType.Ocean || column.IsRiver || column.IsLake)
                     {
                         TryPlaceWaterFlora(chunk, world, wx, wz, lx, lz, column);
@@ -82,6 +133,34 @@ namespace Autonocraft.World
             {
                 logType = BlockType.PineLog;
                 leafType = BlockType.PineLeaves;
+            }
+            else if (column.Biome.Primary == BiomeType.Plains && treeTypeRand < 15)
+            {
+                logType = BlockType.CherryLog;
+                leafType = BlockType.CherryLeaves;
+            }
+            else if (column.Biome.Primary == BiomeType.Forest)
+            {
+                if (treeTypeRand < 25)
+                {
+                    logType = BlockType.MahoganyLog;
+                    leafType = BlockType.MahoganyLeaves;
+                }
+                else if (treeTypeRand < 50)
+                {
+                    logType = BlockType.MapleLog;
+                    leafType = BlockType.MapleLeaves;
+                }
+                else if (treeTypeRand < 75)
+                {
+                    logType = BlockType.BirchLog;
+                    leafType = BlockType.BirchLeaves;
+                }
+                else
+                {
+                    logType = BlockType.OakLog;
+                    leafType = BlockType.OakLeaves;
+                }
             }
             else if (treeTypeRand < 33)
             {
@@ -163,6 +242,24 @@ namespace Autonocraft.World
         {
             int surfaceHeight = column.SurfaceHeight;
             float floraSample = _floraNoise.Fbm(wx * 0.21f, wz * 0.21f, 3);
+
+            // Bamboo in Swamp / Beach
+            if ((column.Profile.Type == BiomeType.Swamp || column.Profile.Type == BiomeType.Beach) && floraSample > 0.85f && hash % 7 == 0)
+            {
+                int bambooHeight = 2 + hash % 3;
+                for (int by = 1; by <= bambooHeight; by++)
+                {
+                    SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + by, BlockType.Bamboo);
+                }
+                return;
+            }
+
+            // Lavender in Plains
+            if (column.Profile.Type == BiomeType.Plains && floraSample > 0.78f && hash % 11 == 0)
+            {
+                SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.Lavender);
+                return;
+            }
 
             if (column.Profile.AllowCactus && floraSample > 0.88f && hash % 11 == 0)
             {
@@ -275,6 +372,18 @@ namespace Autonocraft.World
                         if (hash % 6 == 0)
                         {
                             SetBlock(chunk, world, wx, wz, lx, lz, grassY, BlockType.Seagrass);
+                        }
+                        else if (column.Biome.Primary == BiomeType.Ocean && hash % 13 == 0)
+                        {
+                            int kelpHeight = 3 + hash % 6;
+                            for (int ky = 1; ky <= kelpHeight; ky++)
+                            {
+                                int kelpY = floorY + ky;
+                                if (kelpY < waterY && kelpY < Chunk.Height && chunk.GetBlockUnchecked(lx, kelpY, lz) == BlockType.Water)
+                                {
+                                    SetBlock(chunk, world, wx, wz, lx, lz, kelpY, BlockType.Kelp);
+                                }
+                            }
                         }
                     }
                 }

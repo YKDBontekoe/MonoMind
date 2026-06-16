@@ -20,6 +20,11 @@ namespace Autonocraft.Core
         public int SheepKilled { get; set; }
         public int PigKilled { get; set; }
         public int ChickenKilled { get; set; }
+        public int CowKilled { get; set; }
+        public int BearKilled { get; set; }
+        public int FoxKilled { get; set; }
+        public int DeerKilled { get; set; }
+        public int WolfKilled { get; set; }
         public float DamageDealt { get; set; }
         public float DamageTaken { get; set; }
         public int PlayerDeaths { get; set; }
@@ -86,6 +91,21 @@ namespace Autonocraft.Core
                 case AnimalType.Chicken:
                     ChickenKilled++;
                     break;
+                case AnimalType.Cow:
+                    CowKilled++;
+                    break;
+                case AnimalType.Bear:
+                    BearKilled++;
+                    break;
+                case AnimalType.Fox:
+                    FoxKilled++;
+                    break;
+                case AnimalType.Deer:
+                    DeerKilled++;
+                    break;
+                case AnimalType.Wolf:
+                    WolfKilled++;
+                    break;
             }
         }
 
@@ -135,6 +155,11 @@ namespace Autonocraft.Core
                 SheepKilled = SheepKilled,
                 PigKilled = PigKilled,
                 ChickenKilled = ChickenKilled,
+                CowKilled = CowKilled,
+                BearKilled = BearKilled,
+                FoxKilled = FoxKilled,
+                DeerKilled = DeerKilled,
+                WolfKilled = WolfKilled,
                 DamageDealt = DamageDealt,
                 DamageTaken = DamageTaken,
                 PlayerDeaths = PlayerDeaths,
@@ -164,6 +189,11 @@ namespace Autonocraft.Core
                 result.SheepKilled += stat.SheepKilled;
                 result.PigKilled += stat.PigKilled;
                 result.ChickenKilled += stat.ChickenKilled;
+                result.CowKilled += stat.CowKilled;
+                result.BearKilled += stat.BearKilled;
+                result.FoxKilled += stat.FoxKilled;
+                result.DeerKilled += stat.DeerKilled;
+                result.WolfKilled += stat.WolfKilled;
                 result.DamageDealt += stat.DamageDealt;
                 result.DamageTaken += stat.DamageTaken;
                 result.PlayerDeaths += stat.PlayerDeaths;

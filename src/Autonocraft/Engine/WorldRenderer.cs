@@ -222,6 +222,7 @@ namespace Autonocraft.Engine
             _device.SamplerStates[0] = SamplerState.PointClamp;
 
             float underwaterFactor = WaterQuery.IsCameraUnderwater(ctx.Grid, ctx.Camera.Position) ? 1f : 0f;
+            float underlavaFactor = LavaQuery.IsCameraUnderLava(ctx.Grid, ctx.Camera.Position) ? 1f : 0f;
             float twilightFactor = lighting.TwilightFactor;
             if (underwaterFactor > 0f)
             {
@@ -230,6 +231,14 @@ namespace Autonocraft.Engine
                     monoFogColor,
                     new Microsoft.Xna.Framework.Vector3(0.08f, 0.22f, 0.34f),
                     0.65f);
+            }
+            else if (underlavaFactor > 0f)
+            {
+                monoAmbColor *= 0.5f;
+                monoFogColor = Microsoft.Xna.Framework.Vector3.Lerp(
+                    monoFogColor,
+                    new Microsoft.Xna.Framework.Vector3(0.85f, 0.25f, 0.05f),
+                    0.92f);
             }
 
             DrawAllTerrainChunks(
@@ -290,6 +299,10 @@ namespace Autonocraft.Engine
             {
                 DrawUnderwaterOverlay(sw, sh);
             }
+            else if (underlavaFactor > 0f)
+            {
+                DrawUnderlavaOverlay(sw, sh);
+            }
         }
 
         public void SetAtlasTexture(Texture2D atlas)
@@ -316,6 +329,14 @@ namespace Autonocraft.Engine
             _device.DepthStencilState = DepthStencilState.None;
             _spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
             _spriteBatch.Draw(_whiteTexture, new Rectangle(0, 0, (int)sw, (int)sh), new Color(0.08f, 0.28f, 0.42f, 0.22f));
+            _spriteBatch.End();
+        }
+
+        private void DrawUnderlavaOverlay(float sw, float sh)
+        {
+            _device.DepthStencilState = DepthStencilState.None;
+            _spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
+            _spriteBatch.Draw(_whiteTexture, new Rectangle(0, 0, (int)sw, (int)sh), new Color(0.85f, 0.22f, 0.05f, 0.45f));
             _spriteBatch.End();
         }
 

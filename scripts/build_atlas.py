@@ -408,6 +408,28 @@ def make_short_grass_sprite(name: str, tile: int, palette: list[tuple[int, int, 
         set_pixel(pixels, tile, tip_x, y1, shade(blade, 18))
     return img
 
+def make_wheat_crop_sprite(name: str, tile: int, stem: tuple[int, int, int], head: tuple[int, int, int]) -> Image.Image:
+    img = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    cx = tile // 2
+    draw.line((cx, tile - 2, cx, tile // 3), fill=(*stem, 255), width=3)
+    for i in range(-2, 3):
+        top = tile // 3 - i * 4
+        draw.line((cx, top + 10, cx + i * 5, top), fill=(*shade(head, i * 4), 255), width=2)
+    draw.ellipse((cx - 8, tile // 4 - 6, cx + 8, tile // 4 + 8), fill=(*head, 255))
+    return img
+
+def make_carrot_crop_sprite(name: str, tile: int, stem: tuple[int, int, int], root: tuple[int, int, int]) -> Image.Image:
+    img = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    cx = tile // 2
+    draw.line((cx, tile - 2, cx, tile // 2), fill=(*stem, 255), width=3)
+    draw.line((cx - 4, tile // 2, cx - 10, tile // 2 + 6), fill=(*shade(stem, 8), 255), width=2)
+    draw.line((cx + 4, tile // 2, cx + 10, tile // 2 + 6), fill=(*shade(stem, 8), 255), width=2)
+    draw.ellipse((cx - 7, tile // 2 + 4, cx + 7, tile - 4), fill=(*root, 255))
+    draw.ellipse((cx - 4, tile // 2 + 8, cx + 4, tile - 6), fill=(*lighten(root, 12), 255))
+    return img
+
 def make_flower_stem_sprite(name: str, tile: int, stem: tuple[int, int, int], petal_colors: list[tuple[int, int, int]], center: tuple[int, int, int]) -> Image.Image:
     img = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
@@ -834,6 +856,12 @@ def make_procedural_tile(name: str, tile: int) -> Optional[Image.Image]:
         "coal_ore.png": ((42, 42, 44), (70, 70, 75)),
         "iron_ore.png": ((188, 132, 86), (220, 170, 130)),
         "gold_ore.png": ((224, 184, 62), (255, 225, 120)),
+        "copper_ore.png": ((200, 95, 40), (230, 135, 80)),
+        "silver_ore.png": ((180, 190, 195), (220, 230, 235)),
+        "diamond_ore.png": ((60, 200, 220), (120, 240, 255)),
+        "emerald_ore.png": ((40, 200, 100), (100, 240, 160)),
+        "ruby_ore.png": ((220, 40, 80), (255, 120, 150)),
+        "quartz_ore.png": ((225, 225, 230), (255, 255, 255)),
     }
     if name in ore_colors:
         stone_palette = [(98, 98, 102), (120, 120, 124), (142, 142, 146), (108, 108, 112), (88, 88, 92)]
@@ -1291,6 +1319,369 @@ def make_procedural_tile(name: str, tile: int) -> Optional[Image.Image]:
 
         return img
 
+    if name == "marble.png":
+        palette = [(225, 225, 230), (240, 240, 245), (255, 255, 255), (210, 210, 215), (190, 190, 195)]
+        return voronoi_tile(name, tile, palette, (160, 160, 165), 18, 2.4)
+
+    if name == "basalt.png":
+        palette = [(45, 45, 50), (60, 60, 65), (75, 75, 80), (35, 35, 40), (25, 25, 30)]
+        return voronoi_tile(name, tile, palette, (20, 20, 25), 18, 2.4)
+
+    if name == "slate.png":
+        palette = [(70, 75, 85), (85, 90, 100), (100, 105, 115), (55, 60, 70), (45, 50, 60)]
+        return voronoi_tile(name, tile, palette, (35, 40, 50), 18, 2.4)
+
+    if name == "limestone.png":
+        palette = [(210, 200, 170), (225, 215, 185), (240, 230, 200), (195, 185, 155), (180, 170, 140)]
+        return voronoi_tile(name, tile, palette, (160, 150, 120), 18, 2.4)
+
+    if name == "granite.png":
+        palette = [(150, 100, 90), (170, 120, 110), (190, 140, 130), (130, 80, 70), (110, 60, 50)]
+        return voronoi_tile(name, tile, palette, (90, 50, 40), 18, 2.4)
+
+    if name == "obsidian.png":
+        palette = [(30, 20, 40), (45, 30, 60), (60, 40, 80), (20, 15, 30), (10, 5, 20)]
+        return voronoi_tile(name, tile, palette, (5, 0, 10), 18, 2.4)
+
+    if name == "amethyst.png":
+        palette = [(180, 100, 220), (200, 120, 240), (220, 140, 255), (150, 80, 190), (120, 60, 160)]
+        return voronoi_tile(name, tile, palette, (90, 40, 130), 18, 2.4)
+
+    if name == "magma_block.png":
+        palette = [(50, 20, 10), (80, 30, 15), (120, 40, 20), (30, 10, 5), (20, 5, 0)]
+        img = voronoi_tile(name, tile, palette, (10, 0, 0), 18, 2.4)
+        draw = ImageDraw.Draw(img)
+        for i in range(5):
+            cx = noise_value(name, i, 3, 7) % tile
+            cy = noise_value(name, i, 5, 9) % tile
+            draw.ellipse((cx-3, cy-3, cx+3, cy+3), fill=(255, 100, 0, 255))
+        return img
+
+    if name == "cherry_log.png":
+        return make_wood_log_tile(name, tile, (75, 45, 35), (55, 30, 25), (105, 65, 50), 12)
+
+    if name == "cherry_log_top.png":
+        return make_log_top_tile(name, tile, (75, 45, 35), (55, 30, 25), (240, 180, 190), (220, 150, 160))
+
+    if name == "cherry_leaves.png":
+        return leaf_cluster_tile(name, tile, (240, 160, 180), [(220, 130, 150), (255, 190, 210), (200, 110, 130)])
+
+    if name == "cherry_plank.png":
+        return make_wood_plank_tile(name, tile, (220, 160, 170), (160, 100, 110), (190, 130, 140))
+
+    if name == "mahogany_log.png":
+        return make_wood_log_tile(name, tile, (60, 35, 25), (45, 20, 15), (85, 50, 35), 14)
+
+    if name == "mahogany_log_top.png":
+        return make_log_top_tile(name, tile, (60, 35, 25), (45, 20, 15), (140, 80, 60), (110, 60, 40))
+
+    if name == "mahogany_leaves.png":
+        return leaf_cluster_tile(name, tile, (30, 75, 45), [(20, 55, 30), (45, 95, 60), (15, 45, 25)])
+
+    if name == "mahogany_plank.png":
+        return make_wood_plank_tile(name, tile, (120, 70, 50), (80, 45, 30), (100, 55, 40))
+
+    if name == "maple_log.png":
+        return make_wood_log_tile(name, tile, (110, 80, 50), (85, 60, 35), (135, 100, 65), 10)
+
+    if name == "maple_log_top.png":
+        return make_log_top_tile(name, tile, (110, 80, 50), (85, 60, 35), (200, 160, 110), (175, 135, 90))
+
+    if name == "maple_leaves.png":
+        return leaf_cluster_tile(name, tile, (190, 70, 30), [(160, 50, 20), (220, 100, 45), (130, 35, 15)])
+
+    if name == "maple_plank.png":
+        return make_wood_plank_tile(name, tile, (185, 145, 95), (135, 100, 60), (160, 120, 75))
+
+    if name == "glowshroom.png":
+        return pack_flora_variants(tile, lambda half, variant: make_mushroom_sprite(f"glowshroom_v{variant}", half, (40, 120, 230), (180, 220, 255)))
+
+    if name == "lavender.png":
+        stem = (50, 110, 45)
+        petal_colors = [(150, 90, 220), (170, 110, 240), (130, 70, 190)]
+        center = (180, 120, 255)
+        return pack_flora_variants(tile, lambda half, variant: make_flower_stem_sprite(f"lavender_v{variant}", half, stem, petal_colors, center))
+
+    if name == "bamboo.png":
+        palette = [(60, 140, 50), (80, 160, 60), (45, 110, 35)]
+        head = (110, 180, 80)
+        return pack_flora_variants(tile, lambda half, variant: make_reed_sprite(f"bamboo_v{variant}", half, palette, head))
+
+    if name == "lantern.png":
+        img = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        cx, cy = tile // 2, tile // 2
+        draw.rectangle((cx - 10, cy - 12, cx + 10, cy + 12), fill=(40, 40, 45, 255))
+        draw.rectangle((cx - 6, cy - 8, cx + 6, cy + 8), fill=(255, 160, 40, 255))
+        draw.rectangle((cx - 3, cy - 5, cx + 3, cy + 5), fill=(255, 220, 120, 255))
+        draw.line((cx - 4, cy - 12, cx + 4, cy - 12), fill=(40, 40, 45, 255), width=2)
+        draw.line((cx, cy - 12, cx, cy - 18), fill=(40, 40, 45, 255), width=2)
+        return img
+
+    if name == "red_stained_glass.png":
+        img = Image.new("RGBA", (tile, tile), (220, 40, 40, 80))
+        draw = ImageDraw.Draw(img)
+        draw.rectangle((0, 0, tile-1, tile-1), outline=(255, 80, 80, 180), width=2)
+        return img
+
+    if name == "blue_stained_glass.png":
+        img = Image.new("RGBA", (tile, tile), (40, 80, 220, 80))
+        draw = ImageDraw.Draw(img)
+        draw.rectangle((0, 0, tile-1, tile-1), outline=(80, 120, 255, 180), width=2)
+        return img
+
+    if name == "station_smoker.png":
+        img = make_brick_tile(name, tile, (80, 80, 85), (50, 50, 52), (100, 100, 105), (60, 60, 62))
+        draw = ImageDraw.Draw(img)
+        cx, cy = tile // 2, tile // 2
+        draw.rectangle((cx - 8, cy - 8, cx + 8, cy + 8), fill=(30, 30, 32, 255))
+        draw.line((cx - 8, cy - 4, cx + 8, cy - 4), fill=(10, 10, 12, 255), width=2)
+        draw.line((cx - 8, cy + 4, cx + 8, cy + 4), fill=(10, 10, 12, 255), width=2)
+        return img
+
+    if name == "station_stonecutter.png":
+        img = make_wood_plank_tile(name, tile, (140, 110, 80), (100, 75, 50), (120, 95, 65))
+        draw = ImageDraw.Draw(img)
+        cx, cy = tile // 2, tile // 2
+        draw.ellipse((cx - 16, cy - 16, cx + 16, cy + 16), fill=(160, 160, 165, 255))
+        draw.ellipse((cx - 4, cy - 4, cx + 4, cy + 4), fill=(80, 80, 85, 255))
+        for angle in range(0, 360, 45):
+            import math
+            rad = math.radians(angle)
+            tx = int(cx + 18 * math.cos(rad))
+            ty = int(cy + 18 * math.sin(rad))
+            draw.line((cx, cy, tx, ty), fill=(120, 120, 125, 255), width=2)
+        return img
+
+    if name == "marble_brick.png":
+        return make_brick_tile(name, tile, (225, 225, 230), (160, 160, 165), (255, 255, 255), (190, 190, 195))
+
+    if name == "basalt_brick.png":
+        return make_brick_tile(name, tile, (45, 45, 50), (20, 20, 25), (65, 65, 70), (30, 30, 35))
+
+    if name == "slate_brick.png":
+        return make_brick_tile(name, tile, (70, 75, 85), (35, 40, 50), (90, 95, 105), (50, 55, 65))
+
+    if name == "polished_marble.png":
+        return make_metal_block_tile(name, tile, (240, 240, 245), (180, 180, 185))
+
+    if name == "polished_granite.png":
+        return make_metal_block_tile(name, tile, (180, 130, 120), (130, 90, 80))
+
+    if name == "diamond_block.png":
+        return make_metal_block_tile(name, tile, (100, 220, 240), (40, 170, 190))
+
+    if name == "copper_block.png":
+        return make_metal_block_tile(name, tile, (210, 110, 50), (160, 70, 30))
+
+    if name == "ruby_block.png":
+        return make_metal_block_tile(name, tile, (230, 40, 80), (170, 20, 50))
+
+    if name == "quartz_block.png":
+        return make_metal_block_tile(name, tile, (245, 245, 250), (200, 200, 205))
+
+    if name == "emerald_block.png":
+        return make_metal_block_tile(name, tile, (60, 220, 120), (30, 170, 80))
+
+    if name == "silver_block.png":
+        return make_metal_block_tile(name, tile, (200, 210, 215), (140, 150, 155))
+
+    if name == "quicksand.png":
+        return make_sand_tile(name, tile, [(140, 125, 80), (160, 145, 95), (180, 160, 110), (120, 105, 70)])
+
+    if name == "lava.png":
+        deep = (200, 30, 0)
+        mid = (235, 70, 0)
+        shallow = (255, 130, 0)
+        img = Image.new("RGBA", (tile, tile))
+        px = img.load()
+        for y in range(tile):
+            for x in range(tile):
+                n0 = noise_value(name, x // 4, y // 4, 3)
+                n1 = noise_value(name, x // 2, y // 2, 7)
+                blend = ((n0 & 255) / 255.0 * 0.6) + ((n1 & 255) / 255.0 * 0.4)
+                base = lerp_color(lerp_color(deep, mid, blend), shallow, blend * blend)
+                px[x, y] = base + (255,)
+        return img
+
+    if name == "rope.png":
+        img = Image.new("RGBA", (tile, tile), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        cx = tile // 2
+        for y in range(0, tile, 8):
+            color = (130, 95, 65) if (y // 8) % 2 == 0 else (160, 120, 85)
+            draw.ellipse((cx - 4, y, cx + 4, y + 10), fill=color + (255,))
+        return img
+
+    if name == "kelp.png":
+        palette = [(40, 110, 50), (60, 135, 70), (25, 85, 35)]
+        return pack_flora_variants(tile, lambda half, variant: make_vine_sprite(f"kelp_v{variant}", half, palette))
+
+    if name == "cow_body.png":
+        base = (230, 230, 230)
+        img = fill_noisy_tile(name, tile, base, 5)
+        draw = ImageDraw.Draw(img)
+        for i in range(6):
+            cx = noise_value(name, i, 11, 13) % tile
+            cy = noise_value(name, i, 17, 19) % tile
+            r = 14 + noise_value(name, i, 23, 29) % 12
+            draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(40, 40, 42, 255))
+            draw.ellipse((cx - r + 2, cy - r + 2, cx + r - 2, cy + r - 2), fill=(55, 55, 58, 255))
+        return img
+
+    if name == "cow_head.png":
+        base, accent = (220, 220, 220), (50, 50, 52)
+        img = fill_noisy_tile(name, tile, base, 5)
+        draw = ImageDraw.Draw(img)
+        margin = tile // 8
+        draw.rectangle((margin, margin, tile - margin, tile - margin), outline=shade(accent, -20) + (255,), width=2)
+        cx, cy = tile // 2, tile // 2
+        eye_y = cy - tile // 16
+        eye_offset = tile // 4
+        draw.rectangle((cx - eye_offset - 4, eye_y - 2, cx - eye_offset + 3, eye_y + 2), fill=(255, 255, 255, 255))
+        draw.rectangle((cx - eye_offset - 2, eye_y - 2, cx - eye_offset + 1, eye_y + 2), fill=(0, 0, 0, 255))
+        draw.rectangle((cx + eye_offset - 4, eye_y - 2, cx + eye_offset + 3, eye_y + 2), fill=(255, 255, 255, 255))
+        draw.rectangle((cx + eye_offset - 2, eye_y - 2, cx + eye_offset + 1, eye_y + 2), fill=(0, 0, 0, 255))
+        draw.rectangle((margin + 2, margin + 2, margin + 14, margin + 14), fill=accent + (255,))
+        draw.rectangle((tile - margin - 14, margin + 2, tile - margin - 2, margin + 14), fill=accent + (255,))
+        draw.rectangle((cx - 16, cy + tile // 8, cx + 16, cy + tile // 8 + 8), fill=(245, 170, 180, 255))
+        draw.point((cx - 6, cy + tile // 8 + 3), fill=(100, 50, 60, 255))
+        draw.point((cx + 6, cy + tile // 8 + 3), fill=(100, 50, 60, 255))
+        return img
+
+    if name == "bear_body.png":
+        base = (75, 45, 30)
+        img = fill_noisy_tile(name, tile, base, 8)
+        draw = ImageDraw.Draw(img)
+        for i in range(4):
+            cx = noise_value(name, i, 15, 17) % tile
+            cy = noise_value(name, i, 19, 21) % tile
+            r = 16 + noise_value(name, i, 25, 31) % 10
+            draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(55, 30, 20, 255))
+        return img
+
+    if name == "bear_head.png":
+        base, accent = (70, 42, 28), (40, 24, 16)
+        img = fill_noisy_tile(name, tile, base, 6)
+        draw = ImageDraw.Draw(img)
+        margin = tile // 8
+        draw.rectangle((margin, margin, tile - margin, tile - margin), outline=shade(accent, -20) + (255,), width=2)
+        cx, cy = tile // 2, tile // 2
+        eye_y = cy - tile // 12
+        eye_offset = tile // 4
+        draw.rectangle((cx - eye_offset - 2, eye_y - 2, cx - eye_offset + 1, eye_y + 1), fill=(0, 0, 0, 255))
+        draw.rectangle((cx + eye_offset - 2, eye_y - 2, cx + eye_offset + 1, eye_y + 1), fill=(0, 0, 0, 255))
+        draw.rectangle((cx - 10, cy + 4, cx + 10, cy + 14), fill=accent + (255,))
+        draw.rectangle((cx - 4, cy + 4, cx + 4, cy + 8), fill=(10, 10, 10, 255))
+        draw.rectangle((margin, margin - 4, margin + 12, margin + 4), fill=base + (255,))
+        draw.rectangle((tile - margin - 12, margin - 4, tile - margin, margin + 4), fill=base + (255,))
+        return img
+
+    if name == "fox_body.png":
+        base = (220, 95, 30)
+        img = fill_noisy_tile(name, tile, base, 8)
+        draw = ImageDraw.Draw(img)
+        for i in range(3):
+            cx = noise_value(name, i, 5, 11) % tile
+            cy = tile - 10 - noise_value(name, i, 13, 17) % 15
+            r = 10 + noise_value(name, i, 19, 23) % 8
+            draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(240, 235, 225, 255))
+        return img
+
+    if name == "fox_head.png":
+        base, accent = (220, 95, 30), (245, 240, 230)
+        img = fill_noisy_tile(name, tile, base, 7)
+        draw = ImageDraw.Draw(img)
+        margin = tile // 8
+        draw.rectangle((margin, margin, tile - margin, tile - margin), outline=shade(base, -30) + (255,), width=2)
+        cx, cy = tile // 2, tile // 2
+        eye_y = cy - tile // 16
+        eye_offset = tile // 4
+        draw.rectangle((cx - eye_offset - 2, eye_y - 2, cx - eye_offset + 1, eye_y + 1), fill=(0, 0, 0, 255))
+        draw.rectangle((cx + eye_offset - 2, eye_y - 2, cx + eye_offset + 1, eye_y + 1), fill=(0, 0, 0, 255))
+        draw.rectangle((margin + 2, cy + 2, margin + 16, tile - margin - 2), fill=accent + (255,))
+        draw.rectangle((tile - margin - 16, cy + 2, tile - margin - 2, tile - margin - 2), fill=accent + (255,))
+        draw.rectangle((cx - 4, tile - margin - 6, cx + 4, tile - margin - 2), fill=(10, 10, 10, 255))
+        draw.polygon([(margin, margin + 8), (margin, margin - 6), (margin + 12, margin + 8)], fill=base + (255,))
+        draw.polygon([(tile - margin, margin + 8), (tile - margin, margin - 6), (tile - margin - 12, margin + 8)], fill=base + (255,))
+        return img
+
+    if name == "deer_body.png":
+        base = (175, 115, 75)
+        img = fill_noisy_tile(name, tile, base, 6)
+        draw = ImageDraw.Draw(img)
+        for i in range(16):
+            cx = noise_value(name, i, 3, 11) % tile
+            cy = noise_value(name, i, 7, 13) % tile
+            draw.rectangle((cx, cy, cx + 2, cy + 2), fill=(245, 245, 240, 255))
+        return img
+
+    if name == "deer_head.png":
+        base, accent = (175, 115, 75), (245, 245, 240)
+        img = fill_noisy_tile(name, tile, base, 6)
+        draw = ImageDraw.Draw(img)
+        margin = tile // 8
+        draw.rectangle((margin, margin, tile - margin, tile - margin), outline=shade(base, -25) + (255,), width=2)
+        cx, cy = tile // 2, tile // 2
+        eye_y = cy - tile // 12
+        eye_offset = tile // 4
+        draw.rectangle((cx - eye_offset - 3, eye_y - 3, cx - eye_offset + 2, eye_y + 2), fill=(0, 0, 0, 255))
+        draw.rectangle((cx + eye_offset - 3, eye_y - 3, cx + eye_offset + 2, eye_y + 2), fill=(0, 0, 0, 255))
+        draw.point((cx - eye_offset + 1, eye_y - 2), fill=(255, 255, 255, 255))
+        draw.point((cx + eye_offset - 2, eye_y - 2), fill=(255, 255, 255, 255))
+        draw.line((cx - 8, margin, cx - 12, margin - 10), fill=(140, 100, 70, 255), width=2)
+        draw.line((cx - 12, margin - 10, cx - 18, margin - 14), fill=(140, 100, 70, 255), width=2)
+        draw.line((cx + 8, margin, cx + 12, margin - 10), fill=(140, 100, 70, 255), width=2)
+        draw.line((cx + 12, margin - 10, cx + 18, margin - 14), fill=(140, 100, 70, 255), width=2)
+        return img
+
+    if name == "wolf_body.png":
+        base = (85, 85, 90)
+        img = fill_noisy_tile(name, tile, base, 8)
+        draw = ImageDraw.Draw(img)
+        for i in range(3):
+            cx = noise_value(name, i, 5, 11) % tile
+            cy = tile - 10 - noise_value(name, i, 13, 17) % 15
+            r = 10 + noise_value(name, i, 19, 23) % 8
+            draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(160, 160, 165, 255))
+        return img
+
+    if name == "wolf_head.png":
+        base, accent = (85, 85, 90), (160, 160, 165)
+        img = fill_noisy_tile(name, tile, base, 7)
+        draw = ImageDraw.Draw(img)
+        margin = tile // 8
+        draw.rectangle((margin, margin, tile - margin, tile - margin), outline=shade(base, -30) + (255,), width=2)
+        cx, cy = tile // 2, tile // 2
+        eye_y = cy - tile // 16
+        eye_offset = tile // 4
+        draw.rectangle((cx - eye_offset - 2, eye_y - 2, cx - eye_offset + 1, eye_y + 1), fill=(0, 0, 0, 255))
+        draw.rectangle((cx + eye_offset - 2, eye_y - 2, cx + eye_offset + 1, eye_y + 1), fill=(0, 0, 0, 255))
+        draw.rectangle((margin + 2, cy + 2, margin + 16, tile - margin - 2), fill=accent + (255,))
+        draw.rectangle((tile - margin - 16, cy + 2, tile - margin - 2, tile - margin - 2), fill=accent + (255,))
+        draw.rectangle((cx - 4, tile - margin - 6, cx + 4, tile - margin - 2), fill=(10, 10, 10, 255))
+        draw.polygon([(margin, margin + 8), (margin, margin - 6), (margin + 12, margin + 8)], fill=base + (255,))
+        draw.polygon([(tile - margin, margin + 8), (tile - margin, margin - 6), (tile - margin - 12, margin + 8)], fill=base + (255,))
+        return img
+
+    if name == "wheat_sprout.png":
+        palette = [(72, 118, 42), (88, 138, 48), (104, 158, 54)]
+        return pack_flora_variants(tile, lambda half, variant: make_short_grass_sprite(f"wheat_sprout_v{variant}", half, palette))
+
+    if name == "wheat_crop.png":
+        stem = (58, 108, 36)
+        head = (196, 168, 58)
+        return pack_flora_variants(tile, lambda half, variant: make_wheat_crop_sprite(f"wheat_crop_v{variant}", half, stem, head))
+
+    if name == "carrot_sprout.png":
+        palette = [(62, 112, 40), (78, 132, 46), (92, 148, 52)]
+        return pack_flora_variants(tile, lambda half, variant: make_short_grass_sprite(f"carrot_sprout_v{variant}", half, palette))
+
+    if name == "carrot_crop.png":
+        stem = (52, 102, 34)
+        root = (214, 108, 38)
+        return pack_flora_variants(tile, lambda half, variant: make_carrot_crop_sprite(f"carrot_crop_v{variant}", half, stem, root))
+
     return None
 
 
@@ -1324,6 +1715,10 @@ def make_tool_icon(name: str, tile: int) -> Image.Image:
         "stone": ((156, 156, 162), (104, 104, 110)),
         "iron": ((204, 210, 218), (142, 148, 158)),
         "gold": ((252, 214, 72), (198, 158, 28)),
+        "copper": ((230, 115, 60), (180, 85, 40)),
+        "silver": ((210, 220, 225), (155, 165, 170)),
+        "diamond": ((60, 220, 230), (30, 160, 180)),
+        "emerald": ((40, 220, 110), (20, 160, 70)),
     }
     head, head_dark = tier_palette.get(tier, ((160, 160, 160), (110, 110, 110)))
     handle = (124, 88, 52)

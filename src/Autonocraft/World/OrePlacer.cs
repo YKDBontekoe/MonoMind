@@ -60,6 +60,31 @@ namespace Autonocraft.World
                 return null;
             }
 
+            // Large geological strata layers using sine/cosine waves
+            float waveA = MathF.Sin(wx * 0.02f) * 10f + MathF.Cos(wz * 0.02f) * 10f;
+            float waveB = MathF.Cos(wx * 0.015f) * 8f + MathF.Sin(wz * 0.015f) * 8f;
+
+            if (y >= 30 + waveA && y < 38 + waveA)
+            {
+                return BlockType.Marble;
+            }
+            if (y >= 10 + waveB && y < 18 + waveB)
+            {
+                return BlockType.Basalt;
+            }
+            if (y >= 20 + waveA && y < 27 + waveA)
+            {
+                return BlockType.Slate;
+            }
+            if (y >= 48 + waveB && y < 55 + waveB)
+            {
+                return BlockType.Limestone;
+            }
+            if (y >= 62 + waveA && y < 70 + waveA)
+            {
+                return BlockType.Granite;
+            }
+
             int hash = Hash(wx, y, wz);
             int band = hash % 1000;
 
@@ -76,6 +101,46 @@ namespace Autonocraft.World
             if (y >= 8 && y < 48 && band >= 220 && band < 226)
             {
                 return BlockType.GoldOre;
+            }
+
+            if (y >= 16 && y < 64 && band >= 300 && band < 320)
+            {
+                return BlockType.CopperOre;
+            }
+
+            if (y >= 8 && y < 48 && band >= 400 && band < 412)
+            {
+                return BlockType.SilverOre;
+            }
+
+            if (y < 16 && band >= 500 && band < 503)
+            {
+                return BlockType.DiamondOre;
+            }
+
+            if (y < 20 && band >= 510 && band < 512)
+            {
+                return BlockType.EmeraldOre;
+            }
+
+            if (y < 16 && band >= 520 && band < 523)
+            {
+                return BlockType.RubyOre;
+            }
+
+            if (y < 40 && band >= 530 && band < 542)
+            {
+                return BlockType.QuartzOre;
+            }
+
+            if (y < 12 && band >= 600 && band < 610)
+            {
+                return BlockType.MagmaBlock;
+            }
+
+            if (y < 10 && band >= 620 && band < 628)
+            {
+                return BlockType.Obsidian;
             }
 
             return null;

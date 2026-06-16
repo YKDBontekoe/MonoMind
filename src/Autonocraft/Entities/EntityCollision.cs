@@ -12,6 +12,9 @@ namespace Autonocraft.Entities
         public bool InWater;
         public bool HeadUnderwater;
         public bool OnWaterSurface;
+        public bool InLava;
+        public bool HeadInLava;
+        public bool OnLavaSurface;
     }
 
     public static class EntityCollision
@@ -166,15 +169,76 @@ namespace Autonocraft.Entities
             bool swimUp,
             bool swimDown)
         {
+            // Check if player is in a climbable block (Rope/Vine)
+            bool inClimbable = false;
+            // Check if player is in quicksand
+            bool inQuicksand = false;
+
+            {
+                int startX = (int)MathF.Floor(state.Position.X - width / 2f);
+                int endX = (int)MathF.Floor(state.Position.X + width / 2f);
+                int startY = (int)MathF.Floor(state.Position.Y);
+                int endY = (int)MathF.Floor(state.Position.Y + height);
+                int startZ = (int)MathF.Floor(state.Position.Z - width / 2f);
+                int endZ = (int)MathF.Floor(state.Position.Z + width / 2f);
+
+                for (int y = startY; y <= endY; y++)
+                {
+                    for (int z = startZ; z <= endZ; z++)
+                    {
+                        for (int x = startX; x <= endX; x++)
+                        {
+                            var b = world.GetBlock(x, y, z);
+                            if (b.IsClimbable())
+                            {
+                                inClimbable = true;
+                            }
+                            if (b == BlockType.Quicksand)
+                            {
+                                inQuicksand = true;
+                            }
+                        }
+                    }
+                }
+            }
+
             var water = WaterQuery.GetBodyState(world, state.Position, width, height, eyeHeight);
             state.InWater = water.InWater;
             state.HeadUnderwater = water.HeadUnderwater;
             state.OnWaterSurface = water.OnSurface;
 
+            var lava = LavaQuery.GetBodyState(world, state.Position, width, height, eyeHeight);
+            state.InLava = lava.InLava;
+            state.HeadInLava = lava.HeadInLava;
+            state.OnLavaSurface = lava.OnSurface;
+
             float gravity = Gravity;
             float terminalVelocity = TerminalVelocity;
 
-            if (water.InWater)
+            if (inClimbable)
+            {
+                gravity = 0f;
+                state.Velocity.Y = 0f;
+                if (swimUp)
+                {
+                    state.Velocity.Y = 4f;
+                }
+                else if (swimDown)
+                {
+                    state.Velocity.Y = -4f;
+                }
+            }
+            else if (inQuicksand)
+            {
+                gravity = 0f;
+                state.Velocity.Y = -0.5f;
+                if (swimUp)
+                {
+                    state.Velocity.Y = 0.1f;
+                }
+                horizontalVelocity *= 0.15f;
+            }
+            else if (water.InWater)
             {
                 gravity *= WaterGravityScale;
                 terminalVelocity = WaterTerminalVelocity;
@@ -198,11 +262,38 @@ namespace Autonocraft.Entities
                     if (MathF.Abs(state.Velocity.Z) < 0.01f) state.Velocity.Z = 0;
                 }
             }
-
-            state.Velocity.Y += gravity * deltaTime;
-            if (state.Velocity.Y < terminalVelocity)
+            else if (lava.InLava)
             {
-                state.Velocity.Y = terminalVelocity;
+                gravity *= WaterGravityScale; // lava is viscous, so low gravity scale
+                terminalVelocity = -4f; // slower sinking than water
+                horizontalVelocity *= 0.7f; // slower horizontal swimming
+
+                if (swimUp)
+                {
+                    state.Velocity.Y += 3f * deltaTime;
+                }
+
+                if (swimDown)
+                {
+                    state.Velocity.Y -= 2.5f * deltaTime;
+                }
+
+                if (horizontalVelocity == Vector3.Zero)
+                {
+                    state.Velocity.X *= MathF.Pow(0.5f, deltaTime * 10f);
+                    state.Velocity.Z *= MathF.Pow(0.5f, deltaTime * 10f);
+                    if (MathF.Abs(state.Velocity.X) < 0.01f) state.Velocity.X = 0;
+                    if (MathF.Abs(state.Velocity.Z) < 0.01f) state.Velocity.Z = 0;
+                }
+            }
+
+            if (!inClimbable && !inQuicksand)
+            {
+                state.Velocity.Y += gravity * deltaTime;
+                if (state.Velocity.Y < terminalVelocity)
+                {
+                    state.Velocity.Y = terminalVelocity;
+                }
             }
 
             if (horizontalVelocity != Vector3.Zero)
@@ -219,7 +310,7 @@ namespace Autonocraft.Entities
             ResolveAxis(ref state, world, 1, width, height);
 
             // Surface float: resist sinking only — never push upward or you can walk up water columns.
-            if (water.InWater && !water.HeadUnderwater && !swimDown)
+            if (water.InWater && !water.HeadUnderwater && !swimDown && !inClimbable && !inQuicksand)
             {
                 if (state.Velocity.Y < 0f)
                 {
@@ -230,12 +321,24 @@ namespace Autonocraft.Entities
                     state.Velocity.Y *= MathF.Pow(0.35f, deltaTime * 10f);
                 }
             }
+            else if (lava.InLava && !lava.HeadInLava && !swimDown && !inClimbable && !inQuicksand)
+            {
+                if (state.Velocity.Y < 0f)
+                {
+                    state.Velocity.Y = MathF.Min(state.Velocity.Y + 8f * deltaTime, -0.05f);
+                }
+                else if (state.Velocity.Y > 0.2f)
+                {
+                    state.Velocity.Y *= MathF.Pow(0.4f, deltaTime * 10f);
+                }
+            }
 
             state.Position.Z += state.Velocity.Z * deltaTime;
             ResolveAxis(ref state, world, 2, width, height);
 
-            // Grounded only on solid blocks, never on water surface.
+            // Grounded only on solid blocks, never on water/lava surface.
             state.OnWaterSurface = water.InWater && !water.HeadUnderwater;
+            state.OnLavaSurface = lava.InLava && !lava.HeadInLava;
         }
 
         public static bool IsSpaceClearAt(VoxelWorld world, Vector3 position, float width, float height)

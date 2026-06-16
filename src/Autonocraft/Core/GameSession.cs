@@ -266,7 +266,7 @@ namespace Autonocraft.Core
             }
             else
             {
-                if (jumpPressed && (!Player.InWater || Player.OnWaterSurface))
+                if (jumpPressed && (!Player.InWater || Player.OnWaterSurface) && (!Player.InLava || Player.OnLavaSurface))
                 {
                     Player.Jump();
                 }

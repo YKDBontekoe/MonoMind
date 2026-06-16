@@ -36,6 +36,22 @@ namespace Autonocraft.Items
                 (ToolType.Axe, ToolTier.Gold) => ItemId.GoldAxe,
                 (ToolType.Shovel, ToolTier.Gold) => ItemId.GoldShovel,
                 (ToolType.Sword, ToolTier.Gold) => ItemId.GoldSword,
+                (ToolType.Pickaxe, ToolTier.Copper) => ItemId.CopperPickaxe,
+                (ToolType.Axe, ToolTier.Copper) => ItemId.CopperAxe,
+                (ToolType.Shovel, ToolTier.Copper) => ItemId.CopperShovel,
+                (ToolType.Sword, ToolTier.Copper) => ItemId.CopperSword,
+                (ToolType.Pickaxe, ToolTier.Silver) => ItemId.SilverPickaxe,
+                (ToolType.Axe, ToolTier.Silver) => ItemId.SilverAxe,
+                (ToolType.Shovel, ToolTier.Silver) => ItemId.SilverShovel,
+                (ToolType.Sword, ToolTier.Silver) => ItemId.SilverSword,
+                (ToolType.Pickaxe, ToolTier.Diamond) => ItemId.DiamondPickaxe,
+                (ToolType.Axe, ToolTier.Diamond) => ItemId.DiamondAxe,
+                (ToolType.Shovel, ToolTier.Diamond) => ItemId.DiamondShovel,
+                (ToolType.Sword, ToolTier.Diamond) => ItemId.DiamondSword,
+                (ToolType.Pickaxe, ToolTier.Emerald) => ItemId.EmeraldPickaxe,
+                (ToolType.Axe, ToolTier.Emerald) => ItemId.EmeraldAxe,
+                (ToolType.Shovel, ToolTier.Emerald) => ItemId.EmeraldShovel,
+                (ToolType.Sword, ToolTier.Emerald) => ItemId.EmeraldSword,
                 _ => ItemId.None
             };
         }
@@ -76,7 +92,23 @@ namespace Autonocraft.Items
                 Def(ItemId.GoldPickaxe, ToolType.Pickaxe, ToolTier.Gold, "Gold Pickaxe", 156, 4.0f, 4f),
                 Def(ItemId.GoldAxe, ToolType.Axe, ToolTier.Gold, "Gold Axe", 156, 4.0f, 4f),
                 Def(ItemId.GoldShovel, ToolType.Shovel, ToolTier.Gold, "Gold Shovel", 156, 4.0f, 4f),
-                Def(ItemId.GoldSword, ToolType.Sword, ToolTier.Gold, "Gold Sword", 156, 1.0f, 4f)
+                Def(ItemId.GoldSword, ToolType.Sword, ToolTier.Gold, "Gold Sword", 156, 1.0f, 4f),
+                Def(ItemId.CopperPickaxe, ToolType.Pickaxe, ToolTier.Copper, "Copper Pickaxe", 180, 2.5f, 3.5f),
+                Def(ItemId.CopperAxe, ToolType.Axe, ToolTier.Copper, "Copper Axe", 180, 2.5f, 3.5f),
+                Def(ItemId.CopperShovel, ToolType.Shovel, ToolTier.Copper, "Copper Shovel", 180, 2.5f, 3.5f),
+                Def(ItemId.CopperSword, ToolType.Sword, ToolTier.Copper, "Copper Sword", 180, 1.0f, 4.5f),
+                Def(ItemId.SilverPickaxe, ToolType.Pickaxe, ToolTier.Silver, "Silver Pickaxe", 200, 3.5f, 4.5f),
+                Def(ItemId.SilverAxe, ToolType.Axe, ToolTier.Silver, "Silver Axe", 200, 3.5f, 4.5f),
+                Def(ItemId.SilverShovel, ToolType.Shovel, ToolTier.Silver, "Silver Shovel", 200, 3.5f, 4.5f),
+                Def(ItemId.SilverSword, ToolType.Sword, ToolTier.Silver, "Silver Sword", 200, 1.0f, 5.5f),
+                Def(ItemId.DiamondPickaxe, ToolType.Pickaxe, ToolTier.Diamond, "Diamond Pickaxe", 1561, 5.0f, 6.0f),
+                Def(ItemId.DiamondAxe, ToolType.Axe, ToolTier.Diamond, "Diamond Axe", 1561, 5.0f, 6.0f),
+                Def(ItemId.DiamondShovel, ToolType.Shovel, ToolTier.Diamond, "Diamond Shovel", 1561, 5.0f, 6.0f),
+                Def(ItemId.DiamondSword, ToolType.Sword, ToolTier.Diamond, "Diamond Sword", 1561, 1.0f, 7.0f),
+                Def(ItemId.EmeraldPickaxe, ToolType.Pickaxe, ToolTier.Emerald, "Emerald Pickaxe", 2000, 6.0f, 7.0f),
+                Def(ItemId.EmeraldAxe, ToolType.Axe, ToolTier.Emerald, "Emerald Axe", 2000, 6.0f, 7.0f),
+                Def(ItemId.EmeraldShovel, ToolType.Shovel, ToolTier.Emerald, "Emerald Shovel", 2000, 6.0f, 7.0f),
+                Def(ItemId.EmeraldSword, ToolType.Sword, ToolTier.Emerald, "Emerald Sword", 2000, 1.0f, 8.0f)
             };
 
             return defs.ToDictionary(d => d.ItemId);
