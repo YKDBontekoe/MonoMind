@@ -878,7 +878,7 @@ namespace Autonocraft.Engine
             DrawHudGlassPanel(_spriteBatch, x, y, w, h, UiTheme.Accent, 0.85f);
 
             float lineY = y + layout.S(10f);
-            
+
             // Header
             DrawHudText(_spriteBatch, _whiteTexture, "DIAGNOSTICS & PERFORMANCE", x + layout.S(10f), lineY, 0.85f, UiTheme.AccentGlow, 1f, semiBold: true);
             lineY += layout.S(16f);

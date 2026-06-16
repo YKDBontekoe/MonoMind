@@ -1159,7 +1159,7 @@ namespace Autonocraft.World
 
             bool highMeshPressure = !initialLoading && meshPressure > MeshPressurePendingThreshold;
             bool restrictLod = profile.FastTravel || highMeshPressure;
-            int maxCompletions = restrictLod
+            int maxCompletions = profile.FastTravel && !highMeshPressure
                 ? 1
                 : highMeshPressure
                     ? MaxTerrainCompletionsUnderMeshPressure

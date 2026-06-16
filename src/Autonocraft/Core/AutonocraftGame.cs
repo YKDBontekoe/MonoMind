@@ -1749,7 +1749,7 @@ namespace Autonocraft.Core
                 : targetMeshPerFrame;
 
             _session.DeferAmbientSpawns = inSpawnWarmup && warmup < 0.7f;
-            
+
             var swChunks = System.Diagnostics.Stopwatch.StartNew();
             _session.UpdateChunks(GraphicsDevice, _camera.Position, _settings.RenderDistance, terrainPerFrame, meshPerFrame);
             swChunks.Stop();

@@ -440,7 +440,7 @@ namespace Autonocraft.World
                     highestSolid = scanY;
                 }
 
-                        if (scanType.IsSolidForSpawn() || scanType.IsAlphaCutout() || scanType.IsWater())
+                if (scanType.IsSolidForSpawn() || scanType.IsAlphaCutout() || scanType.IsWater())
                 {
                     if (lowestMesh < 0)
                     {

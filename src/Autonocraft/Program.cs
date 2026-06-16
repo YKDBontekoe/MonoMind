@@ -104,6 +104,8 @@ namespace Autonocraft
                     bench.Run();
                 }
 
+                RuntimeMetrics.Shutdown();
+                InputDebugTrace.Shutdown();
                 return;
             }
 
