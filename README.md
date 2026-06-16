@@ -1,7 +1,6 @@
 # Autonocraft
 
 [![CI](https://github.com/YKDBontekoe/MonoMind/actions/workflows/ci.yml/badge.svg)](https://github.com/YKDBontekoe/MonoMind/actions/workflows/ci.yml)
-[![E2E](https://github.com/YKDBontekoe/MonoMind/actions/workflows/e2e.yml/badge.svg)](https://github.com/YKDBontekoe/MonoMind/actions/workflows/e2e.yml)
 [![CodeQL](https://github.com/YKDBontekoe/MonoMind/actions/workflows/codeql.yml/badge.svg)](https://github.com/YKDBontekoe/MonoMind/actions/workflows/codeql.yml)
 
 A 3D voxel sandbox built with **MonoGame** (DesktopGL) on **.NET 10**. Explore procedurally generated biomes, mine and place blocks, fight animals, craft stations via sigil patterns, use tools and skills, and save worlds to disk. An HTTP agent API lets automated tools drive the game while it runs.
@@ -117,7 +116,6 @@ GitHub Actions runs on every push and pull request to `main`/`master`, plus a ni
 | Workflow | What it runs |
 |----------|----------------|
 | [CI](.github/workflows/ci.yml) | Build + unit tests + headless integration (`--test`) on Ubuntu, Windows, and macOS |
-| [E2E](.github/workflows/e2e.yml) | Live HTTP API tests + JSON scenarios on all three OSes |
 | [Quality](.github/workflows/quality.yml) | `dotnet format`, atlas validation, unit-test code coverage |
 | [CodeQL](.github/workflows/codeql.yml) | C# security analysis |
 | [Release](.github/workflows/release.yml) | Multi-platform publish on version tags (`v*.*.*`) |
@@ -130,9 +128,6 @@ dotnet test tests/Autonocraft.Tests -c Release --filter "FullyQualifiedName~Unit
 
 # Headless integration (same as CI integration job)
 dotnet run --project src/Autonocraft -c Release -- --test
-
-# Full E2E (same as CI e2e.yml on macOS/Linux)
-bash scripts/ci_e2e.sh
 
 # Format and atlas checks
 dotnet format Autonocraft.slnx --verify-no-changes
