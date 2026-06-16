@@ -1170,7 +1170,7 @@ namespace Autonocraft.Core
                 return true;
             }
 
-                        if (_screens.MainMenuSettingsOpen)
+            if (_screens.MainMenuSettingsOpen)
             {
                 EnsureUiPointerMode();
                 _screens.MainMenuSettingsScreen!.Update(
@@ -1201,7 +1201,7 @@ namespace Autonocraft.Core
                 EnsureUiPointerMode();
                 _screens.PauseMenu.Update(GraphicsDevice.Viewport, kbState, mouseState, _input.PrevKeyboard, _input.PrevMouse, deltaTime);
 
-                                if (_screens.PauseMenu.ResumeRequested)
+                if (_screens.PauseMenu.ResumeRequested)
                 {
                     ClosePauseMenu();
                 }

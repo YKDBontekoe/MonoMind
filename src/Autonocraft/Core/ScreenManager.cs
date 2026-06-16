@@ -81,7 +81,7 @@ namespace Autonocraft.Core
             DevConsole = new DevConsole(ui);
             PauseMenu = new PauseMenuScreen(ui);
             PauseMenu.SetRenderDistance(settings.RenderDistance);
-                                                            PauseMenu.ApplyAudioSettings(settings);
+            PauseMenu.ApplyAudioSettings(settings);
             PauseMenu.ApplyGraphicsSettings(settings);
             DeathScreen = new DeathScreen(ui);
             CrucibleScreen = new CrucibleScreen(ui);
