@@ -24,6 +24,30 @@ namespace Autonocraft.Core
         public static float PeakUpdateMs;
         public static float PeakDrawMs;
 
+        public static bool ShowPerfHud;
+
+        // CPU update breakdowns (ms)
+        public static float UpdatePlayerMs;
+        public static float UpdateChunksMs;
+        public static float UpdateFluidsMs;
+        public static float UpdateAnimalsMs;
+        public static float UpdateVillagesMs;
+        public static float UpdateParticlesMs;
+
+        // Draw breakdowns (ms)
+        public static float DrawSkyMs;
+        public static float DrawTerrainOpaqueMs;
+        public static float DrawTerrainWaterMs;
+        public static float DrawTerrainCutoutMs;
+        public static float DrawFloraMs;
+        public static float DrawEntitiesMs;
+        public static float DrawUiMs;
+
+        // Triangle/Index counts
+        public static int TerrainOpaqueIndexCount;
+        public static int TerrainWaterIndexCount;
+        public static int TerrainCutoutIndexCount;
+
         public static void ResetFrame()
         {
             GetBlockCalls = 0;
@@ -37,6 +61,10 @@ namespace Autonocraft.Core
             FloraDrawMs = 0f;
             ChunksMeshedThisFrame = 0;
             MeshBuildMs = 0f;
+
+            TerrainOpaqueIndexCount = 0;
+            TerrainWaterIndexCount = 0;
+            TerrainCutoutIndexCount = 0;
         }
 
         public static void RecordUpdate(float milliseconds)

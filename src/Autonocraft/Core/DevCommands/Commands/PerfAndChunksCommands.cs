@@ -54,5 +54,17 @@ namespace Autonocraft.Core.DevCommands.Commands
             return $"Active chunks: {session.Grid.ActiveChunkCount} | stream distance: {session.Grid.StreamRenderDistance} | player chunk: ({cx}, {cy}, {cz}) | seed: {session.Grid.Seed}";
         }
     }
+
+    internal sealed class PerfHudCommand : IDevCommand
+    {
+        public string Name => "perfhud";
+        public System.Collections.Generic.IEnumerable<string> Aliases { get; } = new[] { "ph" };
+
+        public string Execute(GameHostContext host, ReadOnlySpan<char> args)
+        {
+            PerfCounters.ShowPerfHud = !PerfCounters.ShowPerfHud;
+            return $"Performance HUD is now {(PerfCounters.ShowPerfHud ? "ENABLED" : "DISABLED")}.";
+        }
+    }
 }
 

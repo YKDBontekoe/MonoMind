@@ -1,3 +1,5 @@
+using System;
+
 namespace Autonocraft.World
 {
     public sealed class OrePlacer
@@ -11,7 +13,7 @@ namespace Autonocraft.World
             _params = parameters;
         }
 
-        public void PlaceOres(Chunk chunk)
+        public void PlaceOres(Chunk chunk, TerrainColumn[,] columns)
         {
             if (!_params.EnableOres)
             {
@@ -25,12 +27,18 @@ namespace Autonocraft.World
             {
                 for (int lz = 0; lz < Chunk.Depth; lz++)
                 {
-                    for (int y = 4; y < Chunk.Height - 8; y++)
+                    int surfaceHeight = columns[lx, lz].SurfaceHeight;
+                    int yMax = Math.Min(surfaceHeight - WorldConstants.DirtDepth, Chunk.Height - 8);
+                    if (yMax < 4)
                     {
-                        int wx = chunkOffsetX + lx;
-                        int wz = chunkOffsetZ + lz;
-                        BlockType current = chunk.GetBlock(lx, y, lz);
-                        if (current != BlockType.Stone)
+                        continue;
+                    }
+
+                    int wx = chunkOffsetX + lx;
+                    int wz = chunkOffsetZ + lz;
+                    for (int y = 4; y <= yMax; y++)
+                    {
+                        if (chunk.GetBlockUnchecked(lx, y, lz) != BlockType.Stone)
                         {
                             continue;
                         }
@@ -38,7 +46,7 @@ namespace Autonocraft.World
                         BlockType? ore = GetOre(wx, y, wz);
                         if (ore.HasValue)
                         {
-                            chunk.SetBlock(lx, y, lz, ore.Value);
+                            chunk.SetBlockUnchecked(lx, y, lz, ore.Value);
                         }
                     }
                 }
@@ -47,6 +55,11 @@ namespace Autonocraft.World
 
         private BlockType? GetOre(int wx, int y, int wz)
         {
+            if (y >= 96)
+            {
+                return null;
+            }
+
             int hash = Hash(wx, y, wz);
             int band = hash % 1000;
 
@@ -55,7 +68,7 @@ namespace Autonocraft.World
                 return BlockType.CoalOre;
             }
 
-            if (y >= 24 && y < 96 && band >= 120 && band < 135)
+            if (y >= 24 && band >= 120 && band < 135)
             {
                 return BlockType.IronOre;
             }

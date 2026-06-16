@@ -39,27 +39,29 @@ namespace Autonocraft.World
                 return BlockType.Air;
             }
 
-            int localX = wx - _center.ChunkX * Chunk.Width;
-            int localZ = wz - _center.ChunkZ * Chunk.Depth;
-            if (localX >= 0 && localX < Chunk.Width && localZ >= 0 && localZ < Chunk.Depth)
+            int originX = _center.ChunkX << 4;
+            int originZ = _center.ChunkZ << 4;
+            int localX = wx - originX;
+            int localZ = wz - originZ;
+            if ((uint)localX < Chunk.Width && (uint)localZ < Chunk.Depth)
             {
                 return _center.GetBlock(localX, wy, localZ);
             }
 
             Chunk? neighbor = null;
-            if (wx < _center.ChunkX * Chunk.Width)
+            if (wx < originX)
             {
                 neighbor = _negX;
             }
-            else if (wx >= (_center.ChunkX + 1) * Chunk.Width)
+            else if (wx >= originX + Chunk.Width)
             {
                 neighbor = _posX;
             }
-            else if (wz < _center.ChunkZ * Chunk.Depth)
+            else if (wz < originZ)
             {
                 neighbor = _negZ;
             }
-            else if (wz >= (_center.ChunkZ + 1) * Chunk.Depth)
+            else if (wz >= originZ + Chunk.Depth)
             {
                 neighbor = _posZ;
             }
@@ -69,8 +71,7 @@ namespace Autonocraft.World
                 return BlockType.Air;
             }
 
-            VoxelWorld.GetChunkCoords(wx, wz, out _, out _, out int lx, out int lz);
-            return neighbor.GetBlock(lx, wy, lz);
+            return neighbor.GetBlock(wx & 15, wy, wz & 15);
         }
     }
 }

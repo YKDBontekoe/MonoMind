@@ -34,12 +34,13 @@ namespace Autonocraft.World
         public void GenerateChunkTerrain(Chunk chunk, VoxelWorld? world = null)
         {
             var columns = new TerrainColumn[Chunk.Width, Chunk.Depth];
+            var biomeCache = new BiomeSampleCache(_biomeMap);
 
             TerrainPostProcessor.ProcessChunk(
                 chunk.ChunkX,
                 chunk.ChunkZ,
                 columns,
-                (wx, wz) => _terrainShaper.BuildBaseColumn(wx, wz),
+                (wx, wz) => _terrainShaper.BuildBaseColumn(wx, wz, biomeCache),
                 _params.EnableRivers);
 
             for (int lx = 0; lx < Chunk.Width; lx++)
@@ -51,7 +52,7 @@ namespace Autonocraft.World
             }
 
             _caveCarver.CarveChunk(chunk, columns);
-            _orePlacer.PlaceOres(chunk);
+            _orePlacer.PlaceOres(chunk, columns);
             _decorator.DecorateChunk(chunk, world, columns);
 
             var previewCache = new Dictionary<(int cx, int cz), TerrainColumn[,]>
@@ -85,12 +86,13 @@ namespace Autonocraft.World
         public TerrainColumn[,] PreviewChunkColumns(int chunkX, int chunkZ)
         {
             var columns = new TerrainColumn[Chunk.Width, Chunk.Depth];
+            var biomeCache = new BiomeSampleCache(_biomeMap);
 
             TerrainPostProcessor.ProcessChunk(
                 chunkX,
                 chunkZ,
                 columns,
-                (x, z) => _terrainShaper.BuildBaseColumn(x, z),
+                (x, z) => _terrainShaper.BuildBaseColumn(x, z, biomeCache),
                 _params.EnableRivers);
 
             return columns;

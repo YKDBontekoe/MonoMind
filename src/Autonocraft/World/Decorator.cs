@@ -29,6 +29,7 @@ namespace Autonocraft.World
                     int wx = chunkOffsetX + lx;
                     int wz = chunkOffsetZ + lz;
                     var column = columns[lx, lz];
+                    int columnHash = Hash(wx, wz, 17);
 
                     if (column.Biome.Primary == BiomeType.Ocean || column.IsRiver || column.IsLake)
                     {
@@ -37,8 +38,8 @@ namespace Autonocraft.World
                     }
 
                     TryPlaceTree(chunk, world, wx, wz, lx, lz, column);
-                    TryPlaceFlora(chunk, world, wx, wz, lx, lz, column);
-                    TryPlaceBoulder(chunk, world, wx, wz, lx, lz, column);
+                    TryPlaceFlora(chunk, world, wx, wz, lx, lz, column, columnHash);
+                    TryPlaceBoulder(chunk, world, wx, wz, lx, lz, column, Hash(wx, wz, 41));
                     TryPlaceAnimalFeature(chunk, world, wx, wz, lx, lz, column.SurfaceHeight);
                 }
             }
@@ -51,9 +52,14 @@ namespace Autonocraft.World
                 return;
             }
 
+            if ((wx * 17 + wz * 31) % 43 != 0)
+            {
+                return;
+            }
+
             float treeDensity = _treeNoise.Fbm(wx * 0.1f, wz * 0.1f, 3);
             float threshold = 0.45f - column.Profile.TreeDensity * 0.35f * _params.TreeDensityScale;
-            if (treeDensity <= threshold || (wx * 17 + wz * 31) % 43 != 0)
+            if (treeDensity <= threshold)
             {
                 return;
             }
@@ -153,11 +159,10 @@ namespace Autonocraft.World
             }
         }
 
-        private void TryPlaceFlora(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, TerrainColumn column)
+        private void TryPlaceFlora(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, TerrainColumn column, int hash)
         {
             int surfaceHeight = column.SurfaceHeight;
             float floraSample = _floraNoise.Fbm(wx * 0.21f, wz * 0.21f, 3);
-            int hash = Hash(wx, wz, 17);
 
             if (column.Profile.AllowCactus && floraSample > 0.88f && hash % 11 == 0)
             {
@@ -227,51 +232,45 @@ namespace Autonocraft.World
 
         private void TryPlaceWaterFlora(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, TerrainColumn column)
         {
-            int waterY = -1;
-            for (int y = Chunk.Height - 1; y >= 0; y--)
-            {
-                if (chunk.GetBlock(lx, y, lz) == BlockType.Water)
-                {
-                    waterY = y;
-                    break;
-                }
-            }
+            int hash = Hash(wx, wz, 23);
+            int waterY = column.Biome.Primary == BiomeType.Ocean
+                ? WorldConstants.SeaLevel
+                : FindWaterSurfaceY(chunk, lx, lz);
 
-            if (waterY == -1)
+            if (waterY < 0)
             {
                 return;
             }
 
-            int hash = Hash(wx, wz, 23);
+            if (column.Biome.Primary == BiomeType.Ocean
+                && chunk.GetBlockUnchecked(lx, waterY, lz) != BlockType.Water)
+            {
+                waterY = FindWaterSurfaceY(chunk, lx, lz);
+                if (waterY < 0)
+                {
+                    return;
+                }
+            }
 
             // 1. Place Lily Pads (Swamp water surface only)
             if (column.Biome.Primary == BiomeType.Swamp && hash % 7 == 0)
             {
                 int padY = waterY + 1;
-                if (padY < Chunk.Height && chunk.GetBlock(lx, padY, lz) == BlockType.Air)
+                if (padY < Chunk.Height && chunk.GetBlockUnchecked(lx, padY, lz) == BlockType.Air)
                 {
                     SetBlockIfAir(chunk, world, wx, wz, lx, lz, padY, BlockType.LilyPad);
                 }
             }
 
             // 2. Place Seagrass (underwater floor)
-            int floorY = -1;
-            for (int y = waterY - 1; y >= 0; y--)
-            {
-                if (chunk.GetBlock(lx, y, lz) != BlockType.Water)
-                {
-                    floorY = y;
-                    break;
-                }
-            }
-
+            int floorY = FindWaterFloorY(chunk, lx, lz, waterY);
             if (floorY != -1)
             {
-                BlockType floorType = chunk.GetBlock(lx, floorY, lz);
+                BlockType floorType = chunk.GetBlockUnchecked(lx, floorY, lz);
                 if (floorType == BlockType.Sand || floorType == BlockType.Dirt || floorType == BlockType.Grass || floorType == BlockType.Mud || floorType == BlockType.Clay)
                 {
                     int grassY = floorY + 1;
-                    if (grassY < Chunk.Height && chunk.GetBlock(lx, grassY, lz) == BlockType.Water)
+                    if (grassY < Chunk.Height && chunk.GetBlockUnchecked(lx, grassY, lz) == BlockType.Water)
                     {
                         if (hash % 6 == 0)
                         {
@@ -282,9 +281,8 @@ namespace Autonocraft.World
             }
         }
 
-        private void TryPlaceBoulder(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, TerrainColumn column)
+        private void TryPlaceBoulder(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, TerrainColumn column, int hash)
         {
-            int hash = Hash(wx, wz, 41);
             if (hash % 311 != 0 || column.Biome.Primary is BiomeType.Ocean or BiomeType.Beach)
             {
                 return;
@@ -372,6 +370,32 @@ namespace Autonocraft.World
             return Math.Max(1, 2 - Math.Abs(layerFromBottom - peakLayer));
         }
 
+        private static int FindWaterSurfaceY(Chunk chunk, int lx, int lz)
+        {
+            for (int y = Chunk.Height - 1; y >= 0; y--)
+            {
+                if (chunk.GetBlockUnchecked(lx, y, lz) == BlockType.Water)
+                {
+                    return y;
+                }
+            }
+
+            return -1;
+        }
+
+        private static int FindWaterFloorY(Chunk chunk, int lx, int lz, int waterY)
+        {
+            for (int y = waterY - 1; y >= 0; y--)
+            {
+                if (chunk.GetBlockUnchecked(lx, y, lz) != BlockType.Water)
+                {
+                    return y;
+                }
+            }
+
+            return -1;
+        }
+
         private static void SetBlock(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, int y, BlockType type)
         {
             if (world != null)
@@ -382,7 +406,7 @@ namespace Autonocraft.World
 
             if (lx >= 0 && lx < Chunk.Width && lz >= 0 && lz < Chunk.Depth)
             {
-                chunk.SetBlock(lx, y, lz, type);
+                chunk.SetBlockUnchecked(lx, y, lz, type);
             }
         }
 
@@ -400,17 +424,19 @@ namespace Autonocraft.World
                     world.SetBlockDuringGeneration(wx, y, wz, type);
                     return true;
                 }
+
                 return false;
             }
 
             if (lx >= 0 && lx < Chunk.Width && lz >= 0 && lz < Chunk.Depth)
             {
-                if (chunk.GetBlock(lx, y, lz) == BlockType.Air)
+                if (chunk.GetBlockUnchecked(lx, y, lz) == BlockType.Air)
                 {
-                    chunk.SetBlock(lx, y, lz, type);
+                    chunk.SetBlockUnchecked(lx, y, lz, type);
                     return true;
                 }
             }
+
             return false;
         }
 

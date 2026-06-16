@@ -1,3 +1,5 @@
+using System;
+
 namespace Autonocraft.World
 {
     public sealed class CaveCarver
@@ -13,30 +15,13 @@ namespace Autonocraft.World
             _wormNoise = new PerlinNoise3D(seed + 707);
         }
 
-        public bool ShouldCarve(int wx, int y, int wz, int surfaceHeight)
-        {
-            if (!_params.EnableCaves || y <= 3 || y >= surfaceHeight - 2)
-            {
-                return false;
-            }
-
-            if (y <= WorldConstants.SeaLevel && y > surfaceHeight)
-            {
-                return false;
-            }
-
-            float cave = _caveNoise.Noise(wx * 0.045f, y * 0.045f, wz * 0.045f);
-            float wormA = _wormNoise.Noise(wx * 0.08f, y * 0.08f, wz * 0.08f);
-            float wormB = _wormNoise.Noise(wx * 0.08f + 100f, y * 0.08f + 100f, wz * 0.08f + 100f);
-
-            bool cheeseCave = cave > 0.34f && y < surfaceHeight - 4;
-            bool wormTunnel = MathF.Abs(wormA) < 0.05f && MathF.Abs(wormB) < 0.05f && y < surfaceHeight - 6;
-
-            return cheeseCave || wormTunnel;
-        }
-
         public void CarveChunk(Chunk chunk, TerrainColumn[,] columns)
         {
+            if (!_params.EnableCaves)
+            {
+                return;
+            }
+
             int chunkOffsetX = chunk.ChunkX * Chunk.Width;
             int chunkOffsetZ = chunk.ChunkZ * Chunk.Depth;
 
@@ -45,19 +30,69 @@ namespace Autonocraft.World
                 for (int lz = 0; lz < Chunk.Depth; lz++)
                 {
                     int surfaceHeight = columns[lx, lz].SurfaceHeight;
-                    for (int y = 1; y < Chunk.Height; y++)
+                    if (surfaceHeight <= 8)
                     {
-                        int wx = chunkOffsetX + lx;
-                        int wz = chunkOffsetZ + lz;
-                        BlockType current = chunk.GetBlock(lx, y, lz);
+                        continue;
+                    }
+
+                    int maxY = Math.Min(surfaceHeight - 1, Chunk.Height - 1);
+                    if (maxY <= 3)
+                    {
+                        continue;
+                    }
+
+                    int wx = chunkOffsetX + lx;
+                    int wz = chunkOffsetZ + lz;
+                    float caveX = wx * 0.045f;
+                    float caveZ = wz * 0.045f;
+                    float wormX = wx * 0.08f;
+                    float wormZ = wz * 0.08f;
+                    float wormXb = wormX + 100f;
+                    float wormZb = wormZ + 100f;
+                    int cheeseMaxY = surfaceHeight - 4;
+                    int wormMaxY = surfaceHeight - 6;
+
+                    for (int y = 1; y < maxY; y++)
+                    {
+                        BlockType current = chunk.GetBlockUnchecked(lx, y, lz);
                         if (current == BlockType.Air || current == BlockType.Water)
                         {
                             continue;
                         }
 
-                        if (ShouldCarve(wx, y, wz, surfaceHeight))
+                        if (y <= 3)
                         {
-                            chunk.SetBlock(lx, y, lz, BlockType.Air);
+                            continue;
+                        }
+
+                        if (y <= WorldConstants.SeaLevel && y > surfaceHeight)
+                        {
+                            continue;
+                        }
+
+                        float caveY = y * 0.045f;
+                        if (y < cheeseMaxY)
+                        {
+                            float cave = _caveNoise.Noise(caveX, caveY, caveZ);
+                            if (cave > 0.34f)
+                            {
+                                chunk.SetBlockUnchecked(lx, y, lz, BlockType.Air);
+                                continue;
+                            }
+                        }
+
+                        if (y < wormMaxY)
+                        {
+                            float wormY = y * 0.08f;
+                            float wormA = _wormNoise.Noise(wormX, wormY, wormZ);
+                            if (MathF.Abs(wormA) < 0.05f)
+                            {
+                                float wormB = _wormNoise.Noise(wormXb, wormY + 100f, wormZb);
+                                if (MathF.Abs(wormB) < 0.05f)
+                                {
+                                    chunk.SetBlockUnchecked(lx, y, lz, BlockType.Air);
+                                }
+                            }
                         }
                     }
                 }

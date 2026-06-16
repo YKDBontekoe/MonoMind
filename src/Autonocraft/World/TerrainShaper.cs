@@ -28,18 +28,21 @@ namespace Autonocraft.World
             _terrainNoise = new NoiseStack(seed + 505);
         }
 
-        public (float height, TerrainColumn draft) BuildBaseColumn(int wx, int wz)
+        internal (float height, TerrainColumn draft) BuildBaseColumn(int wx, int wz, BiomeSampleCache? biomeCache = null)
         {
+            BiomeSample SampleAt(int x, int z) =>
+                biomeCache != null ? biomeCache.Sample(x, z) : _biomeMap.Sample(x, z);
+
             const int biomeBlendStep = 5;
-            var center = _biomeMap.Sample(wx, wz);
-            var north = _biomeMap.Sample(wx, wz - biomeBlendStep);
-            var south = _biomeMap.Sample(wx, wz + biomeBlendStep);
-            var east = _biomeMap.Sample(wx + biomeBlendStep, wz);
-            var west = _biomeMap.Sample(wx - biomeBlendStep, wz);
-            var northEast = _biomeMap.Sample(wx + biomeBlendStep, wz - biomeBlendStep);
-            var northWest = _biomeMap.Sample(wx - biomeBlendStep, wz - biomeBlendStep);
-            var southEast = _biomeMap.Sample(wx + biomeBlendStep, wz + biomeBlendStep);
-            var southWest = _biomeMap.Sample(wx - biomeBlendStep, wz + biomeBlendStep);
+            var center = SampleAt(wx, wz);
+            var north = SampleAt(wx, wz - biomeBlendStep);
+            var south = SampleAt(wx, wz + biomeBlendStep);
+            var east = SampleAt(wx + biomeBlendStep, wz);
+            var west = SampleAt(wx - biomeBlendStep, wz);
+            var northEast = SampleAt(wx + biomeBlendStep, wz - biomeBlendStep);
+            var northWest = SampleAt(wx - biomeBlendStep, wz - biomeBlendStep);
+            var southEast = SampleAt(wx + biomeBlendStep, wz + biomeBlendStep);
+            var southWest = SampleAt(wx - biomeBlendStep, wz + biomeBlendStep);
             var profile = _biomeMap.BlendProfiles(center, north, south, east, west, northEast, northWest, southEast, southWest);
 
             float broad = _terrainNoise.Fbm(wx * 0.0045f, wz * 0.0045f, 4);
@@ -112,45 +115,7 @@ namespace Autonocraft.World
 
         public void FillColumn(Chunk chunk, int lx, int lz, TerrainColumn column)
         {
-            int height = column.SurfaceHeight;
-
-            for (int y = 0; y < Chunk.Height; y++)
-            {
-                BlockType block;
-                if (y > height)
-                {
-                    if (y <= WorldConstants.SeaLevel && (column.Biome.Primary == BiomeType.Ocean || column.IsRiver || column.IsLake))
-                    {
-                        bool freezeSurface = column.Biome.Primary == BiomeType.SnowyPeaks
-                            || column.Biome.Temperature < -0.08f;
-                        block = y == WorldConstants.SeaLevel && freezeSurface
-                            ? BlockType.Ice
-                            : BlockType.Water;
-                    }
-                    else
-                    {
-                        block = BlockType.Air;
-                    }
-                }
-                else if (y == height)
-                {
-                    block = column.SurfaceBlock;
-                }
-                else if (y > height - WorldConstants.DirtDepth)
-                {
-                    block = column.SubsurfaceBlock;
-                }
-                else if (y <= 2)
-                {
-                    block = BlockType.Stone;
-                }
-                else
-                {
-                    block = column.FillerBlock;
-                }
-
-                chunk.SetBlock(lx, y, lz, block);
-            }
+            chunk.FillTerrainColumn(lx, lz, column);
         }
 
         private static float Lerp(float a, float b, float t)

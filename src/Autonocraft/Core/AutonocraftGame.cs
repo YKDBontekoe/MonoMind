@@ -1397,6 +1397,12 @@ namespace Autonocraft.Core
                 }
             }
 
+            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.F4) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.F4))
+            {
+                PerfCounters.ShowPerfHud = !PerfCounters.ShowPerfHud;
+                Console.WriteLine($"[Debug] Toggled performance HUD: {PerfCounters.ShowPerfHud}");
+            }
+
             if (_screens.DevConsole!.IsOpen)
             {
                 _screens.DevConsole.Update(GraphicsDevice.Viewport, kbState, _input.PrevKeyboard, _hostContext);
@@ -1530,10 +1536,13 @@ namespace Autonocraft.Core
             }
 
             _waterAnimTime += deltaTime;
+            var swFluids = System.Diagnostics.Stopwatch.StartNew();
             if (_spawnWarmupRemaining <= 0f || SpawnWarmupProgress >= 0.5f)
             {
                 _session.Grid.Fluids.Update(_session.Grid, deltaTime, GraphicsDevice);
             }
+            swFluids.Stop();
+            PerfCounters.UpdateFluidsMs = (float)swFluids.Elapsed.TotalMilliseconds;
 
             if (_session.Player.IsAlive)
             {
@@ -1542,6 +1551,7 @@ namespace Autonocraft.Core
                 Vector3 frontHorizontal = Vector3.Normalize(new Vector3(front.X, 0f, front.Z));
                 Vector3 rightHorizontal = Vector3.Normalize(new Vector3(right.X, 0f, right.Z));
 
+                var swPlayer = System.Diagnostics.Stopwatch.StartNew();
                 Vector3 moveDir = Vector3.Zero;
                 if (IsKeyPressed(kbState, Key.W)) moveDir += frontHorizontal;
                 if (IsKeyPressed(kbState, Key.S)) moveDir -= frontHorizontal;
@@ -1569,13 +1579,19 @@ namespace Autonocraft.Core
 
                     _session.Player.Update(deltaTime, _session.Grid, moveDir, swimUp, swimDown);
                 }
+                swPlayer.Stop();
+                PerfCounters.UpdatePlayerMs = (float)swPlayer.Elapsed.TotalMilliseconds;
 
                 _prevSpacePressed = IsKeyPressed(kbState, Key.Space);
                 _session.UpdateMovementAudio(deltaTime, moveDir);
                 _session.InteractionAnimator.Update(deltaTime, _session.Player);
                 _session.Weather.Update(deltaTime);
+
+                var swParticles = System.Diagnostics.Stopwatch.StartNew();
                 _session.Particles.Update(deltaTime, _session.Grid);
                 _session.Particles.UpdateAmbient(deltaTime, _session.Player.Position, _session.Grid, _timeOfDay, _session.Weather);
+                swParticles.Stop();
+                PerfCounters.UpdateParticlesMs = (float)swParticles.Elapsed.TotalMilliseconds;
 
                 if (_session.Player.InWater && !_playerWasInWater)
                 {
@@ -1733,13 +1749,21 @@ namespace Autonocraft.Core
                 : targetMeshPerFrame;
 
             _session.DeferAmbientSpawns = inSpawnWarmup && warmup < 0.7f;
+            
+            var swChunks = System.Diagnostics.Stopwatch.StartNew();
             _session.UpdateChunks(GraphicsDevice, _camera.Position, _settings.RenderDistance, terrainPerFrame, meshPerFrame);
+            swChunks.Stop();
+            PerfCounters.UpdateChunksMs = (float)swChunks.Elapsed.TotalMilliseconds;
 
+            var swAnimals = System.Diagnostics.Stopwatch.StartNew();
             if (!inSpawnWarmup || warmup >= 0.75f)
             {
                 _session.UpdateAnimals(deltaTime);
             }
+            swAnimals.Stop();
+            PerfCounters.UpdateAnimalsMs = (float)swAnimals.Elapsed.TotalMilliseconds;
 
+            var swVillages = System.Diagnostics.Stopwatch.StartNew();
             if (!inSpawnWarmup || warmup >= 0.6f)
             {
                 _session.UpdateVillages(deltaTime, _timeOfDay);
@@ -1755,6 +1779,8 @@ namespace Autonocraft.Core
 
                 _session.UpdateVillageHudHint(_session.Player.CreativeMode);
             }
+            swVillages.Stop();
+            PerfCounters.UpdateVillagesMs = (float)swVillages.Elapsed.TotalMilliseconds;
 
             if (_pendingAutoOpenPeopleTab && !inSpawnWarmup && _session.Player.Stats.EarlyGuideStage <= 1)
             {
