@@ -93,6 +93,38 @@ namespace Autonocraft.Engine
             return image.Pixels;
         }
 
+        public static Color[] SnowFringe(int tileSize, string name, Color[] palette)
+        {
+            var pixels = new Color[tileSize * tileSize];
+            Array.Fill(pixels, Color.Transparent);
+            var image = new TileImage(pixels, tileSize);
+            int fringeRows = Math.Max(8, tileSize * 42 / 100);
+            int solidHeight = Math.Max(2, tileSize * 12 / 100);
+
+            for (int y = 0; y < solidHeight; y++)
+            {
+                for (int x = 0; x < tileSize; x++)
+                {
+                    SetPixel(image, x, y, palette[Noise(name, x, y, 0) % palette.Length]);
+                }
+            }
+
+            for (int i = 0; i < 96; i++)
+            {
+                int x = Noise(name, i, 3, 5) % tileSize;
+                int len = solidHeight + Noise(name, i, 7, 9) % (fringeRows - solidHeight);
+                Color flake = palette[Noise(name, i, 11, 13) % palette.Length];
+                for (int d = solidHeight; d < len; d++)
+                {
+                    int y = d;
+                    int sway = (Noise(name, i, 17, 19) % 3) - 1;
+                    SetPixel(image, x + sway, y, flake);
+                }
+            }
+
+            return image.Pixels;
+        }
+
         public static Color[] Dirt(int tileSize, string name, Color[] palette)
         {
             var image = new TileImage(PixelCluster(tileSize, name, palette[1], palette, CellEarth, 16), tileSize);

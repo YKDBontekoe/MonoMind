@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Autonocraft.Domain.World;
 
 namespace Autonocraft.World
 {
@@ -84,7 +85,7 @@ namespace Autonocraft.World
                 {
                     int px = lx + Padding;
                     int pz = lz + Padding;
-                    columns[lx, lz] = FinalizeColumn(drafts[px, pz], heights[px, pz]);
+                    columns[lx, lz] = FinalizeColumn(drafts[px, pz], heights[px, pz], heights, px, pz);
                 }
             }
         }
@@ -445,7 +446,7 @@ namespace Autonocraft.World
             return (bestX, bestZ);
         }
 
-        private static TerrainColumn FinalizeColumn(TerrainColumn draft, float height)
+        private static TerrainColumn FinalizeColumn(TerrainColumn draft, float height, float[,] heights, int px, int pz)
         {
             int surfaceHeight = Math.Clamp((int)MathF.Round(height), 1, Chunk.Height - 12);
             bool isRiver = draft.IsRiver;
@@ -468,11 +469,27 @@ namespace Autonocraft.World
                 surfaceHeight = Math.Min(surfaceHeight, WorldConstants.SeaLevel - 1);
             }
 
+            if (TerrainSlabRules.TryGetPlacement(draft, height, heights, px, pz, surface, out int slabHeight, out BlockType slabType))
+            {
+                if (draft.Biome.Primary == BiomeType.Beach)
+                {
+                    slabHeight = Math.Clamp(slabHeight, WorldConstants.SeaLevel, WorldConstants.BeachMaxHeight);
+                }
+                else if (draft.IsLake)
+                {
+                    slabHeight = Math.Min(slabHeight, WorldConstants.SeaLevel - 1);
+                }
+
+                surfaceHeight = Math.Clamp(slabHeight, 1, Chunk.Height - 12);
+                surface = slabType;
+            }
+
             return draft with
             {
                 SurfaceHeight = surfaceHeight,
                 SurfaceBlock = surface,
-                SubsurfaceBlock = subsurface
+                SubsurfaceBlock = subsurface,
+                SmoothedHeight = height
             };
         }
 

@@ -13,6 +13,7 @@ namespace Autonocraft.World
         public BlockType SurfaceBlock { get; init; }
         public BlockType SubsurfaceBlock { get; init; }
         public BlockType FillerBlock { get; init; }
+        public float SmoothedHeight { get; init; }
     }
 
     public sealed class TerrainShaper

@@ -86,6 +86,7 @@
     "vine": { "col": 0, "row": 10, "file": "vine.png" },
     "berry_bush": { "col": 1, "row": 10, "file": "berry_bush.png" },
     "seagrass": { "col": 2, "row": 10, "file": "seagrass.png" },
+    "snow_side": { "col": 3, "row": 10, "file": "snow_side.png" },
     "marble": { "col": 0, "row": 11, "file": "marble.png" },
     "basalt": { "col": 1, "row": 11, "file": "basalt.png" },
     "slate": { "col": 2, "row": 11, "file": "slate.png" },
@@ -262,7 +263,8 @@
     "Lava": { "all": "lava" },
     "Quicksand": { "all": "quicksand" },
     "Rope": { "all": "rope" },
-    "Kelp": { "all": "kelp" }
+    "Kelp": { "all": "kelp" },
+    "SnowSide": { "all": "snow_side" }
   },
   "animals": {
     "Sheep": { "body": "sheep_body", "head": "sheep_head" },

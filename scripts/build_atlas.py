@@ -157,7 +157,8 @@ def make_wood_plank_tile(name: str, tile: int, base: tuple[int, int, int], seam:
 
 
 def make_dirt_tile(name: str, tile: int, palette: list[tuple[int, int, int]], cell_size: int = CELL_EARTH) -> Image.Image:
-    img = fill_pixel_cluster_tile(name, tile, palette[1], palette, cell_size, 16)
+    grout = shade(palette[0], -20)
+    img = voronoi_tile(name, tile, palette, grout, 18, 2.4)
     draw = ImageDraw.Draw(img)
     pixels = img.load()
     for i in range(12):
@@ -180,14 +181,30 @@ def make_dirt_tile(name: str, tile: int, palette: list[tuple[int, int, int]], ce
         set_pixel(pixels, tile, px, py + 1, shade(pebble, -10))
         set_pixel(pixels, tile, px + 1, py + 1, shade(pebble, -16))
 
-    apply_cell_rims(img, cell_size, -10, 4)
     return img
 
 
 def make_grass_fringe_tile(name: str, tile: int, palette: list[tuple[int, int, int]]) -> Image.Image:
     img = fill_pixel_cluster_tile(name, tile, palette[0], palette, CELL_ORGANIC, 18)
     pixels = img.load()
-    fringe_rows = max(8, tile * 42 // 100)
+    fringe_rows = max(8, tile * 55 // 100)
+    for i in range(64):
+        x = noise_value(name, i, 3, 5) % tile
+        len_val = 6 + noise_value(name, i, 7, 9) % fringe_rows
+        blade = palette[noise_value(name, i, 11, 13) % len(palette)]
+        for d in range(len_val):
+            y = d
+            sway = (noise_value(name, i, 17, 19) % 3) - 1
+            wx = x + sway
+            if 0 <= wx < tile and 0 <= y < tile:
+                pixels[wx, y] = (shade(blade, 8) if d == 0 else blade) + (255,)
+    return img
+
+
+def make_snow_fringe_tile(name: str, tile: int, palette: list[tuple[int, int, int]]) -> Image.Image:
+    img = fill_pixel_cluster_tile(name, tile, palette[0], palette, CELL_ORGANIC, 18)
+    pixels = img.load()
+    fringe_rows = max(8, tile * 55 // 100)
     for i in range(64):
         x = noise_value(name, i, 3, 5) % tile
         len_val = 6 + noise_value(name, i, 7, 9) % fringe_rows
@@ -202,7 +219,8 @@ def make_grass_fringe_tile(name: str, tile: int, palette: list[tuple[int, int, i
 
 
 def make_sand_tile(name: str, tile: int, palette: list[tuple[int, int, int]]) -> Image.Image:
-    img = fill_pixel_cluster_tile(name, tile, palette[1], palette, CELL_ORGANIC, 16)
+    grout = shade(palette[0], -14)
+    img = voronoi_tile(name, tile, palette, grout, 22, 1.8)
     draw = ImageDraw.Draw(img)
     pixels = img.load()
     scatter(draw, name, tile, palette, 30, 2)
@@ -210,7 +228,36 @@ def make_sand_tile(name: str, tile: int, palette: list[tuple[int, int, int]]) ->
         x = noise_value(name, i, 3, 5) % tile
         y = noise_value(name, i, 7, 9) % tile
         set_pixel(pixels, tile, x, y, shade(palette[2], 20))
-    apply_cell_rims(img, CELL_ORGANIC, -10, 6)
+    return img
+
+
+def make_sandstone_tile(name: str, tile: int) -> Image.Image:
+    layers = [
+        (196, 172, 118),
+        (210, 186, 132),
+        (180, 156, 102),
+        (205, 180, 125),
+        (190, 164, 110),
+        (215, 190, 136)
+    ]
+    img = Image.new("RGBA", (tile, tile))
+    pixels = img.load()
+    for y in range(tile):
+        for x in range(tile):
+            wave = int(4 * math.sin(x * 0.15 + noise_value(name, y // 8, 0, 7) * 0.05))
+            layer_y = (y + wave) % tile
+            band = (layer_y * len(layers)) // tile
+            color = layers[band % len(layers)]
+            detail = noise_value(name, x, y, 99) % 11
+            if detail == 0:
+                color = shade(color, 8)
+            elif detail == 1:
+                color = shade(color, -6)
+            if (layer_y % 6) == 0:
+                color = shade(color, -10)
+            elif (layer_y % 6) == 3:
+                color = shade(color, 6)
+            pixels[x, y] = color + (255,)
     return img
 
 
@@ -342,8 +389,8 @@ def leaf_cluster_tile(
     base: tuple[int, int, int],
     clusters: list[tuple[int, int, int]],
 ) -> Image.Image:
-    palette = clusters + [shade(base, -16), shade(base, 18)]
-    img = fill_pixel_cluster_tile(name, tile, shade(base, -12), palette, CELL_ORGANIC, 16)
+    grout = shade(base, -24)
+    img = voronoi_tile(name, tile, clusters, grout, 18, 2.4)
     scatter(ImageDraw.Draw(img), name, tile, clusters, 90, 5)
     scatter(ImageDraw.Draw(img), name + "_hi", tile, [shade(c, 32) for c in clusters], 38, 3)
     scatter(ImageDraw.Draw(img), name + "_dk", tile, [shade(c, -28) for c in clusters], 22, 4)
@@ -352,8 +399,17 @@ def leaf_cluster_tile(
 
 def compose_grass_side(dirt: Image.Image, grass_fringe: Image.Image, tile: int) -> Image.Image:
     dirt_tile = dirt.convert("RGBA").resize((tile, tile), Image.Resampling.NEAREST)
-    fringe_height = max(1, int(tile * 0.36))
+    fringe_height = max(1, int(tile * 0.45))
     fringe = grass_fringe.convert("RGBA").resize((tile, fringe_height), Image.Resampling.NEAREST)
+    result = dirt_tile.copy()
+    result.paste(fringe, (0, 0))
+    return result
+
+
+def compose_snow_side(dirt: Image.Image, snow_fringe: Image.Image, tile: int) -> Image.Image:
+    dirt_tile = dirt.convert("RGBA").resize((tile, tile), Image.Resampling.NEAREST)
+    fringe_height = max(1, int(tile * 0.45))
+    fringe = snow_fringe.convert("RGBA").resize((tile, fringe_height), Image.Resampling.NEAREST)
     result = dirt_tile.copy()
     result.paste(fringe, (0, 0))
     return result
@@ -710,7 +766,8 @@ def make_procedural_tile(name: str, tile: int) -> Optional[Image.Image]:
 
     if name == "grass_top.png":
         palette = [(38, 92, 34), (50, 114, 42), (60, 128, 48), (32, 82, 30), (70, 138, 52)]
-        img = fill_pixel_cluster_tile(name, tile, palette[1], palette, CELL_ORGANIC, 12)
+        grout = (24, 68, 22)
+        img = voronoi_tile(name, tile, palette, grout, 18, 2.4)
         px = img.load()
         # Scatter lush grass blade clumps
         for i in range(35):
@@ -734,7 +791,6 @@ def make_procedural_tile(name: str, tile: int) -> Optional[Image.Image]:
             set_pixel_wrapped(px, tile, cx + 1, cy, petal)
             set_pixel_wrapped(px, tile, cx, cy - 1, petal)
             set_pixel_wrapped(px, tile, cx, cy + 1, petal)
-        apply_cell_rims(img, CELL_ORGANIC, -10, 4)
         return img
 
     if name == "dirt.png":
@@ -747,6 +803,13 @@ def make_procedural_tile(name: str, tile: int) -> Optional[Image.Image]:
         if dirt is None:
             return fringe
         return compose_grass_side(dirt, fringe, tile)
+
+    if name == "snow_side.png":
+        dirt = make_procedural_tile("dirt.png", tile)
+        fringe = make_snow_fringe_tile(name + "_fringe", tile, [(240, 246, 252), (252, 254, 255), (228, 236, 244)])
+        if dirt is None:
+            return fringe
+        return compose_snow_side(dirt, fringe, tile)
 
     if name == "stone.png":
         palette = [(96, 96, 100), (120, 120, 124), (142, 142, 146), (108, 108, 112), (88, 88, 92)]
@@ -839,18 +902,18 @@ def make_procedural_tile(name: str, tile: int) -> Optional[Image.Image]:
         return make_sand_tile(name, tile, [(180, 162, 102), (210, 196, 132), (236, 222, 158), (194, 176, 118)])
 
     if name == "snow.png":
-        palette = [(228, 236, 244), (240, 246, 252), (252, 254, 255)]
-        img = fill_pixel_cluster_tile(name, tile, palette[1], palette, CELL_EARTH, 8)
+        palette = [(238, 244, 250), (246, 250, 255), (228, 236, 244)]
+        grout = (205, 218, 228)
+        img = voronoi_tile(name, tile, palette, grout, 16, 2.0)
         draw = ImageDraw.Draw(img)
-        draw.line((0, tile // 3, tile - 1, tile // 3 - 6), fill=(208, 220, 228, 255), width=2)
+        draw.line((0, tile // 3, tile - 1, tile // 3 - 6), fill=(215, 226, 236, 255), width=2)
         draw.line((0, tile * 2 // 3, tile - 1, tile * 2 // 3 + 4), fill=(255, 255, 255, 255), width=2)
-        apply_cell_rims(img, CELL_EARTH, -6, 8)
         return img
 
     if name == "gravel.png":
-        img = fill_noisy_tile(name, tile, (128, 126, 120), 36)
-        scatter(ImageDraw.Draw(img), name, tile, [(88, 88, 84), (160, 158, 150), (108, 106, 102)], 150, 4)
-        return img
+        palette = [(108, 106, 102), (128, 126, 120), (145, 143, 136), (92, 90, 86)]
+        grout = (65, 63, 60)
+        return voronoi_tile(name, tile, palette, grout, 24, 3.2)
 
     ore_colors = {
         "coal_ore.png": ((42, 42, 44), (70, 70, 75)),
@@ -1019,7 +1082,7 @@ def make_procedural_tile(name: str, tile: int) -> Optional[Image.Image]:
         return make_metal_block_tile(name, tile, (168, 172, 178), (108, 112, 120))
 
     if name == "sandstone.png":
-        return make_wood_plank_tile(name, tile, (196, 168, 108), (148, 122, 78), (176, 148, 96))
+        return make_sandstone_tile(name, tile)
 
     if name == "gold_block.png":
         return make_metal_block_tile(name, tile, (224, 188, 64), (168, 132, 28))

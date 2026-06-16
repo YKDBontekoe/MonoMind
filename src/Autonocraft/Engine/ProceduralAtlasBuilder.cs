@@ -26,6 +26,39 @@ namespace Autonocraft.Engine
             return builder.Build(device);
         }
 
+        public static Texture2D LoadOrGenerate(GraphicsDevice device, int paletteSeed = 0)
+        {
+            if (paletteSeed != 0)
+            {
+                return Generate(device, paletteSeed);
+            }
+
+            string path = Path.Combine(AppContext.BaseDirectory, "atlas.png");
+            if (!File.Exists(path))
+            {
+                return Generate(device, paletteSeed);
+            }
+
+            try
+            {
+                using FileStream stream = File.OpenRead(path);
+                var layout = World.BlockAtlas.LayoutData;
+                var texture = Texture2D.FromStream(device, stream);
+                if (texture.Width == (int)layout.AtlasWidth && texture.Height == (int)layout.AtlasHeight)
+                {
+                    return texture;
+                }
+
+                texture.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Atlas] Failed to load atlas.png, using procedural fallback: {ex.Message}");
+            }
+
+            return Generate(device, paletteSeed);
+        }
+
         public Texture2D Build(GraphicsDevice device)
         {
             int width = _gridCols * _tileSize;
@@ -74,13 +107,33 @@ namespace Autonocraft.Engine
         private Image ComposeGrassSide(Image dirt, Image grassFringe)
         {
             var result = dirt.Clone();
-            int fringeHeight = Math.Max(1, _tileSize * 36 / 100);
+            int fringeHeight = Math.Max(1, _tileSize * 45 / 100);
             for (int y = 0; y < fringeHeight; y++)
             {
                 for (int x = 0; x < _tileSize; x++)
                 {
                     int srcY = y * grassFringe.Height / fringeHeight;
                     Color fringeColor = grassFringe.Pixels[srcY * grassFringe.Width + x];
+                    if (fringeColor.A > 0)
+                    {
+                        result.Pixels[y * _tileSize + x] = fringeColor;
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        private Image ComposeSnowSide(Image dirt, Image snowFringe)
+        {
+            var result = dirt.Clone();
+            int fringeHeight = Math.Max(1, _tileSize * 45 / 100);
+            for (int y = 0; y < fringeHeight; y++)
+            {
+                for (int x = 0; x < _tileSize; x++)
+                {
+                    int srcY = y * snowFringe.Height / fringeHeight;
+                    Color fringeColor = snowFringe.Pixels[srcY * snowFringe.Width + x];
                     if (fringeColor.A > 0)
                     {
                         result.Pixels[y * _tileSize + x] = fringeColor;
@@ -343,6 +396,25 @@ namespace Autonocraft.Engine
                     }
                 case "snow":
                     return FromSynth(ProceduralTextureSynth.Snow(_tileSize, name));
+                case "snow_side":
+                    {
+                        var dirtPalette = new[]
+                        {
+                        ShiftColor(new Color(88, 64, 40), seedShift),
+                        ShiftColor(new Color(108, 80, 50), seedShift),
+                        ShiftColor(new Color(128, 96, 62), seedShift),
+                        ShiftColor(new Color(78, 56, 34), seedShift)
+                    };
+                        var fringePalette = new[]
+                        {
+                        ShiftColor(new Color(228, 236, 244), seedShift),
+                        ShiftColor(new Color(240, 246, 252), seedShift),
+                        ShiftColor(new Color(252, 254, 255), seedShift)
+                    };
+                        var dirt = ProceduralTextureSynth.Dirt(_tileSize, SeedName("dirt.png", seedShift), dirtPalette);
+                        var fringe = ProceduralTextureSynth.SnowFringe(_tileSize, name + "_fringe", fringePalette);
+                        return ComposeSnowSide(new Image(dirt), new Image(fringe));
+                    }
                 case "gravel":
                     {
                         var palette = new[]

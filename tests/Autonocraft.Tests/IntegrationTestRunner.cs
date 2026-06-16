@@ -35,6 +35,10 @@ public static class IntegrationTestRunner
             ChunkStreamingTests.RunEnsureChunksLoadedDoesNotUnloadPlayerRadius();
             WorldGenTests.RunChunkStreamingStability();
             WorldGenTests.RunWorldGenerationBasics();
+            TerrainSlabTests.RunTerrainSlabUnitRules();
+            TerrainSlabTests.RunTerrainSlabPlacementRules();
+            TerrainSlabTests.RunTerrainSlabUpperStepRegression();
+            TerrainSlabTests.RunGeneratedWorldHasNoMountainSlabs();
             WorldGenTests.RunStructureGeneration();
 
             VillageTests.RunInventoryStacking();
@@ -64,6 +68,7 @@ public static class IntegrationTestRunner
 
                 PhysicsTests.RunGravityAndCollision(player, world);
                 PhysicsTests.RunJumping(player, world);
+                PhysicsTests.RunSlabStairWalking(player, world);
                 InventoryTests.RunInventory(player);
                 InventoryTests.RunDropItem(player, game.Session);
                 InteractionTests.RunMiningAndPlacing(game, player, world);

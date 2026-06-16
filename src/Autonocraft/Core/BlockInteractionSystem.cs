@@ -276,7 +276,7 @@ namespace Autonocraft.Core
 
             if (!suppressBlockGhost)
             {
-                UpdateGhostPreview(world, player, hitBlockPos, normal);
+                UpdateGhostPreview(world, player, hitBlockPos, normal, blockType);
             }
             else
             {
@@ -563,7 +563,7 @@ namespace Autonocraft.Core
             TriggerCrosshairFlash();
         }
 
-        private void UpdateGhostPreview(VoxelWorld world, Player player, Vector3? hitBlockPos, Vector3? normal)
+        private void UpdateGhostPreview(VoxelWorld world, Player player, Vector3? hitBlockPos, Vector3? normal, BlockType hitBlockType)
         {
             GhostBlockPos = null;
             GhostValid = false;
@@ -575,6 +575,11 @@ namespace Autonocraft.Core
             }
 
             Vector3 placePos = hitBlockPos.Value + normal.Value;
+            if (hitBlockType.IsSlab() && normal.Value.Y > 0.5f)
+            {
+                placePos = hitBlockPos.Value;
+            }
+
             int px = (int)placePos.X;
             int py = (int)placePos.Y;
             int pz = (int)placePos.Z;
@@ -600,10 +605,27 @@ namespace Autonocraft.Core
 
             GhostBlockPos = placePos;
             GhostBlockType = toPlace;
-            bool targetClear = world.GetBlock(px, py, pz) == BlockType.Air;
+            BlockType existing = world.GetBlock(px, py, pz);
+            bool targetClear = existing == BlockType.Air || existing.IsSlab();
             bool holdingFluid = player.GetSelectedStack().IsFluidContainer();
-            GhostValid = !player.Intersects(px, py, pz)
-                && (targetClear || (holdingFluid && world.GetBlock(px, py, pz).IsFluid()));
+            bool playerOverlaps = PlayerOverlapsPlacement(player, px, py, pz, existing);
+            GhostValid = !playerOverlaps
+                && (targetClear || (holdingFluid && existing.IsFluid()));
+        }
+
+        private static bool PlayerOverlapsPlacement(Player player, int px, int py, int pz, BlockType existing)
+        {
+            if (!player.Intersects(px, py, pz))
+            {
+                return false;
+            }
+
+            if (existing.IsSlab())
+            {
+                return player.Position.Y < py + 0.5f;
+            }
+
+            return true;
         }
 
         private void UpdateCrosshairState()

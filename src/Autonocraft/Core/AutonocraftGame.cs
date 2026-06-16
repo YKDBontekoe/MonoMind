@@ -671,7 +671,7 @@ namespace Autonocraft.Core
             }
 
             _atlasTexture?.Dispose();
-            _atlasTexture = ProceduralAtlasBuilder.Generate(GraphicsDevice, seed);
+            _atlasTexture = ProceduralAtlasBuilder.LoadOrGenerate(GraphicsDevice, seed);
             _blockTerrainEffect?.SetAtlas(_atlasTexture);
             _renderer?.SetAtlasTexture(_atlasTexture);
         }

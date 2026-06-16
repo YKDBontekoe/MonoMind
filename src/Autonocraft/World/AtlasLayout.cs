@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Text.Json;
 using Microsoft.Xna.Framework;
+using Autonocraft.Domain.World;
 using Vector3 = System.Numerics.Vector3;
 
 namespace Autonocraft.World
@@ -75,7 +76,18 @@ namespace Autonocraft.World
 
         public string ResolveBlockTile(BlockType type, Vector3 normal)
         {
-            if (!BlockFaces.TryGetValue(type.ToString(), out var mapping))
+            if (type == BlockType.SnowSide)
+            {
+                return "snow_side";
+            }
+
+            string typeName = type.ToString();
+            if (typeName.EndsWith("Slab"))
+            {
+                typeName = typeName.Substring(0, typeName.Length - 4);
+            }
+
+            if (!BlockFaces.TryGetValue(typeName, out var mapping))
             {
                 return "stone";
             }
