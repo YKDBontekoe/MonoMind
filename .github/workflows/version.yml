@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 concurrency:
   group: version-release-${{ github.event.workflow_run.head_branch }}
@@ -46,48 +45,18 @@ jobs:
           echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
           echo "Bumping to v$NEW_VERSION"
 
-      - name: Commit release metadata on branch
+      - name: Commit release metadata
         if: steps.check.outputs.needed == 'true'
         run: |
-          VERSION="${{ steps.bump.outputs.version }}"
-          BRANCH="chore/release-v${VERSION}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$BRANCH"
           git add VERSION CHANGELOG.md
-          git commit -m "chore(release): v${VERSION}"
+          git commit -m "chore(release): v${{ steps.bump.outputs.version }}"
 
-      - name: Push release branch, tag, and open PR
+      - name: Push version commit and tag
         if: steps.check.outputs.needed == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -euo pipefail
-          VERSION="${{ steps.bump.outputs.version }}"
-          BRANCH="chore/release-v${VERSION}"
-          BASE="${{ github.event.workflow_run.head_branch }}"
-
+          BRANCH="${{ github.event.workflow_run.head_branch }}"
           git push origin "HEAD:${BRANCH}"
-          git tag "v${VERSION}"
-          git push origin "v${VERSION}"
-
-          if ! gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
-            gh pr create \
-              --base "$BASE" \
-              --head "$BRANCH" \
-              --title "chore(release): v${VERSION}" \
-              --body "Automated version bump and changelog update."
-          fi
-
-      - name: Merge release PR
-        if: steps.check.outputs.needed == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          VERSION="${{ steps.bump.outputs.version }}"
-          BRANCH="chore/release-v${VERSION}"
-
-          PR_NUM="$(gh pr view "$BRANCH" --json number -q .number)"
-          gh pr checks "$PR_NUM" --watch --interval 15 --fail-fast
-          gh pr merge "$PR_NUM" --merge --delete-branch
+          git tag "v${{ steps.bump.outputs.version }}"
+          git push origin "v${{ steps.bump.outputs.version }}"

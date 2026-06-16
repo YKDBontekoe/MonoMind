@@ -6,6 +6,8 @@ set -euo pipefail
 REPO="${1:-YKDBontekoe/MonoMind}"
 RULESET_ID_PROTECT_MAIN=17656282
 RULESET_ID_DUPLICATE_MAIN=17729013
+# github-actions[bot] user id; allows release workflow to push VERSION/CHANGELOG to main.
+GITHUB_ACTIONS_BOT_USER_ID=41898282
 
 echo "==> Updating workflow permissions for ${REPO}"
 gh api --method PUT "repos/${REPO}/actions/permissions/workflow" --input - <<'EOF'
@@ -27,7 +29,13 @@ gh api --method PUT "repos/${REPO}/rulesets/${RULESET_ID_PROTECT_MAIN}" --input 
       "include": ["~DEFAULT_BRANCH"]
     }
   },
-  "bypass_actors": [],
+  "bypass_actors": [
+    {
+      "actor_id": 41898282,
+      "actor_type": "User",
+      "bypass_mode": "always"
+    }
+  ],
   "rules": [
     { "type": "deletion" },
     { "type": "non_fast_forward" },
