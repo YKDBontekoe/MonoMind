@@ -45,7 +45,7 @@ jobs:
         run: dotnet build Autonocraft.slnx --configuration Release
 
       - name: Upload build output
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dotnet-build-${{ matrix.os }}
           path: |
@@ -104,7 +104,7 @@ jobs:
           fail-on-error: true
 
       - name: Upload unit test artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: unit-test-results-${{ matrix.os }}
@@ -156,7 +156,7 @@ jobs:
           exit "${PIPESTATUS[0]}"
 
       - name: Upload integration log
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: integration-log-${{ matrix.os }}
