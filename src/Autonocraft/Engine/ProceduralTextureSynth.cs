@@ -902,6 +902,22 @@ namespace Autonocraft.Engine
                 DrawLine(image, cx + 8, margin, cx + 12, margin - 10, new Color(140, 100, 70), 2);
                 DrawLine(image, cx + 12, margin - 10, cx + 18, margin - 14, new Color(140, 100, 70), 2);
             }
+            else if (animalType == "wolf")
+            {
+                int eyeY = cy - tileSize / 14;
+                int eyeOffset = tileSize / 4;
+                FillRect(image, cx - eyeOffset - 3, eyeY - 2, 6, 5, new Color(180, 180, 185));
+                FillRect(image, cx - eyeOffset - 1, eyeY - 2, 3, 5, new Color(0, 0, 0));
+                FillRect(image, cx + eyeOffset - 3, eyeY - 2, 6, 5, new Color(180, 180, 185));
+                FillRect(image, cx + eyeOffset - 1, eyeY - 2, 3, 5, new Color(0, 0, 0));
+
+                FillRect(image, cx - 8, cy + tileSize / 10, 17, 8, new Color(50, 50, 55));
+                SetPixel(image, cx - 3, cy + tileSize / 10 + 3, new Color(20, 20, 25));
+                SetPixel(image, cx + 3, cy + tileSize / 10 + 3, new Color(20, 20, 25));
+
+                FillTriangle(image, margin + 2, margin + 10, margin + 2, margin - 4, margin + 14, margin + 10, baseColor);
+                FillTriangle(image, tileSize - margin - 2, margin + 10, tileSize - margin - 2, margin - 4, tileSize - margin - 14, margin + 10, baseColor);
+            }
 
             ApplyCellRims(image, CellOrganic, -8, 6);
             return image.Pixels;
@@ -1229,6 +1245,69 @@ namespace Autonocraft.Engine
                 int cy = Noise(name, i, 7, 13) % tileSize;
                 FillRect(image, cx, cy, 3, 3, new Color(245, 245, 240));
             }
+            return image.Pixels;
+        }
+
+        public static Color[] VillagerBody(int tileSize, string name)
+        {
+            var tunic = new Color(70, 100, 150);
+            var palette = ExpandPalette(tunic, Darken(tunic, 16), Lighten(tunic, 14));
+            var image = new TileImage(PixelCluster(tileSize, name, tunic, palette, CellOrganic, 6), tileSize);
+            int margin = tileSize / 10;
+            DrawRectOutline(image, margin, margin, tileSize - margin, tileSize - margin, Darken(tunic, 30), 2);
+            DrawLine(image, tileSize / 2, margin, tileSize / 2, tileSize - margin, Darken(tunic, 15), 2);
+
+            int beltY = tileSize * 3 / 5;
+            int beltH = tileSize / 8;
+            var belt = new Color(80, 50, 20);
+            FillRect(image, margin + 2, beltY, tileSize - margin * 2 - 2, beltH, belt);
+            FillRect(image, margin + 2, beltY, tileSize - margin * 2 - 2, 2, Lighten(belt, 20));
+
+            int buckle = tileSize / 12;
+            FillRect(image, tileSize / 2 - buckle, beltY, buckle * 2, beltH, new Color(200, 180, 50));
+            FillRect(image, tileSize / 2 - buckle / 2, beltY + 2, buckle, beltH - 2, belt);
+
+            var collar = Lighten(tunic, 30);
+            FillTriangle(image, tileSize / 2, margin + tileSize / 4, tileSize / 2 - tileSize / 6, margin, tileSize / 2 + tileSize / 6, margin, collar);
+            ApplyCellRims(image, CellOrganic, -6, 4);
+            return image.Pixels;
+        }
+
+        public static Color[] VillagerHead(int tileSize, string name)
+        {
+            var skin = new Color(210, 160, 130);
+            var palette = ExpandPalette(skin, Darken(skin, 12), Lighten(skin, 10));
+            var image = new TileImage(PixelCluster(tileSize, name, skin, palette, CellOrganic, 5), tileSize);
+            int cx = tileSize / 2;
+            int cy = tileSize / 2;
+            var hair = new Color(60, 40, 20);
+
+            FillRect(image, 0, 0, tileSize, cy - tileSize / 6, hair);
+            for (int x = 0; x < tileSize; x += 4)
+            {
+                DrawLine(image, x, 0, x, cy - tileSize / 6, Lighten(hair, 15), 1);
+            }
+
+            int eyeY = cy - tileSize / 8;
+            int eyeSpacing = tileSize / 5;
+            int eyeSize = Math.Max(2, tileSize / 16);
+            FillRect(image, cx - eyeSpacing - eyeSize, eyeY - eyeSize, eyeSize * 2, eyeSize * 2, new Color(240, 240, 240));
+            FillRect(image, cx + eyeSpacing - eyeSize, eyeY - eyeSize, eyeSize * 2, eyeSize * 2, new Color(240, 240, 240));
+            FillRect(image, cx - eyeSpacing, eyeY - eyeSize / 2, eyeSize, eyeSize + eyeSize / 2, new Color(40, 100, 150));
+            FillRect(image, cx + eyeSpacing - eyeSize, eyeY - eyeSize / 2, eyeSize, eyeSize + eyeSize / 2, new Color(40, 100, 150));
+
+            DrawLine(image, cx - eyeSpacing - eyeSize * 2, eyeY - eyeSize * 2, cx - eyeSpacing + eyeSize, eyeY - eyeSize * 2, hair, 2);
+            DrawLine(image, cx + eyeSpacing - eyeSize, eyeY - eyeSize * 2, cx + eyeSpacing + eyeSize * 2, eyeY - eyeSize * 2, hair, 2);
+
+            int noseW = tileSize / 10;
+            int noseH = tileSize / 6;
+            FillRect(image, cx - noseW / 2, cy, noseW, noseH, Darken(skin, 20));
+            DrawLine(image, cx - noseW / 2, cy + noseH, cx + noseW / 2, cy + noseH, Darken(skin, 40), 2);
+
+            int mouthY = cy + noseH + tileSize / 10;
+            int mouthW = tileSize / 6;
+            DrawLine(image, cx - mouthW, mouthY, cx + mouthW, mouthY, new Color(100, 50, 50), 2);
+            ApplyCellRims(image, CellOrganic, -6, 4);
             return image.Pixels;
         }
 

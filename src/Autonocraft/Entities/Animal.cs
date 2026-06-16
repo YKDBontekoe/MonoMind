@@ -26,9 +26,15 @@ namespace Autonocraft.Entities
         public bool IsDying { get; private set; }
         public bool ReadyForRemoval => IsDying && DeathAnimTimer <= 0f;
         public float DeathScale => IsDying ? Math.Clamp(DeathAnimTimer / DeathAnimDuration, 0f, 1f) : 1f;
+        public bool IsPanicking => PanicTimer > 0f;
+        public float PanicTimer { get; private set; }
 
         private const float HitFlashDuration = 0.15f;
         private const float DeathAnimDuration = 0.3f;
+        private const float PanicDurationMin = 4f;
+        private const float PanicDurationMax = 8f;
+        private const float PanicSpeedMultiplier = 1.75f;
+        private const float PanicFleeDistance = 14f;
 
         private readonly Random _rng;
         private readonly AnimalStats _stats;
@@ -61,6 +67,12 @@ namespace Autonocraft.Entities
 
             Health = Math.Max(0f, Health - amount);
             HitFlashTimer = HitFlashDuration;
+            EnterPanic(attackerPos);
+        }
+
+        private void EnterPanic(Vector3? attackerPos)
+        {
+            PanicTimer = PanicDurationMin + (float)_rng.NextDouble() * (PanicDurationMax - PanicDurationMin);
 
             if (attackerPos.HasValue)
             {
@@ -69,15 +81,23 @@ namespace Autonocraft.Entities
                 if (away != Vector3.Zero)
                 {
                     WanderDirection = Vector3.Normalize(away);
-                    WanderDistanceRemaining = 3f;
                 }
             }
+            else if (WanderDirection == Vector3.Zero)
+            {
+                float angle = (float)(_rng.NextDouble() * MathF.PI * 2f);
+                WanderDirection = Vector3.Normalize(new Vector3(MathF.Sin(angle), 0f, MathF.Cos(angle)));
+            }
+
+            WanderDistanceRemaining = MathF.Max(WanderDistanceRemaining, PanicFleeDistance);
+            IdleTime = 0f;
         }
 
         public void BeginDeathAnimation()
         {
             IsDying = true;
             DeathAnimTimer = DeathAnimDuration;
+            PanicTimer = 0f;
         }
 
         public void UpdateAnimation(float deltaTime)
@@ -102,7 +122,8 @@ namespace Autonocraft.Entities
 
             UpdateAi(deltaTime);
 
-            var horizontal = new Vector3(WanderDirection.X * _stats.WalkSpeed, 0f, WanderDirection.Z * _stats.WalkSpeed);
+            float moveSpeed = IsPanicking ? _stats.WalkSpeed * PanicSpeedMultiplier : _stats.WalkSpeed;
+            var horizontal = new Vector3(WanderDirection.X * moveSpeed, 0f, WanderDirection.Z * moveSpeed);
             if (Type == AnimalType.Chicken && IsGrounded && WanderDistanceRemaining > 0f && _rng.NextDouble() < 0.02)
             {
                 Velocity.Y = 3.5f;
@@ -137,7 +158,7 @@ namespace Autonocraft.Entities
             else
             {
                 AirborneTime += deltaTime;
-                if (AirborneTime > 1f)
+                if (AirborneTime > 1f && !IsPanicking)
                 {
                     WanderDirection = Vector3.Zero;
                     WanderDistanceRemaining = 0f;
@@ -152,6 +173,25 @@ namespace Autonocraft.Entities
 
         private void UpdateAi(float deltaTime)
         {
+            if (IsPanicking)
+            {
+                PanicTimer -= deltaTime;
+                if (WanderDistanceRemaining <= 2f)
+                {
+                    WanderDistanceRemaining = PanicFleeDistance * 0.6f;
+                }
+
+                if (PanicTimer <= 0f)
+                {
+                    PanicTimer = 0f;
+                    WanderDirection = Vector3.Zero;
+                    WanderDistanceRemaining = 0f;
+                    IdleTime = NextIdleDuration();
+                }
+
+                return;
+            }
+
             if (WanderDistanceRemaining > 0f)
             {
                 WanderDistanceRemaining -= MathF.Abs(Velocity.X) * deltaTime + MathF.Abs(Velocity.Z) * deltaTime;
@@ -182,6 +222,18 @@ namespace Autonocraft.Entities
 
         public void OnBlocked()
         {
+            if (IsPanicking)
+            {
+                float baseAngle = WanderDirection != Vector3.Zero
+                    ? MathF.Atan2(WanderDirection.X, WanderDirection.Z)
+                    : (float)(_rng.NextDouble() * MathF.PI * 2f);
+                float offset = (float)(_rng.NextDouble() - 0.5) * MathF.PI * 0.75f;
+                float angle = baseAngle + offset;
+                WanderDirection = Vector3.Normalize(new Vector3(MathF.Sin(angle), 0f, MathF.Cos(angle)));
+                WanderDistanceRemaining = PanicFleeDistance * 0.5f;
+                return;
+            }
+
             WanderDirection = Vector3.Zero;
             WanderDistanceRemaining = 0f;
             IdleTime = NextIdleDuration();

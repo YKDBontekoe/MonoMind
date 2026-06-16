@@ -1218,6 +1218,10 @@ namespace Autonocraft.Engine
                     return FromSynth(ProceduralTextureSynth.FoxBody(_tileSize, name, new Color(85, 85, 90), new Color(160, 160, 165)));
                 case "wolf_head":
                     return FromSynth(ProceduralTextureSynth.AnimalHead(_tileSize, name, new Color(85, 85, 90), new Color(160, 160, 165), "wolf"));
+                case "villager_body":
+                    return FromSynth(ProceduralTextureSynth.VillagerBody(_tileSize, name));
+                case "villager_head":
+                    return FromSynth(ProceduralTextureSynth.VillagerHead(_tileSize, name));
                 default:
                     {
                         string stem = name.Split('.')[0];
