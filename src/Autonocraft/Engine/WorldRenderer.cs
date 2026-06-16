@@ -952,7 +952,7 @@ namespace Autonocraft.Engine
                 twilightFactor,
                 fogMultiplier,
                 BlendState.AlphaBlend,
-                DepthStencilState.DepthRead,
+                DepthStencilState.Default,
                 waterOnly: true,
                 alphaCutoutOnly: false,
                 TerrainPassKind.Water);
@@ -966,7 +966,7 @@ namespace Autonocraft.Engine
                 twilightFactor,
                 fogMultiplier,
                 BlendState.AlphaBlend,
-                DepthStencilState.DepthRead,
+                DepthStencilState.Default,
                 waterOnly: false,
                 alphaCutoutOnly: true,
                 TerrainPassKind.Cutout);
