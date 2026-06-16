@@ -100,7 +100,12 @@ namespace Autonocraft.Engine
                 Color slotFill = selected
                     ? UiTheme.HudSlotSelected * 0.95f
                     : UiTheme.HudSlotFill * 0.92f;
-                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)slotXMin, (int)hotbarYMin, (int)slotSize, (int)slotSize), slotFill);
+                Color slotBorder = selected
+                    ? UiTheme.Accent
+                    : UiTheme.HudSlotBorder;
+                float borderAlpha = selected ? 0.95f : 0.65f;
+
+                UiDrawingUtils.DrawRoundedPanel(_spriteBatch, _whiteTexture, slotXMin, hotbarYMin, slotSize, slotSize, slotFill, slotBorder, borderAlpha, 1f, UiTheme.RadiusMd);
 
                 if (selected)
                 {
@@ -116,14 +121,7 @@ namespace Autonocraft.Engine
                         layout.S(2f),
                         UiTheme.Accent,
                         0.95f);
-                    _spriteBatch.Draw(
-                        _whiteTexture,
-                        new Rectangle((int)slotXMin, (int)hotbarYMin, (int)slotSize, (int)slotSize),
-                        UiTheme.Accent * 0.10f);
-                }
-                else
-                {
-                    DrawRectOutline(_spriteBatch, slotXMin, hotbarYMin, slotSize, slotSize, 1f, UiTheme.HudSlotBorder, 0.65f);
+                    UiDrawingUtils.DrawRoundedRect(_spriteBatch, _whiteTexture, slotXMin, hotbarYMin, slotSize, slotSize, UiTheme.RadiusMd, UiTheme.Accent * 0.10f);
                 }
             }
 
