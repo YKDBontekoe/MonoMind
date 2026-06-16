@@ -1216,35 +1216,79 @@ def make_procedural_tile(name: str, tile: int) -> Optional[Image.Image]:
         return img
 
     if name == "villager_body.png":
-        tunic = (92, 118, 168)
-        belt = (72, 52, 36)
-        img = fill_noisy_tile(name, tile, tunic, 6)
+        tunic = (70, 100, 150)  # Slightly deeper blue
+        belt = (80, 50, 20)      # Richer brown belt
+        img = fill_noisy_tile(name, tile, tunic, 8)
         draw = ImageDraw.Draw(img)
         margin = tile // 10
-        draw.rectangle((margin, margin, tile - margin, tile - margin), outline=shade(tunic, -24) + (255,), width=2)
+        draw.rectangle((margin, margin, tile - margin, tile - margin), outline=shade(tunic, -30) + (255,), width=2)
+
+        # Add some texture/stitching
+        draw.line((tile//2, margin, tile//2, tile - margin), fill=shade(tunic, -15) + (255,), width=2)
+
         belt_y = tile * 3 // 5
-        draw.rectangle((margin + 2, belt_y, tile - margin - 2, belt_y + tile // 10), fill=belt + (255,))
-        draw.rectangle((margin + 2, belt_y, tile - margin - 2, belt_y + 2), fill=shade(belt, 18) + (255,))
-        collar = shade(tunic, 22)
-        draw.rectangle((tile // 3, margin, tile * 2 // 3, margin + tile // 8), fill=collar + (255,))
+        draw.rectangle((margin + 2, belt_y, tile - margin - 2, belt_y + tile // 8), fill=belt + (255,))
+        draw.rectangle((margin + 2, belt_y, tile - margin - 2, belt_y + 2), fill=shade(belt, 20) + (255,))
+
+        # Add a shiny buckle
+        buckle_size = tile // 12
+        draw.rectangle((tile//2 - buckle_size, belt_y, tile//2 + buckle_size, belt_y + tile // 8), fill=(200, 180, 50, 255))
+        draw.rectangle((tile//2 - buckle_size//2, belt_y+2, tile//2 + buckle_size//2, belt_y + tile // 8 - 2), fill=belt + (255,))
+
+        collar = shade(tunic, 30)
+        draw.polygon(
+            [(tile // 2, margin + tile // 4), (tile // 2 - tile // 6, margin), (tile // 2 + tile // 6, margin)],
+            fill=collar + (255,),
+        )
         return img
 
     if name == "villager_head.png":
-        skin = (224, 188, 152)
-        hair = (88, 58, 36)
-        img = fill_noisy_tile(name, tile, skin, 6)
+        skin = (210, 160, 130)  # Warmer skin tone
+        img = fill_noisy_tile(name, tile, skin, 5)
         draw = ImageDraw.Draw(img)
-        margin = tile // 8
-        draw.rectangle((margin, margin, tile - margin, tile - margin), outline=shade(skin, -18) + (255,), width=2)
         cx, cy = tile // 2, tile // 2
-        draw.rectangle((margin, margin, tile - margin, cy - tile // 10), fill=hair + (255,))
-        eye_y = cy - tile // 16
-        eye_offset = tile // 4
-        draw.rectangle((cx - eye_offset - 3, eye_y - 2, cx - eye_offset + 2, eye_y + 2), fill=(255, 255, 255, 255))
-        draw.rectangle((cx - eye_offset - 1, eye_y - 2, cx - eye_offset + 1, eye_y + 2), fill=(40, 30, 24, 255))
-        draw.rectangle((cx + eye_offset - 3, eye_y - 2, cx + eye_offset + 2, eye_y + 2), fill=(255, 255, 255, 255))
-        draw.rectangle((cx + eye_offset - 1, eye_y - 2, cx + eye_offset + 1, eye_y + 2), fill=(40, 30, 24, 255))
-        draw.rectangle((cx - 5, cy + tile // 10, cx + 5, cy + tile // 10 + 3), fill=shade(skin, -12) + (255,))
+
+        # Hair
+        hair_color = (60, 40, 20)
+        draw.rectangle((0, 0, tile, cy - tile // 6), fill=hair_color + (255,))
+        # Hair texture
+        for i in range(0, tile, 4):
+            draw.line((i, 0, i, cy - tile // 6), fill=shade(hair_color, 15) + (255,), width=1)
+
+        # Eyes
+        eye_y = cy - tile // 8
+        eye_spacing = tile // 5
+        eye_size = max(2, tile // 16)
+
+        # Whites of eyes
+        draw.rectangle((cx - eye_spacing - eye_size, eye_y - eye_size, cx - eye_spacing + eye_size, eye_y + eye_size), fill=(240, 240, 240, 255))
+        draw.rectangle((cx + eye_spacing - eye_size, eye_y - eye_size, cx + eye_spacing + eye_size, eye_y + eye_size), fill=(240, 240, 240, 255))
+
+        # Pupils (blue/greenish)
+        draw.rectangle((cx - eye_spacing, eye_y - eye_size//2, cx - eye_spacing + eye_size, eye_y + eye_size), fill=(40, 100, 150, 255))
+        draw.rectangle((cx + eye_spacing - eye_size, eye_y - eye_size//2, cx + eye_spacing, eye_y + eye_size), fill=(40, 100, 150, 255))
+
+        # Eyebrows
+        draw.line((cx - eye_spacing - eye_size*2, eye_y - eye_size*2, cx - eye_spacing + eye_size, eye_y - eye_size*2), fill=hair_color + (255,), width=2)
+        draw.line((cx + eye_spacing - eye_size, eye_y - eye_size*2, cx + eye_spacing + eye_size*2, eye_y - eye_size*2), fill=hair_color + (255,), width=2)
+
+        # Nose
+        nose_w = tile // 10
+        nose_h = tile // 6
+        draw.rectangle(
+            (cx - nose_w // 2, cy, cx + nose_w // 2, cy + nose_h),
+            fill=shade(skin, -20) + (255,),
+        )
+        draw.line((cx - nose_w // 2, cy + nose_h, cx + nose_w // 2, cy + nose_h), fill=shade(skin, -40) + (255,), width=2)
+
+        # Mouth
+        mouth_y = cy + nose_h + tile // 10
+        mouth_w = tile // 6
+        draw.line((cx - mouth_w, mouth_y, cx + mouth_w, mouth_y), fill=(100, 50, 50, 255), width=2)
+        # Small smile
+        draw.line((cx - mouth_w, mouth_y-1, cx - mouth_w+2, mouth_y), fill=(100, 50, 50, 255), width=1)
+        draw.line((cx + mouth_w-2, mouth_y, cx + mouth_w, mouth_y-1), fill=(100, 50, 50, 255), width=1)
+
         return img
 
     return None

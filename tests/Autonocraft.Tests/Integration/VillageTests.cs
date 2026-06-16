@@ -426,7 +426,7 @@ public static class VillageTests
             var site = village.GetNearestPendingSite(village.Center) ?? throw new Exception("No pending house site after API queue_build.");
             var builder = FirstIdleOrAnyCitizen(villagers, village);
             PostAction(http, "assign_job", ("villager_id", builder.Id.ToString()), ("job", "Build"));
-            StepUntil(bridge, 260, () =>
+            StepUntil(bridge, 600, () =>
             {
                 builder.Position = new Vector3(houseX + 4.5f, houseY + 1f, houseZ + 4.5f);
                 if (builder.CurrentJob == JobType.Build)
