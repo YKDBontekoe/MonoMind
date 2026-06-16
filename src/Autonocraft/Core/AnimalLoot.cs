@@ -4,18 +4,30 @@ namespace Autonocraft.Core
 {
     public static class AnimalLoot
     {
-        public static void GrantKillLoot(Player player, Entities.AnimalType type)
+        public static void GrantKillLoot(Player player, Entities.AnimalType type, Action<ItemStack, System.Numerics.Vector3>? onSpawnItemDrop = null, System.Numerics.Vector3? dropPos = null)
         {
+            ItemStack loot = ItemStack.Empty;
             switch (type)
             {
                 case Entities.AnimalType.Pig:
-                    player.AddItem(ItemStack.CreateFood(ItemId.RawMeat, 2));
+                    loot = ItemStack.CreateFood(ItemId.RawMeat, 2);
                     break;
                 case Entities.AnimalType.Sheep:
                 case Entities.AnimalType.Chicken:
                 case Entities.AnimalType.Wolf:
-                    player.AddItem(ItemStack.CreateFood(ItemId.RawMeat, 1));
+                    loot = ItemStack.CreateFood(ItemId.RawMeat, 1);
                     break;
+            }
+
+            if (loot.IsEmpty) return;
+
+            if (onSpawnItemDrop != null && dropPos.HasValue)
+            {
+                onSpawnItemDrop(loot, dropPos.Value);
+            }
+            else
+            {
+                player.AddItem(loot);
             }
         }
     }

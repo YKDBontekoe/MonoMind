@@ -16,7 +16,7 @@ namespace Autonocraft.Entities
 
     public static class EntityCollision
     {
-        public const float Gravity = -32f;
+        public const float Gravity = -38f;
         public const float TerminalVelocity = -50f;
         public const float Damping = 0.15f;
 

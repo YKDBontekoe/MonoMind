@@ -148,7 +148,7 @@ namespace Autonocraft.Engine
                 }
             }
 
-            DrawHeldBlockItem(layout, sw, sh, player, animator);
+
 
             _spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
 
@@ -249,7 +249,7 @@ namespace Autonocraft.Engine
                 DrawHudText(_spriteBatch, _whiteTexture, countStr, textX, textY, countLabelSize, Color.White, 1.0f);
             }
 
-            DrawHeldToolItem(layout, sw, sh, player, animator);
+
             DrawDamageOverlay(layout, animator.DamageFlashAlpha);
 
             _spriteBatch.End();
@@ -410,21 +410,7 @@ namespace Autonocraft.Engine
             _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(cx - 0.5f), (int)(cy - crosshairArm), 1, (int)layout.S(6f)), ch);
             _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(cx - 0.5f), (int)(cy + crosshairGap), 1, (int)layout.S(6f)), ch);
 
-            if (interaction.IsMining && interaction.BreakProgress > 0.01f)
-            {
-                float progress = Math.Clamp(interaction.BreakProgress, 0f, 1f);
-                float arcR = layout.S(16f);
-                int segments = (int)(progress * 24f);
-                Color arcColor = new Color(1.0f, 0.75f, 0.25f) * 0.9f;
-                for (int s = 0; s < segments; s++)
-                {
-                    float angle = -MathF.PI / 2f + s * (MathF.PI * 2f / 24f);
-                    float px = cx + MathF.Cos(angle) * arcR;
-                    float py = cy + MathF.Sin(angle) * arcR;
-                    int sz = (int)Math.Max(1f, layout.S(2f));
-                    _spriteBatch.Draw(_whiteTexture, new Rectangle((int)px, (int)py, sz, sz), arcColor);
-                }
-            }
+
 
             if (interaction.Crosshair == CrosshairState.InteractStation)
             {

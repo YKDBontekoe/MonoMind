@@ -6,6 +6,7 @@ using Autonocraft.Engine;
 using Autonocraft.Engine.Animation;
 using Autonocraft.Engine.Audio;
 using Autonocraft.Entities;
+using Autonocraft.Items;
 using Autonocraft.Village;
 using Autonocraft.World;
 using Microsoft.Xna.Framework.Graphics;
@@ -30,9 +31,13 @@ namespace Autonocraft.Core
         private AudioManager? _audio;
         private float _footstepTimer;
 
+        private readonly List<ItemEntity> _itemEntities = new List<ItemEntity>();
+        private int _nextItemEntityId = 1;
+
         public Player Player { get; private set; }
         public VoxelWorld Grid { get; private set; }
         public AnimalManager Animals { get; private set; }
+        public IReadOnlyList<ItemEntity> ItemEntities => _itemEntities;
         public VillagerManager Villagers { get; private set; }
         public VillageManager Villages { get; private set; }
         public HudToast HudToast => _hudToast;
@@ -78,6 +83,7 @@ namespace Autonocraft.Core
             Player.OnItemAdded = stack => RecipeDiscovery.OnItemAcquired(Crafting.Journal, stack);
             _blockInteraction.ShowToast = msg => _hudToast.Show(msg);
             _combatSystem.ShowToast = msg => _hudToast.Show(msg);
+            _combatSystem.OnSpawnItemDrop = (stack, pos) => SpawnItemDrop(stack, pos);
             Villages.ShowToast = msg => _hudToast.Show(msg);
             VillageEvents.ShowToast = msg => _hudToast.Show(msg);
             Villages.SetVillageEvents(VillageEvents);
@@ -87,6 +93,7 @@ namespace Autonocraft.Core
                 _audio?.PlaySfx(SfxKind.Discovery);
             };
             _blockInteraction.TryClaimStructureAt = (world, x, y, z) => Villages.TryClaimAtBlock(world, x, y, z);
+            _blockInteraction.OnSpawnItemDrop = (stack, pos) => SpawnItemDrop(stack, pos);
             _blockInteraction.PlaySfx = (kind, blockType) =>
             {
                 if (blockType == BlockType.Air)
@@ -407,6 +414,27 @@ namespace Autonocraft.Core
             Animals.Update(deltaTime, Grid);
         }
 
+        public ItemEntity? SpawnItemDrop(ItemStack item, Vector3 position)
+        {
+            if (item.IsEmpty) return null;
+            var entity = new ItemEntity(item, position, _nextItemEntityId++);
+            _itemEntities.Add(entity);
+            return entity;
+        }
+
+        public void UpdateItemDrops(float deltaTime)
+        {
+            for (int i = _itemEntities.Count - 1; i >= 0; i--)
+            {
+                var drop = _itemEntities[i];
+                drop.Update(deltaTime, Grid, Player.Position, Player, kind => _audio?.PlaySfx(kind));
+                if (drop.ReadyForRemoval)
+                {
+                    _itemEntities.RemoveAt(i);
+                }
+            }
+        }
+
         public void UpdateSurvival(float deltaTime, float timeOfDay, bool spawnWarmupActive)
         {
             Player.UpdateHunger(deltaTime, InteractionAnimator);
@@ -456,6 +484,7 @@ namespace Autonocraft.Core
             _renderContext.Player = Player;
             _renderContext.Grid = Grid;
             _renderContext.Animals = Animals;
+            _renderContext.ItemEntities = ItemEntities;
             _renderContext.Villagers = Villagers;
             _renderContext.Villages = Villages;
             _renderContext.BlockInteraction = BlockInteraction;

@@ -14,6 +14,7 @@ namespace Autonocraft.Engine.Audio
         Footstep,
         UiClick,
         Discovery,
+        Pop,
         Invalid
     }
 }

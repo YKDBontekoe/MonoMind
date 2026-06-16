@@ -73,6 +73,7 @@ namespace Autonocraft.Core
         public Action<string>? ShowToast { get; set; }
         public Action<SfxKind, BlockType>? PlaySfx { get; set; }
         public Func<VoxelWorld, int, int, int, bool>? TryClaimStructureAt { get; set; }
+        public Action<ItemStack, Vector3>? OnSpawnItemDrop { get; set; }
 
         public Vector3? PendingStationOpen { get; private set; }
         public BlockType PendingStationType { get; private set; } = BlockType.Air;
@@ -372,7 +373,14 @@ namespace Autonocraft.Core
 
             Console.WriteLine($"[Mining] Mined block {blockType} at ({bx}, {by}, {bz}).");
             world.SetBlock(bx, by, bz, BlockType.Air, device);
-            player.AddToInventory(blockType);
+            if (OnSpawnItemDrop != null)
+            {
+                OnSpawnItemDrop(ItemStack.CreateBlock(blockType, 1), new Vector3(bx + 0.5f, by + 0.5f, bz + 0.5f));
+            }
+            else
+            {
+                player.AddToInventory(blockType);
+            }
             player.Stats.RecordBlockBroken();
             player.DamageSelectedTool(1);
             GrantSkillXp(player, MiningCalculator.GetSkillForBlock(blockType), MiningCalculator.GetXpForBlock(blockType));
@@ -434,7 +442,14 @@ namespace Autonocraft.Core
 
             Console.WriteLine($"[Mining] Mined block {_miningBlockType} at ({bx}, {by}, {bz}).");
             world.SetBlock(bx, by, bz, BlockType.Air, device);
-            player.AddToInventory(_miningBlockType);
+            if (OnSpawnItemDrop != null)
+            {
+                OnSpawnItemDrop(ItemStack.CreateBlock(_miningBlockType, 1), new Vector3(bx + 0.5f, by + 0.5f, bz + 0.5f));
+            }
+            else
+            {
+                player.AddToInventory(_miningBlockType);
+            }
             player.Stats.RecordBlockBroken();
             bool toolBroke = player.DamageSelectedTool(1);
             GrantSkillXp(player, MiningCalculator.GetSkillForBlock(_miningBlockType), MiningCalculator.GetXpForBlock(_miningBlockType));

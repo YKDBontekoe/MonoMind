@@ -82,6 +82,24 @@ namespace Autonocraft.Core
         private const float MaxGameplayDeltaTime = 1f / 30f;
         private const float SpawnWarmupSeconds = 15f;
 
+        private bool _prevEPressed;
+        private bool _prevEnterPressed;
+        private bool _prevF3Pressed;
+        private bool _prevBacktickPressed;
+        private bool _prevTabPressed;
+        private bool _prevF1Pressed;
+        private bool _prevJPressed;
+        private bool _prevQPressed;
+
+        // Sprint and Bobbing state
+        private bool _doubleTapSprintActive;
+        private float _lastWPressTime;
+        private bool _prevWPressed;
+        private float _bobbingPhase;
+        private float _bobbingOffset;
+        private float _bobbingRoll;
+        private float _lastDeltaTime;
+
         // AI Agent simulation state
         private readonly HashSet<Key> _simulatedKeys = new HashSet<Key>();
         private readonly ConcurrentQueue<Action> _pendingActions = new ConcurrentQueue<Action>();
@@ -274,9 +292,43 @@ namespace Autonocraft.Core
 
         private void SyncCameraFromPlayerInternal()
         {
-            _camera.Position = _session.Player.Position + new Vector3(0f, Player.EyeHeight, 0f);
+            // Dynamic FOV interpolation
+            float targetFov = 45f;
+            if (_session.Player.IsSprinting)
+            {
+                targetFov = 55f; // widen FOV when sprinting
+            }
+            _camera.CurrentFov = _camera.CurrentFov + (targetFov - _camera.CurrentFov) * (1f - MathF.Exp(-8f * _lastDeltaTime));
+
+            // View Bobbing
+            Vector3 vel = _session.Player.Velocity;
+            float horizontalSpeed = new Vector3(vel.X, 0f, vel.Z).Length();
+            bool isBobbingActive = _session.Player.IsGrounded && horizontalSpeed > 0.1f && !_session.Player.CreativeMode && !_session.Player.InWater;
+
+            if (isBobbingActive)
+            {
+                // Accumulate bobbing phase based on footstep rate
+                _bobbingPhase += horizontalSpeed * _lastDeltaTime * 2.8f;
+
+                // Y-bobbing uses double frequency (two steps per footstep cycle)
+                float bobY = MathF.Abs(MathF.Sin(_bobbingPhase)) * 0.02f * (horizontalSpeed / Player.WalkSpeed);
+                // Roll-bobbing tilt
+                float bobRoll = MathF.Sin(_bobbingPhase) * 0.5f * (horizontalSpeed / Player.WalkSpeed);
+
+                _bobbingOffset = MathF.Min(bobY, 0.1f);
+                _bobbingRoll = bobRoll;
+            }
+            else
+            {
+                // Smoothly decay bobbing offsets
+                _bobbingOffset = _bobbingOffset + (0f - _bobbingOffset) * (1f - MathF.Exp(-8f * _lastDeltaTime));
+                _bobbingRoll = _bobbingRoll + (0f - _bobbingRoll) * (1f - MathF.Exp(-8f * _lastDeltaTime));
+            }
+
+            _camera.Position = _session.Player.Position + new Vector3(0f, Player.EyeHeight - _bobbingOffset, 0f);
             _camera.Yaw = _session.Player.Yaw;
             _camera.Pitch = _session.Player.Pitch;
+            _camera.Roll = _bobbingRoll;
             _camera.ViewPositionOffset = _session.InteractionAnimator.PositionOffset;
             _camera.ViewPitchOffset = -_session.InteractionAnimator.PitchRecoil;
         }
@@ -816,6 +868,8 @@ namespace Autonocraft.Core
                 Key.Space => Microsoft.Xna.Framework.Input.Keys.Space,
                 Key.ShiftLeft => Microsoft.Xna.Framework.Input.Keys.LeftShift,
                 Key.ShiftRight => Microsoft.Xna.Framework.Input.Keys.RightShift,
+                Key.ControlLeft => Microsoft.Xna.Framework.Input.Keys.LeftControl,
+                Key.Q => Microsoft.Xna.Framework.Input.Keys.Q,
                 Key.G => Microsoft.Xna.Framework.Input.Keys.G,
                 Key.Escape => Microsoft.Xna.Framework.Input.Keys.Escape,
                 Key.Number1 => Microsoft.Xna.Framework.Input.Keys.D1,
@@ -863,6 +917,7 @@ namespace Autonocraft.Core
         private void UpdateFrame(GameTime gameTime)
         {
             float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            _lastDeltaTime = deltaTime;
 
             _screens.HandleStateTransition(
                 () => _input.ReleaseMouseOnLeavePlaying(),
@@ -1469,6 +1524,23 @@ namespace Autonocraft.Core
                 }
             }
 
+            // Drop selected item on Q
+            bool qPressed = IsKeyPressed(kbState, Key.Q);
+            if (qPressed && !_prevQPressed && _session.Player.IsAlive)
+            {
+                var item = _session.Player.DropOneFromSelectedSlot();
+                if (!item.IsEmpty)
+                {
+                    var dropPos = _camera.Position + _camera.Front * 0.5f;
+                    var entity = _session.SpawnItemDrop(item, dropPos);
+                    if (entity != null)
+                    {
+                        entity.Velocity = _camera.Front * 4.0f + Vector3.UnitY * 1.5f;
+                    }
+                }
+            }
+            _prevQPressed = qPressed;
+
             // Toggle physics mode
             if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.G) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.G))
             {
@@ -1557,6 +1629,35 @@ namespace Autonocraft.Core
                 if (IsKeyPressed(kbState, Key.S)) moveDir -= frontHorizontal;
                 if (IsKeyPressed(kbState, Key.A)) moveDir -= rightHorizontal;
                 if (IsKeyPressed(kbState, Key.D)) moveDir += rightHorizontal;
+
+                // Sprint input detection
+                bool wPressedThisFrame = IsKeyPressed(kbState, Key.W) && !_prevWPressed;
+                _prevWPressed = IsKeyPressed(kbState, Key.W);
+                if (wPressedThisFrame)
+                {
+                    float timeSinceLastW = _waterAnimTime - _lastWPressTime;
+                    if (timeSinceLastW < 0.25f)
+                    {
+                        _doubleTapSprintActive = true;
+                    }
+                    _lastWPressTime = _waterAnimTime;
+                }
+                if (!IsKeyPressed(kbState, Key.W))
+                {
+                    _doubleTapSprintActive = false;
+                }
+
+                bool ctrlPressed = IsKeyPressed(kbState, Key.ControlLeft);
+                bool isSprintingWanted = IsKeyPressed(kbState, Key.W) && (ctrlPressed || _doubleTapSprintActive);
+
+                if (isSprintingWanted && _session.Player.Hunger > _session.Player.MaxHunger * SurvivalConstants.LowHungerFraction && !_session.Player.InWater)
+                {
+                    _session.Player.IsSprinting = true;
+                }
+                else
+                {
+                    _session.Player.IsSprinting = false;
+                }
 
                 if (_session.Player.CreativeMode)
                 {
@@ -1760,6 +1861,7 @@ namespace Autonocraft.Core
             {
                 _session.UpdateAnimals(deltaTime);
             }
+            _session.UpdateItemDrops(deltaTime);
             swAnimals.Stop();
             PerfCounters.UpdateAnimalsMs = (float)swAnimals.Elapsed.TotalMilliseconds;
 

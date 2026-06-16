@@ -21,6 +21,7 @@ namespace Autonocraft.Core
 
         public Action<string>? ShowToast { get; set; }
         public Action<SfxKind, float>? PlaySfx { get; set; }
+        public Action<ItemStack, Vector3>? OnSpawnItemDrop { get; set; }
 
         public bool BlocksMiningThisFrame { get; private set; }
 
@@ -162,7 +163,7 @@ namespace Autonocraft.Core
             if (!targetAnimal.IsAlive)
             {
                 player.Stats.RecordAnimalKill(targetAnimal.Type, damage);
-                AnimalLoot.GrantKillLoot(player, targetAnimal.Type);
+                AnimalLoot.GrantKillLoot(player, targetAnimal.Type, OnSpawnItemDrop, targetAnimal.Position + new Vector3(0f, 0.5f, 0f));
                 if (player.Skills.AddXp(PlayerSkill.Combat, 10f))
                 {
                     ShowToast?.Invoke($"Combat level {player.Skills.GetLevel(PlayerSkill.Combat)}!");
