@@ -6,6 +6,7 @@ using Autonocraft.Core;
 using Autonocraft.Engine.Animation;
 using Autonocraft.Village;
 using Autonocraft.World;
+using Autonocraft.Domain.World;
 using Vector3 = System.Numerics.Vector3;
 using Vector2 = System.Numerics.Vector2;
 using Matrix = Microsoft.Xna.Framework.Matrix;
@@ -76,13 +77,14 @@ namespace Autonocraft.Engine
             {
                 float pulse = Tween.Pulse(animTime, 2.5f);
                 float alpha = 0.35f + 0.25f * pulse;
-                DrawWireframeCube(interaction.TargetBlockPos.Value, new Color(0.2f, 0.85f, 1.0f, alpha));
+                DrawWireframeCube(interaction.TargetBlockPos.Value, interaction.TargetBlockType, new Color(0.2f, 0.85f, 1.0f, alpha));
             }
 
             if (interaction.IsMining && interaction.TargetBlockPos.HasValue && interaction.TargetNormal.HasValue)
             {
                 DrawCrackOverlay(
                     interaction.TargetBlockPos.Value,
+                    interaction.TargetBlockType,
                     interaction.TargetNormal.Value,
                     interaction.BreakProgress);
             }
@@ -215,13 +217,14 @@ namespace Autonocraft.Engine
             _overlayEffect.TextureEnabled = true;
         }
 
-        private void DrawWireframeCube(Vector3 blockPos, Color color)
+        private void DrawWireframeCube(Vector3 blockPos, BlockType blockType, Color color)
         {
+            float topY = blockType.IsSlab() ? 0.5f : 1f;
             float x0 = blockPos.X + 0.002f;
             float y0 = blockPos.Y + 0.002f;
             float z0 = blockPos.Z + 0.002f;
             float x1 = blockPos.X + 0.998f;
-            float y1 = blockPos.Y + 0.998f;
+            float y1 = blockPos.Y + topY - 0.002f;
             float z1 = blockPos.Z + 0.998f;
 
             var vertices = new VertexPositionColor[24];
@@ -260,14 +263,30 @@ namespace Autonocraft.Engine
             _overlayEffect.TextureEnabled = true;
         }
 
-        private void DrawCrackOverlay(Vector3 blockPos, Vector3 normal, float progress)
+        private void DrawCrackOverlay(Vector3 blockPos, BlockType blockType, Vector3 normal, float progress)
         {
             int stage = Math.Clamp((int)(progress * 10f), 0, 9);
             if (stage <= 0) return;
 
             float offset = 0.002f; // prevent z-fighting
             Vector3 n = Vector3.Normalize(normal);
-            Vector3 center = blockPos + n * (0.5f + offset) + new Vector3(0.5f, 0.5f, 0.5f);
+            float topY = blockType.IsSlab() ? 0.5f : 1f;
+
+            Vector3 faceCenterOffset;
+            if (n.Y > 0.5f)
+            {
+                faceCenterOffset = new Vector3(0.5f, topY + offset, 0.5f);
+            }
+            else if (n.Y < -0.5f)
+            {
+                faceCenterOffset = new Vector3(0.5f, -offset, 0.5f);
+            }
+            else
+            {
+                faceCenterOffset = n * (0.5f + offset) + new Vector3(0.5f, topY * 0.5f, 0.5f);
+            }
+
+            Vector3 center = blockPos + faceCenterOffset;
 
             Vector3 tangent;
             if (MathF.Abs(n.Y) > 0.5f)
@@ -281,12 +300,14 @@ namespace Autonocraft.Engine
 
             Vector3 bitangent = Vector3.Normalize(Vector3.Cross(n, tangent));
             tangent = Vector3.Normalize(Vector3.Cross(bitangent, n));
-            float half = 0.495f;
+            
+            float halfH = (MathF.Abs(n.Y) > 0.5f) ? 0.495f : (topY * 0.495f);
+            float halfW = 0.495f;
 
-            var p0 = center - tangent * half - bitangent * half;
-            var p1 = center + tangent * half - bitangent * half;
-            var p2 = center + tangent * half + bitangent * half;
-            var p3 = center - tangent * half + bitangent * half;
+            var p0 = center - tangent * halfH - bitangent * halfW;
+            var p1 = center + tangent * halfH - bitangent * halfW;
+            var p2 = center + tangent * halfH + bitangent * halfW;
+            var p3 = center - tangent * halfH + bitangent * halfW;
 
             // Subtle dark background shading representing block fractures
             float intensity = 0.1f + stage * 0.025f;
@@ -423,15 +444,18 @@ namespace Autonocraft.Engine
 
         private void DrawScaledBlock(Vector3 blockPos, BlockType blockType, float scale, Color tint)
         {
-            float half = 0.5f * scale;
-            Vector3 center = blockPos + new Vector3(0.5f, 0.5f, 0.5f);
+            float topY = blockType.IsSlab() ? 0.5f : 1f;
+            float yHalf = topY * 0.5f * scale;
+            float xHalf = 0.5f * scale;
+            float zHalf = 0.5f * scale;
+            Vector3 center = blockPos + new Vector3(0.5f, topY * 0.5f, 0.5f);
 
-            float x0 = center.X - half;
-            float y0 = center.Y - half;
-            float z0 = center.Z - half;
-            float x1 = center.X + half;
-            float y1 = center.Y + half;
-            float z1 = center.Z + half;
+            float x0 = center.X - xHalf;
+            float y0 = center.Y - yHalf;
+            float z0 = center.Z - zHalf;
+            float x1 = center.X + xHalf;
+            float y1 = center.Y + yHalf;
+            float z1 = center.Z + zHalf;
 
             var col = new Vector3(tint.R / 255f, tint.G / 255f, tint.B / 255f) * (tint.A / 255f);
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Autonocraft.Domain.World;
 
 namespace Autonocraft.World
 {
@@ -445,6 +446,19 @@ namespace Autonocraft.World
             return (bestX, bestZ);
         }
 
+        private static BlockType GetSlabBlockType(BlockType type)
+        {
+            return type switch
+            {
+                BlockType.Grass => BlockType.GrassSlab,
+                BlockType.Dirt => BlockType.DirtSlab,
+                BlockType.Stone => BlockType.StoneSlab,
+                BlockType.Sand => BlockType.SandSlab,
+                BlockType.Snow => BlockType.SnowSlab,
+                _ => BlockType.Air
+            };
+        }
+
         private static TerrainColumn FinalizeColumn(TerrainColumn draft, float height)
         {
             int surfaceHeight = Math.Clamp((int)MathF.Round(height), 1, Chunk.Height - 12);
@@ -466,6 +480,27 @@ namespace Autonocraft.World
             else if (draft.IsLake)
             {
                 surfaceHeight = Math.Min(surfaceHeight, WorldConstants.SeaLevel - 1);
+            }
+
+            // Check if we should use a slab
+            int floorHeight = (int)MathF.Floor(height);
+            if (draft.Biome.Primary == BiomeType.Beach)
+            {
+                floorHeight = Math.Clamp(floorHeight, WorldConstants.SeaLevel, WorldConstants.BeachMaxHeight);
+            }
+            else if (draft.IsLake)
+            {
+                floorHeight = Math.Min(floorHeight, WorldConstants.SeaLevel - 1);
+            }
+            floorHeight = Math.Clamp(floorHeight, 1, Chunk.Height - 12);
+
+            float frac = height - MathF.Floor(height);
+            BlockType slabType = GetSlabBlockType(surface);
+
+            if (slabType != BlockType.Air && frac >= 0.25f && frac <= 0.75f)
+            {
+                surfaceHeight = floorHeight;
+                surface = slabType;
             }
 
             return draft with

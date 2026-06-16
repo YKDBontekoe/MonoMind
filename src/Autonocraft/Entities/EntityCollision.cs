@@ -89,9 +89,21 @@ namespace Autonocraft.Entities
                 {
                     for (int x = xStart; xStep > 0 ? x <= xEnd : x >= xEnd; x += xStep)
                     {
-                        if (!world.GetBlock(x, y, z).IsCollidable())
+                        var block = world.GetBlock(x, y, z);
+                        if (!block.IsCollidable())
                         {
                             continue;
+                        }
+
+                        float blockMinY = y;
+                        float blockMaxY = y + (block.IsSlab() ? 0.5f : 1f);
+
+                        if (axis != 1)
+                        {
+                            if (minY >= blockMaxY - epsilon || maxY <= blockMinY + epsilon)
+                            {
+                                continue;
+                            }
                         }
 
                         if (axis == 0)
@@ -110,11 +122,11 @@ namespace Autonocraft.Entities
                         {
                             if (state.Velocity.Y > 0)
                             {
-                                state.Position.Y = y - height - epsilon;
+                                state.Position.Y = blockMinY - height - epsilon;
                             }
                             else if (state.Velocity.Y < 0)
                             {
-                                state.Position.Y = y + 1f + epsilon;
+                                state.Position.Y = blockMaxY + epsilon;
                                 state.IsGrounded = true;
                             }
                             state.Velocity.Y = 0;
@@ -302,9 +314,54 @@ namespace Autonocraft.Entities
                 state.Velocity.Z = horizontalVelocity.Z;
             }
 
+            bool wasGrounded = state.IsGrounded;
+            float originalX = state.Position.X;
+            float originalY = state.Position.Y;
+            float originalZ = state.Position.Z;
+
+            // X movement
             state.Position.X += state.Velocity.X * deltaTime;
             ResolveAxis(ref state, world, 0, width, height);
+            bool collidedX = MathF.Abs(state.Position.X - (originalX + state.Velocity.X * deltaTime)) > 0.001f;
 
+            // Z movement
+            state.Position.Z += state.Velocity.Z * deltaTime;
+            ResolveAxis(ref state, world, 2, width, height);
+            bool collidedZ = MathF.Abs(state.Position.Z - (originalZ + state.Velocity.Z * deltaTime)) > 0.001f;
+
+            if ((collidedX || collidedZ) && wasGrounded)
+            {
+                // Try step-up
+                Vector3 stepUpPos = new Vector3(originalX, originalY + 0.5f + 0.01f, originalZ);
+                if (IsSpaceClearAt(world, stepUpPos, width, height))
+                {
+                    // Move horizontally at the stepped-up position
+                    float testX = originalX + state.Velocity.X * deltaTime;
+                    float testZ = originalZ + state.Velocity.Z * deltaTime;
+                    
+                    EntityCollisionState testState = new EntityCollisionState
+                    {
+                        Position = new Vector3(testX, stepUpPos.Y, testZ),
+                        Velocity = state.Velocity
+                    };
+                    ResolveAxis(ref testState, world, 0, width, height);
+                    ResolveAxis(ref testState, world, 2, width, height);
+                    
+                    // Verify if we successfully moved further horizontally
+                    bool testCollidedX = MathF.Abs(testState.Position.X - testX) > 0.001f;
+                    bool testCollidedZ = MathF.Abs(testState.Position.Z - testZ) > 0.001f;
+                    
+                    if (!testCollidedX && !testCollidedZ)
+                    {
+                        // Accept the step-up!
+                        state.Position.X = testState.Position.X;
+                        state.Position.Z = testState.Position.Z;
+                        state.Position.Y = testState.Position.Y;
+                    }
+                }
+            }
+
+            // Y movement (Gravity and jump resolution)
             state.Position.Y += state.Velocity.Y * deltaTime;
             state.IsGrounded = false;
             ResolveAxis(ref state, world, 1, width, height);
@@ -332,9 +389,6 @@ namespace Autonocraft.Entities
                     state.Velocity.Y *= MathF.Pow(0.4f, deltaTime * 10f);
                 }
             }
-
-            state.Position.Z += state.Velocity.Z * deltaTime;
-            ResolveAxis(ref state, world, 2, width, height);
 
             // Grounded only on solid blocks, never on water/lava surface.
             state.OnWaterSurface = water.InWater && !water.HeadUnderwater;

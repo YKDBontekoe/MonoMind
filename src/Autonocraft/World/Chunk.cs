@@ -1268,10 +1268,43 @@ namespace Autonocraft.World
             Vector3 pos = new Vector3(wx, wy, wz);
             Vector3 color = Vector3.One;
 
-            if (wy == Height - 1 || NeighborForFace(context, wx, wy + 1, wz, type).IsTransparent())
+            float topY = type.IsSlab() ? 0.5f : 1f;
+
+            bool IsFaceCulled(BlockType neighbor)
+            {
+                if (!neighbor.IsTransparent())
+                {
+                    return true;
+                }
+                if (type.IsSlab() && neighbor.IsSlab())
+                {
+                    return true;
+                }
+                return false;
+            }
+
+            BlockType GetBleededBlockType(BlockType self, int x, int y, int z, Vector3 normal)
+            {
+                if (MathF.Abs(normal.Y) < 0.1f && self.CanSupportBleeding())
+                {
+                    var above = context.GetBlock(x, y + 1, z);
+                    if (above == BlockType.Grass || above == BlockType.GrassSlab)
+                    {
+                        return BlockType.Grass;
+                    }
+                    if (above == BlockType.Snow || above == BlockType.SnowSlab)
+                    {
+                        return BlockType.SnowSide;
+                    }
+                }
+                return self;
+            }
+
+            var neighborYPlus = NeighborForFace(context, wx, wy + 1, wz, type);
+            if (wy == Height - 1 || !IsFaceCulled(neighborYPlus))
             {
                 AddFace(targetVertices, targetIndices, pos, new Vector3(0, 1, 0), color, type, context, includeAo,
-                    new Vector3(0, 1, 0), new Vector3(0, 1, 1), new Vector3(1, 1, 1), new Vector3(1, 1, 0));
+                    new Vector3(0, topY, 0), new Vector3(0, topY, 1), new Vector3(1, topY, 1), new Vector3(1, topY, 0));
             }
 
             if (shellTopOnly)
@@ -1279,7 +1312,8 @@ namespace Autonocraft.World
                 return;
             }
 
-            if (wy == 0 || NeighborForFace(context, wx, wy - 1, wz, type).IsTransparent())
+            var neighborYMinus = NeighborForFace(context, wx, wy - 1, wz, type);
+            if (wy == 0 || !IsFaceCulled(neighborYMinus))
             {
                 if (ShouldEmitWaterSideFace(context, wx, wy - 1, wz, type))
                 {
@@ -1288,32 +1322,36 @@ namespace Autonocraft.World
                 }
             }
 
-            if (ShouldEmitWaterSideFace(context, wx + 1, wy, wz, type)
-                && NeighborForFace(context, wx + 1, wy, wz, type).IsTransparent())
+            var neighborXPlus = NeighborForFace(context, wx + 1, wy, wz, type);
+            if (ShouldEmitWaterSideFace(context, wx + 1, wy, wz, type) && !IsFaceCulled(neighborXPlus))
             {
-                AddFace(targetVertices, targetIndices, pos, new Vector3(1, 0, 0), color, type, context, includeAo,
-                    new Vector3(1, 0, 0), new Vector3(1, 1, 0), new Vector3(1, 1, 1), new Vector3(1, 0, 1));
+                var sideType = GetBleededBlockType(type, wx, wy, wz, new Vector3(1, 0, 0));
+                AddFace(targetVertices, targetIndices, pos, new Vector3(1, 0, 0), color, sideType, context, includeAo,
+                    new Vector3(1, 0, 0), new Vector3(1, topY, 0), new Vector3(1, topY, 1), new Vector3(1, 0, 1));
             }
 
-            if (ShouldEmitWaterSideFace(context, wx - 1, wy, wz, type)
-                && NeighborForFace(context, wx - 1, wy, wz, type).IsTransparent())
+            var neighborXMinus = NeighborForFace(context, wx - 1, wy, wz, type);
+            if (ShouldEmitWaterSideFace(context, wx - 1, wy, wz, type) && !IsFaceCulled(neighborXMinus))
             {
-                AddFace(targetVertices, targetIndices, pos, new Vector3(-1, 0, 0), color, type, context, includeAo,
-                    new Vector3(0, 0, 1), new Vector3(0, 1, 1), new Vector3(0, 1, 0), new Vector3(0, 0, 0));
+                var sideType = GetBleededBlockType(type, wx, wy, wz, new Vector3(-1, 0, 0));
+                AddFace(targetVertices, targetIndices, pos, new Vector3(-1, 0, 0), color, sideType, context, includeAo,
+                    new Vector3(0, 0, 1), new Vector3(0, topY, 1), new Vector3(0, topY, 0), new Vector3(0, 0, 0));
             }
 
-            if (ShouldEmitWaterSideFace(context, wx, wy, wz + 1, type)
-                && NeighborForFace(context, wx, wy, wz + 1, type).IsTransparent())
+            var neighborZPlus = NeighborForFace(context, wx, wy, wz + 1, type);
+            if (ShouldEmitWaterSideFace(context, wx, wy, wz + 1, type) && !IsFaceCulled(neighborZPlus))
             {
-                AddFace(targetVertices, targetIndices, pos, new Vector3(0, 0, 1), color, type, context, includeAo,
-                    new Vector3(1, 0, 1), new Vector3(1, 1, 1), new Vector3(0, 1, 1), new Vector3(0, 0, 1));
+                var sideType = GetBleededBlockType(type, wx, wy, wz, new Vector3(0, 0, 1));
+                AddFace(targetVertices, targetIndices, pos, new Vector3(0, 0, 1), color, sideType, context, includeAo,
+                    new Vector3(1, 0, 1), new Vector3(1, topY, 1), new Vector3(0, topY, 1), new Vector3(0, 0, 1));
             }
 
-            if (ShouldEmitWaterSideFace(context, wx, wy, wz - 1, type)
-                && NeighborForFace(context, wx, wy, wz - 1, type).IsTransparent())
+            var neighborZMinus = NeighborForFace(context, wx, wy, wz - 1, type);
+            if (ShouldEmitWaterSideFace(context, wx, wy, wz - 1, type) && !IsFaceCulled(neighborZMinus))
             {
-                AddFace(targetVertices, targetIndices, pos, new Vector3(0, 0, -1), color, type, context, includeAo,
-                    new Vector3(0, 0, 0), new Vector3(0, 1, 0), new Vector3(1, 1, 0), new Vector3(1, 0, 0));
+                var sideType = GetBleededBlockType(type, wx, wy, wz, new Vector3(0, 0, -1));
+                AddFace(targetVertices, targetIndices, pos, new Vector3(0, 0, -1), color, sideType, context, includeAo,
+                    new Vector3(0, 0, 0), new Vector3(0, topY, 0), new Vector3(1, topY, 0), new Vector3(1, 0, 0));
             }
         }
 

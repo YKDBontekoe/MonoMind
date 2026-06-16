@@ -104,14 +104,22 @@ namespace Autonocraft.Domain.World
         Lava = 97,
         Quicksand = 98,
         Rope = 99,
-        Kelp = 100
+        Kelp = 100,
+        GrassSlab = 101,
+        DirtSlab = 102,
+        StoneSlab = 103,
+        SandSlab = 104,
+        SnowSlab = 105,
+        SnowSide = 106
     }
 
     public static class BlockTypeExtensions
     {
         public static bool IsTransparent(this BlockType type)
         {
-            return type == BlockType.Air
+            return type.IsSlab()
+                || type == BlockType.SnowSide
+                || type == BlockType.Air
                 || type == BlockType.Water
                 || type == BlockType.Lava
                 || type == BlockType.Quicksand
@@ -154,6 +162,7 @@ namespace Autonocraft.Domain.World
         public static bool IsPassable(this BlockType type)
         {
             return type.IsTransparent()
+                && !type.IsSlab()
                 && type is not BlockType.Glass
                 && type is not BlockType.RedStainedGlass
                 && type is not BlockType.BlueStainedGlass
@@ -311,8 +320,33 @@ namespace Autonocraft.Domain.World
                 BlockType.StationStonecutter => 2.0f,
                 BlockType.Water => 0f,
                 BlockType.Lava => 0f,
-                _ => 0.6f
+                _ => type.IsSlab() ? 0.5f * type.GetBaseBlockType().GetBreakTime() : 0.6f
             };
+        }
+
+        public static bool IsSlab(this BlockType type)
+        {
+            return type is BlockType.GrassSlab or BlockType.DirtSlab or BlockType.StoneSlab or BlockType.SandSlab or BlockType.SnowSlab;
+        }
+
+        public static BlockType GetBaseBlockType(this BlockType type)
+        {
+            return type switch
+            {
+                BlockType.GrassSlab => BlockType.Grass,
+                BlockType.DirtSlab => BlockType.Dirt,
+                BlockType.StoneSlab => BlockType.Stone,
+                BlockType.SandSlab => BlockType.Sand,
+                BlockType.SnowSlab => BlockType.Snow,
+                _ => type
+            };
+        }
+
+        public static bool CanSupportBleeding(this BlockType type)
+        {
+            return type is BlockType.Dirt or BlockType.Stone or BlockType.Gravel or BlockType.Clay 
+                or BlockType.Mud or BlockType.Limestone or BlockType.Granite or BlockType.Basalt 
+                or BlockType.Marble or BlockType.Slate or BlockType.Cobblestone or BlockType.MossStone;
         }
     }
 }

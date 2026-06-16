@@ -16,6 +16,7 @@ namespace Autonocraft.World
 
         public static Vector3 GetTint(BlockType type)
         {
+            type = type.GetBaseBlockType();
             return type switch
             {
                 BlockType.Grass => new Vector3(0.86f, 0.94f, 0.82f),
@@ -132,10 +133,14 @@ namespace Autonocraft.World
             float smoothedVariation,
             float ao)
         {
-            BlockType effectiveType = blockType;
-            if (blockType == BlockType.Grass && System.MathF.Abs(normal.Y) < 0.1f)
+            BlockType effectiveType = blockType.GetBaseBlockType();
+            if (effectiveType == BlockType.Grass && System.MathF.Abs(normal.Y) < 0.1f)
             {
-                effectiveType = cy == 1 ? BlockType.Grass : BlockType.Dirt;
+                effectiveType = cy == 1 ? BlockType.Grass : context.GetBlock(wx, wy, wz).GetBaseBlockType();
+            }
+            else if (effectiveType == BlockType.SnowSide && System.MathF.Abs(normal.Y) < 0.1f)
+            {
+                effectiveType = cy == 1 ? BlockType.Snow : context.GetBlock(wx, wy, wz).GetBaseBlockType();
             }
 
             Vector3 tintSum = GetTint(effectiveType);
@@ -281,6 +286,8 @@ namespace Autonocraft.World
 
         private static bool SharesMaterial(BlockType a, BlockType b)
         {
+            a = a.GetBaseBlockType();
+            b = b.GetBaseBlockType();
             if (a == b)
             {
                 return true;

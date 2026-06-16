@@ -64,7 +64,7 @@ namespace Autonocraft.Engine
                     break;
             }
 
-            var ambDay = new Vector3(0.32f, 0.36f, 0.42f);
+            var ambDay = new Vector3(0.25f, 0.28f, 0.34f);
             var skyHorizonDay = new Vector3(0.62f, 0.78f, 0.98f);
             var skyZenithDay = new Vector3(0.18f, 0.42f, 0.86f);
 
@@ -80,7 +80,7 @@ namespace Autonocraft.Engine
                     skyZenithDay = new Vector3(0.12f, 0.28f, 0.22f);
                     skyHorizonSunset = new Vector3(0.65f, 0.35f, 0.25f);
                     skyZenithSunset = new Vector3(0.32f, 0.15f, 0.22f);
-                    ambDay = new Vector3(0.24f, 0.30f, 0.26f);
+                    ambDay = new Vector3(0.20f, 0.24f, 0.22f);
                     fogMultiplier = 0.5f;
                     break;
                 case BiomeType.Desert:
@@ -88,7 +88,7 @@ namespace Autonocraft.Engine
                     skyZenithDay = new Vector3(0.14f, 0.48f, 0.92f);
                     skyHorizonSunset = new Vector3(1.1f, 0.35f, 0.1f);
                     skyZenithSunset = new Vector3(0.6f, 0.15f, 0.45f);
-                    ambDay = new Vector3(0.36f, 0.38f, 0.40f);
+                    ambDay = new Vector3(0.28f, 0.30f, 0.32f);
                     fogMultiplier = 1.25f;
                     break;
                 case BiomeType.SnowyPeaks:
@@ -96,13 +96,13 @@ namespace Autonocraft.Engine
                     skyZenithDay = new Vector3(0.24f, 0.52f, 0.92f);
                     skyHorizonSunset = new Vector3(0.98f, 0.62f, 0.68f);
                     skyZenithSunset = new Vector3(0.48f, 0.38f, 0.58f);
-                    ambDay = new Vector3(0.38f, 0.42f, 0.52f);
+                    ambDay = new Vector3(0.30f, 0.34f, 0.42f);
                     fogMultiplier = 0.7f;
                     break;
                 case BiomeType.Forest:
                     skyHorizonDay = new Vector3(0.55f, 0.74f, 0.88f);
                     skyZenithDay = new Vector3(0.14f, 0.38f, 0.78f);
-                    ambDay = new Vector3(0.28f, 0.34f, 0.38f);
+                    ambDay = new Vector3(0.22f, 0.26f, 0.30f);
                     fogMultiplier = 0.85f;
                     break;
                 case BiomeType.Ocean:
@@ -122,11 +122,11 @@ namespace Autonocraft.Engine
                     break;
             }
 
-            var ambTwilight = new Vector3(0.24f, 0.20f, 0.28f);
+            var ambTwilight = new Vector3(0.20f, 0.16f, 0.24f);
             var ambient = Vector3.Lerp(ambNight, ambDay, dayLight);
             ambient = Vector3.Lerp(ambient, ambTwilight, twilightFactor * 0.65f);
 
-            var sunColor = new Vector3(1.0f, 0.96f, 0.86f) * (0.35f + sunIntensity * 0.65f);
+            var sunColor = new Vector3(0.85f, 0.82f, 0.74f) * (0.25f + sunIntensity * 0.55f);
             var moonColor = new Vector3(0.40f, 0.46f, 0.68f) * (0.14f + moonIntensity * 0.55f);
 
             var skyHorizonBase = Vector3.Lerp(skyHorizonNight, skyHorizonDay, dayLight);
