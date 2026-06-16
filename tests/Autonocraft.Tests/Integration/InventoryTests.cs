@@ -109,6 +109,8 @@ public static class InventoryTests
     {
         Console.Write("Running Item Drop Test... ");
 
+        player.SelectedSlot = 0;
+
         // Set up player hotbar slot
         player.Hotbar[player.SelectedSlot] = ItemStack.CreateBlock(BlockType.Grass, 5);
 

@@ -82,13 +82,6 @@ namespace Autonocraft.Core
         private const float MaxGameplayDeltaTime = 1f / 30f;
         private const float SpawnWarmupSeconds = 15f;
 
-        private bool _prevEPressed;
-        private bool _prevEnterPressed;
-        private bool _prevF3Pressed;
-        private bool _prevBacktickPressed;
-        private bool _prevTabPressed;
-        private bool _prevF1Pressed;
-        private bool _prevJPressed;
         private bool _prevQPressed;
 
         // Sprint and Bobbing state
@@ -917,7 +910,6 @@ namespace Autonocraft.Core
         private void UpdateFrame(GameTime gameTime)
         {
             float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
-            _lastDeltaTime = deltaTime;
 
             _screens.HandleStateTransition(
                 () => _input.ReleaseMouseOnLeavePlaying(),
@@ -1395,6 +1387,7 @@ namespace Autonocraft.Core
         {
             // Avoid one slow streaming frame turning into a giant physics/input step.
             deltaTime = Math.Min(deltaTime, MaxGameplayDeltaTime);
+            _lastDeltaTime = deltaTime;
 
             var updateStopwatch = Stopwatch.StartNew();
             try

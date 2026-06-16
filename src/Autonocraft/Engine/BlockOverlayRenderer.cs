@@ -341,22 +341,22 @@ namespace Autonocraft.Engine
             {
                 float angle = b * (MathF.PI * 2f / mainBranchesCount) + (float)(rng.NextDouble() - 0.5) * 0.4f;
                 float maxLen = 0.15f + stage * 0.045f;
-                
+
                 int segmentsInBranch = 2 + stage / 3;
                 int lastIdx = 0;
-                
+
                 for (int s = 1; s <= segmentsInBranch; s++)
                 {
                     float t = s / (float)segmentsInBranch;
                     float currentLen = maxLen * t;
                     float jitterAngle = angle + (float)(rng.NextDouble() - 0.5) * 0.25f;
-                    
+
                     var offset = new Vector2(MathF.Cos(jitterAngle), MathF.Sin(jitterAngle)) * currentLen;
                     var pt = new Vector2(0.5f, 0.5f) + offset;
-                    
+
                     pt.X = Math.Clamp(pt.X, 0.02f, 0.98f);
                     pt.Y = Math.Clamp(pt.Y, 0.02f, 0.98f);
-                    
+
                     points.Add(pt);
                     int newIdx = points.Count - 1;
                     segments.Add((lastIdx, newIdx));
@@ -372,10 +372,10 @@ namespace Autonocraft.Engine
                         float subLen = maxLen * 0.4f;
                         var subOffset = new Vector2(MathF.Cos(subAngle), MathF.Sin(subAngle)) * subLen;
                         var subPt = points[parentIdx] + subOffset;
-                        
+
                         subPt.X = Math.Clamp(subPt.X, 0.02f, 0.98f);
                         subPt.Y = Math.Clamp(subPt.Y, 0.02f, 0.98f);
-                        
+
                         points.Add(subPt);
                         segments.Add((parentIdx, points.Count - 1));
                     }
@@ -391,8 +391,8 @@ namespace Autonocraft.Engine
 
             foreach (var segment in segments)
             {
-                lineVerts[vi++] = new VertexPositionColor(Local(points[segment.from]), crackColor);
-                lineVerts[vi++] = new VertexPositionColor(Local(points[segment.to]), crackColor);
+                lineVerts[vi++] = new VertexPositionColor(ToMono(Local(points[segment.from])), crackColor);
+                lineVerts[vi++] = new VertexPositionColor(ToMono(Local(points[segment.to])), crackColor);
             }
 
             _overlayEffect.World = Matrix.Identity;

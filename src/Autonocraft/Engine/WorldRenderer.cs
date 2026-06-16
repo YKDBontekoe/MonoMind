@@ -267,8 +267,6 @@ namespace Autonocraft.Engine
             swEntities.Stop();
             PerfCounters.DrawEntitiesMs = (float)swEntities.Elapsed.TotalMilliseconds;
 
-            Draw3DHeldItem(ctx, monoView, monoProj, lighting);
-
             _overlayRenderer.Draw(
                 ctx.BlockInteraction,
                 ctx.Particles,
@@ -279,6 +277,8 @@ namespace Autonocraft.Engine
                 ctx.BlueprintPlacement,
                 ctx.PendingConstructionSites,
                 ctx.WorkZonePlacement);
+
+            Draw3DHeldItem(ctx, monoView, monoProj, lighting);
 
             if (underwaterFactor > 0f)
             {
@@ -510,9 +510,24 @@ namespace Autonocraft.Engine
             _worldEffect.FogStart = ChunkLod.GetFogStart(renderDistance) * lighting.FogMultiplier;
             _worldEffect.FogEnd = ChunkLod.GetFogEnd(renderDistance, lighting.TwilightFactor) * lighting.FogMultiplier;
 
+            var cameraPos = ctx.Camera.Position;
+            float cullRadius = ChunkLod.GetAnimalCullRadius(renderDistance);
+            float cullRadiusSq = cullRadius * cullRadius;
+
             foreach (var itemEntity in ctx.ItemEntities)
             {
                 if (itemEntity.ReadyForRemoval)
+                {
+                    continue;
+                }
+
+                var itemPos = itemEntity.Position;
+                if (Vector3.DistanceSquared(cameraPos, itemPos) > cullRadiusSq)
+                {
+                    continue;
+                }
+
+                if (!IsPointVisible(itemPos, _frustumPlanes))
                 {
                     continue;
                 }
@@ -522,8 +537,8 @@ namespace Autonocraft.Engine
 
                 var rotation = Matrix.CreateRotationY(rotAngle);
                 var translation = Matrix.CreateTranslation(
-                    itemEntity.Position.X, 
-                    itemEntity.Position.Y + bobOffset + 0.12f, 
+                    itemEntity.Position.X,
+                    itemEntity.Position.Y + bobOffset + 0.12f,
                     itemEntity.Position.Z
                 );
                 var scaleMatrix = Matrix.CreateScale(1.0f);
@@ -617,7 +632,7 @@ namespace Autonocraft.Engine
 
             float yawRad = MathHelper.ToRadians(-camera.Yaw);
             float pitchRad = MathHelper.ToRadians(camera.Pitch);
-            
+
             // Build camera rotation matrix
             Matrix camRot = Matrix.CreateRotationY(yawRad) * Matrix.CreateRotationX(pitchRad);
 
@@ -642,7 +657,7 @@ namespace Autonocraft.Engine
             _worldEffect.Texture = _atlasTexture;
             _worldEffect.View = view;
             _worldEffect.Projection = proj;
-            
+
             _worldEffect.AmbientLightColor = lighting.ToMono(lighting.AmbientColor * 1.25f); // slightly brighter for readability
             _worldEffect.DirectionalLight0.Enabled = lighting.SunEnabled;
             _worldEffect.DirectionalLight0.Direction = ConvertVector(-lighting.SunDirection);
@@ -1153,6 +1168,19 @@ namespace Autonocraft.Engine
                     planes[i] /= length;
                 }
             }
+        }
+
+        private static bool IsPointVisible(Vector3 point, Microsoft.Xna.Framework.Vector4[] planes)
+        {
+            for (int i = 0; i < planes.Length; i++)
+            {
+                if (planes[i].X * point.X + planes[i].Y * point.Y + planes[i].Z * point.Z + planes[i].W < 0f)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private static bool IsChunkVisible(Chunk chunk, Microsoft.Xna.Framework.Vector4[] planes)

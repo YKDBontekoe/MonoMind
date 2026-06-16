@@ -14,14 +14,13 @@ namespace Autonocraft.Entities
         public Vector3 Position;
         public Vector3 Velocity;
         public bool IsGrounded;
-        
+
         public float Age { get; private set; }
         public float HoverTimer { get; private set; }
         public bool ReadyForRemoval { get; private set; }
-        
+
         public const float Width = 0.25f;
         public const float Height = 0.25f;
-        private const float Gravity = -22f; // Slower falling for dropped items than player
         private float _pickupDelay = 0.5f;
 
         public ItemEntity(ItemStack item, Vector3 position, int id)
@@ -30,11 +29,11 @@ namespace Autonocraft.Entities
             Position = position;
             Id = id;
             HoverTimer = (float)(Random.Shared.NextDouble() * Math.PI * 2.0); // Randomize phase so they don't bob in sync
-            
+
             // Pop out randomly slightly upward and outward
             Velocity = new Vector3(
                 (float)(Random.Shared.NextDouble() - 0.5) * 2.5f,
-                3.5f, 
+                3.5f,
                 (float)(Random.Shared.NextDouble() - 0.5) * 2.5f
             );
         }
@@ -48,12 +47,7 @@ namespace Autonocraft.Entities
                 _pickupDelay -= deltaTime;
             }
 
-            if (!IsGrounded)
-            {
-                Velocity.Y += Gravity * deltaTime;
-                if (Velocity.Y < -15f) Velocity.Y = -15f;
-            }
-            else
+            if (IsGrounded)
             {
                 Velocity.X *= MathF.Pow(0.05f, deltaTime);
                 Velocity.Z *= MathF.Pow(0.05f, deltaTime);
@@ -90,10 +84,14 @@ namespace Autonocraft.Entities
                 float dist = Vector3.Distance(Position, playerPos + new Vector3(0f, Player.EyeHeight * 0.4f, 0f));
                 if (dist < 2.0f)
                 {
-                    Vector3 toPlayer = Vector3.Normalize((playerPos + new Vector3(0f, Player.EyeHeight * 0.4f, 0f)) - Position);
-                    float pullSpeed = 6.0f * (2.0f - dist);
-                    Position += toPlayer * pullSpeed * deltaTime;
-                    
+                    Vector3 toPlayer = (playerPos + new Vector3(0f, Player.EyeHeight * 0.4f, 0f)) - Position;
+                    if (toPlayer.LengthSquared() > 0f)
+                    {
+                        toPlayer = Vector3.Normalize(toPlayer);
+                        float pullSpeed = 6.0f * (2.0f - dist);
+                        Position += toPlayer * pullSpeed * deltaTime;
+                    }
+
                     if (dist < 0.65f)
                     {
                         if (player.AddItem(Item))

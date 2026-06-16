@@ -166,10 +166,13 @@ namespace Autonocraft.Core
             ItemStack dropped = slot;
             dropped.Count = 1;
 
-            slot.Count--;
-            if (slot.Count <= 0)
+            if (!CreativeMode)
             {
-                slot = ItemStack.Empty;
+                slot.Count--;
+                if (slot.Count <= 0)
+                {
+                    slot = ItemStack.Empty;
+                }
             }
 
             return dropped;
