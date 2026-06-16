@@ -10,6 +10,7 @@ using Autonocraft.World;
 using Autonocraft.Ai;
 using Autonocraft.Domain.Village;
 using Autonocraft.Village;
+using Autonocraft.Core.Agent;
 
 namespace Autonocraft.Core
 {
@@ -18,7 +19,7 @@ namespace Autonocraft.Core
         private static HttpListener? _listener;
         private static IGameAgentBridge? _bridge;
         private static bool _isRunning = false;
-        private const int QueuedActionWaitMs = 10000;
+        private static readonly Dictionary<string, IAgentAction> _actions = CreateActionRegistry();
 
         public static void Start(IGameAgentBridge bridge, int port = 5000)
         {
@@ -186,17 +187,16 @@ namespace Autonocraft.Core
         {
             if (_bridge == null)
             {
-                SendResponse(response, HttpStatusCode.ServiceUnavailable,
-                    "{\"ready\": false, \"gameState\": \"Unknown\"}", "application/json");
+                var dto = new AgentHealthDto(false, "Unknown");
+                SendJsonResponse(response, HttpStatusCode.ServiceUnavailable, dto);
                 return;
             }
 
             var state = _bridge.CurrentGameState;
             bool ready = state == GameState.Playing;
             var statusCode = ready ? HttpStatusCode.OK : HttpStatusCode.ServiceUnavailable;
-            SendResponse(response, statusCode,
-                $"{{\"ready\": {ready.ToString().ToLower()}, \"gameState\": \"{state}\"}}",
-                "application/json");
+            var health = new AgentHealthDto(ready, state.ToString());
+            SendJsonResponse(response, statusCode, health);
         }
 
         private static void HandleGetMetrics(HttpListenerResponse response)
@@ -224,100 +224,8 @@ namespace Autonocraft.Core
             var session = host.Session;
             var player = session.Player;
             var interaction = session.BlockInteraction;
-            var sb = new StringBuilder();
-            sb.Append("{");
-            sb.Append($"\"gameState\": \"{_bridge.CurrentGameState}\",");
-            sb.Append($"\"worldSeed\": {session.Grid.Seed},");
-            sb.Append($"\"oxygen\": {player.Oxygen},");
-            sb.Append($"\"position\": {{\"x\": {player.Position.X}, \"y\": {player.Position.Y}, \"z\": {player.Position.Z}}},");
-            sb.Append($"\"velocity\": {{\"x\": {player.Velocity.X}, \"y\": {player.Velocity.Y}, \"z\": {player.Velocity.Z}}},");
-            sb.Append($"\"yaw\": {player.Yaw},");
-            sb.Append($"\"pitch\": {player.Pitch},");
-            sb.Append($"\"creativeMode\": {player.CreativeMode.ToString().ToLower()},");
-            sb.Append($"\"isGrounded\": {player.IsGrounded.ToString().ToLower()},");
-            sb.Append($"\"health\": {player.Health},");
-            sb.Append($"\"maxHealth\": {player.MaxHealth},");
-            sb.Append($"\"hunger\": {player.Hunger},");
-            sb.Append($"\"maxHunger\": {player.MaxHunger},");
-            sb.Append($"\"earlyGuideStage\": {player.Stats.EarlyGuideStage},");
             var primaryVillage = session.Villages.GetActiveVillage(player.Position);
             string guidanceHint = EarlyGameGuide.GetGuidanceHint(player, primaryVillage, session.Villagers);
-            sb.Append($"\"guidanceHint\": \"{EscapeJson(guidanceHint)}\",");
-            sb.Append($"\"timeOfDay\": {host.TimeOfDay},");
-            sb.Append($"\"timeScale\": {host.TimeScale},");
-            sb.Append($"\"timePaused\": {host.TimePaused.ToString().ToLower()},");
-            sb.Append($"\"selectedSlot\": {player.SelectedSlot},");
-            sb.Append("\"hotbar\": [");
-            for (int i = 0; i < 9; i++)
-            {
-                var slot = player.Hotbar[i];
-                if (slot.IsEmpty)
-                {
-                    sb.Append($"{{\"slot\": {i}, \"kind\": \"empty\"}}");
-                }
-                else if (slot.IsTool())
-                {
-                    sb.Append($"{{\"slot\": {i}, \"kind\": \"tool\", \"toolId\": \"{slot.ToolId}\", \"name\": \"{slot.GetDisplayName()}\", \"durability\": {slot.Durability}, \"maxDurability\": {slot.MaxDurability}}}");
-                }
-                else if (slot.IsFood())
-                {
-                    sb.Append($"{{\"slot\": {i}, \"kind\": \"food\", \"itemId\": \"{slot.FoodId}\", \"name\": \"{slot.GetDisplayName()}\", \"count\": {slot.Count}}}");
-                }
-                else if (slot.IsFluidContainer())
-                {
-                    sb.Append($"{{\"slot\": {i}, \"kind\": \"fluid_container\", \"itemId\": \"{slot.ToolId}\", \"name\": \"{slot.GetDisplayName()}\", \"filled\": {slot.IsWaterBucket().ToString().ToLower()}}}");
-                }
-                else
-                {
-                    sb.Append($"{{\"slot\": {i}, \"kind\": \"block\", \"type\": \"{slot.BlockType}\", \"count\": {slot.Count}}}");
-                }
-
-                if (i < 8) sb.Append(",");
-            }
-            sb.Append("]");
-            sb.Append($",\"skills\": {{\"mining\": {{\"level\": {player.Skills.Mining.Level}, \"xp\": {player.Skills.Mining.Xp}}}, \"woodcutting\": {{\"level\": {player.Skills.Woodcutting.Level}, \"xp\": {player.Skills.Woodcutting.Xp}}}, \"combat\": {{\"level\": {player.Skills.Combat.Level}, \"xp\": {player.Skills.Combat.Xp}}}}}");
-            sb.Append(",\"animals\": [");
-
-            var nearbyAnimals = session.Animals.GetAnimalsInRange(player.Position, 32f);
-            int writtenAnimals = 0;
-            for (int i = 0; i < nearbyAnimals.Count; i++)
-            {
-                var animal = nearbyAnimals[i];
-                if (!animal.IsAlive)
-                {
-                    continue;
-                }
-
-                if (writtenAnimals > 0) sb.Append(",");
-                sb.Append("{");
-                sb.Append($"\"id\": {animal.Id},");
-                sb.Append($"\"type\": \"{animal.Type}\",");
-                sb.Append($"\"health\": {animal.Health},");
-                sb.Append($"\"maxHealth\": {animal.MaxHealth},");
-                sb.Append($"\"x\": {animal.Position.X},");
-                sb.Append($"\"y\": {animal.Position.Y},");
-                sb.Append($"\"z\": {animal.Position.Z}");
-                sb.Append("}");
-                writtenAnimals++;
-            }
-
-            sb.Append("]");
-
-            sb.Append(",\"targetBlock\": ");
-            if (interaction.TargetBlockPos.HasValue && interaction.TargetBlockType != BlockType.Air)
-            {
-                var tpos = interaction.TargetBlockPos.Value;
-                sb.Append("{");
-                sb.Append($"\"x\": {tpos.X}, \"y\": {tpos.Y}, \"z\": {tpos.Z},");
-                sb.Append($"\"type\": \"{interaction.TargetBlockType}\",");
-                sb.Append($"\"breakProgress\": {interaction.BreakProgress},");
-                sb.Append($"\"isMining\": {interaction.IsMining.ToString().ToLower()}");
-                sb.Append("}");
-            }
-            else
-            {
-                sb.Append("null");
-            }
 
             string? nearbyStation = null;
             var target = session.BlockInteraction.TargetBlockType;
@@ -332,51 +240,61 @@ namespace Autonocraft.Core
                 };
             }
 
-            sb.Append(",\"nearbyStation\": ");
-            sb.Append(nearbyStation == null ? "null" : $"\"{nearbyStation}\"");
-            sb.Append(",\"unlockedRecipes\": [");
             var unlocked = session.Crafting.Journal.Export();
-            for (int i = 0; i < unlocked.Count; i++)
+
+            var nearbyAnimals = session.Animals.GetAnimalsInRange(player.Position, 32f);
+            List<AgentAnimalDto> animalDtos = new();
+            for (int i = 0; i < nearbyAnimals.Count; i++)
             {
-                sb.Append($"\"{unlocked[i]}\"");
-                if (i < unlocked.Count - 1) sb.Append(",");
+                var animal = nearbyAnimals[i];
+                if (!animal.IsAlive)
+                {
+                    continue;
+                }
+
+                animalDtos.Add(new AgentAnimalDto(
+                    animal.Id,
+                    animal.Type.ToString(),
+                    animal.Health,
+                    animal.MaxHealth,
+                    animal.Position.X,
+                    animal.Position.Y,
+                    animal.Position.Z));
             }
-            sb.Append("]");
+
+            AgentTargetBlockDto? targetBlockDto = null;
+            if (interaction.TargetBlockPos.HasValue && interaction.TargetBlockType != BlockType.Air)
+            {
+                var tpos = interaction.TargetBlockPos.Value;
+                targetBlockDto = new AgentTargetBlockDto(
+                    (int)tpos.X,
+                    (int)tpos.Y,
+                    (int)tpos.Z,
+                    interaction.TargetBlockType.ToString(),
+                    interaction.BreakProgress,
+                    interaction.IsMining);
+            }
 
             var village = session.Villages.GetActiveVillage(player.Position);
             var settings = host.Settings;
-            sb.Append(",\"playWithAi\": ");
-            sb.Append(settings.PlayWithAi.ToString().ToLower());
-            sb.Append(",\"aiProvider\": \"");
-            sb.Append(settings.AiProvider);
-            sb.Append("\",\"llmAvailable\": ");
-            sb.Append(LlmClientFactory.IsAvailable(settings).ToString().ToLower());
-            sb.Append(",\"village\": ");
-            if (village == null)
-            {
-                sb.Append("null");
-            }
-            else
-            {
-                session.Villages.SyncCitizensForVillage(village);
-                int livePopulation = VillageSettlementHealth.GetLivePopulation(village, session.Villagers);
-                sb.Append("{");
-                sb.Append($"\"id\": {village.Id},");
-                sb.Append($"\"name\": \"{village.Name}\",");
-                sb.Append($"\"population\": {livePopulation},");
-                sb.Append($"\"populationCap\": {village.PopulationCap},");
-                sb.Append($"\"tier\": \"{village.Tier}\",");
-                sb.Append($"\"happiness\": {village.Happiness:F2},");
-                sb.Append($"\"foodStock\": {village.FoodStock:F1},");
-                sb.Append($"\"anchorX\": {village.AnchorX},");
-                sb.Append($"\"anchorZ\": {village.AnchorZ}");
-                sb.Append("}");
-            }
 
-            sb.Append(",\"villagers\": [");
+            AgentVillageSummaryDto? villageDto = null;
             List<Entities.Villager> nearbyVillagers = new();
             if (village != null)
             {
+                session.Villages.SyncCitizensForVillage(village);
+                int livePopulation = VillageSettlementHealth.GetLivePopulation(village, session.Villagers);
+                villageDto = new AgentVillageSummaryDto(
+                    village.Id,
+                    village.Name,
+                    livePopulation,
+                    village.PopulationCap,
+                    village.Tier.ToString(),
+                    (float)Math.Round(village.Happiness, 2),
+                    (float)Math.Round(village.FoodStock, 1),
+                    village.AnchorX,
+                    village.AnchorZ);
+
                 foreach (var v in VillageSettlementHealth.EnumerateLiveCitizens(village, session.Villagers))
                 {
                     nearbyVillagers.Add(v);
@@ -387,37 +305,123 @@ namespace Autonocraft.Core
                 nearbyVillagers = session.Villagers.GetVillagersInRange(player.Position, 32f);
             }
 
+            List<AgentVillagerDto> villagerDtos = new();
             for (int i = 0; i < nearbyVillagers.Count; i++)
             {
                 var v = nearbyVillagers[i];
-                sb.Append("{");
-                sb.Append($"\"id\": {v.Id},");
-                sb.Append($"\"villageId\": {v.VillageId},");
-                sb.Append($"\"name\": \"{v.Name}\",");
-                sb.Append($"\"role\": \"{v.Role}\",");
-                sb.Append($"\"job\": \"{v.CurrentJob}\",");
-                sb.Append($"\"x\": {v.Position.X},");
-                sb.Append($"\"y\": {v.Position.Y},");
-                sb.Append($"\"z\": {v.Position.Z}");
-                sb.Append("}");
-                if (i < nearbyVillagers.Count - 1) sb.Append(",");
+                villagerDtos.Add(new AgentVillagerDto(
+                    v.Id,
+                    v.VillageId,
+                    v.Name,
+                    v.Role.ToString(),
+                    v.CurrentJob.ToString(),
+                    v.Position.X,
+                    v.Position.Y,
+                    v.Position.Z));
             }
-            sb.Append("]");
 
             var chatTarget = session.Villagers.GetNearest(player.Position, 5f);
-            sb.Append(",\"nearbyVillagerForChat\": ");
-            if (chatTarget == null)
+            AgentNearbyVillagerDto? nearbyVillagerDto = chatTarget == null
+                ? null
+                : new AgentNearbyVillagerDto(chatTarget.Id, chatTarget.Name);
+
+            List<object> hotbar = new();
+            for (int i = 0; i < 9; i++)
             {
-                sb.Append("null");
-            }
-            else
-            {
-                sb.Append($"{{\"id\": {chatTarget.Id}, \"name\": \"{chatTarget.Name}\"}}");
+                var slot = player.Hotbar[i];
+                if (slot.IsEmpty)
+                {
+                    hotbar.Add(new
+                    {
+                        slot = i,
+                        kind = "empty"
+                    });
+                }
+                else if (slot.IsTool())
+                {
+                    hotbar.Add(new
+                    {
+                        slot = i,
+                        kind = "tool",
+                        toolId = slot.ToolId,
+                        name = slot.GetDisplayName(),
+                        durability = slot.Durability,
+                        maxDurability = slot.MaxDurability
+                    });
+                }
+                else if (slot.IsFood())
+                {
+                    hotbar.Add(new
+                    {
+                        slot = i,
+                        kind = "food",
+                        itemId = slot.FoodId,
+                        name = slot.GetDisplayName(),
+                        count = slot.Count
+                    });
+                }
+                else if (slot.IsFluidContainer())
+                {
+                    hotbar.Add(new
+                    {
+                        slot = i,
+                        kind = "fluid_container",
+                        itemId = slot.ToolId,
+                        name = slot.GetDisplayName(),
+                        filled = slot.IsWaterBucket()
+                    });
+                }
+                else
+                {
+                    hotbar.Add(new
+                    {
+                        slot = i,
+                        kind = "block",
+                        type = slot.BlockType.ToString(),
+                        count = slot.Count
+                    });
+                }
             }
 
-            sb.Append("}");
+            var skills = new AgentSkillsDto(
+                new AgentSkillDto(player.Skills.Mining.Level, player.Skills.Mining.Xp),
+                new AgentSkillDto(player.Skills.Woodcutting.Level, player.Skills.Woodcutting.Xp),
+                new AgentSkillDto(player.Skills.Combat.Level, player.Skills.Combat.Xp));
 
-            SendResponse(response, HttpStatusCode.OK, sb.ToString(), "application/json");
+            var stateDto = new AgentStateDto(
+                _bridge.CurrentGameState.ToString(),
+                session.Grid.Seed,
+                player.Oxygen,
+                new AgentVector3Dto(player.Position.X, player.Position.Y, player.Position.Z),
+                new AgentVector3Dto(player.Velocity.X, player.Velocity.Y, player.Velocity.Z),
+                player.Yaw,
+                player.Pitch,
+                player.CreativeMode,
+                player.IsGrounded,
+                player.Health,
+                player.MaxHealth,
+                player.Hunger,
+                player.MaxHunger,
+                player.Stats.EarlyGuideStage,
+                guidanceHint,
+                host.TimeOfDay,
+                host.TimeScale,
+                host.TimePaused,
+                player.SelectedSlot,
+                hotbar,
+                skills,
+                animalDtos,
+                targetBlockDto,
+                nearbyStation,
+                unlocked,
+                settings.PlayWithAi,
+                settings.AiProvider.ToString(),
+                LlmClientFactory.IsAvailable(settings),
+                villageDto,
+                villagerDtos,
+                nearbyVillagerDto);
+
+            SendJsonResponse(response, HttpStatusCode.OK, stateDto);
         }
 
         private static void HandleGetVillageDebug(HttpListenerResponse response)
@@ -446,101 +450,87 @@ namespace Autonocraft.Core
 
             session.Villages.SyncCitizensForVillage(village);
 
-            var villagers = new List<object>();
+            var villagers = new List<AgentVillageDebugVillagerDto>();
             foreach (var villager in VillageSettlementHealth.EnumerateLiveCitizens(village, session.Villagers))
             {
-                villagers.Add(new
-                {
-                    id = villager.Id,
-                    villageId = villager.VillageId,
-                    name = villager.Name,
-                    role = villager.Role.ToString(),
-                    job = villager.CurrentJob.ToString(),
-                    phase = villager.AiPhase.ToString(),
-                    x = villager.Position.X,
-                    y = villager.Position.Y,
-                    z = villager.Position.Z,
-                    target = villager.JobTarget.HasValue
-                        ? new { x = villager.JobTarget.Value.X, y = villager.JobTarget.Value.Y, z = villager.JobTarget.Value.Z }
+                villagers.Add(new AgentVillageDebugVillagerDto(
+                    villager.Id,
+                    villager.VillageId,
+                    villager.Name,
+                    villager.Role.ToString(),
+                    villager.CurrentJob.ToString(),
+                    villager.AiPhase.ToString(),
+                    villager.Position.X,
+                    villager.Position.Y,
+                    villager.Position.Z,
+                    villager.JobTarget.HasValue
+                        ? new AgentVector3Dto(villager.JobTarget.Value.X, villager.JobTarget.Value.Y, villager.JobTarget.Value.Z)
                         : null,
-                    buildingSiteId = villager.AssignedBuildingSiteId,
-                    buildingId = villager.AssignedBuildingId,
-                    haulSourceVillagerId = villager.HaulSourceVillagerId,
-                    haulSourceChestId = villager.HaulSourceChestId,
-                    haulDelivering = villager.HaulIsDelivering,
-                    breakProgress = villager.BreakProgress,
-                    workTimer = villager.WorkTimer,
-                    equippedTool = FormatDebugStack(villager.EquippedTool),
-                    inventory = ExportInventory(villager.Inventory)
-                });
+                    villager.AssignedBuildingSiteId,
+                    villager.AssignedBuildingId,
+                    villager.HaulSourceVillagerId,
+                    villager.HaulSourceChestId,
+                    villager.HaulIsDelivering,
+                    villager.BreakProgress,
+                    villager.WorkTimer,
+                    FormatDebugStack(villager.EquippedTool),
+                    ExportInventory(villager.Inventory)));
             }
 
-            var buildings = new List<object>();
+            var buildings = new List<AgentVillageBuildingDto>();
             foreach (var building in village.Buildings)
             {
-                buildings.Add(new
-                {
-                    id = building.Id,
-                    blueprintId = building.BlueprintId,
-                    kind = building.Kind.ToString(),
-                    complete = building.IsComplete,
-                    anchorX = building.AnchorX,
-                    anchorY = building.AnchorY,
-                    anchorZ = building.AnchorZ
-                });
+                buildings.Add(new AgentVillageBuildingDto(
+                    building.Id,
+                    building.BlueprintId,
+                    building.Kind.ToString(),
+                    building.IsComplete,
+                    building.AnchorX,
+                    building.AnchorY,
+                    building.AnchorZ));
             }
 
-            var sites = new List<object>();
+            var sites = new List<AgentVillageBuildingSiteDto>();
             foreach (var site in village.BuildingSites)
             {
-                sites.Add(new
-                {
-                    id = site.Id,
-                    blueprintId = site.BlueprintId,
-                    complete = site.IsComplete,
-                    remaining = site.RemainingCount,
-                    completion = site.CompletionRatio,
-                    anchorX = site.AnchorX,
-                    anchorY = site.AnchorY,
-                    anchorZ = site.AnchorZ
-                });
+                sites.Add(new AgentVillageBuildingSiteDto(
+                    site.Id,
+                    site.BlueprintId,
+                    site.IsComplete,
+                    site.RemainingCount,
+                    site.CompletionRatio,
+                    site.AnchorX,
+                    site.AnchorY,
+                    site.AnchorZ));
             }
 
-            var payload = new
-            {
-                village = new
-                {
-                    id = village.Id,
-                    name = village.Name,
-                    anchorX = village.AnchorX,
-                    anchorY = village.AnchorY,
-                    anchorZ = village.AnchorZ,
-                    radius = village.Radius,
-                    population = VillageSettlementHealth.GetLivePopulation(village, session.Villagers),
-                    registryPopulation = village.Population,
-                    populationCap = village.PopulationCap,
-                    housingCapacity = village.HousingCapacity,
-                    tier = village.Tier.ToString(),
-                    foodStock = village.FoodStock,
-                    happiness = village.Happiness,
-                    workQueue = village.WorkQueue.Count
-                },
-                storage = ExportInventory(village.Storage),
+            var payload = new AgentVillageDebugDto(
+                new AgentVillageDebugSummaryDto(
+                    village.Id,
+                    village.Name,
+                    village.AnchorX,
+                    village.AnchorY,
+                    village.AnchorZ,
+                    village.Radius,
+                    VillageSettlementHealth.GetLivePopulation(village, session.Villagers),
+                    village.Population,
+                    village.PopulationCap,
+                    village.HousingCapacity,
+                    village.Tier.ToString(),
+                    village.FoodStock,
+                    village.Happiness,
+                    village.WorkQueue.Count),
+                ExportInventory(village.Storage),
                 buildings,
-                buildingSites = sites,
-                villagers
-            };
+                sites,
+                villagers);
 
-            SendResponse(
-                response,
-                HttpStatusCode.OK,
-                JsonSerializer.Serialize(payload),
-                "application/json");
+            SendJsonResponse(response, HttpStatusCode.OK, payload);
         }
 
-        private static List<object> ExportInventory(IItemContainer inventory)
+        private static List<AgentInventorySlotDto> ExportInventory(IItemContainer inventory)
         {
-            var slots = new List<object>();
+            var slots = new List<AgentInventorySlotDto>();
             for (int i = 0; i < inventory.SlotCount; i++)
             {
                 var stack = inventory.GetSlot(i);
@@ -549,11 +539,7 @@ namespace Autonocraft.Core
                     continue;
                 }
 
-                slots.Add(new
-                {
-                    slot = i,
-                    stack = FormatDebugStack(stack)
-                });
+                slots.Add(new AgentInventorySlotDto(i, FormatDebugStack(stack)));
             }
 
             return slots;
@@ -635,7 +621,7 @@ namespace Autonocraft.Core
             try
             {
                 // Chunk-heavy scenes can delay the main-thread screenshot action briefly.
-                if (tcs.Task.Wait(10000))
+                if (tcs.Task.Wait(AgentActionTimeouts.QueuedActionWaitMs))
                 {
                     byte[] bytes = tcs.Task.Result;
                     response.ContentType = "image/png";
@@ -670,411 +656,19 @@ namespace Autonocraft.Core
                 return;
             }
 
-            bool success = true;
-            string message = "Action queued";
-
-            switch (cmd.ToLower())
+            if (!_actions.TryGetValue(cmd.ToLowerInvariant(), out var action))
             {
-                case "key_down":
-                    string? keyStrDown = request.QueryString["key"];
-                    if (TryParseKey(keyStrDown, out var keyValDown))
-                    {
-                        _bridge.SimulatedKeys.Add(keyValDown);
-                        message = $"Key {keyValDown} pressed";
-                    }
-                    else
-                    {
-                        success = false;
-                        message = $"Invalid key: {keyStrDown}";
-                    }
-                    break;
-
-                case "key_up":
-                    string? keyStrUp = request.QueryString["key"];
-                    if (TryParseKey(keyStrUp, out var keyValUp))
-                    {
-                        _bridge.SimulatedKeys.Remove(keyValUp);
-                        message = $"Key {keyValUp} released";
-                    }
-                    else
-                    {
-                        success = false;
-                        message = $"Invalid key: {keyStrUp}";
-                    }
-                    break;
-
-                case "release_keys":
-                    _bridge.ReleaseSimulatedKeys();
-                    message = "All simulated keys released";
-                    break;
-
-                case "click":
-                    string? btnStr = request.QueryString["button"];
-                    if (btnStr?.ToLower() == "left")
-                    {
-                        _bridge.SimulateClick(MouseButton.Left);
-                        message = "Left click simulated";
-                    }
-                    else if (btnStr?.ToLower() == "right")
-                    {
-                        _bridge.SimulateClick(MouseButton.Right);
-                        message = "Right click simulated";
-                    }
-                    else
-                    {
-                        success = false;
-                        message = "Invalid or missing 'button' parameter (must be 'left' or 'right')";
-                    }
-                    break;
-
-                case "set_look":
-                    string? yawStr = request.QueryString["yaw"];
-                    string? pitchStr = request.QueryString["pitch"];
-                    if (float.TryParse(yawStr, out float yaw) && float.TryParse(pitchStr, out float pitch))
-                    {
-                        _bridge.PendingActions.Enqueue(() =>
-                        {
-                            var p = _bridge.Host.Session.Player;
-                            p.Yaw = yaw;
-                            p.Pitch = Math.Clamp(pitch, -89f, 89f);
-                            _bridge.SyncCameraFromPlayer();
-                        });
-                        message = $"Look direction set to yaw={yaw}, pitch={pitch}";
-                    }
-                    else
-                    {
-                        success = false;
-                        message = "Invalid or missing 'yaw' or 'pitch' parameters";
-                    }
-                    break;
-
-                case "look":
-                    string? dxStr = request.QueryString["dx"];
-                    string? dyStr = request.QueryString["dy"];
-                    if (float.TryParse(dxStr, out float dx) && float.TryParse(dyStr, out float dy))
-                    {
-                        _bridge.PendingActions.Enqueue(() =>
-                        {
-                            var p = _bridge.Host.Session.Player;
-                            p.Yaw += dx * 0.15f;
-                            p.Pitch = Math.Clamp(p.Pitch - dy * 0.15f, -89f, 89f);
-                            _bridge.SyncCameraFromPlayer();
-                        });
-                        message = $"Rotated yaw by {dx}, pitch by {-dy}";
-                    }
-                    else
-                    {
-                        success = false;
-                        message = "Invalid or missing 'dx' or 'dy' parameters";
-                    }
-                    break;
-
-                case "teleport":
-                    string? xStr = request.QueryString["x"];
-                    string? yStr = request.QueryString["y"];
-                    string? zStr = request.QueryString["z"];
-                    if (float.TryParse(xStr, out float tx) && float.TryParse(yStr, out float ty) && float.TryParse(zStr, out float tz))
-                    {
-                        _bridge.PendingActions.Enqueue(() =>
-                        {
-                            var p = _bridge.Host.Session.Player;
-                            p.Position = new System.Numerics.Vector3(tx, ty, tz);
-                            p.Velocity = System.Numerics.Vector3.Zero;
-                            p.ForceAirborne();
-                            _bridge.SyncCameraFromPlayer();
-                        });
-                        message = $"Teleported player to ({tx}, {ty}, {tz})";
-                    }
-                    else
-                    {
-                        success = false;
-                        message = "Invalid or missing 'x', 'y', or 'z' parameters";
-                    }
-                    break;
-
-                case "set_creative":
-                case "set_flying":
-                    string? creativeStr = request.QueryString["creative"] ?? request.QueryString["flying"];
-                    if (bool.TryParse(creativeStr, out bool creative))
-                    {
-                        _bridge.PendingActions.Enqueue(() =>
-                        {
-                            var p = _bridge.Host.Session.Player;
-                            p.CreativeMode = creative;
-                            p.Velocity = System.Numerics.Vector3.Zero;
-                            if (!creative)
-                            {
-                                p.ForceAirborne();
-                            }
-                        });
-                        message = $"Set creative mode to {creative}";
-                    }
-                    else
-                    {
-                        success = false;
-                        message = "Invalid or missing 'creative' parameter (must be true or false)";
-                    }
-                    break;
-
-                case "select_slot":
-                    string? slotStr = request.QueryString["slot"];
-                    if (int.TryParse(slotStr, out int slot) && slot >= 0 && slot < 9)
-                    {
-                        _bridge.PendingActions.Enqueue(() =>
-                        {
-                            _bridge.Host.Session.Player.SelectedSlot = slot;
-                        });
-                        message = $"Selected inventory slot {slot + 1}";
-                    }
-                    else
-                    {
-                        success = false;
-                        message = "Invalid or missing 'slot' parameter (must be 0-8)";
-                    }
-                    break;
-
-                case "shutdown":
-                    _bridge.PendingActions.Enqueue(() => _bridge.RequestExit());
-                    message = "Shutdown command received";
-                    break;
-
-                case "set_time":
-                    string? timeStr = request.QueryString["value"];
-                    if (float.TryParse(timeStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float timeVal))
-                    {
-                        _bridge.PendingActions.Enqueue(() => _bridge.SetTimeOfDay(timeVal));
-                        message = $"Time set to {timeVal}";
-                    }
-                    else
-                    {
-                        success = false;
-                        message = "Invalid or missing 'value' parameter (0-1)";
-                    }
-                    break;
-
-                case "set_time_scale":
-                    string? scaleStr = request.QueryString["value"];
-                    if (float.TryParse(scaleStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float scaleVal))
-                    {
-                        _bridge.PendingActions.Enqueue(() =>
-                        {
-                            _bridge.Host.TimeScale = Math.Max(0f, scaleVal);
-                            _bridge.Host.TimePaused = scaleVal <= 0f;
-                            _bridge.SyncTimeFromHost();
-                        });
-                        message = $"Time scale set to {scaleVal}";
-                    }
-                    else
-                    {
-                        success = false;
-                        message = "Invalid or missing 'value' parameter";
-                    }
-                    break;
-
-                case "open_crucible":
-                    {
-                        var openTcs = new TaskCompletionSource<bool>();
-                        _bridge.PendingActions.Enqueue(() =>
-                        {
-                            var interaction = _bridge.Host.Session.BlockInteraction;
-                            if (interaction.TargetBlockPos.HasValue && interaction.TargetBlockType.IsStation())
-                            {
-                                var pos = interaction.TargetBlockPos.Value;
-                                _bridge.OpenCrucibleAt(
-                                    (int)pos.X,
-                                    (int)pos.Y,
-                                    (int)pos.Z,
-                                    interaction.TargetBlockType);
-                                openTcs.SetResult(true);
-                            }
-                            else
-                            {
-                                openTcs.SetResult(false);
-                            }
-                        });
-
-                        if (openTcs.Task.Wait(QueuedActionWaitMs) && openTcs.Task.Result)
-                        {
-                            message = "Station UI opened for targeted station";
-                        }
-                        else
-                        {
-                            success = false;
-                            message = "No crafting station targeted";
-                        }
-                        break;
-                    }
-
-                case "dev":
-                    string? devCmd = request.QueryString["cmd_line"];
-                    if (string.IsNullOrWhiteSpace(devCmd))
-                    {
-                        success = false;
-                        message = "Missing 'cmd_line' parameter";
-                    }
-                    else
-                    {
-                        var tcs = new TaskCompletionSource<string>();
-                        _bridge.PendingActions.Enqueue(() =>
-                        {
-                            tcs.SetResult(_bridge.ExecuteDevCommand(devCmd));
-                            _bridge.SyncTimeFromHost();
-                        });
-
-                        if (tcs.Task.Wait(QueuedActionWaitMs))
-                        {
-                            message = tcs.Task.Result;
-                            if (string.IsNullOrEmpty(message)) message = "OK";
-                        }
-                        else
-                        {
-                            success = false;
-                            message = "Dev command timed out";
-                        }
-                    }
-                    break;
-
-                case "recruit_villager":
-                    {
-                        var recruitTcs = new TaskCompletionSource<bool>();
-                        _bridge.PendingActions.Enqueue(() =>
-                        {
-                            var v = _bridge.Host.Session.Villages.GetActiveVillage(_bridge.Host.Session.Player.Position);
-                            recruitTcs.SetResult(v != null && _bridge.Host.Session.Villages.TryRecruit(v, _bridge.Host.Session.Grid));
-                        });
-                        success = recruitTcs.Task.Wait(QueuedActionWaitMs) && recruitTcs.Task.Result;
-                        message = success ? "Recruited villager" : "Recruit failed";
-                        break;
-                    }
-
-                case "assign_job":
-                    {
-                        if (!int.TryParse(request.QueryString["villager_id"], out int vid) ||
-                            !Enum.TryParse<JobType>(request.QueryString["job"], true, out var jobType))
-                        {
-                            success = false;
-                            message = "Need villager_id and job params";
-                            break;
-                        }
-
-                        float? tgx = float.TryParse(request.QueryString["target_x"], out float tfx) ? tfx : null;
-                        float? tgy = float.TryParse(request.QueryString["target_y"], out float tfy) ? tfy : null;
-                        float? tgz = float.TryParse(request.QueryString["target_z"], out float tfz) ? tfz : null;
-                        System.Numerics.Vector3? target = tgx.HasValue && tgy.HasValue && tgz.HasValue
-                            ? new System.Numerics.Vector3(tgx.Value, tgy.Value, tgz.Value)
-                            : null;
-
-                        var assignTcs = new TaskCompletionSource<bool>();
-                        _bridge.PendingActions.Enqueue(() =>
-                        {
-                            var session = _bridge.Host.Session;
-                            var village = session.Villages.GetActiveVillage(session.Player.Position);
-                            if (village == null || !session.Villagers.TryGet(vid, out var villager))
-                            {
-                                assignTcs.SetResult(false);
-                                return;
-                            }
-
-                            assignTcs.SetResult(session.Villages.TryAssignJob(village, villager, jobType, target));
-                        });
-                        success = assignTcs.Task.Wait(QueuedActionWaitMs) && assignTcs.Task.Result;
-                        message = success ? $"Assigned {jobType}" : "Assign failed";
-                        break;
-                    }
-
-                case "queue_build":
-                    {
-                        string? blueprintId = request.QueryString["blueprint_id"];
-                        if (string.IsNullOrWhiteSpace(blueprintId) ||
-                            !int.TryParse(request.QueryString["anchor_x"], out int anchorX) ||
-                            !int.TryParse(request.QueryString["anchor_z"], out int anchorZ))
-                        {
-                            success = false;
-                            message = "Need blueprint_id, anchor_x, and anchor_z params";
-                            break;
-                        }
-
-                        int? anchorY = int.TryParse(request.QueryString["anchor_y"], out int parsedAnchorY)
-                            ? parsedAnchorY
-                            : null;
-                        var queueTcs = new TaskCompletionSource<bool>();
-                        _bridge.PendingActions.Enqueue(() =>
-                        {
-                            var session = _bridge.Host.Session;
-                            var village = session.Villages.GetActiveVillage(session.Player.Position);
-                            if (village == null)
-                            {
-                                queueTcs.SetResult(false);
-                                return;
-                            }
-
-                            session.Villages.CreativeMode = session.Player.CreativeMode;
-                            queueTcs.SetResult(session.Villages.TryQueueBlueprint(
-                                session.Grid,
-                                village,
-                                blueprintId,
-                                anchorX,
-                                anchorZ,
-                                village.Storage,
-                                anchorY ?? -1));
-                        });
-                        success = queueTcs.Task.Wait(QueuedActionWaitMs) && queueTcs.Task.Result;
-                        message = success ? $"Queued {blueprintId}" : $"Queue build failed for {blueprintId}";
-                        break;
-                    }
-
-                case "open_village":
-                    {
-                        var openTcs = new TaskCompletionSource<bool>();
-                        _bridge.PendingActions.Enqueue(() =>
-                        {
-                            _bridge.RequestOpenVillageUi();
-                            openTcs.SetResult(true);
-                        });
-                        success = openTcs.Task.Wait(QueuedActionWaitMs) && openTcs.Task.Result;
-                        message = success ? "Village UI opened" : "Failed to open village UI";
-                        break;
-                    }
-
-                case "close_village":
-                case "close_village_ui":
-                    {
-                        var closeTcs = new TaskCompletionSource<bool>();
-                        _bridge.PendingActions.Enqueue(() =>
-                        {
-                            _bridge.RequestCloseVillageUi();
-                            closeTcs.SetResult(true);
-                        });
-                        success = closeTcs.Task.Wait(QueuedActionWaitMs) && closeTcs.Task.Result;
-                        message = success ? "Village UI closed" : "Failed to close village UI";
-                        break;
-                    }
-
-                case "summon_settlers":
-                    {
-                        var repairTcs = new TaskCompletionSource<bool>();
-                        _bridge.PendingActions.Enqueue(() =>
-                        {
-                            var session = _bridge.Host.Session;
-                            var village = session.Villages.GetActiveVillage(session.Player.Position);
-                            repairTcs.SetResult(village != null && session.Villages.RepairVillageCitizens(village, session.Grid));
-                        });
-                        success = repairTcs.Task.Wait(QueuedActionWaitMs) && repairTcs.Task.Result;
-                        message = success ? "Settlers summoned" : "Summon failed (stand near Town Heart)";
-                        break;
-                    }
-
-                default:
-                    success = false;
-                    message = $"Unknown action cmd: {cmd}";
-                    break;
+                var unknown = new AgentActionResponseDto(false, $"Unknown action cmd: {cmd}");
+                SendJsonResponse(response, HttpStatusCode.BadRequest, unknown);
+                return;
             }
 
-            var statusCode = success ? HttpStatusCode.OK : HttpStatusCode.BadRequest;
-            SendJsonResponse(response, statusCode, new { success, message });
+            var result = action.Execute(_bridge, request);
+            var statusCode = result.Success ? HttpStatusCode.OK : HttpStatusCode.BadRequest;
+            SendJsonResponse(response, statusCode, result);
         }
 
-        private static bool TryParseKey(string? keyStr, out Key key)
+        internal static bool TryParseKeyInternal(string? keyStr, out Key key)
         {
             key = default;
             if (string.IsNullOrEmpty(keyStr)) return false;
@@ -1095,6 +689,9 @@ namespace Autonocraft.Core
 
             return Enum.TryParse(keyStr, true, out key);
         }
+
+        // Backwards-compatible private wrapper kept in case of future internal callers.
+        private static bool TryParseKey(string? keyStr, out Key key) => TryParseKeyInternal(keyStr, out key);
 
         private static void HandlePostVillageChat(HttpListenerRequest request, HttpListenerResponse response)
         {
@@ -1145,7 +742,8 @@ namespace Autonocraft.Core
                 }
 
                 var (reply, actions) = chatTcs.Task.Result;
-                SendJsonResponse(response, HttpStatusCode.OK, new { reply, actions });
+                var dto = new AgentChatResponseDto(reply, actions);
+                SendJsonResponse(response, HttpStatusCode.OK, dto);
             }
             catch (Exception ex)
             {
@@ -1198,28 +796,13 @@ namespace Autonocraft.Core
                 }
 
                 string reply = confirmTcs.Task.Result;
-                SendJsonResponse(response, HttpStatusCode.OK, new { success = true, reply });
+                var dto = new AgentChatConfirmResponseDto(true, reply);
+                SendJsonResponse(response, HttpStatusCode.OK, dto);
             }
             catch (Exception ex)
             {
                 SendJsonResponse(response, HttpStatusCode.InternalServerError, new { error = ex.Message });
             }
-        }
-
-        private static string SerializeActions(IReadOnlyList<string> actions)
-        {
-            if (actions.Count == 0)
-            {
-                return "[]";
-            }
-
-            var parts = new List<string>();
-            foreach (var action in actions)
-            {
-                parts.Add($"\"{action.Replace("\"", "\\\"")}\"");
-            }
-
-            return $"[{string.Join(",", parts)}]";
         }
 
         private static string? ExtractJsonString(string json, string key)
@@ -1264,6 +847,42 @@ namespace Autonocraft.Core
         private static void SendJsonResponse(HttpListenerResponse response, HttpStatusCode statusCode, object payload)
         {
             SendResponse(response, statusCode, JsonSerializer.Serialize(payload), "application/json");
+        }
+
+        private static Dictionary<string, IAgentAction> CreateActionRegistry()
+        {
+            var actions = new IAgentAction[]
+            {
+                new KeyDownAction(),
+                new KeyUpAction(),
+                new ReleaseKeysAction(),
+                new ClickAction(),
+                new SetLookAction(),
+                new LookAction(),
+                new TeleportAction(),
+                new SetCreativeAction(),
+                new SelectSlotAction(),
+                new ShutdownAction(),
+                new SetTimeAction(),
+                new SetTimeScaleAction(),
+                new OpenCrucibleAction(),
+                new DevConsoleAction(),
+                new RecruitVillagerAction(),
+                new AssignJobAction(),
+                new QueueBuildAction(),
+                new OpenVillageAction(),
+                new CloseVillageAction(),
+                new CloseVillageUiAliasAction(),
+                new SummonSettlersAction()
+            };
+
+            var dict = new Dictionary<string, IAgentAction>(StringComparer.OrdinalIgnoreCase);
+            foreach (var action in actions)
+            {
+                dict[action.Command] = action;
+            }
+
+            return dict;
         }
 
         private static string EscapeJson(string value) =>

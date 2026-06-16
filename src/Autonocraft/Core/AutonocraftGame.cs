@@ -31,6 +31,10 @@ namespace Autonocraft.Core
         private readonly GameSession _session;
         private readonly GameHostContext _hostContext;
 
+        private readonly InputManager _input;
+        private readonly ScreenManager _screens;
+        private readonly BlueprintPlacementSystem _blueprints;
+
         // Graphics resources
         private Texture2D? _atlasTexture;
         private Texture2D? _whiteTexture;
@@ -38,42 +42,10 @@ namespace Autonocraft.Core
         private BlockTerrainEffect? _blockTerrainEffect;
         private SkyEffect? _skyEffect;
         private UiRenderer? _ui;
-        private CrucibleScreen? _crucibleScreen;
-        private InventoryScreen? _inventoryScreen;
-        private JournalScreen? _journalScreen;
-        private VillageScreen? _villageScreen;
-        private VillageChatScreen? _villageChatScreen;
         private VillageAiOrchestrator? _villageAiOrchestrator;
-        private bool _mouseLockedBeforeCrafting;
-        private bool _mouseLockedBeforeVillageUi;
-        private string? _pendingBlueprintId;
-        private bool _pendingFoundingPlacement;
-        private BlueprintPlacementPreview? _blueprintPlacementPreview;
-        private readonly List<BlueprintPlacementPreview> _constructionSitePreviews = new();
-        private WorkZonePlacementPreview? _workZonePreview;
-        private (int X, int Y, int Z)? _workZoneCornerA;
-        private bool _workZonePlacementActive;
-        private readonly UiTransition _screenFade = new UiTransition();
-        private readonly UiTransition _pauseFade = new UiTransition();
-        private readonly UiTransition _deathFade = new UiTransition();
-        private GameState _prevState = GameState.MainMenu;
-        private SaveSlotScreen? _saveSlotScreen;
-        private MainMenuSettingsScreen? _mainMenuSettingsScreen;
-        private PlayerDashboardScreen? _playerDashboardScreen;
-        private bool _mainMenuSettingsOpen;
-        private bool _playerDashboardOpen;
-        private NewWorldSetupScreen? _newWorldSetupScreen;
-        private LoadingScreen? _loadingScreen;
-        private DevConsole? _devConsole;
-        private PauseMenuScreen? _pauseMenu;
-        private DeathScreen? _deathScreen;
         private AudioManager? _audio;
-        private bool _mouseLockedBeforeConsole;
-        private bool _mouseLockedBeforePause;
-        private bool _mouseLockedBeforeDeath;
 
         // Game flow
-        private GameState _state = GameState.MainMenu;
         private bool _skipMenu;
         private bool _agentServerStarted;
         private int _agentPort = 5001;
@@ -101,23 +73,12 @@ namespace Autonocraft.Core
         private bool _timePaused;
 
         // Input state tracking
-        private KeyboardState _prevKbState;
-        private int _lastInventoryKeyFrame = -1;
-        private int _gameFrameCount;
-        private MouseState _prevMouseState;
-        private bool _isMouseLocked = true;
         private bool _prevSpacePressed = false;
-        private bool _wasActive = true;
-        private bool _skipMouseLookFrame;
-        private bool _deferPrevMouseReset;
         private bool _pendingAutoOpenPeopleTab;
         private string? _deathCauseText;
         private string? _deathPenaltyText;
         private float _spawnWarmupRemaining;
-        private float _inactiveTimer;
         private float _claimHintTimer = 10f;
-        private const float FocusLossReleaseDelay = 0.35f;
-        private const int MouseWarpRejectThreshold = 120;
         private const float MaxGameplayDeltaTime = 1f / 30f;
         private const float SpawnWarmupSeconds = 15f;
 
@@ -133,7 +94,7 @@ namespace Autonocraft.Core
         public Player Player => _session.Player;
         public AnimalManager Animals => _session.Animals;
         public HashSet<Key> SimulatedKeys => _simulatedKeys;
-        public GameState CurrentGameState => _state;
+        public GameState CurrentGameState => _screens.State;
         public ConcurrentQueue<Action> PendingActions => _pendingActions;
 
         public void ReleaseSimulatedKeys() => _simulatedKeys.Clear();
@@ -168,9 +129,9 @@ namespace Autonocraft.Core
         public ParticleSystem Particles => _session.Particles;
         public CombatSystem Combat => _session.Combat;
         public CraftingSystem Crafting => _session.Crafting;
-        public UiTransition ScreenFade => _screenFade;
-        public UiTransition PauseFade => _pauseFade;
-        public UiTransition DeathFade => _deathFade;
+        public UiTransition ScreenFade => _screens.ScreenFade;
+        public UiTransition PauseFade => _screens.PauseFade;
+        public UiTransition DeathFade => _screens.DeathFade;
 
         public GameHostContext Host => _hostContext;
 
@@ -193,7 +154,7 @@ namespace Autonocraft.Core
 
         public void RequestOpenVillageUi()
         {
-            if (_state != GameState.Playing)
+            if (_screens.State != GameState.Playing)
             {
                 return;
             }
@@ -203,24 +164,17 @@ namespace Autonocraft.Core
 
         public void RequestCloseVillageUi()
         {
-            if (_villageScreen?.IsOpen == true)
+            if (_screens.VillageScreen?.IsOpen == true)
             {
                 CloseVillageUi();
                 return;
             }
 
-            if (_villageChatScreen?.IsOpen == true)
+            if (_screens.VillageChatScreen?.IsOpen == true)
             {
-                _villageChatScreen.Close();
-                _isMouseLocked = _mouseLockedBeforeVillageUi;
-                if (_isMouseLocked)
-                {
-                    ApplyMouseCapture();
-                }
-                else
-                {
-                    IsMouseVisible = true;
-                }
+                _screens.VillageChatScreen.Close();
+                _input.IsMouseLocked = _input.MouseLockedBeforeVillageUi;
+                RestoreMouseLockAfterOverlay();
             }
         }
 
@@ -242,7 +196,7 @@ namespace Autonocraft.Core
         {
             _settings.RenderDistance = Math.Clamp(value, GameSettings.MinRenderDistance, GameSettings.MaxRenderDistance);
             GameSettingsManager.Save(_settings);
-            _pauseMenu?.SetRenderDistance(_settings.RenderDistance);
+            _screens.PauseMenu?.SetRenderDistance(_settings.RenderDistance);
             _session.Grid.UpdateChunksAround(GraphicsDevice, _camera.Position, _settings.RenderDistance);
         }
 
@@ -251,16 +205,18 @@ namespace Autonocraft.Core
             _settings.MuteAudio = mute;
             GameSettingsManager.Save(_settings);
             _audio?.ApplySettings(_settings);
-            _pauseMenu?.ApplyAudioSettings(_settings);
+            _screens.PauseMenu?.ApplyAudioSettings(_settings);
         }
 
-        public string ExecuteDevCommand(string input) => DevCommands.Execute(_hostContext, input);
+        public string ExecuteDevCommand(string input) => DevCommands.DevCommandRouter.Execute(_hostContext, input);
 
         public const int DefaultSpawnX = GameConstants.DefaultSpawnX;
         public const int DefaultSpawnZ = GameConstants.DefaultSpawnZ;
 
         public AutonocraftGame(bool runTests = false, bool skipMenu = false, int agentPort = 5001, bool debugMetrics = false, int? renderDistanceOverride = null)
         {
+            _input = new InputManager(this);
+            _screens = new ScreenManager();
             _runTests = runTests;
             _skipMenu = skipMenu;
             _agentPort = agentPort;
@@ -271,7 +227,7 @@ namespace Autonocraft.Core
             }
             if (_skipMenu)
             {
-                _state = GameState.WorldLoading;
+                _screens.State = GameState.WorldLoading;
             }
             if (!_runTests)
             {
@@ -298,6 +254,11 @@ namespace Autonocraft.Core
 
             _camera = new Camera();
             _session = new GameSession(DefaultSeed);
+            _blueprints = new BlueprintPlacementSystem(
+                _session,
+                _camera,
+                WrapPlayerHotbar,
+                msg => _session.HudToast.Show(msg));
             _hostContext = new GameHostContext(_session, _settings.RenderDistance, _settings)
             {
                 SetMoveSpeedOverride = speed => _session.Player.CustomMoveSpeed = speed
@@ -385,149 +346,47 @@ namespace Autonocraft.Core
             Window.AllowUserResizing = true;
             Window.ClientSizeChanged += OnWindowClientSizeChanged;
 
-            IsMouseVisible = true;
-            _isMouseLocked = false;
-            _wasActive = false;
+            _input.InitializeAtStartup();
 
             base.Initialize();
         }
 
-        private bool ShouldCaptureMouse()
-        {
-            return _state == GameState.Playing
-                && _isMouseLocked
-                && _devConsole is { IsOpen: false }
-                && _pauseMenu is { IsOpen: false }
-                && _deathScreen is { IsOpen: false }
-                && _villageScreen is not { IsOpen: true }
-                && _villageChatScreen is not { IsOpen: true }
-                && !_session.Crafting.JournalOpen
-                && !_session.Crafting.Crucible.IsOpen
-                && !_session.Crafting.InventoryOpen;
-        }
+        private InputManager.GameplayInputBlockers InputBlockers =>
+            _screens.GetInputBlockers(_session.Crafting);
 
-        private void PrepareMouseForUi()
-        {
-            _isMouseLocked = false;
-            ReleaseMouseCapture();
-            IsMouseVisible = true;
-            _deferPrevMouseReset = true;
-            SdlWindowGrab.RaiseWindow(Window.Handle);
-        }
+        private bool ShouldCaptureMouse() =>
+            _input.ShouldCaptureMouse(_screens.State, InputBlockers);
 
-        private void EnsureCursorFreeOutsideGameplay()
-        {
-            if (_state == GameState.Playing && ShouldCaptureMouse())
-            {
-                return;
-            }
+        private void PrepareMouseForUi() => _input.PrepareMouseForUi();
 
-            if (SdlMouseCapture.IsRelativeModeEnabled || !IsMouseVisible)
-            {
-                ReleaseMouseCapture();
-                IsMouseVisible = true;
-            }
-        }
+        private void EnsureCursorFreeOutsideGameplay() =>
+            _input.EnsureCursorFreeOutsideGameplay(_screens.State, InputBlockers);
 
-        private MouseState GetUiMouseState() => Mouse.GetState();
+        private MouseState GetUiMouseState() => _input.GetUiMouseState();
 
-        private bool HasBlockingGameplayOverlay()
-        {
-            return _villageScreen?.IsOpen == true
-                || _villageChatScreen?.IsOpen == true
-                || _pauseMenu?.IsOpen == true
-                || _deathScreen?.IsOpen == true
-                || _devConsole?.IsOpen == true
-                || _session.Crafting.Crucible.IsOpen
-                || _session.Crafting.InventoryOpen
-                || _session.Crafting.IsJournalUiBlocking;
-        }
+        private bool HasBlockingGameplayOverlay() =>
+            _screens.HasBlockingGameplayOverlay(_session.Crafting);
 
-        private void EnsureUiPointerMode()
-        {
-            _isMouseLocked = false;
-            ReleaseMouseCapture();
-            IsMouseVisible = true;
-        }
+        private void EnsureUiPointerMode() => _input.EnsureUiPointerMode();
 
-        private void TryActivateWindow() => SdlWindowGrab.RaiseWindow(Window.Handle);
+        private void TryActivateWindow() => _input.TryActivateWindow();
 
-        private void CloseAllGameplayOverlays()
-        {
-            _villageScreen?.Close();
-            _villageChatScreen?.Close();
-            _session.Crafting.CloseCrucible();
-            _session.Crafting.CloseJournal();
-            if (_devConsole?.IsOpen == true)
-            {
-                _devConsole.Toggle();
-            }
+        private void CloseAllGameplayOverlays() =>
+            _screens.CloseAllGameplayOverlays(_session.Crafting);
 
-            _pauseMenu?.Close();
-            _deathScreen?.Close();
-        }
+        private void ApplyMouseCapture() => _input.ApplyMouseCapture();
 
-        private void ApplyMouseCapture()
-        {
-            IsMouseVisible = false;
-            SdlMouseCapture.TryEnableRelativeMode();
-            _prevMouseState = GetUiMouseState();
-            _skipMouseLookFrame = true;
-            if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                SdlWindowGrab.SetGrabbed(Window.Handle, true);
-            }
+        private void ReleaseMouseCapture() => _input.ReleaseMouseCapture();
 
-            InputDebugTrace.Log($"MOUSE_CAPTURE relative={SdlMouseCapture.IsRelativeModeEnabled}");
-        }
-
-        private void ReleaseMouseCapture()
-        {
-            SdlMouseCapture.DisableRelativeMode();
-            if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                SdlWindowGrab.SetGrabbed(Window.Handle, false);
-            }
-        }
-
-        private Point GetMouseClientCenter()
-        {
-            int viewportCenterX = GraphicsDevice.Viewport.Width / 2;
-            int viewportCenterY = GraphicsDevice.Viewport.Height / 2;
-
-            var bounds = Window.ClientBounds;
-            if (bounds.Width > 0 && bounds.Height > 0)
-            {
-                return UiInput.ToClient(new Point(viewportCenterX, viewportCenterY), Window, GraphicsDevice);
-            }
-
-            return new Point(viewportCenterX, viewportCenterY);
-        }
+        private void RestoreMouseLockAfterOverlay() => _input.RestoreMouseLockAfterOverlay();
 
         private float SpawnWarmupProgress =>
             Math.Clamp(1f - (_spawnWarmupRemaining / SpawnWarmupSeconds), 0f, 1f);
 
-        private void HandleFocusGained()
-        {
-            _inactiveTimer = 0f;
-            if (ShouldCaptureMouse())
-            {
-                ApplyMouseCapture();
-                InputDebugTrace.Log("FOCUS_GAINED recaptured mouse");
-            }
-        }
+        private bool CanProcessGameplayMouse() =>
+            _input.CanProcessGameplayMouse(_screens.State, InputBlockers);
 
-        private void HandleFocusLost()
-        {
-            if (ShouldCaptureMouse())
-            {
-                SdlMouseCapture.DisableRelativeMode();
-                IsMouseVisible = true;
-                InputDebugTrace.Log("FOCUS_LOST disabled relative mouse");
-            }
-        }
-
-        private bool CanProcessGameplayMouse() => _isMouseLocked && ShouldCaptureMouse();
+        private void EnsureMouseLockedForGameplay() => _input.EnsureMouseLockedForGameplay();
 
         private void OnWindowClientSizeChanged(object? sender, EventArgs e)
         {
@@ -569,35 +428,16 @@ namespace Autonocraft.Core
             var typography = new UiTypography(GraphicsDevice);
             _renderer.Hud.SetTypography(typography);
             _ui = new UiRenderer(GraphicsDevice, _whiteTexture, typography);
-            _saveSlotScreen = new SaveSlotScreen(_ui);
-            _mainMenuSettingsScreen = new MainMenuSettingsScreen(_ui);
-            _playerDashboardScreen = new PlayerDashboardScreen(_ui);
-            _newWorldSetupScreen = new NewWorldSetupScreen(_ui);
-            _loadingScreen = new LoadingScreen(_session.Grid, GraphicsDevice, _ui);
-            _devConsole = new DevConsole(_ui);
-            _pauseMenu = new PauseMenuScreen(_ui);
-            _pauseMenu.SetRenderDistance(_settings.RenderDistance);
-            _pauseMenu.RenderDistanceChanged += distance => SetRenderDistance(distance);
-            _pauseMenu.MuteAudioChanged += mute => ApplyMuteAudio(mute);
-            _pauseMenu.VSyncChanged += ApplyVSync;
-            _pauseMenu.HighQualityLightingChanged += ApplyHighQualityLighting;
-            _pauseMenu.ApplyAudioSettings(_settings);
-            _pauseMenu.ApplyGraphicsSettings(_settings);
-            _deathScreen = new DeathScreen(_ui);
-            _crucibleScreen = new CrucibleScreen(_ui);
-            _inventoryScreen = new InventoryScreen(_ui);
-            _journalScreen = new JournalScreen(_ui);
+            _screens.Initialize(
+                GraphicsDevice,
+                _ui,
+                _session,
+                _settings,
+                SetRenderDistance,
+                ApplyMuteAudio,
+                ApplyVSync,
+                ApplyHighQualityLighting);
             _villageAiOrchestrator = _session.VillageAi;
-            _villageScreen = new VillageScreen(_ui, _session.Villagers);
-            _villageScreen.SetTakeRationsAction(player =>
-            {
-                var village = _session.Villages.GetActiveVillage(player.Position);
-                if (village != null)
-                {
-                    FoodConsumption.TryTakeRations(player, village);
-                }
-            });
-            _villageChatScreen = new VillageChatScreen(_ui, _session.VillageAi);
 
             try
             {
@@ -613,7 +453,7 @@ namespace Autonocraft.Core
                 _session.BindAudio(null);
             }
 
-            UpdateMusicForState(_state);
+            UpdateMusicForState(_screens.State);
 
             if (_skipMenu)
             {
@@ -621,10 +461,8 @@ namespace Autonocraft.Core
                 StartWorldLoading();
             }
 
-            _prevMouseState = GetUiMouseState();
-            _prevKbState = Keyboard.GetState();
-            _screenFade.BeginFadeIn(0.25f);
-            _prevState = _state;
+            _input.SeedInitialInputState();
+            _screens.BeginInitialFadeIn();
         }
 
         private void PrepareNewWorldSettlement()
@@ -643,6 +481,7 @@ namespace Autonocraft.Core
 
         private void EnterPlaying()
         {
+            _screens.State = GameState.Playing;
             CloseAllGameplayOverlays();
 
             bool fromSave = _loadingFromSave;
@@ -687,8 +526,8 @@ namespace Autonocraft.Core
                 _pendingAutoOpenPeopleTab = true;
             }
 
-            _isMouseLocked = true;
-            _inactiveTimer = 0f;
+            _input.IsMouseLocked = true;
+            _input.ResetInactiveTimer();
             ApplyMouseCapture();
             TryActivateWindow();
             Window.Title = "Autonocraft | Playing";
@@ -696,7 +535,7 @@ namespace Autonocraft.Core
             TryStartAgentServer();
 
             Console.WriteLine("[Game] World ready — WASD move, mouse look, V village, Esc pause.");
-            InputDebugTrace.Log($"ENTER_PLAYING warmup={SpawnWarmupSeconds}s active={IsActive} mouseLocked={_isMouseLocked}");
+            InputDebugTrace.Log($"ENTER_PLAYING warmup={SpawnWarmupSeconds}s active={IsActive} mouseLocked={_input.IsMouseLocked}");
         }
 
         private void PlacePlayerOnSurface()
@@ -736,8 +575,8 @@ namespace Autonocraft.Core
 
         private void OpenNewWorldSetup()
         {
-            _newWorldSetupScreen!.Reset();
-            _state = GameState.NewWorldSetup;
+            _screens.NewWorldSetupScreen!.Reset();
+            _screens.State = GameState.NewWorldSetup;
             Window.Title = "Autonocraft | New World";
         }
 
@@ -778,7 +617,7 @@ namespace Autonocraft.Core
             catch (Exception ex)
             {
                 Console.WriteLine($"[Save] Failed to load slot '{slotId}': {ex.Message}");
-                _saveSlotScreen?.SetLoadError($"Failed to load save: {ex.Message}");
+                _screens.SaveSlotScreen?.SetLoadError($"Failed to load save: {ex.Message}");
                 return false;
             }
         }
@@ -804,7 +643,7 @@ namespace Autonocraft.Core
             _session.WireWorldEvents();
             if (_ui != null)
             {
-                _loadingScreen = new LoadingScreen(_session.Grid, GraphicsDevice, _ui);
+                _screens.RecreateLoadingScreen(GraphicsDevice, _ui, _session.Grid);
             }
         }
 
@@ -814,13 +653,9 @@ namespace Autonocraft.Core
             Vector3 loadCenter = _loadingFromSave
                 ? _camera.Position
                 : new Vector3(_worldSpawnX + 0.5f, 64f, _worldSpawnZ + 0.5f);
-            _loadingScreen!.Begin(loadCenter, _settings.RenderDistance, _pendingSaveData, _activeSlotName);
-            _state = GameState.WorldLoading;
+            _screens.LoadingScreen!.Begin(loadCenter, _settings.RenderDistance, _pendingSaveData, _activeSlotName);
+            _screens.State = GameState.WorldLoading;
             Window.Title = "Autonocraft | Loading World...";
-            if (_skipMenu)
-            {
-                TryStartAgentServer();
-            }
         }
 
         private void OnGameExiting(object? sender, EventArgs e)
@@ -844,7 +679,7 @@ namespace Autonocraft.Core
 
         private void PerformAutosave(bool sync)
         {
-            if (_state != GameState.Playing)
+            if (_screens.State != GameState.Playing)
             {
                 return;
             }
@@ -874,7 +709,7 @@ namespace Autonocraft.Core
                 catch (Exception ex)
                 {
                     Console.WriteLine($"[Save] Save failed: {ex.Message}");
-                    if (_state == GameState.Playing)
+                    if (_screens.State == GameState.Playing)
                     {
                         _session.HudToast.Show("Save failed!", new Microsoft.Xna.Framework.Color(1f, 0.35f, 0.35f));
                     }
@@ -906,26 +741,14 @@ namespace Autonocraft.Core
 
         private void OpenPauseMenu()
         {
-            _mouseLockedBeforePause = _isMouseLocked;
-            PrepareMouseForUi();
-            _pauseMenu!.Open();
-            _pauseFade.BeginFadeInSlideUp(0.2f, 12f);
-            Window.Title = "Autonocraft | Paused";
+            _input.MouseLockedBeforePause = _input.IsMouseLocked;
+            _screens.OpenPauseMenu(PrepareMouseForUi, title => Window.Title = title);
         }
 
         private void ClosePauseMenu()
         {
-            _pauseMenu!.Close();
-            _pauseFade.SnapVisible();
-            _isMouseLocked = _mouseLockedBeforePause;
-            if (_isMouseLocked)
-            {
-                ApplyMouseCapture();
-            }
-            else
-            {
-                IsMouseVisible = true;
-            }
+            _input.IsMouseLocked = _input.MouseLockedBeforePause;
+            _screens.ClosePauseMenu(RestoreMouseLockAfterOverlay);
         }
 
         private void OpenDeathScreen()
@@ -940,43 +763,32 @@ namespace Autonocraft.Core
             _deathCauseText = FormatDeathCause(player.LastDeathCause);
             _deathPenaltyText = "You dropped some supplies.";
             player.Stats.RecordDeath();
-            _mouseLockedBeforeDeath = _isMouseLocked;
-            _isMouseLocked = false;
-            ReleaseMouseCapture();
-            IsMouseVisible = true;
-            _pauseMenu!.Close();
-            _pauseFade.SnapVisible();
-            _deathScreen!.Open(_deathCauseText, _deathPenaltyText);
-            _deathFade.BeginFadeInSlideUp(0.25f, 16f);
+            _input.MouseLockedBeforeDeath = _input.IsMouseLocked;
+            _screens.OpenDeathScreen(_deathCauseText, _deathPenaltyText, () =>
+            {
+                _input.IsMouseLocked = false;
+                ReleaseMouseCapture();
+                IsMouseVisible = true;
+            });
             Window.Title = "Autonocraft | You Died";
         }
 
         private void CloseDeathScreen()
         {
-            _deathScreen!.Close();
-            _deathFade.SnapVisible();
-            _isMouseLocked = _mouseLockedBeforeDeath;
-            if (_isMouseLocked)
-            {
-                ApplyMouseCapture();
-            }
-            else
-            {
-                IsMouseVisible = true;
-            }
+            _input.IsMouseLocked = _input.MouseLockedBeforeDeath;
+            _screens.CloseDeathScreen(RestoreMouseLockAfterOverlay);
         }
 
         private void ReturnToMainMenu()
         {
             CloseAllGameplayOverlays();
             SaveWorld(sync: true);
-            _pauseFade.SnapVisible();
-            _deathFade.SnapVisible();
-            _saveSlotScreen!.RefreshSlots();
+            _screens.SnapOverlaysVisible();
+            _screens.SaveSlotScreen!.RefreshSlots();
             ReleaseMouseCapture();
             IsMouseVisible = true;
-            _isMouseLocked = false;
-            _state = GameState.MainMenu;
+            _input.IsMouseLocked = false;
+            _screens.State = GameState.MainMenu;
             Window.Title = "Autonocraft | Main Menu";
         }
 
@@ -1052,71 +864,21 @@ namespace Autonocraft.Core
         {
             float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-            if (_state != _prevState)
-            {
-                if (_prevState == GameState.Playing && _state != GameState.Playing)
-                {
-                    _isMouseLocked = false;
-                    ReleaseMouseCapture();
-                    IsMouseVisible = true;
-                    InputDebugTrace.Log($"LEFT_PLAYING -> {_state}, cursor released");
-                }
+            _screens.HandleStateTransition(
+                () => _input.ReleaseMouseOnLeavePlaying(),
+                UpdateMusicForState);
 
-                if (_state == GameState.WorldLoading || _prevState == GameState.WorldLoading)
-                {
-                    _screenFade.SnapVisible();
-                }
-                else
-                {
-                    _screenFade.BeginFadeIn(0.25f);
-                }
+            _audio?.Update(deltaTime, _screens.State, _session.Grid, _session.Player, _timeOfDay);
+            _audio?.SetDucked(_screens.ShouldDuckAudio(_session.Crafting, _screens.State));
 
-                UpdateMusicForState(_state);
-                _prevState = _state;
-            }
-
-            _audio?.Update(deltaTime, _state, _session.Grid, _session.Player, _timeOfDay);
-            _audio?.SetDucked(ShouldDuckAudio());
-
-            _screenFade.Update(deltaTime);
-            _pauseFade.Update(deltaTime);
-            _deathFade.Update(deltaTime);
+            _screens.UpdateFades(deltaTime);
 
             var kbState = Keyboard.GetState();
             var mouseState = GetUiMouseState();
-            _gameFrameCount++;
+            _input.BeginFrame();
+            _input.UpdateFocusAndInactiveTimer(IsActive, deltaTime, _screens.State, InputBlockers);
 
-            if (IsActive && !_wasActive)
-            {
-                HandleFocusGained();
-            }
-            else if (!IsActive && _wasActive)
-            {
-                HandleFocusLost();
-            }
-
-            if (!IsActive && _state == GameState.Playing && _isMouseLocked)
-            {
-                _inactiveTimer += deltaTime;
-                if (_inactiveTimer >= FocusLossReleaseDelay)
-                {
-                    SdlMouseCapture.DisableRelativeMode();
-                    IsMouseVisible = true;
-                }
-            }
-            else
-            {
-                if (IsActive && _inactiveTimer >= FocusLossReleaseDelay && ShouldCaptureMouse())
-                {
-                    ApplyMouseCapture();
-                }
-
-                _inactiveTimer = 0f;
-            }
-
-            _wasActive = IsActive;
-
-            switch (_state)
+            switch (_screens.State)
             {
                 case GameState.MainMenu:
                     EnsureCursorFreeOutsideGameplay();
@@ -1135,88 +897,79 @@ namespace Autonocraft.Core
                     break;
             }
 
-            _prevKbState = kbState;
-            if (_deferPrevMouseReset)
-            {
-                _prevMouseState = GetUiMouseState();
-                _deferPrevMouseReset = false;
-            }
-            else
-            {
-                _prevMouseState = mouseState;
-            }
+            _input.EndFrame(kbState, mouseState);
 
             base.Update(gameTime);
         }
 
         private void UpdateMainMenu(KeyboardState kbState, MouseState mouseState, float deltaTime)
         {
-            if (_playerDashboardOpen)
+            if (_screens.PlayerDashboardOpen)
             {
-                _playerDashboardScreen!.Update(
+                _screens.PlayerDashboardScreen!.Update(
                     GraphicsDevice.Viewport,
                     kbState,
-                    _prevKbState,
+                    _input.PrevKeyboard,
                     mouseState,
-                    _prevMouseState,
+                    _input.PrevMouse,
                     deltaTime);
 
-                if (_playerDashboardScreen.CloseRequested)
+                if (_screens.PlayerDashboardScreen.CloseRequested)
                 {
-                    _playerDashboardScreen.Close();
-                    _playerDashboardOpen = false;
+                    _screens.PlayerDashboardScreen.Close();
+                    _screens.PlayerDashboardOpen = false;
                 }
 
                 Window.Title = "Autonocraft | Player Stats";
                 return;
             }
 
-            if (_mainMenuSettingsOpen)
+            if (_screens.MainMenuSettingsOpen)
             {
-                _mainMenuSettingsScreen!.Update(
+                _screens.MainMenuSettingsScreen!.Update(
                     GraphicsDevice.Viewport,
                     kbState,
-                    _prevKbState,
+                    _input.PrevKeyboard,
                     mouseState,
-                    _prevMouseState,
+                    _input.PrevMouse,
                     deltaTime);
 
-                if (_mainMenuSettingsScreen.SaveRequested)
+                if (_screens.MainMenuSettingsScreen.SaveRequested)
                 {
-                    ApplyGameSettings(_mainMenuSettingsScreen.GetWorkingCopy());
-                    _mainMenuSettingsScreen.Close();
-                    _mainMenuSettingsOpen = false;
+                    ApplyGameSettings(_screens.MainMenuSettingsScreen.GetWorkingCopy());
+                    _screens.MainMenuSettingsScreen.Close();
+                    _screens.MainMenuSettingsOpen = false;
                 }
-                else if (_mainMenuSettingsScreen.CancelRequested)
+                else if (_screens.MainMenuSettingsScreen.CancelRequested)
                 {
-                    _mainMenuSettingsScreen.Close();
-                    _mainMenuSettingsOpen = false;
+                    _screens.MainMenuSettingsScreen.Close();
+                    _screens.MainMenuSettingsOpen = false;
                 }
 
                 Window.Title = "Autonocraft | Settings";
                 return;
             }
 
-            _saveSlotScreen!.Update(GraphicsDevice.Viewport, kbState, mouseState, _prevKbState, _prevMouseState, deltaTime);
+            _screens.SaveSlotScreen!.Update(GraphicsDevice.Viewport, kbState, mouseState, _input.PrevKeyboard, _input.PrevMouse, deltaTime);
 
-            if (_saveSlotScreen.NewWorldRequested)
+            if (_screens.SaveSlotScreen.NewWorldRequested)
             {
                 OpenNewWorldSetup();
             }
-            else if (_saveSlotScreen.LoadRequested && _saveSlotScreen.SelectedSlotId != null)
+            else if (_screens.SaveSlotScreen.LoadRequested && _screens.SaveSlotScreen.SelectedSlotId != null)
             {
-                TryStartLoadedWorld(_saveSlotScreen.SelectedSlotId);
+                TryStartLoadedWorld(_screens.SaveSlotScreen.SelectedSlotId);
             }
-            else if (_saveSlotScreen.SettingsRequested)
+            else if (_screens.SaveSlotScreen.SettingsRequested)
             {
-                _mainMenuSettingsScreen!.Open(_settings);
-                _mainMenuSettingsOpen = true;
+                _screens.MainMenuSettingsScreen!.Open(_settings);
+                _screens.MainMenuSettingsOpen = true;
             }
-            else if (_saveSlotScreen.StatsRequested)
+            else if (_screens.SaveSlotScreen.StatsRequested)
             {
                 OpenPlayerDashboard();
             }
-            else if (_saveSlotScreen.QuitRequested)
+            else if (_screens.SaveSlotScreen.QuitRequested)
             {
                 Exit();
             }
@@ -1226,10 +979,10 @@ namespace Autonocraft.Core
 
         private void OpenPlayerDashboard()
         {
-            _playerDashboardScreen!.Open(
-                _saveSlotScreen!.GetSelectedSlotId(),
-                _saveSlotScreen.GetSelectedSlotName());
-            _playerDashboardOpen = true;
+            _screens.PlayerDashboardScreen!.Open(
+                _screens.SaveSlotScreen!.GetSelectedSlotId(),
+                _screens.SaveSlotScreen.GetSelectedSlotName());
+            _screens.PlayerDashboardOpen = true;
         }
 
         private void ApplyGameSettings(GameSettings settings)
@@ -1260,10 +1013,10 @@ namespace Autonocraft.Core
             }
             else
             {
-                _pauseMenu?.SetRenderDistance(_settings.RenderDistance);
+                _screens.PauseMenu?.SetRenderDistance(_settings.RenderDistance);
             }
 
-            _pauseMenu?.ApplyGraphicsSettings(_settings);
+            _screens.PauseMenu?.ApplyGraphicsSettings(_settings);
             RecreateVillageAi();
         }
 
@@ -1289,24 +1042,6 @@ namespace Autonocraft.Core
 
         private void PlayUiClick() => _audio?.PlaySfx(SfxKind.UiClick);
 
-        private bool ShouldDuckAudio()
-        {
-            if (_state != GameState.Playing)
-            {
-                return _mainMenuSettingsOpen || _playerDashboardOpen;
-            }
-
-            return _pauseMenu?.IsOpen == true
-                || _deathScreen?.IsOpen == true
-                || _devConsole?.IsOpen == true
-                || _villageScreen?.IsOpen == true
-                || _villageChatScreen?.IsOpen == true
-                || _session.Crafting.Crucible.IsOpen
-                || _session.Crafting.IsJournalUiBlocking
-                || _mainMenuSettingsOpen
-                || _playerDashboardOpen;
-        }
-
         private void RecreateVillageAi()
         {
             if (_runTests || _ui == null)
@@ -1316,44 +1051,43 @@ namespace Autonocraft.Core
 
             _session.RefreshVillageAi(_settings);
             _villageAiOrchestrator = _session.VillageAi;
-            _villageChatScreen = new VillageChatScreen(_ui, _session.VillageAi);
+            _screens.RecreateVillageChatScreen(_ui, _session.VillageAi);
         }
 
         private void UpdateNewWorldSetup(KeyboardState kbState, MouseState mouseState, float deltaTime)
         {
-            _newWorldSetupScreen!.Update(GraphicsDevice.Viewport, kbState, mouseState, _prevKbState, _prevMouseState, deltaTime);
+            _screens.NewWorldSetupScreen!.Update(GraphicsDevice.Viewport, kbState, mouseState, _input.PrevKeyboard, _input.PrevMouse, deltaTime);
 
-            if (_newWorldSetupScreen.CreateRequested)
+            if (_screens.NewWorldSetupScreen.CreateRequested)
             {
-                StartNewWorld(_newWorldSetupScreen.SelectedSeed, _newWorldSetupScreen.SelectedWorldType);
+                StartNewWorld(_screens.NewWorldSetupScreen.SelectedSeed, _screens.NewWorldSetupScreen.SelectedWorldType);
             }
-            else if (_newWorldSetupScreen.BackRequested)
+            else if (_screens.NewWorldSetupScreen.BackRequested)
             {
-                _state = GameState.MainMenu;
+                _screens.State = GameState.MainMenu;
                 Window.Title = "Autonocraft | Main Menu";
             }
         }
 
         private void UpdateWorldLoading(float deltaTime, KeyboardState kbState, MouseState mouseState)
         {
-            _loadingScreen!.Update(deltaTime);
+            _screens.LoadingScreen!.Update(deltaTime);
 
-            if (_loadingScreen.HasTimedOut)
+            if (_screens.LoadingScreen.HasTimedOut)
             {
-                Console.WriteLine($"[Load] World loading timed out: {_loadingScreen.TimeoutReason}");
-                _saveSlotScreen?.SetLoadError(_loadingScreen.TimeoutReason ?? "World failed to load.");
+                Console.WriteLine($"[Load] World loading timed out: {_screens.LoadingScreen.TimeoutReason}");
+                _screens.SaveSlotScreen?.SetLoadError(_screens.LoadingScreen.TimeoutReason ?? "World failed to load.");
                 ReturnToMainMenu();
                 return;
             }
 
-            if (_loadingScreen.IsComplete)
+            if (_screens.LoadingScreen.IsComplete)
             {
                 EnterPlaying();
-                _state = GameState.Playing;
             }
             else
             {
-                Window.Title = $"Autonocraft | Loading World... {(_loadingScreen.Progress * 100f):F0}%";
+                Window.Title = $"Autonocraft | Loading World... {(_screens.LoadingScreen.Progress * 100f):F0}%";
             }
         }
 
@@ -1362,26 +1096,26 @@ namespace Autonocraft.Core
             KeyboardState kbState,
             MouseState mouseState)
         {
-            if (_devConsole!.IsOpen)
+            if (_screens.DevConsole!.IsOpen)
             {
                 EnsureUiPointerMode();
-                _devConsole.Update(GraphicsDevice.Viewport, kbState, _prevKbState, _hostContext);
+                _screens.DevConsole.Update(GraphicsDevice.Viewport, kbState, _input.PrevKeyboard, _hostContext);
                 return true;
             }
 
-            if (_deathScreen!.IsOpen)
+            if (_screens.DeathScreen!.IsOpen)
             {
                 EnsureUiPointerMode();
-                _deathScreen.Update(GraphicsDevice.Viewport, kbState, mouseState, _prevKbState, _prevMouseState, deltaTime);
+                _screens.DeathScreen.Update(GraphicsDevice.Viewport, kbState, mouseState, _input.PrevKeyboard, _input.PrevMouse, deltaTime);
 
-                if (_deathScreen.RespawnRequested)
+                if (_screens.DeathScreen.RespawnRequested)
                 {
                     CombatSystem.RespawnPlayer(_session.Grid, _session.Player, _worldSpawnX, _worldSpawnZ);
                     _deathCauseText = null;
                     _deathPenaltyText = null;
                     CloseDeathScreen();
                 }
-                else if (_deathScreen.MainMenuRequested)
+                else if (_screens.DeathScreen.MainMenuRequested)
                 {
                     ReturnToMainMenu();
                 }
@@ -1389,25 +1123,25 @@ namespace Autonocraft.Core
                 return true;
             }
 
-            if (_pauseMenu!.IsOpen)
+            if (_screens.PauseMenu!.IsOpen)
             {
                 EnsureUiPointerMode();
-                _pauseMenu.Update(GraphicsDevice.Viewport, kbState, mouseState, _prevKbState, _prevMouseState, deltaTime);
+                _screens.PauseMenu.Update(GraphicsDevice.Viewport, kbState, mouseState, _input.PrevKeyboard, _input.PrevMouse, deltaTime);
 
-                if (_pauseMenu.ResumeRequested)
+                if (_screens.PauseMenu.ResumeRequested)
                 {
                     ClosePauseMenu();
                 }
-                else if (_pauseMenu.SaveNowRequested)
+                else if (_screens.PauseMenu.SaveNowRequested)
                 {
                     SaveWorld(sync: true);
                     _session.HudToast.Show("World saved");
                 }
-                else if (_pauseMenu.MainMenuRequested)
+                else if (_screens.PauseMenu.MainMenuRequested)
                 {
                     ReturnToMainMenu();
                 }
-                else if (_pauseMenu.QuitRequested)
+                else if (_screens.PauseMenu.QuitRequested)
                 {
                     QuitFromPauseMenu();
                 }
@@ -1415,26 +1149,26 @@ namespace Autonocraft.Core
                 return true;
             }
 
-            if (_villageChatScreen!.IsOpen)
+            if (_screens.VillageChatScreen!.IsOpen)
             {
                 EnsureUiPointerMode();
-                _villageChatScreen.Update(GraphicsDevice.Viewport, _session, kbState, _prevKbState, mouseState, _prevMouseState, deltaTime);
+                _screens.VillageChatScreen.Update(GraphicsDevice.Viewport, _session, kbState, _input.PrevKeyboard, mouseState, _input.PrevMouse, deltaTime);
                 return true;
             }
 
-            if (_villageScreen!.IsOpen)
+            if (_screens.VillageScreen!.IsOpen)
             {
                 EnsureUiPointerMode();
-                if ((kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape))
-                    || (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.V) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.V)))
+                if ((kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape))
+                    || (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.V) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.V)))
                 {
                     CloseVillageUi();
                     return true;
                 }
 
-                _villageScreen.SetPlayerPosition(_session.Player.Position);
-                _villageScreen.Update(GraphicsDevice.Viewport, kbState, mouseState, _prevKbState, _prevMouseState);
-                if (_villageScreen.CloseRequested)
+                _screens.VillageScreen.SetPlayerPosition(_session.Player.Position);
+                _screens.VillageScreen.Update(GraphicsDevice.Viewport, kbState, mouseState, _input.PrevKeyboard, _input.PrevMouse);
+                if (_screens.VillageScreen.CloseRequested)
                 {
                     CloseVillageUi();
                 }
@@ -1463,21 +1197,14 @@ namespace Autonocraft.Core
                 EnsureUiPointerMode();
                 _session.Crafting.UpdateJournal(deltaTime);
 
-                bool closeJournal = (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.J) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.J))
-                    || (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape));
+                bool closeJournal = (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.J) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.J))
+                    || (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape));
 
                 if (closeJournal && (_session.Crafting.JournalOpen || _session.Crafting.JournalTransition.Alpha > 0.01f))
                 {
                     _session.Crafting.CloseJournal();
-                    _isMouseLocked = _mouseLockedBeforeCrafting;
-                    if (_isMouseLocked)
-                    {
-                        ApplyMouseCapture();
-                    }
-                    else
-                    {
-                        IsMouseVisible = true;
-                    }
+                    _input.IsMouseLocked = _input.MouseLockedBeforeCrafting;
+                    RestoreMouseLockAfterOverlay();
                 }
 
                 return true;
@@ -1486,338 +1213,16 @@ namespace Autonocraft.Core
             return false;
         }
 
-        private void StartFoundingTownHeartPlacement()
-        {
-            if (!PlayerStructureRegistry.TryGet("town_heart", out var blueprint))
-            {
-                return;
-            }
-
-            CloseVillageUi();
-            _pendingFoundingPlacement = true;
-            _pendingBlueprintId = blueprint.Id;
-            UpdateFoundingPlacementPreview(blueprint);
-            EnsureMouseLockedForGameplay();
-        }
-
-        private void StartBlueprintPlacement(Village.Village village, string blueprintId)
-        {
-            if (!PlayerStructureRegistry.TryGet(blueprintId, out var blueprint))
-            {
-                return;
-            }
-
-            CloseVillageUi();
-            _pendingBlueprintId = blueprintId;
-            UpdateBlueprintPlacementPreview(village, blueprint);
-            EnsureMouseLockedForGameplay();
-        }
-
-        private void CancelBlueprintPlacement()
-        {
-            _pendingBlueprintId = null;
-            _pendingFoundingPlacement = false;
-            _blueprintPlacementPreview = null;
-        }
-
-        private void ConfirmBlueprintPlacement()
-        {
-            if (_pendingFoundingPlacement)
-            {
-                ConfirmFoundingPlacement();
-                return;
-            }
-
-            if (_pendingBlueprintId == null || _blueprintPlacementPreview == null || !_blueprintPlacementPreview.Valid)
-            {
-                return;
-            }
-
-            var village = _session.Villages.GetActiveVillage(_session.Player.Position);
-            if (village == null)
-            {
-                CancelBlueprintPlacement();
-                return;
-            }
-
-            var payer = village.Storage.HasSpaceFor(ItemStack.CreateBlock(BlockType.Dirt, 1))
-                ? (IItemContainer)village.Storage
-                : WrapPlayerHotbar();
-
-            _session.Villages.TryQueueBlueprint(
-                _session.Grid,
-                village,
-                _pendingBlueprintId,
-                _blueprintPlacementPreview.AnchorX,
-                _blueprintPlacementPreview.AnchorZ,
-                payer,
-                _blueprintPlacementPreview.AnchorY);
-
-            CancelBlueprintPlacement();
-        }
-
-        private void ConfirmFoundingPlacement()
-        {
-            if (_blueprintPlacementPreview == null || !_blueprintPlacementPreview.Valid)
-            {
-                return;
-            }
-
-            if (!PlayerStructureRegistry.TryGet("town_heart", out var blueprint))
-            {
-                CancelBlueprintPlacement();
-                return;
-            }
-
-            var payer = WrapPlayerHotbar();
-            if (!_session.Player.CreativeMode && !blueprint.CanAfford(payer))
-            {
-                _session.HudToast.Show("Need cobblestone and oak planks in your hotbar for the Town Heart.");
-                return;
-            }
-
-            if (!_session.Villages.TryFoundVillage(
-                    _session.Grid,
-                    "New Settlement",
-                    _blueprintPlacementPreview.AnchorX,
-                    _blueprintPlacementPreview.AnchorZ,
-                    out _,
-                    _blueprintPlacementPreview.AnchorY))
-            {
-                _session.HudToast.Show("Need flat open ground for the Town Heart.");
-                return;
-            }
-
-            if (!_session.Player.CreativeMode)
-            {
-                blueprint.TryConsumeCosts(payer);
-            }
-
-            CancelBlueprintPlacement();
-            _session.HudToast.Show("Settlement founded! Your settler is building the Town Heart.");
-        }
-
-        private void UpdateBlueprintPlacementPreview(BuildingBlueprint blueprint, Village.Village? village)
-        {
-            var resolved = BlueprintPlacementHelper.ResolveFromLook(
-                _session.Grid,
-                _camera.Position,
-                _camera.Front,
-                BlockInteractionSystem.RaycastRange);
-
-            if (!resolved.HasHit)
-            {
-                resolved = BlueprintPlacementHelper.ResolveFallbackNearPlayer(
-                    _session.Grid,
-                    _session.Player.Position,
-                    _camera.Front);
-            }
-
-            bool valid = false;
-            if (resolved.HasHit)
-            {
-                if (_pendingFoundingPlacement)
-                {
-                    valid = _session.Villages.CanPlaceTownHeart(
-                        _session.Grid,
-                        resolved.AnchorX,
-                        resolved.AnchorY,
-                        resolved.AnchorZ,
-                        WrapPlayerHotbar());
-                }
-                else if (village != null)
-                {
-                    var payer = village.Storage.HasSpaceFor(ItemStack.CreateBlock(BlockType.Dirt, 1))
-                        ? (IItemContainer)village.Storage
-                        : WrapPlayerHotbar();
-                    valid = _session.Villages.CanPlaceBlueprint(
-                        _session.Grid,
-                        village,
-                        blueprint,
-                        resolved.AnchorX,
-                        resolved.AnchorZ,
-                        payer,
-                        resolved.AnchorY);
-                }
-            }
-
-            _blueprintPlacementPreview = new BlueprintPlacementPreview
-            {
-                Blueprint = blueprint,
-                AnchorX = resolved.AnchorX,
-                AnchorY = resolved.AnchorY,
-                AnchorZ = resolved.AnchorZ,
-                Valid = valid
-            };
-        }
-
-        private void UpdateFoundingPlacementPreview(BuildingBlueprint blueprint) =>
-            UpdateBlueprintPlacementPreview(blueprint, null);
-
-        private void UpdateBlueprintPlacementPreview(Village.Village village, BuildingBlueprint blueprint) =>
-            UpdateBlueprintPlacementPreview(blueprint, village);
-
-        private void PopulateConstructionSitePreviews(GameRenderContext renderContext, VillageManager villages, Vector3 playerPos)
-        {
-            _constructionSitePreviews.Clear();
-            var village = villages.GetActiveVillage(playerPos);
-            if (village == null)
-            {
-                renderContext.PendingConstructionSites = null;
-                return;
-            }
-
-            foreach (var site in village.BuildingSites)
-            {
-                if (site.IsComplete)
-                {
-                    continue;
-                }
-
-                if (!PlayerStructureRegistry.TryGet(site.BlueprintId, out var blueprint))
-                {
-                    continue;
-                }
-
-                _constructionSitePreviews.Add(new BlueprintPlacementPreview
-                {
-                    Blueprint = blueprint,
-                    AnchorX = site.AnchorX,
-                    AnchorY = site.AnchorY,
-                    AnchorZ = site.AnchorZ,
-                    Valid = true,
-                    IsQueuedConstruction = true
-                });
-            }
-
-            renderContext.PendingConstructionSites = _constructionSitePreviews.Count > 0
-                ? _constructionSitePreviews
-                : null;
-        }
-
-        private void StartWorkZonePlacement(Village.Village village)
-        {
-            CloseVillageUi();
-            _workZonePlacementActive = true;
-            _workZoneCornerA = null;
-            _workZonePreview = new WorkZonePlacementPreview
-            {
-                HasFirstCorner = false,
-                Valid = false
-            };
-            EnsureMouseLockedForGameplay();
-        }
-
-        private void CancelWorkZonePlacement()
-        {
-            _workZonePlacementActive = false;
-            _workZoneCornerA = null;
-            _workZonePreview = null;
-        }
-
-        private void ConfirmWorkZoneCorner(Village.Village village, int x, int y, int z)
-        {
-            if (!_workZoneCornerA.HasValue)
-            {
-                _workZoneCornerA = (x, y, z);
-                UpdateWorkZonePreview(village, x, y, z);
-                _session.HudToast.Show("Select opposite corner.");
-                return;
-            }
-
-            var start = _workZoneCornerA.Value;
-            _session.Villages.TryMarkWorkZone(
-                _session.Grid,
-                village,
-                start.X,
-                start.Y,
-                start.Z,
-                x,
-                y,
-                z,
-                out string message);
-            _session.HudToast.Show(message);
-            CancelWorkZonePlacement();
-        }
-
-        private void UpdateWorkZonePreview(Village.Village village, int bx, int by, int bz)
-        {
-            if (!_workZoneCornerA.HasValue)
-            {
-                _workZonePreview = new WorkZonePlacementPreview
-                {
-                    HasFirstCorner = false,
-                    Valid = false
-                };
-                return;
-            }
-
-            var start = _workZoneCornerA.Value;
-            var bounds = GatherWorkQueue.NormalizeBounds(start.X, start.Y, start.Z, bx, by, bz);
-            _workZonePreview = new WorkZonePlacementPreview
-            {
-                MinX = bounds.minX,
-                MinY = bounds.minY,
-                MinZ = bounds.minZ,
-                MaxX = bounds.maxX,
-                MaxY = bounds.maxY,
-                MaxZ = bounds.maxZ,
-                HasFirstCorner = true,
-                Valid = _session.Villages.CanMarkWorkZone(
-                    village,
-                    start.X,
-                    start.Y,
-                    start.Z,
-                    bx,
-                    by,
-                    bz)
-            };
-        }
-
-        private void UpdateWorkZonePlacementPreview(Village.Village village)
-        {
-            var (hitBlockPos, _, _, _) = BlockInteractionSystem.RaycastSolid(
-                _session.Grid,
-                _camera.Position,
-                _camera.Front,
-                BlockInteractionSystem.RaycastRange);
-
-            if (!hitBlockPos.HasValue)
-            {
-                return;
-            }
-
-            int x = (int)MathF.Floor(hitBlockPos.Value.X);
-            int y = (int)MathF.Floor(hitBlockPos.Value.Y);
-            int z = (int)MathF.Floor(hitBlockPos.Value.Z);
-            UpdateWorkZonePreview(village, x, y, z);
-        }
-
-        private void OpenVillageChatWithVillager(Village.Village village, int villagerId, string villagerName)
-        {
-            PrepareMouseForUi();
-            _villageChatScreen!.OpenWithVillager(village, villagerId, villagerName);
-        }
-
-        private void EnsureMouseLockedForGameplay()
-        {
-            if (!_isMouseLocked)
-            {
-                _isMouseLocked = true;
-                IsMouseVisible = false;
-                SdlMouseCapture.TryEnableRelativeMode();
-            }
-        }
-
         private void HandleVillageScreenActions()
         {
-            if (_villageScreen!.IsFoundingMode)
+            if (_screens.VillageScreen!.IsFoundingMode)
             {
-                if (_villageScreen.PlaceTownHeartRequested)
+                if (_screens.VillageScreen.PlaceTownHeartRequested)
                 {
-                    StartFoundingTownHeartPlacement();
+                    _blueprints.StartFoundingTownHeartPlacement(CloseVillageUi);
+                    EnsureMouseLockedForGameplay();
                 }
-                else if (_villageScreen.ClaimRequested)
+                else if (_screens.VillageScreen.ClaimRequested)
                 {
                     if (_session.Villages.TryFindClaimableStructure(
                             _session.Grid,
@@ -1844,15 +1249,15 @@ namespace Autonocraft.Core
                 return;
             }
 
-            if (_villageScreen!.SummonSettlersRequested)
+            if (_screens.VillageScreen!.SummonSettlersRequested)
             {
                 _session.Villages.RepairVillageCitizens(village, _session.Grid);
             }
-            else if (_villageScreen.RecruitRequested)
+            else if (_screens.VillageScreen.RecruitRequested)
             {
                 _session.Villages.TryRecruit(village, _session.Grid);
             }
-            else if (_villageScreen.ClaimRequested)
+            else if (_screens.VillageScreen.ClaimRequested)
             {
                 if (_session.Villages.TryFindClaimableStructure(
                         _session.Grid,
@@ -1865,25 +1270,33 @@ namespace Autonocraft.Core
                     _session.Villages.TryClaimStructure(_session.Grid, ax, az, out _);
                 }
             }
-            else if (_villageScreen.RequestedBlueprintId != null && _villageScreen.RequestBlueprintPlacement)
+            else if (_screens.VillageScreen.RequestedBlueprintId != null && _screens.VillageScreen.RequestBlueprintPlacement)
             {
-                StartBlueprintPlacement(village, _villageScreen.RequestedBlueprintId);
+                _blueprints.StartBlueprintPlacement(village, _screens.VillageScreen.RequestedBlueprintId, CloseVillageUi);
+                EnsureMouseLockedForGameplay();
             }
-            else if (_villageScreen.RequestWorkZonePlacement)
+            else if (_screens.VillageScreen.RequestWorkZonePlacement)
             {
-                StartWorkZonePlacement(village);
+                _blueprints.StartWorkZonePlacement(CloseVillageUi);
+                EnsureMouseLockedForGameplay();
             }
-            else if (_villageScreen.RequestedChatVillagerId >= 0 &&
-                     _session.Villagers.TryGet(_villageScreen.RequestedChatVillagerId, out var chatVillager))
+            else if (_screens.VillageScreen.RequestedChatVillagerId >= 0 &&
+                     _session.Villagers.TryGet(_screens.VillageScreen.RequestedChatVillagerId, out var chatVillager))
             {
                 CloseVillageUi();
                 OpenVillageChatWithVillager(village, chatVillager.Id, chatVillager.Name);
             }
-            else if (_villageScreen.RequestedAssignVillagerId >= 0 &&
-                     _session.Villagers.TryGet(_villageScreen.RequestedAssignVillagerId, out var villager))
+            else if (_screens.VillageScreen.RequestedAssignVillagerId >= 0 &&
+                     _session.Villagers.TryGet(_screens.VillageScreen.RequestedAssignVillagerId, out var villager))
             {
-                _session.Villages.TryAssignJob(village, villager, _villageScreen.RequestedAssignJob);
+                _session.Villages.TryAssignJob(village, villager, _screens.VillageScreen.RequestedAssignJob);
             }
+        }
+
+        private void OpenVillageChatWithVillager(Village.Village village, int villagerId, string villagerName)
+        {
+            PrepareMouseForUi();
+            _screens.VillageChatScreen!.OpenWithVillager(village, villagerId, villagerName);
         }
 
         private void TryStartAgentServer()
@@ -1961,45 +1374,38 @@ namespace Autonocraft.Core
                 return;
             }
 
-            if (!_pauseMenu!.IsOpen && !_deathScreen!.IsOpen && _session.Player.IsAlive)
+            if (!_screens.PauseMenu!.IsOpen && !_screens.DeathScreen!.IsOpen && _session.Player.IsAlive)
             {
                 _session.Player.Stats.RecordPlayTime(deltaTime);
             }
 
-            bool consoleToggle = (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.F3) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.F3))
-                || (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.OemTilde) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.OemTilde));
+            bool consoleToggle = (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.F3) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.F3))
+                || (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.OemTilde) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.OemTilde));
 
             if (consoleToggle)
             {
-                _devConsole!.Toggle();
-                if (_devConsole.IsOpen)
+                _screens.DevConsole!.Toggle();
+                if (_screens.DevConsole.IsOpen)
                 {
-                    _mouseLockedBeforeConsole = _isMouseLocked;
+                    _input.MouseLockedBeforeConsole = _input.IsMouseLocked;
                     PrepareMouseForUi();
                 }
                 else
                 {
-                    _isMouseLocked = _mouseLockedBeforeConsole;
-                    if (_isMouseLocked)
-                    {
-                        ApplyMouseCapture();
-                    }
-                    else
-                    {
-                        IsMouseVisible = true;
-                    }
+                    _input.IsMouseLocked = _input.MouseLockedBeforeConsole;
+                    RestoreMouseLockAfterOverlay();
                 }
             }
 
-            if (_devConsole!.IsOpen)
+            if (_screens.DevConsole!.IsOpen)
             {
-                _devConsole.Update(GraphicsDevice.Viewport, kbState, _prevKbState, _hostContext);
+                _screens.DevConsole.Update(GraphicsDevice.Viewport, kbState, _input.PrevKeyboard, _hostContext);
                 return;
             }
 
-            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.V) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.V) && _session.Player.IsAlive)
+            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.V) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.V) && _session.Player.IsAlive)
             {
-                if (_villageScreen!.IsOpen)
+                if (_screens.VillageScreen!.IsOpen)
                 {
                     CloseVillageUi();
                 }
@@ -2011,31 +1417,24 @@ namespace Autonocraft.Core
                 return;
             }
 
-            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.C) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.C) && _session.Player.IsAlive)
+            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.C) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.C) && _session.Player.IsAlive)
             {
                 OpenVillageChatUi();
                 return;
             }
 
-            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.J) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.J) && _session.Player.IsAlive)
+            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.J) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.J) && _session.Player.IsAlive)
             {
-                _mouseLockedBeforeCrafting = _isMouseLocked;
+                _input.MouseLockedBeforeCrafting = _input.IsMouseLocked;
                 PrepareMouseForUi();
                 _session.Crafting.ToggleJournal();
                 return;
             }
 
-            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && _session.Player.IsAlive)
+            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && _session.Player.IsAlive)
             {
-                if (_pendingBlueprintId != null)
+                if (_blueprints.TryCancelOnEscape())
                 {
-                    CancelBlueprintPlacement();
-                    return;
-                }
-
-                if (_workZonePlacementActive)
-                {
-                    CancelWorkZonePlacement();
                     return;
                 }
 
@@ -2043,51 +1442,20 @@ namespace Autonocraft.Core
                 return;
             }
 
-            if (_pendingBlueprintId != null
-                && PlayerStructureRegistry.TryGet(_pendingBlueprintId, out var placementBlueprint))
-            {
-                if (_pendingFoundingPlacement)
-                {
-                    UpdateFoundingPlacementPreview(placementBlueprint);
-                }
-                else
-                {
-                    var placementVillage = _session.Villages.GetActiveVillage(_session.Player.Position);
-                    if (placementVillage != null)
-                    {
-                        UpdateBlueprintPlacementPreview(placementVillage, placementBlueprint);
-                    }
-                    else
-                    {
-                        CancelBlueprintPlacement();
-                    }
-                }
-            }
-            else if (_workZonePlacementActive)
-            {
-                var zoneVillage = _session.Villages.GetActiveVillage(_session.Player.Position);
-                if (zoneVillage != null)
-                {
-                    UpdateWorkZonePlacementPreview(zoneVillage);
-                }
-                else
-                {
-                    CancelWorkZonePlacement();
-                }
-            }
+            _blueprints.TickPendingPreview();
 
             // Keyboard slot selections (D1-D9)
             for (int i = 0; i < 9; i++)
             {
                 var k = (Microsoft.Xna.Framework.Input.Keys)((int)Microsoft.Xna.Framework.Input.Keys.D1 + i);
-                if (kbState.IsKeyDown(k) && !_prevKbState.IsKeyDown(k))
+                if (kbState.IsKeyDown(k) && !_input.PrevKeyboard.IsKeyDown(k))
                 {
                     _session.Player.SelectedSlot = i;
                     var stack = _session.Player.Hotbar[i];
                     Console.WriteLine($"[Selection] Selected Hotbar Slot {i + 1}: {FormatHotbarStack(stack)}");
                 }
                 var nk = (Microsoft.Xna.Framework.Input.Keys)((int)Microsoft.Xna.Framework.Input.Keys.NumPad1 + i);
-                if (kbState.IsKeyDown(nk) && !_prevKbState.IsKeyDown(nk))
+                if (kbState.IsKeyDown(nk) && !_input.PrevKeyboard.IsKeyDown(nk))
                 {
                     _session.Player.SelectedSlot = i;
                     var stack = _session.Player.Hotbar[i];
@@ -2096,7 +1464,7 @@ namespace Autonocraft.Core
             }
 
             // Toggle physics mode
-            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.G) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.G))
+            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.G) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.G))
             {
                 _session.Player.CreativeMode = !_session.Player.CreativeMode;
                 _session.Player.Velocity = Vector3.Zero;
@@ -2117,46 +1485,24 @@ namespace Autonocraft.Core
 
             if (CanProcessGameplayMouse())
             {
-                var clientCenter = GetMouseClientCenter();
-                centerX = clientCenter.X;
-                centerY = clientCenter.Y;
+                var mouseLook = _input.ProcessMouseLook(mouseState, GraphicsDevice);
+                mouseDx = mouseLook.DeltaX;
+                mouseDy = mouseLook.DeltaY;
+                centerX = mouseLook.CenterX;
+                centerY = mouseLook.CenterY;
 
-                if (!_skipMouseLookFrame)
+                if (mouseDx != 0f || mouseDy != 0f)
                 {
-                    if (SdlMouseCapture.TryGetRelativeDelta(out int relativeDx, out int relativeDy))
-                    {
-                        mouseDx = relativeDx;
-                        mouseDy = relativeDy;
-                    }
-                    else
-                    {
-                        mouseDx = mouseState.X - _prevMouseState.X;
-                        mouseDy = mouseState.Y - _prevMouseState.Y;
-                        if (Math.Abs(mouseDx) > MouseWarpRejectThreshold || Math.Abs(mouseDy) > MouseWarpRejectThreshold)
-                        {
-                            mouseDx = 0f;
-                            mouseDy = 0f;
-                        }
-                    }
+                    _camera.Yaw += mouseDx * 0.15f;
+                    _camera.Pitch = Math.Clamp(_camera.Pitch - mouseDy * 0.15f, -89f, 89f);
 
-                    if (mouseDx != 0f || mouseDy != 0f)
-                    {
-                        _camera.Yaw += mouseDx * 0.15f;
-                        _camera.Pitch = Math.Clamp(_camera.Pitch - mouseDy * 0.15f, -89f, 89f);
-
-                        _session.Player.Yaw = _camera.Yaw;
-                        _session.Player.Pitch = _camera.Pitch;
-                    }
-                }
-                else
-                {
-                    SdlMouseCapture.DrainRelativeDelta();
-                    _skipMouseLookFrame = false;
+                    _session.Player.Yaw = _camera.Yaw;
+                    _session.Player.Pitch = _camera.Pitch;
                 }
 
                 leftHeld = mouseState.LeftButton == ButtonState.Pressed;
-                leftPressed = leftHeld && _prevMouseState.LeftButton == ButtonState.Released;
-                rightPressed = mouseState.RightButton == ButtonState.Pressed && _prevMouseState.RightButton == ButtonState.Released;
+                leftPressed = leftHeld && _input.PrevMouse.LeftButton == ButtonState.Released;
+                rightPressed = mouseState.RightButton == ButtonState.Pressed && _input.PrevMouse.RightButton == ButtonState.Released;
                 shiftHeld = kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.LeftShift)
                     || kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.RightShift);
                 shiftRightPressed = rightPressed && shiftHeld;
@@ -2165,7 +1511,7 @@ namespace Autonocraft.Core
                     rightPressed = false;
                 }
 
-                int scrollDelta = mouseState.ScrollWheelValue - _prevMouseState.ScrollWheelValue;
+                int scrollDelta = mouseState.ScrollWheelValue - _input.PrevMouse.ScrollWheelValue;
                 if (scrollDelta != 0)
                 {
                     int slotChange = -Math.Sign(scrollDelta);
@@ -2277,17 +1623,17 @@ namespace Autonocraft.Core
                     bool shiftLeftPressed = leftPressed && shiftHeld;
                     bool handledClick = false;
 
-                    if (_pendingBlueprintId != null && leftPressed)
+                    if (_blueprints.PendingBlueprintId != null && leftPressed)
                     {
-                        ConfirmBlueprintPlacement();
+                        _blueprints.ConfirmBlueprintPlacement();
                         handledClick = true;
                     }
-                    else if (_workZonePlacementActive && leftPressed && solidRayHit.HasHit)
+                    else if (_blueprints.WorkZonePlacementActive && leftPressed && solidRayHit.HasHit)
                     {
                         var zoneVillage = _session.Villages.GetActiveVillage(_session.Player.Position);
                         if (zoneVillage != null)
                         {
-                            ConfirmWorkZoneCorner(
+                            _blueprints.ConfirmWorkZoneCorner(
                                 zoneVillage,
                                 (int)solidRayHit.BlockPos.X,
                                 (int)solidRayHit.BlockPos.Y,
@@ -2344,7 +1690,7 @@ namespace Autonocraft.Core
                         _session.Particles,
                         GraphicsDevice,
                         solidRayHit,
-                        _pendingBlueprintId != null);
+                        _blueprints.PendingBlueprintId != null);
 
                     if (_session.BlockInteraction.PendingStationOpen.HasValue)
                     {
@@ -2360,7 +1706,7 @@ namespace Autonocraft.Core
 
             if (!_session.Player.IsAlive)
             {
-                if (_deathScreen is not { IsOpen: true })
+                if (_screens.DeathScreen is not { IsOpen: true })
                 {
                     OpenDeathScreen();
                 }
@@ -2398,7 +1744,7 @@ namespace Autonocraft.Core
             {
                 _session.UpdateVillages(deltaTime, _timeOfDay);
                 _session.UpdateSurvival(deltaTime, _timeOfDay, inSpawnWarmup);
-                _session.UpdateEarlyGuide(deltaTime, _timeOfDay, _villageScreen?.IsOpen == true);
+                _session.UpdateEarlyGuide(deltaTime, _timeOfDay, _screens.VillageScreen?.IsOpen == true);
                 // TryFindClaimableStructure is expensive — poll at most every 10 s; GameSession skips if player barely moved.
                 _claimHintTimer += deltaTime;
                 if (_claimHintTimer >= 10f)
@@ -2431,17 +1777,17 @@ namespace Autonocraft.Core
             }
 
             string? overlayName = null;
-            if (_villageScreen?.IsOpen == true) overlayName = "village";
-            else if (_pauseMenu?.IsOpen == true) overlayName = "pause";
-            else if (_devConsole?.IsOpen == true) overlayName = "console";
+            if (_screens.VillageScreen?.IsOpen == true) overlayName = "village";
+            else if (_screens.PauseMenu?.IsOpen == true) overlayName = "pause";
+            else if (_screens.DevConsole?.IsOpen == true) overlayName = "console";
 
             InputDebugTrace.TickGameplay(
                 deltaTime,
-                _state,
+                _screens.State,
                 IsActive,
-                _isMouseLocked,
+                _input.IsMouseLocked,
                 ShouldCaptureMouse(),
-                _skipMouseLookFrame,
+                _input.SkipMouseLookFrame,
                 mouseState.X,
                 mouseState.Y,
                 centerX,
@@ -2467,7 +1813,7 @@ namespace Autonocraft.Core
 
             _blockTerrainEffect?.SetPreferPerPixelLighting(_settings.HighQualityLighting);
             _renderer?.SetPreferPerPixelLighting(_settings.HighQualityLighting);
-            _pauseMenu?.ApplyGraphicsSettings(_settings);
+            _screens.PauseMenu?.ApplyGraphicsSettings(_settings);
         }
 
         private void ApplyVSync(bool enabled)
@@ -2486,14 +1832,14 @@ namespace Autonocraft.Core
 
         private void RecordFrameMetrics(float deltaTime)
         {
-            if (_state != GameState.Playing)
+            if (_screens.State != GameState.Playing)
             {
                 return;
             }
 
             RuntimeMetrics.RecordFrame(
                 deltaTime,
-                _state,
+                _screens.State,
                 _session.Grid.ActiveChunkCount,
                 PerfCounters.PendingMeshCount,
                 PerfCounters.MeshBuildMs,
@@ -2525,25 +1871,16 @@ namespace Autonocraft.Core
 
         private void DrawFrame(GameTime gameTime)
         {
-            switch (_state)
+            switch (_screens.State)
             {
                 case GameState.MainMenu:
-                    _saveSlotScreen!.Draw(GraphicsDevice.Viewport, _screenFade.Alpha, _screenFade.OffsetY);
-                    if (_playerDashboardOpen)
-                    {
-                        _playerDashboardScreen!.Draw(GraphicsDevice.Viewport);
-                    }
-                    else if (_mainMenuSettingsOpen)
-                    {
-                        _mainMenuSettingsScreen!.Draw(GraphicsDevice.Viewport);
-                    }
+                    _screens.DrawMainMenu(GraphicsDevice);
                     break;
                 case GameState.NewWorldSetup:
-                    _newWorldSetupScreen!.Draw(GraphicsDevice.Viewport);
+                    _screens.DrawNewWorldSetup(GraphicsDevice);
                     break;
                 case GameState.WorldLoading:
-                    GraphicsDevice.Clear(ClearOptions.Target, UiTheme.Scrim, 1f, 0);
-                    _loadingScreen!.Draw(GraphicsDevice.Viewport);
+                    _screens.DrawWorldLoading(GraphicsDevice);
                     break;
                 case GameState.Playing:
                     if (HasBlockingGameplayOverlay())
@@ -2553,50 +1890,23 @@ namespace Autonocraft.Core
                     }
                     else
                     {
-                        // Water animation via atlas.SetData causes GPU stalls on macOS — use static tile.
                         var drawStopwatch = Stopwatch.StartNew();
                         var renderContext = _session.PrepareRenderContext(_camera, _timeOfDay, _waterAnimTime, _settings.RenderDistance);
-                        PopulateConstructionSitePreviews(renderContext, _session.Villages, _session.Player.Position);
-                        renderContext.VillageUiOpen = _villageScreen?.IsOpen == true;
-                        renderContext.BlueprintPlacement = _blueprintPlacementPreview;
-                        renderContext.WorkZonePlacement = _workZonePreview;
-                        renderContext.HudPlacementHint = _pendingFoundingPlacement
-                            ? "LOOK AT GROUND · LEFT CLICK PLACE TOWN HEART · ESC CANCEL"
-                            : _pendingBlueprintId != null
-                                ? "LOOK AT GROUND · LEFT CLICK PLACE · ESC CANCEL"
-                                : _workZonePlacementActive
-                                ? (_workZoneCornerA.HasValue ? "CLICK OPPOSITE CORNER · ESC CANCEL" : "CLICK FIRST CORNER · ESC CANCEL")
-                                : null;
+                        _blueprints.PopulateConstructionSitePreviews(renderContext, _session.Villages, _session.Player.Position);
+                        renderContext.VillageUiOpen = _screens.VillageScreen?.IsOpen == true;
+                        _blueprints.ApplyToRenderContext(renderContext);
                         _renderer?.Draw(renderContext);
                         drawStopwatch.Stop();
                         PerfCounters.RecordDraw((float)drawStopwatch.Elapsed.TotalMilliseconds);
                     }
 
-                    _inventoryScreen?.Draw(GraphicsDevice.Viewport, _session.Player, _session.Crafting, _atlasTexture);
-                    _crucibleScreen?.Draw(
-                        GraphicsDevice.Viewport,
-                        _session.Crafting.Crucible,
-                        _session.Crafting.GetCurrentEnvironment(_session.Grid, _timeOfDay),
-                        _session.Crafting.Journal,
+                    _screens.DrawPlayingOverlays(
+                        GraphicsDevice,
                         _session.Crafting,
+                        _session.Grid,
+                        _atlasTexture,
                         _session.Player,
-                        _atlasTexture);
-                    if (_session.Crafting.ShouldDrawJournal())
-                    {
-                        var journalFade = _session.Crafting.JournalTransition;
-                        _journalScreen?.Draw(
-                            GraphicsDevice.Viewport,
-                            _session.Crafting.Journal,
-                            _session.Player.Skills,
-                            journalFade.Alpha,
-                            journalFade.OffsetY);
-                    }
-
-                    _villageScreen?.Draw(GraphicsDevice.Viewport);
-                    _villageChatScreen?.Draw(GraphicsDevice.Viewport);
-                    _devConsole?.Draw(GraphicsDevice.Viewport);
-                    _pauseMenu?.Draw(GraphicsDevice.Viewport, _pauseFade.Alpha, _pauseFade.OffsetY);
-                    _deathScreen?.Draw(GraphicsDevice.Viewport, _deathFade.Alpha, _deathFade.OffsetY);
+                        _timeOfDay);
                     RecordFrameMetrics((float)gameTime.ElapsedGameTime.TotalSeconds);
                     break;
             }
@@ -2606,7 +1916,7 @@ namespace Autonocraft.Core
 
         public void OpenCrucibleAt(int x, int y, int z, BlockType stationType)
         {
-            _mouseLockedBeforeCrafting = _isMouseLocked;
+            _input.MouseLockedBeforeCrafting = _input.IsMouseLocked;
             PrepareMouseForUi();
             _session.Crafting.OpenCrucible(x, y, z, stationType);
         }
@@ -2615,15 +1925,8 @@ namespace Autonocraft.Core
         {
             _session.Crafting.CloseCrucible();
             _session.Crafting.CloseRecipeBook();
-            _isMouseLocked = _mouseLockedBeforeCrafting;
-            if (_isMouseLocked)
-            {
-                ApplyMouseCapture();
-            }
-            else
-            {
-                IsMouseVisible = true;
-            }
+            _input.IsMouseLocked = _input.MouseLockedBeforeCrafting;
+            RestoreMouseLockAfterOverlay();
         }
 
         private void CloseInventoryUi()
@@ -2636,38 +1939,31 @@ namespace Autonocraft.Core
 
             _session.Crafting.CloseInventory();
             _session.Crafting.CloseRecipeBook();
-            _isMouseLocked = _mouseLockedBeforeCrafting;
-            if (_isMouseLocked)
-            {
-                ApplyMouseCapture();
-            }
-            else
-            {
-                IsMouseVisible = true;
-            }
+            _input.IsMouseLocked = _input.MouseLockedBeforeCrafting;
+            RestoreMouseLockAfterOverlay();
         }
 
         private void UpdateInventoryOverlay(KeyboardState kbState, MouseState mouseState)
         {
             EnsureUiPointerMode();
-            _inventoryScreen!.Update(
+            _screens.InventoryScreen!.Update(
                 GraphicsDevice.Viewport,
                 _session.Player,
                 _session.Crafting,
                 kbState,
                 mouseState,
-                _prevKbState,
-                _prevMouseState);
+                _input.PrevKeyboard,
+                _input.PrevMouse);
 
-            _inventoryScreen.HandleClicks(_session.Player, _session.Crafting);
-            _inventoryScreen.HandleRecipeBookClick(_session.Crafting, _session.Player);
+            _screens.InventoryScreen.HandleClicks(_session.Player, _session.Crafting);
+            _screens.InventoryScreen.HandleRecipeBookClick(_session.Crafting, _session.Player);
 
-            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.B) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.B))
+            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.B) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.B))
             {
                 _session.Crafting.ToggleRecipeBook();
             }
 
-            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape))
+            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape))
             {
                 CloseInventoryUi();
             }
@@ -2683,26 +1979,26 @@ namespace Autonocraft.Core
                 return false;
             }
 
-            if (_pauseMenu?.IsOpen == true
-                || _deathScreen?.IsOpen == true
-                || _villageScreen?.IsOpen == true
+            if (_screens.PauseMenu?.IsOpen == true
+                || _screens.DeathScreen?.IsOpen == true
+                || _screens.VillageScreen?.IsOpen == true
                 || _session.Crafting.Crucible.IsOpen
                 || _session.Crafting.IsJournalUiBlocking)
             {
                 return false;
             }
 
-            if (!kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.I) || _prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.I))
+            if (!kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.I) || _input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.I))
             {
                 return false;
             }
 
-            if (_lastInventoryKeyFrame == _gameFrameCount)
+            if (_input.LastInventoryKeyFrame == _input.GameFrameCount)
             {
                 return false;
             }
 
-            _lastInventoryKeyFrame = _gameFrameCount;
+            _input.LastInventoryKeyFrame = _input.GameFrameCount;
 
             if (_session.Crafting.InventoryOpen)
             {
@@ -2710,7 +2006,7 @@ namespace Autonocraft.Core
             }
             else
             {
-                _mouseLockedBeforeCrafting = _isMouseLocked;
+                _input.MouseLockedBeforeCrafting = _input.IsMouseLocked;
                 PrepareMouseForUi();
                 _session.Crafting.OpenInventory();
             }
@@ -2723,10 +2019,10 @@ namespace Autonocraft.Core
             var village = _session.Villages.GetActiveVillage(_session.Player.Position);
             if (village == null)
             {
-                _mouseLockedBeforeVillageUi = _isMouseLocked;
+                _input.MouseLockedBeforeVillageUi = _input.IsMouseLocked;
                 PrepareMouseForUi();
                 TryActivateWindow();
-                _villageScreen!.OpenFounding(
+                _screens.VillageScreen!.OpenFounding(
                     _session.Villages,
                     _session.Grid,
                     _session.Player.Position,
@@ -2754,10 +2050,10 @@ namespace Autonocraft.Core
                 openingNote = $"{citizens} settler(s) on site — open PEOPLE tab to assign LUMBER or BUILD.";
             }
 
-            _mouseLockedBeforeVillageUi = _isMouseLocked;
+            _input.MouseLockedBeforeVillageUi = _input.IsMouseLocked;
             PrepareMouseForUi();
             TryActivateWindow();
-            _villageScreen!.Open(
+            _screens.VillageScreen!.Open(
                 village,
                 _session.Villages,
                 _session.Grid,
@@ -2772,7 +2068,7 @@ namespace Autonocraft.Core
         private void OpenVillageUiToPeopleTab()
         {
             OpenVillageUi();
-            _villageScreen?.OpenPeopleTab();
+            _screens.VillageScreen?.OpenPeopleTab();
         }
 
         private static string FormatDeathCause(DeathCause cause) => cause switch
@@ -2789,16 +2085,9 @@ namespace Autonocraft.Core
 
         private void CloseVillageUi()
         {
-            _villageScreen!.Close();
-            _isMouseLocked = _mouseLockedBeforeVillageUi;
-            if (_isMouseLocked)
-            {
-                ApplyMouseCapture();
-            }
-            else
-            {
-                IsMouseVisible = true;
-            }
+            _screens.VillageScreen!.Close();
+            _input.IsMouseLocked = _input.MouseLockedBeforeVillageUi;
+            RestoreMouseLockAfterOverlay();
         }
 
         private void OpenVillageChatUi()
@@ -2818,9 +2107,9 @@ namespace Autonocraft.Core
 
             var nearest = _session.Villagers.GetNearest(_session.Player.Position, 8f);
             string target = nearest != null ? nearest.Id.ToString() : "mayor";
-            _mouseLockedBeforeVillageUi = _isMouseLocked;
+            _input.MouseLockedBeforeVillageUi = _input.IsMouseLocked;
             PrepareMouseForUi();
-            _villageChatScreen!.Open(village, target, nearest == null);
+            _screens.VillageChatScreen!.Open(village, target, nearest == null);
         }
 
         private sealed class PlayerHotbarAdapter : IItemContainer
@@ -2872,7 +2161,7 @@ namespace Autonocraft.Core
         private void UpdateCrucibleOverlay(float deltaTime, KeyboardState kbState, MouseState mouseState)
         {
             var env = _session.Crafting.GetCurrentEnvironment(_session.Grid, _timeOfDay);
-            _crucibleScreen!.Update(
+            _screens.CrucibleScreen!.Update(
                 GraphicsDevice.Viewport,
                 _session.Crafting.Crucible,
                 env,
@@ -2881,59 +2170,59 @@ namespace Autonocraft.Core
                 _session.Player,
                 kbState,
                 mouseState,
-                _prevKbState,
-                _prevMouseState,
+                _input.PrevKeyboard,
+                _input.PrevMouse,
                 deltaTime);
 
-            _crucibleScreen.HandleRecipeBookClick(_session.Crafting, _session.Player);
+            _screens.CrucibleScreen.HandleRecipeBookClick(_session.Crafting, _session.Player);
 
-            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.B) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.B))
+            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.B) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.B))
             {
                 _session.Crafting.ToggleRecipeBook();
             }
 
-            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape))
+            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape))
             {
                 CloseCrucibleUi();
                 return;
             }
 
-            if (_crucibleScreen.ClickedSlotIndex >= 0)
+            if (_screens.CrucibleScreen.ClickedSlotIndex >= 0)
             {
-                if (_crucibleScreen.RightClickedSlot)
+                if (_screens.CrucibleScreen.RightClickedSlot)
                 {
-                    if (_session.Crafting.Crucible.WithdrawToHotbar(_session.Player, _crucibleScreen.ClickedSlotIndex))
+                    if (_session.Crafting.Crucible.WithdrawToHotbar(_session.Player, _screens.CrucibleScreen.ClickedSlotIndex))
                     {
-                        _crucibleScreen.TriggerSlotPulse(_crucibleScreen.ClickedSlotIndex);
+                        _screens.CrucibleScreen.TriggerSlotPulse(_screens.CrucibleScreen.ClickedSlotIndex);
                     }
                 }
                 else
                 {
-                    if (_session.Crafting.Crucible.DepositFromHotbar(_session.Player, _crucibleScreen.ClickedSlotIndex))
+                    if (_session.Crafting.Crucible.DepositFromHotbar(_session.Player, _screens.CrucibleScreen.ClickedSlotIndex))
                     {
-                        _crucibleScreen.TriggerSlotPulse(_crucibleScreen.ClickedSlotIndex);
+                        _screens.CrucibleScreen.TriggerSlotPulse(_screens.CrucibleScreen.ClickedSlotIndex);
                     }
                     else
                     {
                         var slot = _session.Player.GetSelectedStack();
                         if (!slot.IsBlock() && !slot.IsMaterial())
                         {
-                            _crucibleScreen.SetStatus("SELECT BLOCKS OR STICKS");
+                            _screens.CrucibleScreen.SetStatus("SELECT BLOCKS OR STICKS");
                         }
                         else
                         {
-                            _crucibleScreen.SetStatus("SLOT FULL");
+                            _screens.CrucibleScreen.SetStatus("SLOT FULL");
                         }
                     }
                 }
             }
 
-            if (_crucibleScreen.TransmuteRequested)
+            if (_screens.CrucibleScreen.TransmuteRequested)
             {
-                _crucibleScreen.BeginTransmuteAnimation();
+                _screens.CrucibleScreen.BeginTransmuteAnimation();
             }
 
-            if (_crucibleScreen.TransmuteReady)
+            if (_screens.CrucibleScreen.TransmuteReady)
             {
                 var result = _session.Crafting.TryTransmute(_session.Grid, _session.Player, _timeOfDay);
                 if (result.Succeeded)
@@ -2943,13 +2232,13 @@ namespace Autonocraft.Core
                         : result.Recipe.IsMaterialOutput
                             ? $"{result.Recipe.DisplayName.ToUpperInvariant()} x{result.Recipe.OutputCount}"
                             : result.Recipe.Output.ToString().ToUpperInvariant();
-                    _crucibleScreen.SetStatus($"CREATED {created}");
+                    _screens.CrucibleScreen.SetStatus($"CREATED {created}");
                     _session.BlockInteraction.TriggerCrosshairFlash();
                     _session.Particles.SpawnHint(_session.Player.Position + new Vector3(0f, Player.EyeHeight, 0f));
                 }
                 else
                 {
-                    _crucibleScreen.SetStatus(result.Message.ToUpperInvariant());
+                    _screens.CrucibleScreen.SetStatus(result.Message.ToUpperInvariant());
                 }
             }
         }

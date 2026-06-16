@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Numerics;
 using Microsoft.Xna.Framework.Graphics;
@@ -77,23 +78,74 @@ namespace Autonocraft.World
         private List<Vertex>? _vertexScratch;
         private List<uint>? _indexScratch;
 
-        /// <summary>Holds vertex/index arrays computed on a background thread, ready for GPU upload.</summary>
+        /// <summary>
+        /// Holds vertex/index arrays computed on a background thread, ready for GPU upload.
+        /// Backing arrays for solid and water geometry are rented from ArrayPool and must be returned exactly once.
+        /// </summary>
         internal sealed class PrebuiltMeshData
         {
             public readonly Vertex[] Vertices;
+            public readonly int VertexCount;
             public readonly uint[] Indices;
+            public readonly int IndexCount;
             public readonly Vertex[] WaterVertices;
+            public readonly int WaterVertexCount;
             public readonly uint[] WaterIndices;
+            public readonly int WaterIndexCount;
             public readonly ChunkMeshDetail Detail;
             public readonly bool BuildFlora;
             public readonly FloraVertex[]? FloraVertices;
             public readonly uint[]? FloraIndices;
 
-            public PrebuiltMeshData(Vertex[] v, uint[] i, Vertex[] wv, uint[] wi, ChunkMeshDetail detail, bool buildFlora,
-                FloraVertex[]? fv = null, uint[]? fi = null)
+            public PrebuiltMeshData(
+                Vertex[] vertices,
+                int vertexCount,
+                uint[] indices,
+                int indexCount,
+                Vertex[] waterVertices,
+                int waterVertexCount,
+                uint[] waterIndices,
+                int waterIndexCount,
+                ChunkMeshDetail detail,
+                bool buildFlora,
+                FloraVertex[]? floraVertices = null,
+                uint[]? floraIndices = null)
             {
-                Vertices = v; Indices = i; WaterVertices = wv; WaterIndices = wi; Detail = detail; BuildFlora = buildFlora;
-                FloraVertices = fv; FloraIndices = fi;
+                Vertices = vertices;
+                VertexCount = vertexCount;
+                Indices = indices;
+                IndexCount = indexCount;
+                WaterVertices = waterVertices;
+                WaterVertexCount = waterVertexCount;
+                WaterIndices = waterIndices;
+                WaterIndexCount = waterIndexCount;
+                Detail = detail;
+                BuildFlora = buildFlora;
+                FloraVertices = floraVertices;
+                FloraIndices = floraIndices;
+            }
+
+            public void ReturnToPools()
+            {
+                if (VertexCount > 0 && Vertices.Length > 0)
+                {
+                    ArrayPool<Vertex>.Shared.Return(Vertices, clearArray: false);
+                }
+
+                if (IndexCount > 0 && Indices.Length > 0)
+                {
+                    ArrayPool<uint>.Shared.Return(Indices, clearArray: false);
+                }
+
+                if (WaterVertexCount > 0 && WaterVertices.Length > 0)
+                {
+                    ArrayPool<Vertex>.Shared.Return(WaterVertices, clearArray: false);
+                }
+
+                if (WaterIndexCount > 0 && WaterIndices.Length > 0)
+                {
+                    ArrayPool<uint>.Shared.Return(WaterIndices, clearArray: false);
+                }
             }
         }
 
@@ -483,11 +535,54 @@ namespace Autonocraft.World
             var waterIndices = new List<uint>(3072);
 
             if (detail == ChunkMeshDetail.Shell)
+            {
                 BuildShellMesh(context, ChunkX * Width, ChunkZ * Depth, vertices, indices);
+            }
             else if (detail == ChunkMeshDetail.Surface)
+            {
                 BuildSurfaceMeshList(context, vertices, indices, waterVertices, waterIndices);
+            }
             else
+            {
                 BuildFullMeshList(context, vertices, indices, waterVertices, waterIndices);
+            }
+
+            int vertexCount = vertices.Count;
+            int indexCount = indices.Count;
+            int waterVertexCount = waterVertices.Count;
+            int waterIndexCount = waterIndices.Count;
+
+            Vertex[] vertexArray = vertexCount == 0
+                ? Array.Empty<Vertex>()
+                : ArrayPool<Vertex>.Shared.Rent(vertexCount);
+            if (vertexCount > 0)
+            {
+                vertices.CopyTo(vertexArray, 0);
+            }
+
+            uint[] indexArray = indexCount == 0
+                ? Array.Empty<uint>()
+                : ArrayPool<uint>.Shared.Rent(indexCount);
+            if (indexCount > 0)
+            {
+                indices.CopyTo(indexArray, 0);
+            }
+
+            Vertex[] waterVertexArray = waterVertexCount == 0
+                ? Array.Empty<Vertex>()
+                : ArrayPool<Vertex>.Shared.Rent(waterVertexCount);
+            if (waterVertexCount > 0)
+            {
+                waterVertices.CopyTo(waterVertexArray, 0);
+            }
+
+            uint[] waterIndexArray = waterIndexCount == 0
+                ? Array.Empty<uint>()
+                : ArrayPool<uint>.Shared.Rent(waterIndexCount);
+            if (waterIndexCount > 0)
+            {
+                waterIndices.CopyTo(waterIndexArray, 0);
+            }
 
             FloraVertex[]? fv = null;
             uint[]? fi = null;
@@ -496,10 +591,26 @@ namespace Autonocraft.World
                 var fvList = new List<FloraVertex>(1024);
                 var fiList = new List<uint>(1536);
                 FloraMeshBuilder.Build(this, context.BiomeMap, fvList, fiList);
-                if (fvList.Count > 0) { fv = fvList.ToArray(); fi = fiList.ToArray(); }
+                if (fvList.Count > 0)
+                {
+                    fv = fvList.ToArray();
+                    fi = fiList.ToArray();
+                }
             }
 
-            return new PrebuiltMeshData(vertices.ToArray(), indices.ToArray(), waterVertices.ToArray(), waterIndices.ToArray(), detail, buildFlora, fv, fi);
+            return new PrebuiltMeshData(
+                vertexArray,
+                vertexCount,
+                indexArray,
+                indexCount,
+                waterVertexArray,
+                waterVertexCount,
+                waterIndexArray,
+                waterIndexCount,
+                detail,
+                buildFlora,
+                fv,
+                fi);
         }
 
         /// <summary>
@@ -558,7 +669,7 @@ namespace Autonocraft.World
             switch (data.Detail)
             {
                 case ChunkMeshDetail.Surface:
-                    if (data.Indices.Length == 0 && data.WaterIndices.Length == 0)
+                    if (data.IndexCount == 0 && data.WaterIndexCount == 0)
                     {
                         MarkEmptyMeshDetail(ChunkMeshDetail.Surface);
                     }
@@ -566,31 +677,64 @@ namespace Autonocraft.World
                     {
                         if (!_surfaceMeshBuilt || wasStale)
                         {
-                            UploadMeshBuffers(device, data.Vertices, data.Indices,
-                                ref _surfaceVertexBuffer, ref _surfaceIndexBuffer, ref _surfaceIndexCount);
-                            UploadMeshBuffers(device, data.WaterVertices, data.WaterIndices,
-                                ref _surfaceWaterVertexBuffer, ref _surfaceWaterIndexBuffer, ref _surfaceWaterIndexCount);
-                            _surfaceWaterVertices = data.WaterVertices;
+                            UploadMeshBuffers(
+                                device,
+                                data.Vertices,
+                                data.VertexCount,
+                                data.Indices,
+                                data.IndexCount,
+                                ref _surfaceVertexBuffer,
+                                ref _surfaceIndexBuffer,
+                                ref _surfaceIndexCount);
+
+                            UploadMeshBuffers(
+                                device,
+                                data.WaterVertices,
+                                data.WaterVertexCount,
+                                data.WaterIndices,
+                                data.WaterIndexCount,
+                                ref _surfaceWaterVertexBuffer,
+                                ref _surfaceWaterIndexBuffer,
+                                ref _surfaceWaterIndexCount);
+
+                            if (data.WaterVertexCount > 0)
+                            {
+                                var copy = new Vertex[data.WaterVertexCount];
+                                Array.Copy(data.WaterVertices, 0, copy, 0, data.WaterVertexCount);
+                                _surfaceWaterVertices = copy;
+                            }
+                            else
+                            {
+                                _surfaceWaterVertices = null;
+                            }
+
                             _surfaceMeshBuilt = true;
                         }
                     }
                     SurfaceMeshBuildInFlight = false;
                     break;
                 case ChunkMeshDetail.Shell:
-                    if (data.Indices.Length == 0)
+                    if (data.IndexCount == 0)
                     {
                         MarkEmptyMeshDetail(ChunkMeshDetail.Shell);
                     }
                     else if (!_shellMeshBuilt || wasStale)
                     {
-                        UploadMeshBuffers(device, data.Vertices, data.Indices,
-                            ref _shellVertexBuffer, ref _shellIndexBuffer, ref _shellIndexCount);
+                        UploadMeshBuffers(
+                            device,
+                            data.Vertices,
+                            data.VertexCount,
+                            data.Indices,
+                            data.IndexCount,
+                            ref _shellVertexBuffer,
+                            ref _shellIndexBuffer,
+                            ref _shellIndexCount);
                         _shellMeshBuilt = true;
                     }
                     ShellMeshBuildInFlight = false;
                     break;
                 default:
-                    if (data.Indices.Length == 0 && data.WaterIndices.Length == 0)
+                    if (data.IndexCount == 0 && data.WaterIndexCount == 0)
                     {
                         MarkEmptyMeshDetail(ChunkMeshDetail.Full);
                     }
@@ -598,11 +742,37 @@ namespace Autonocraft.World
                     {
                         if (!_fullMeshBuilt || wasStale)
                         {
-                            UploadMeshBuffers(device, data.Vertices, data.Indices,
-                                ref _fullVertexBuffer, ref _fullIndexBuffer, ref _fullIndexCount);
-                            UploadMeshBuffers(device, data.WaterVertices, data.WaterIndices,
-                                ref _fullWaterVertexBuffer, ref _fullWaterIndexBuffer, ref _fullWaterIndexCount);
-                            _fullWaterVertices = data.WaterVertices;
+                            UploadMeshBuffers(
+                                device,
+                                data.Vertices,
+                                data.VertexCount,
+                                data.Indices,
+                                data.IndexCount,
+                                ref _fullVertexBuffer,
+                                ref _fullIndexBuffer,
+                                ref _fullIndexCount);
+
+                            UploadMeshBuffers(
+                                device,
+                                data.WaterVertices,
+                                data.WaterVertexCount,
+                                data.WaterIndices,
+                                data.WaterIndexCount,
+                                ref _fullWaterVertexBuffer,
+                                ref _fullWaterIndexBuffer,
+                                ref _fullWaterIndexCount);
+
+                            if (data.WaterVertexCount > 0)
+                            {
+                                var copy = new Vertex[data.WaterVertexCount];
+                                Array.Copy(data.WaterVertices, 0, copy, 0, data.WaterVertexCount);
+                                _fullWaterVertices = copy;
+                            }
+                            else
+                            {
+                                _fullWaterVertices = null;
+                            }
+
                             _fullMeshBuilt = true;
                         }
                     }
@@ -775,9 +945,43 @@ namespace Autonocraft.World
             ref Vertex[]? waterVerticesCPU)
         {
             var data = BuildMeshCpuOnly(context, detail, buildFlora: false);
-            UploadMeshBuffers(device, data.Vertices, data.Indices, ref vertexBuffer, ref indexBuffer, ref indexCount);
-            UploadMeshBuffers(device, data.WaterVertices, data.WaterIndices, ref waterVertexBuffer, ref waterIndexBuffer, ref waterIndexCount);
-            waterVerticesCPU = data.WaterVertices;
+            try
+            {
+                UploadMeshBuffers(
+                    device,
+                    data.Vertices,
+                    data.VertexCount,
+                    data.Indices,
+                    data.IndexCount,
+                    ref vertexBuffer,
+                    ref indexBuffer,
+                    ref indexCount);
+
+                UploadMeshBuffers(
+                    device,
+                    data.WaterVertices,
+                    data.WaterVertexCount,
+                    data.WaterIndices,
+                    data.WaterIndexCount,
+                    ref waterVertexBuffer,
+                    ref waterIndexBuffer,
+                    ref waterIndexCount);
+
+                if (data.WaterVertexCount > 0)
+                {
+                    var copy = new Vertex[data.WaterVertexCount];
+                    Array.Copy(data.WaterVertices, 0, copy, 0, data.WaterVertexCount);
+                    waterVerticesCPU = copy;
+                }
+                else
+                {
+                    waterVerticesCPU = null;
+                }
+            }
+            finally
+            {
+                data.ReturnToPools();
+            }
         }
 
         private void NoteBlockType(BlockType type)
@@ -1292,33 +1496,40 @@ namespace Autonocraft.World
                 || context.GetBlock(x, y + 1, z).IsSolidForSpawn();
         }
 
-        private static void UploadMeshBuffers(GraphicsDevice device, Vertex[] vertices, uint[] indices,
-            ref VertexBuffer? vertexBuffer, ref IndexBuffer? indexBuffer, ref int indexCount)
+        private static void UploadMeshBuffers(
+            GraphicsDevice device,
+            Vertex[] vertices,
+            int vertexCount,
+            uint[] indices,
+            int indexCount,
+            ref VertexBuffer? vertexBuffer,
+            ref IndexBuffer? indexBuffer,
+            ref int outIndexCount)
         {
-            if (vertices.Length == 0 || indices.Length == 0)
+            if (vertexCount == 0 || indexCount == 0)
             {
                 vertexBuffer?.Dispose();
                 indexBuffer?.Dispose();
                 vertexBuffer = null;
                 indexBuffer = null;
-                indexCount = 0;
+                outIndexCount = 0;
                 return;
             }
 
-            if (vertexBuffer == null || vertexBuffer.VertexCount < vertices.Length)
+            if (vertexBuffer == null || vertexBuffer.VertexCount < vertexCount)
             {
                 vertexBuffer?.Dispose();
-                vertexBuffer = new VertexBuffer(device, typeof(Vertex), vertices.Length, BufferUsage.WriteOnly);
+                vertexBuffer = new VertexBuffer(device, typeof(Vertex), vertexCount, BufferUsage.WriteOnly);
             }
-            vertexBuffer.SetData(vertices);
+            vertexBuffer.SetData(vertices, 0, vertexCount);
 
-            if (indexBuffer == null || indexBuffer.IndexCount < indices.Length)
+            if (indexBuffer == null || indexBuffer.IndexCount < indexCount)
             {
                 indexBuffer?.Dispose();
-                indexBuffer = new IndexBuffer(device, IndexElementSize.ThirtyTwoBits, indices.Length, BufferUsage.WriteOnly);
+                indexBuffer = new IndexBuffer(device, IndexElementSize.ThirtyTwoBits, indexCount, BufferUsage.WriteOnly);
             }
-            indexBuffer.SetData(indices);
-            indexCount = indices.Length;
+            indexBuffer.SetData(indices, 0, indexCount);
+            outIndexCount = indexCount;
         }
 
         public void Dispose()
