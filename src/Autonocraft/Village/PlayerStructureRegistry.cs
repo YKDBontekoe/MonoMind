@@ -39,11 +39,7 @@ namespace Autonocraft.Village
                     Kind = BuildingKind.TownHeart,
                     DisplayName = "Town Heart",
                     Template = BuildTownHeart(),
-                    Costs = new[]
-                    {
-                        new BlockCost(BlockType.Cobblestone, 32),
-                        new BlockCost(BlockType.OakPlank, 16)
-                    },
+                    Costs = Array.Empty<BlockCost>(),
                     HousingProvided = 2,
                     PopulationCapBonus = 2,
                     StorageSlots = 9
@@ -57,7 +53,7 @@ namespace Autonocraft.Village
                     Costs = new[]
                     {
                         new BlockCost(BlockType.OakPlank, 24),
-                        new BlockCost(BlockType.Cobblestone, 8)
+                        new BlockCost(BlockType.Cobblestone, 4)
                     },
                     HousingProvided = 2,
                     PopulationCapBonus = 2
@@ -163,17 +159,18 @@ namespace Autonocraft.Village
             {
                 for (int dz = -2; dz <= 2; dz++)
                 {
-                    blocks.Add(new StructureBlock(dx, 0, dz, BlockType.Cobblestone));
+                    blocks.Add(new StructureBlock(dx, 0, dz, BlockType.OakPlank));
                 }
             }
 
-            blocks.Add(new StructureBlock(0, 1, 0, BlockType.OakPlank));
+            blocks.Add(new StructureBlock(0, 1, 0, BlockType.OakLog));
             return new StructureTemplate { FootprintRadius = 2, Blocks = blocks.ToArray() };
         }
 
         private static StructureTemplate BuildPeasantHouse()
         {
             var blocks = new List<StructureBlock>();
+            // Floor
             for (int dx = -2; dx <= 2; dx++)
             {
                 for (int dz = -2; dz <= 2; dz++)
@@ -182,18 +179,45 @@ namespace Autonocraft.Village
                 }
             }
 
+            // Walls
             for (int y = 1; y <= 3; y++)
             {
                 for (int dx = -2; dx <= 2; dx++)
                 {
-                    blocks.Add(new StructureBlock(dx, y, -2, BlockType.OakPlank));
-                    blocks.Add(new StructureBlock(dx, y, 2, BlockType.OakPlank));
+                    // Front and back walls
+                    BlockType f_type = BlockType.OakPlank;
+                    BlockType b_type = BlockType.OakPlank;
+
+                    // Door in the front
+                    if (y <= 2 && dx == 0) f_type = BlockType.Air;
+                    // Windows in front and back
+                    if (y == 2 && (dx == -1 || dx == 1))
+                    {
+                        f_type = BlockType.Glass;
+                        b_type = BlockType.Glass;
+                    }
+
+                    blocks.Add(new StructureBlock(dx, y, -2, f_type));
+                    blocks.Add(new StructureBlock(dx, y, 2, b_type));
                 }
 
                 for (int dz = -1; dz <= 1; dz++)
                 {
-                    blocks.Add(new StructureBlock(-2, y, dz, BlockType.OakPlank));
-                    blocks.Add(new StructureBlock(2, y, dz, BlockType.OakPlank));
+                    // Side walls
+                    BlockType s_type = BlockType.OakPlank;
+                    if (y == 2 && dz == 0) s_type = BlockType.Glass;
+
+                    blocks.Add(new StructureBlock(-2, y, dz, s_type));
+                    blocks.Add(new StructureBlock(2, y, dz, s_type));
+                }
+            }
+
+            // Roof
+            for (int dx = -2; dx <= 2; dx++)
+            {
+                for (int dz = -2; dz <= 2; dz++)
+                {
+                    blocks.Add(new StructureBlock(dx, 4, dz, BlockType.OakLog));
                 }
             }
 
