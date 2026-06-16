@@ -17,6 +17,7 @@ namespace Autonocraft.Core
         public Player Player { get; set; } = null!;
         public VoxelWorld Grid { get; set; } = null!;
         public AnimalManager Animals { get; set; } = null!;
+        public IReadOnlyList<ItemEntity> ItemEntities { get; set; } = null!;
         public VillagerManager Villagers { get; set; } = null!;
         public VillageManager Villages { get; set; } = null!;
         public BlockInteractionSystem BlockInteraction { get; set; } = null!;

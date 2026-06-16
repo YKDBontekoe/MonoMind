@@ -64,6 +64,7 @@ public static class IntegrationTestRunner
                 PhysicsTests.RunGravityAndCollision(player, world);
                 PhysicsTests.RunJumping(player, world);
                 InventoryTests.RunInventory(player);
+                InventoryTests.RunDropItem(player, game.Session);
                 InteractionTests.RunMiningAndPlacing(game, player, world);
                 InventoryTests.RunToolMiningSpeed(player);
                 InventoryTests.RunToolDurability(player);

@@ -263,10 +263,9 @@ namespace Autonocraft.Engine
         private void DrawCrackOverlay(Vector3 blockPos, Vector3 normal, float progress)
         {
             int stage = Math.Clamp((int)(progress * 10f), 0, 9);
-            float crackAlpha = 0.2f + stage * 0.07f;
-            var crackColor = new Vector3(1f, 1f, 1f) * crackAlpha;
+            if (stage <= 0) return;
 
-            float offset = 0.001f;
+            float offset = 0.002f; // prevent z-fighting
             Vector3 n = Vector3.Normalize(normal);
             Vector3 center = blockPos + n * (0.5f + offset) + new Vector3(0.5f, 0.5f, 0.5f);
 
@@ -282,14 +281,16 @@ namespace Autonocraft.Engine
 
             Vector3 bitangent = Vector3.Normalize(Vector3.Cross(n, tangent));
             tangent = Vector3.Normalize(Vector3.Cross(bitangent, n));
-            float half = 0.49f;
+            float half = 0.495f;
 
             var p0 = center - tangent * half - bitangent * half;
             var p1 = center + tangent * half - bitangent * half;
             var p2 = center + tangent * half + bitangent * half;
             var p3 = center - tangent * half + bitangent * half;
 
-            var col = crackColor;
+            // Subtle dark background shading representing block fractures
+            float intensity = 0.1f + stage * 0.025f;
+            var col = new Vector3(0.04f, 0.04f, 0.04f) * intensity;
             var vertices = new Vertex[]
             {
                 new Vertex(p0, col, n, Vector2.Zero),
@@ -298,11 +299,11 @@ namespace Autonocraft.Engine
                 new Vertex(p3, col, n, Vector2.Zero)
             };
 
-            DrawCrackPattern(stage, vertices, blockPos);
-
             var indices = new short[] { 0, 1, 2, 0, 2, 3 };
             _overlayEffect.World = Matrix.Identity;
             _overlayEffect.TextureEnabled = false;
+
+            _device.BlendState = BlendState.AlphaBlend;
 
             foreach (var pass in _overlayEffect.CurrentTechnique.Passes)
             {
@@ -310,6 +311,7 @@ namespace Autonocraft.Engine
                 _device.DrawUserIndexedPrimitives(PrimitiveType.TriangleList, vertices, 0, 4, indices, 0, 2);
             }
 
+            // Draw organic branching crack lines
             DrawCrackLines(blockPos, stage, p0, p1, p2, p3);
 
             _overlayEffect.TextureEnabled = true;
@@ -323,39 +325,83 @@ namespace Autonocraft.Engine
             Vector3 p2,
             Vector3 p3)
         {
-            if (stage <= 0)
-            {
-                return;
-            }
+            if (stage <= 0) return;
 
-            int lineCount = Math.Clamp(2 + stage, 2, 12);
             int seed = HashBlockSeed(blockPos);
             var rng = new Random(seed);
 
-            var lineVerts = new VertexPositionColor[lineCount * 2];
-            int vi = 0;
+            var points = new System.Collections.Generic.List<Vector2>();
+            var segments = new System.Collections.Generic.List<(int from, int to)>();
 
-            for (int i = 0; i < lineCount; i++)
+            // Center of block face
+            points.Add(new Vector2(0.5f, 0.5f));
+
+            int mainBranchesCount = 3 + rng.Next(2); // 3 to 4 cracks
+            for (int b = 0; b < mainBranchesCount; b++)
             {
-                float u0 = (float)rng.NextDouble();
-                float v0 = (float)rng.NextDouble();
-                float u1 = u0 + ((float)rng.NextDouble() - 0.5f) * 0.35f;
-                float v1 = v0 + ((float)rng.NextDouble() - 0.5f) * 0.35f;
+                float angle = b * (MathF.PI * 2f / mainBranchesCount) + (float)(rng.NextDouble() - 0.5) * 0.4f;
+                float maxLen = 0.15f + stage * 0.045f;
 
-                Vector3 Local(float u, float v) =>
-                    p0 + (p1 - p0) * u + (p3 - p0) * v;
+                int segmentsInBranch = 2 + stage / 3;
+                int lastIdx = 0;
 
-                var a = Local(Math.Clamp(u0, 0.05f, 0.95f), Math.Clamp(v0, 0.05f, 0.95f));
-                var b = Local(Math.Clamp(u1, 0.05f, 0.95f), Math.Clamp(v1, 0.05f, 0.95f));
-                var crackColor = new Color(0.05f, 0.05f, 0.05f, 0.55f + stage * 0.04f);
-                lineVerts[vi++] = new VertexPositionColor(a, crackColor);
-                lineVerts[vi++] = new VertexPositionColor(b, crackColor);
+                for (int s = 1; s <= segmentsInBranch; s++)
+                {
+                    float t = s / (float)segmentsInBranch;
+                    float currentLen = maxLen * t;
+                    float jitterAngle = angle + (float)(rng.NextDouble() - 0.5) * 0.25f;
+
+                    var offset = new Vector2(MathF.Cos(jitterAngle), MathF.Sin(jitterAngle)) * currentLen;
+                    var pt = new Vector2(0.5f, 0.5f) + offset;
+
+                    pt.X = Math.Clamp(pt.X, 0.02f, 0.98f);
+                    pt.Y = Math.Clamp(pt.Y, 0.02f, 0.98f);
+
+                    points.Add(pt);
+                    int newIdx = points.Count - 1;
+                    segments.Add((lastIdx, newIdx));
+                    lastIdx = newIdx;
+                }
+
+                if (stage >= 3 && rng.NextDouble() < 0.7)
+                {
+                    int parentIdx = points.Count - 1 - rng.Next(2);
+                    if (parentIdx > 0)
+                    {
+                        float subAngle = angle + (rng.Next(2) == 0 ? 1f : -1f) * (1.0f + (float)rng.NextDouble() * 0.4f);
+                        float subLen = maxLen * 0.4f;
+                        var subOffset = new Vector2(MathF.Cos(subAngle), MathF.Sin(subAngle)) * subLen;
+                        var subPt = points[parentIdx] + subOffset;
+
+                        subPt.X = Math.Clamp(subPt.X, 0.02f, 0.98f);
+                        subPt.Y = Math.Clamp(subPt.Y, 0.02f, 0.98f);
+
+                        points.Add(subPt);
+                        segments.Add((parentIdx, points.Count - 1));
+                    }
+                }
             }
+
+            var lineVerts = new VertexPositionColor[segments.Count * 2];
+            int vi = 0;
+            var crackColor = new Color(0.04f, 0.04f, 0.04f, 0.70f + stage * 0.03f);
+
+            Vector3 Local(Vector2 uv) =>
+                p0 + (p1 - p0) * uv.X + (p3 - p0) * uv.Y;
+
+            foreach (var segment in segments)
+            {
+                lineVerts[vi++] = new VertexPositionColor(ToMono(Local(points[segment.from])), crackColor);
+                lineVerts[vi++] = new VertexPositionColor(ToMono(Local(points[segment.to])), crackColor);
+            }
+
+            _overlayEffect.World = Matrix.Identity;
+            _overlayEffect.TextureEnabled = false;
 
             foreach (var pass in _overlayEffect.CurrentTechnique.Passes)
             {
                 pass.Apply();
-                _device.DrawUserPrimitives(PrimitiveType.LineList, lineVerts, 0, lineCount);
+                _device.DrawUserPrimitives(PrimitiveType.LineList, lineVerts, 0, segments.Count);
             }
         }
 
@@ -367,15 +413,6 @@ namespace Autonocraft.Engine
             unchecked
             {
                 return bx * 73856093 ^ by * 19349663 ^ bz * 83492791;
-            }
-        }
-
-        private static void DrawCrackPattern(int stage, Vertex[] vertices, Vector3 blockPos)
-        {
-            float intensity = (stage + 1) / 10f;
-            for (int i = 0; i < 4; i++)
-            {
-                vertices[i].Color *= intensity;
             }
         }
 

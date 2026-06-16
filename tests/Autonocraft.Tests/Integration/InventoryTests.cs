@@ -104,4 +104,57 @@ public static class InventoryTests
         Console.WriteLine("PASSED");
         Console.ResetColor();
     }
+
+    public static void RunDropItem(Player player, GameSession session)
+    {
+        Console.Write("Running Item Drop Test... ");
+
+        player.SelectedSlot = 0;
+
+        // Set up player hotbar slot
+        player.Hotbar[player.SelectedSlot] = ItemStack.CreateBlock(BlockType.Grass, 5);
+
+        // Verify initial count
+        if (player.GetSelectedStack().Count != 5)
+        {
+            throw new Exception("Expected 5 Grass in selected slot.");
+        }
+
+        // Drop 1 item
+        ItemStack dropped = player.DropOneFromSelectedSlot();
+        if (dropped.IsEmpty || dropped.BlockType != BlockType.Grass || dropped.Count != 1)
+        {
+            throw new Exception("Expected dropped stack to contain 1 Grass.");
+        }
+
+        // Verify remaining count in hotbar slot
+        if (player.GetSelectedStack().Count != 4)
+        {
+            throw new Exception("Expected 4 Grass remaining in selected slot.");
+        }
+
+        // Drop remaining items one by one
+        for (int i = 0; i < 4; i++)
+        {
+            player.DropOneFromSelectedSlot();
+        }
+
+        // Verify slot is now empty
+        if (!player.GetSelectedStack().IsEmpty)
+        {
+            throw new Exception("Expected selected slot to be empty after dropping all items.");
+        }
+
+        // Verify we can spawn item drop
+        var dropPos = new Vector3(16.5f, 65f, 16.5f);
+        var entity = session.SpawnItemDrop(dropped, dropPos);
+        if (entity == null || entity.Item.BlockType != BlockType.Grass || entity.Item.Count != 1)
+        {
+            throw new Exception("Expected spawned ItemEntity to contain the dropped item.");
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
 }

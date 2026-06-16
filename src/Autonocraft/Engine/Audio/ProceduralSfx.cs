@@ -20,6 +20,7 @@ namespace Autonocraft.Engine.Audio
                 SfxKind.Footstep => BuildFootstep(1f),
                 SfxKind.UiClick => BuildUiClick(),
                 SfxKind.Discovery => BuildDiscovery(),
+                SfxKind.Pop => BuildPop(),
                 SfxKind.Invalid => BuildInvalid(),
                 _ => BuildUiClick()
             };
@@ -192,6 +193,15 @@ namespace Autonocraft.Engine.Audio
             WaveSynth.FillSine(layer2, 784f, 0.2f);
             WaveSynth.ApplyEnvelope(layer2, 0.1f, 0.15f, 0.5f, 0.35f);
             WaveSynth.Mix(buffer, layer2, 0.8f);
+            WaveSynth.Normalize(buffer, 0.7f);
+            return buffer;
+        }
+
+        private static float[] BuildPop()
+        {
+            var buffer = WaveSynth.AllocateSeconds(0.06f);
+            WaveSynth.FillDescendingSine(buffer, 700f, 1300f, 0.45f);
+            WaveSynth.ApplyEnvelope(buffer, 0.05f, 0.2f, 0.1f, 0.6f);
             WaveSynth.Normalize(buffer, 0.7f);
             return buffer;
         }

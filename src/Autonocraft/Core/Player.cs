@@ -25,10 +25,10 @@ namespace Autonocraft.Core
         public const float Height = 1.8f;
         public const float EyeHeight = 1.6f;
 
-        public const float Gravity = -32f;
+        public const float Gravity = -38f;
         public const float WalkSpeed = 5.0f;
         public const float FlySpeed = 15.0f;
-        public const float JumpForce = 9.0f;
+        public const float JumpForce = 9.8f;
         public const float Damping = 0.15f;
 
         public const float SwimSpeed = 4.5f;
@@ -41,6 +41,7 @@ namespace Autonocraft.Core
         public bool OnWaterSurface { get; private set; }
         public float Oxygen { get; private set; } = MaxOxygen;
         public bool CreativeMode { get; set; } = false;
+        public bool IsSprinting { get; set; } = false;
         public float CustomMoveSpeed { get; set; } = 0f;
         public bool IsAlive => Health > 0f;
         public bool JustLanded { get; private set; }
@@ -152,6 +153,29 @@ namespace Autonocraft.Core
             }
 
             return true;
+        }
+
+        public ItemStack DropOneFromSelectedSlot()
+        {
+            ref var slot = ref Hotbar[SelectedSlot];
+            if (slot.IsEmpty)
+            {
+                return ItemStack.Empty;
+            }
+
+            ItemStack dropped = slot;
+            dropped.Count = 1;
+
+            if (!CreativeMode)
+            {
+                slot.Count--;
+                if (slot.Count <= 0)
+                {
+                    slot = ItemStack.Empty;
+                }
+            }
+
+            return dropped;
         }
 
         public bool DamageSelectedTool(int amount)
@@ -403,7 +427,13 @@ namespace Autonocraft.Core
                 return;
             }
 
-            Hunger = MathF.Max(0f, Hunger - SurvivalConstants.HungerDrainPerSecond * deltaTime);
+            float hungerDrain = SurvivalConstants.HungerDrainPerSecond;
+            if (IsSprinting)
+            {
+                hungerDrain *= 3.0f; // drain hunger 3x faster when sprinting
+            }
+
+            Hunger = MathF.Max(0f, Hunger - hungerDrain * deltaTime);
             if (Hunger > 0f)
             {
                 return;
@@ -497,6 +527,10 @@ namespace Autonocraft.Core
             if (CreativeMode)
             {
                 float speed = CustomMoveSpeed > 0f ? CustomMoveSpeed : FlySpeed;
+                if (IsSprinting)
+                {
+                    speed *= 1.5f; // Creative flying sprint boost
+                }
                 Velocity.Y = moveInput.Y * speed;
                 Velocity.X = moveInput.X * speed;
                 Velocity.Z = moveInput.Z * speed;
@@ -518,6 +552,10 @@ namespace Autonocraft.Core
                     if (InWater)
                     {
                         speed = CustomMoveSpeed > 0f ? CustomMoveSpeed : SwimSpeed;
+                    }
+                    else if (IsSprinting)
+                    {
+                        speed *= 1.3f; // Survival sprint boost
                     }
 
                     horizontalMove *= speed;
