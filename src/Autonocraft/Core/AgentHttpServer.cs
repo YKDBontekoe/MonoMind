@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using Autonocraft.Items;
 using Autonocraft.World;
+using Autonocraft.Domain.World;
 using Autonocraft.Ai;
 using Autonocraft.Domain.Village;
 using Autonocraft.Village;
@@ -156,6 +157,10 @@ namespace Autonocraft.Core
                 {
                     HandleGetVillageDebug(response);
                 }
+                else if (path == "/debug/slabscan" && request.HttpMethod == "GET")
+                {
+                    HandleGetSlabScan(request, response);
+                }
                 else if (path == "/screenshot" && request.HttpMethod == "GET")
                 {
                     HandleGetScreenshot(request, response);
@@ -202,6 +207,79 @@ namespace Autonocraft.Core
         private static void HandleGetMetrics(HttpListenerResponse response)
         {
             SendResponse(response, HttpStatusCode.OK, RuntimeMetrics.ToJson(), "application/json");
+        }
+
+        private static void HandleGetSlabScan(HttpListenerRequest request, HttpListenerResponse response)
+        {
+            if (_bridge == null || _bridge.CurrentGameState != GameState.Playing)
+            {
+                SendJsonResponse(response, HttpStatusCode.ServiceUnavailable, new { error = "Game not playing" });
+                return;
+            }
+
+            int radius = 12;
+            if (int.TryParse(request.QueryString["radius"], out int parsed))
+            {
+                radius = Math.Clamp(parsed, 1, 32);
+            }
+
+            var world = _bridge.Host.Session.Grid;
+            var player = _bridge.Host.Session.Player;
+            int px = (int)MathF.Floor(player.Position.X);
+            int py = (int)MathF.Floor(player.Position.Y);
+            int pz = (int)MathF.Floor(player.Position.Z);
+
+            int slabCount = 0;
+            int stoneSlabCount = 0;
+            int snowSlabCount = 0;
+            int maxSlabY = int.MinValue;
+            var samples = new List<object>();
+
+            for (int dz = -radius; dz <= radius; dz++)
+            {
+                for (int dx = -radius; dx <= radius; dx++)
+                {
+                    int wx = px + dx;
+                    int wz = pz + dz;
+                    int surfaceY = world.GetHighestSolidY(wx, wz);
+                    if (surfaceY < 0)
+                    {
+                        continue;
+                    }
+
+                    var block = world.GetBlock(wx, surfaceY, wz);
+                    if (!block.IsSlab())
+                    {
+                        continue;
+                    }
+
+                    slabCount++;
+                    maxSlabY = Math.Max(maxSlabY, surfaceY);
+                    if (block == BlockType.StoneSlab)
+                    {
+                        stoneSlabCount++;
+                    }
+                    else if (block == BlockType.SnowSlab)
+                    {
+                        snowSlabCount++;
+                    }
+
+                    if (samples.Count < 8)
+                    {
+                        samples.Add(new { x = wx, y = surfaceY, z = wz, block = block.ToString() });
+                    }
+                }
+            }
+
+            SendJsonResponse(response, HttpStatusCode.OK, new
+            {
+                slabCount,
+                stoneSlabCount,
+                snowSlabCount,
+                maxSlabY = maxSlabY == int.MinValue ? -1 : maxSlabY,
+                player = new { x = px, y = py, z = pz },
+                samples
+            });
         }
 
         private static void HandleGetState(HttpListenerResponse response)

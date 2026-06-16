@@ -85,7 +85,7 @@ namespace Autonocraft.World
                 {
                     int px = lx + Padding;
                     int pz = lz + Padding;
-                    columns[lx, lz] = FinalizeColumn(drafts[px, pz], heights[px, pz]);
+                    columns[lx, lz] = FinalizeColumn(drafts[px, pz], heights[px, pz], heights, px, pz);
                 }
             }
         }
@@ -446,20 +446,7 @@ namespace Autonocraft.World
             return (bestX, bestZ);
         }
 
-        private static BlockType GetSlabBlockType(BlockType type)
-        {
-            return type switch
-            {
-                BlockType.Grass => BlockType.GrassSlab,
-                BlockType.Dirt => BlockType.DirtSlab,
-                BlockType.Stone => BlockType.StoneSlab,
-                BlockType.Sand => BlockType.SandSlab,
-                BlockType.Snow => BlockType.SnowSlab,
-                _ => BlockType.Air
-            };
-        }
-
-        private static TerrainColumn FinalizeColumn(TerrainColumn draft, float height)
+        private static TerrainColumn FinalizeColumn(TerrainColumn draft, float height, float[,] heights, int px, int pz)
         {
             int surfaceHeight = Math.Clamp((int)MathF.Round(height), 1, Chunk.Height - 12);
             bool isRiver = draft.IsRiver;
@@ -482,24 +469,18 @@ namespace Autonocraft.World
                 surfaceHeight = Math.Min(surfaceHeight, WorldConstants.SeaLevel - 1);
             }
 
-            // Check if we should use a slab
-            int floorHeight = (int)MathF.Floor(height);
-            if (draft.Biome.Primary == BiomeType.Beach)
+            if (TerrainSlabRules.TryGetPlacement(draft, height, heights, px, pz, surface, out int slabHeight, out BlockType slabType))
             {
-                floorHeight = Math.Clamp(floorHeight, WorldConstants.SeaLevel, WorldConstants.BeachMaxHeight);
-            }
-            else if (draft.IsLake)
-            {
-                floorHeight = Math.Min(floorHeight, WorldConstants.SeaLevel - 1);
-            }
-            floorHeight = Math.Clamp(floorHeight, 1, Chunk.Height - 12);
+                if (draft.Biome.Primary == BiomeType.Beach)
+                {
+                    slabHeight = Math.Clamp(slabHeight, WorldConstants.SeaLevel, WorldConstants.BeachMaxHeight);
+                }
+                else if (draft.IsLake)
+                {
+                    slabHeight = Math.Min(slabHeight, WorldConstants.SeaLevel - 1);
+                }
 
-            float frac = height - MathF.Floor(height);
-            BlockType slabType = GetSlabBlockType(surface);
-
-            if (slabType != BlockType.Air && frac >= 0.25f && frac <= 0.75f)
-            {
-                surfaceHeight = floorHeight;
+                surfaceHeight = Math.Clamp(slabHeight, 1, Chunk.Height - 12);
                 surface = slabType;
             }
 
@@ -507,7 +488,8 @@ namespace Autonocraft.World
             {
                 SurfaceHeight = surfaceHeight,
                 SurfaceBlock = surface,
-                SubsurfaceBlock = subsurface
+                SubsurfaceBlock = subsurface,
+                SmoothedHeight = height
             };
         }
 

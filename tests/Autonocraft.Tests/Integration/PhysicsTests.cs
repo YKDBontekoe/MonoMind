@@ -111,8 +111,23 @@ public static class PhysicsTests
             throw new Exception($"Player jump force velocity should be {Player.JumpForce}, but got {player.Velocity.Y}");
         }
 
-        // Tick a few times to verify they rise
         float dt = 0.016f;
+        float groundY = player.Position.Y;
+        for (int i = 0; i < 8; i++)
+        {
+            player.Update(dt, world, Vector3.Zero);
+            if (player.IsGrounded)
+            {
+                throw new Exception($"Player was grounded too early during jump at frame {i}, y={player.Position.Y:F3}.");
+            }
+
+            if (player.Position.Y <= groundY + 0.01f)
+            {
+                throw new Exception($"Player was snapped down during jump at frame {i}, y={player.Position.Y:F3}.");
+            }
+        }
+
+        // Tick a few times to verify they rise
         player.Update(dt, world, Vector3.Zero);
 
         if (player.Position.Y <= initialY)
@@ -135,6 +150,104 @@ public static class PhysicsTests
         Console.WriteLine("PASSED");
         Console.ResetColor();
     }
+
+    public static void RunSlabStairWalking(Player player, VoxelWorld world)
+    {
+        Console.Write("Running Slab Stair Walking Test... ");
+
+        const int baseX = 24;
+        const int baseY = 80;
+        const int baseZ = 24;
+
+        world.UpdateChunksAround(null, new Vector3(baseX + 0.5f, baseY + 1f, baseZ + 0.5f), 3);
+
+        for (int x = baseX - 2; x <= baseX + 6; x++)
+        {
+            for (int z = baseZ - 2; z <= baseZ + 2; z++)
+            {
+                for (int y = Math.Max(0, baseY - 4); y <= baseY + 6; y++)
+                {
+                    world.SetBlock(x, y, z, BlockType.Air);
+                }
+
+                world.SetBlock(x, baseY - 1, z, BlockType.Stone);
+                world.SetBlock(x, baseY, z, BlockType.Stone);
+            }
+        }
+
+        world.SetBlock(baseX + 2, baseY + 1, baseZ, BlockType.StoneSlab);
+        world.SetBlock(baseX + 3, baseY + 1, baseZ, BlockType.Stone);
+        world.SetBlock(baseX + 4, baseY + 1, baseZ, BlockType.Stone);
+
+        player.CreativeMode = false;
+        player.Position = new Vector3(baseX + 0.5f, baseY + 1.001f, baseZ + 0.5f);
+        player.Velocity = Vector3.Zero;
+
+        float dt = 1f / 60f;
+        float lastY = player.Position.Y;
+        int groundedFrames = 0;
+        int airFrames = 0;
+        int oscillations = 0;
+
+        for (int i = 0; i < 360; i++)
+        {
+            player.Update(dt, world, new Vector3(1f, 0f, 0f));
+            if (!player.IsGrounded)
+            {
+                airFrames++;
+                if (airFrames > 15)
+                {
+                    throw new Exception($"Player left the ground too long while climbing slab stairs at frame {i}, y={player.Position.Y:F3}.");
+                }
+            }
+            else
+            {
+                airFrames = 0;
+                groundedFrames++;
+            }
+            if (MathF.Abs(player.Position.Y - lastY) > 1.05f)
+            {
+                throw new Exception($"Player Y jumped too far between frames ({lastY:F3} -> {player.Position.Y:F3}).");
+            }
+
+            if (i > 0 && MathF.Abs(player.Position.Y - lastY) > 0.02f && MathF.Abs(player.Position.Y - lastY) < 0.35f)
+            {
+                oscillations++;
+            }
+
+            lastY = player.Position.Y;
+
+            if (player.Position.X >= baseX + 3.5f)
+            {
+                break;
+            }
+        }
+
+        if (player.Position.X < baseX + 3.5f)
+        {
+            throw new Exception($"Player did not walk across the slab stair (x={player.Position.X:F2}).");
+        }
+
+        if (player.Position.Y < baseY + 1.9f)
+        {
+            throw new Exception($"Player did not reach the top of the slab stair (y={player.Position.Y:F3}).");
+        }
+
+        if (oscillations > 24)
+        {
+            throw new Exception($"Player Y oscillated too often on slab stairs ({oscillations} frames).");
+        }
+
+        if (groundedFrames < 30)
+        {
+            throw new Exception("Player was not grounded for most of the slab stair walk.");
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
+
     public static void RunFallDamage(AutonocraftGame game, Player player, VoxelWorld world)
     {
         Console.Write("Running Fall Damage Test... ");

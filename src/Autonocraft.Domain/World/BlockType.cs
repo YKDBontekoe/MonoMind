@@ -216,7 +216,8 @@ namespace Autonocraft.Domain.World
 
         public static bool IsSolidForSpawn(this BlockType type)
         {
-            return type != BlockType.Air && type != BlockType.Water && type != BlockType.Lava && !type.IsTransparent();
+            return type != BlockType.Air && type != BlockType.Water && type != BlockType.Lava
+                && (type.IsSlab() || !type.IsTransparent());
         }
 
         public static bool IsStation(this BlockType type)

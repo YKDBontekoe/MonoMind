@@ -224,7 +224,7 @@ namespace Autonocraft.World
                             highestSolid = y;
                         }
 
-                        if (type.IsSolidForSpawn() || type.IsAlphaCutout() || type.IsWater())
+                        if (type.IsSolidForSpawn() || type.IsSlab() || type.IsAlphaCutout() || type.IsWater())
                         {
                             if (lowestMesh < 0)
                             {
@@ -375,7 +375,7 @@ namespace Autonocraft.World
         {
             int idx = lz * Width + lx;
             bool solid = type.IsSolidForSpawn();
-            bool meshBlock = solid || type.IsAlphaCutout() || type.IsWater();
+            bool meshBlock = solid || type.IsSlab() || type.IsAlphaCutout() || type.IsWater();
 
             if (solid)
             {
@@ -435,7 +435,7 @@ namespace Autonocraft.World
                     highestSolid = scanY;
                 }
 
-                if (scanType.IsSolidForSpawn() || scanType.IsAlphaCutout() || scanType.IsWater())
+                if (scanType.IsSolidForSpawn() || scanType.IsSlab() || scanType.IsAlphaCutout() || scanType.IsWater())
                 {
                     if (lowestMesh < 0)
                     {
@@ -1218,7 +1218,7 @@ namespace Autonocraft.World
                             continue;
                         }
 
-                        if (type.IsSolidForSpawn() || type.IsWater())
+                        if (type.IsSolidForSpawn() || type.IsSlab() || type.IsWater())
                         {
                             NoteBlockType(type);
                             int shellWx = worldOffsetX + x;
@@ -1270,6 +1270,44 @@ namespace Autonocraft.World
 
             float topY = type.IsSlab() ? 0.5f : 1f;
 
+            static SideFaceCoverage GetSideFaceCoverage(MeshBuildContext context, int wx, int wy, int wz, int nx, int ny, int nz, BlockType type)
+            {
+                BlockType neighbor = context.GetBlock(nx, ny, nz);
+
+                if (neighbor.IsTransparent())
+                {
+                    if (type.IsSlab() && neighbor.IsSlab())
+                    {
+                        return SideFaceCoverage.Hidden;
+                    }
+
+                    if (!type.IsSlab() && neighbor.IsSlab())
+                    {
+                        return SideFaceCoverage.UpperHalf;
+                    }
+
+                    return SideFaceCoverage.Full;
+                }
+
+                if (type.IsSlab())
+                {
+                    return neighbor.IsSlab() ? SideFaceCoverage.Hidden : SideFaceCoverage.Full;
+                }
+
+                if (neighbor.IsSlab())
+                {
+                    return SideFaceCoverage.UpperHalf;
+                }
+
+                // Full block against full block: keep the face when a slab above creates a step.
+                if (context.GetBlock(nx, ny + 1, nz).IsSlab() || context.GetBlock(wx, wy + 1, wz).IsSlab())
+                {
+                    return SideFaceCoverage.Full;
+                }
+
+                return SideFaceCoverage.Hidden;
+            }
+
             bool IsFaceCulled(BlockType neighbor)
             {
                 if (!neighbor.IsTransparent())
@@ -1280,7 +1318,36 @@ namespace Autonocraft.World
                 {
                     return true;
                 }
+                if (!type.IsSlab() && neighbor.IsSlab())
+                {
+                    return true;
+                }
                 return false;
+            }
+
+            void EmitSideFace(int nx, int ny, int nz, Vector3 normal, Vector3 c0, Vector3 c1, Vector3 c2, Vector3 c3)
+            {
+                if (!ShouldEmitWaterSideFace(context, nx, ny, nz, type))
+                {
+                    return;
+                }
+
+                var coverage = GetSideFaceCoverage(context, wx, wy, wz, nx, ny, nz, type);
+                if (coverage == SideFaceCoverage.Hidden)
+                {
+                    return;
+                }
+
+                float yMin = 0f;
+                float yMax = topY;
+                if (coverage == SideFaceCoverage.UpperHalf)
+                {
+                    yMin = 0.5f;
+                }
+
+                c0.Y = yMin; c1.Y = yMax; c2.Y = yMax; c3.Y = yMin;
+                var sideType = GetBleededBlockType(type, wx, wy, wz, normal);
+                AddFace(targetVertices, targetIndices, pos, normal, color, sideType, context, includeAo, c0, c1, c2, c3);
             }
 
             BlockType GetBleededBlockType(BlockType self, int x, int y, int z, Vector3 normal)
@@ -1322,37 +1389,24 @@ namespace Autonocraft.World
                 }
             }
 
-            var neighborXPlus = NeighborForFace(context, wx + 1, wy, wz, type);
-            if (ShouldEmitWaterSideFace(context, wx + 1, wy, wz, type) && !IsFaceCulled(neighborXPlus))
-            {
-                var sideType = GetBleededBlockType(type, wx, wy, wz, new Vector3(1, 0, 0));
-                AddFace(targetVertices, targetIndices, pos, new Vector3(1, 0, 0), color, sideType, context, includeAo,
-                    new Vector3(1, 0, 0), new Vector3(1, topY, 0), new Vector3(1, topY, 1), new Vector3(1, 0, 1));
-            }
+            EmitSideFace(wx + 1, wy, wz, new Vector3(1, 0, 0),
+                new Vector3(1, 0, 0), new Vector3(1, topY, 0), new Vector3(1, topY, 1), new Vector3(1, 0, 1));
 
-            var neighborXMinus = NeighborForFace(context, wx - 1, wy, wz, type);
-            if (ShouldEmitWaterSideFace(context, wx - 1, wy, wz, type) && !IsFaceCulled(neighborXMinus))
-            {
-                var sideType = GetBleededBlockType(type, wx, wy, wz, new Vector3(-1, 0, 0));
-                AddFace(targetVertices, targetIndices, pos, new Vector3(-1, 0, 0), color, sideType, context, includeAo,
-                    new Vector3(0, 0, 1), new Vector3(0, topY, 1), new Vector3(0, topY, 0), new Vector3(0, 0, 0));
-            }
+            EmitSideFace(wx - 1, wy, wz, new Vector3(-1, 0, 0),
+                new Vector3(0, 0, 1), new Vector3(0, topY, 1), new Vector3(0, topY, 0), new Vector3(0, 0, 0));
 
-            var neighborZPlus = NeighborForFace(context, wx, wy, wz + 1, type);
-            if (ShouldEmitWaterSideFace(context, wx, wy, wz + 1, type) && !IsFaceCulled(neighborZPlus))
-            {
-                var sideType = GetBleededBlockType(type, wx, wy, wz, new Vector3(0, 0, 1));
-                AddFace(targetVertices, targetIndices, pos, new Vector3(0, 0, 1), color, sideType, context, includeAo,
-                    new Vector3(1, 0, 1), new Vector3(1, topY, 1), new Vector3(0, topY, 1), new Vector3(0, 0, 1));
-            }
+            EmitSideFace(wx, wy, wz + 1, new Vector3(0, 0, 1),
+                new Vector3(1, 0, 1), new Vector3(1, topY, 1), new Vector3(0, topY, 1), new Vector3(0, 0, 1));
 
-            var neighborZMinus = NeighborForFace(context, wx, wy, wz - 1, type);
-            if (ShouldEmitWaterSideFace(context, wx, wy, wz - 1, type) && !IsFaceCulled(neighborZMinus))
-            {
-                var sideType = GetBleededBlockType(type, wx, wy, wz, new Vector3(0, 0, -1));
-                AddFace(targetVertices, targetIndices, pos, new Vector3(0, 0, -1), color, sideType, context, includeAo,
-                    new Vector3(0, 0, 0), new Vector3(0, topY, 0), new Vector3(1, topY, 0), new Vector3(1, 0, 0));
-            }
+            EmitSideFace(wx, wy, wz - 1, new Vector3(0, 0, -1),
+                new Vector3(0, 0, 0), new Vector3(0, topY, 0), new Vector3(1, topY, 0), new Vector3(1, 0, 0));
+        }
+
+        private enum SideFaceCoverage
+        {
+            Hidden,
+            Full,
+            UpperHalf
         }
 
         private static BlockType NeighborForFace(MeshBuildContext context, int nx, int ny, int nz, BlockType selfType)
@@ -1477,7 +1531,7 @@ namespace Autonocraft.World
                                  blockType == BlockType.PalmLog || blockType == BlockType.OakPlank ||
                                  blockType == BlockType.BirchPlank || blockType == BlockType.PinePlank;
 
-            bool isGrassSide = blockType == BlockType.Grass && MathF.Abs(normal.Y) < 0.1f;
+            bool isGrassSide = blockType.GetBaseBlockType() == BlockType.Grass && MathF.Abs(normal.Y) < 0.1f;
 
             if (!blockType.IsTransparent() && !blockType.IsStation() && !isDirectional && !isGrassSide)
             {
