@@ -61,8 +61,9 @@ namespace Autonocraft.Engine
 
         public void DrawPanel(float x, float y, float w, float h, Color fill, Color border, float borderAlpha = 0.8f, float alpha = 1f, float radius = UiTheme.RadiusMd)
         {
-            DrawRoundedRect(x, y, w, h, radius, fill * alpha);
-            DrawRoundedRectOutline(x, y, w, h, radius, border, 1f, borderAlpha * alpha);
+            BeginBatch();
+            UiDrawingUtils.DrawRoundedPanel(_spriteBatch, _whiteTexture, x, y, w, h, fill, border, borderAlpha, alpha, radius);
+            EndBatch();
         }
 
         public void DrawFramedPanel(float x, float y, float w, float h, Color fill, Color border, float alpha = 1f, float radius = UiTheme.RadiusLg)
@@ -150,18 +151,18 @@ namespace Autonocraft.Engine
             BeginBatch();
             if (style == UiButtonStyle.Primary && hoverBlend > 0.01f && !disabled)
             {
-                DrawRoundedRectInternal(x - 2f, y - 2f, w + 4f, h + 4f, radius + 2f, UiTheme.AccentGlow * (0.18f * hoverBlend * alpha));
+                UiDrawingUtils.DrawRoundedRect(_spriteBatch, _whiteTexture, x - 2f, y - 2f, w + 4f, h + 4f, radius + 2f, UiTheme.AccentGlow * (0.18f * hoverBlend * alpha));
             }
 
             if (style != UiButtonStyle.Ghost && borderThickness > 0f)
             {
-                DrawRoundedRectInternal(x, y + 1.5f, w, h, radius, new Color(0.12f, 0.14f, 0.18f) * (0.05f * alpha));
+                UiDrawingUtils.DrawRoundedRect(_spriteBatch, _whiteTexture, x, y + 1.5f, w, h, radius, new Color(0.12f, 0.14f, 0.18f) * (0.05f * alpha));
             }
 
-            DrawRoundedRectInternal(x, y, w, h, radius, fill * alpha);
+            UiDrawingUtils.DrawRoundedRect(_spriteBatch, _whiteTexture, x, y, w, h, radius, fill * alpha);
             if (borderThickness > 0f && border.A > 0)
             {
-                DrawRoundedRectOutlineInternal(x, y, w, h, radius, border, borderThickness, alpha);
+                UiDrawingUtils.DrawRoundedRectOutline(_spriteBatch, _whiteTexture, x, y, w, h, radius, border, borderThickness, alpha);
             }
 
             float textWidth = MeasureString(label, fontSize);
@@ -211,14 +212,14 @@ namespace Autonocraft.Engine
             float radius = Math.Min(UiTheme.RadiusSm, h * 0.45f);
 
             BeginBatch();
-            DrawRoundedRectInternal(x, y, w, h, radius, UiTheme.ProgressTrack * alpha);
+            UiDrawingUtils.DrawRoundedRect(_spriteBatch, _whiteTexture, x, y, w, h, radius, UiTheme.ProgressTrack * alpha);
             if (progress > 0.01f)
             {
                 float fillW = Math.Max(radius * 2f, w * progress);
-                DrawRoundedRectInternal(x, y, fillW, h, radius, UiTheme.ProgressFill * alpha);
+                UiDrawingUtils.DrawRoundedRect(_spriteBatch, _whiteTexture, x, y, fillW, h, radius, UiTheme.ProgressFill * alpha);
             }
 
-            DrawRoundedRectOutlineInternal(x, y, w, h, radius, UiTheme.PanelBorder, 1f, 0.6f * alpha);
+            UiDrawingUtils.DrawRoundedRectOutline(_spriteBatch, _whiteTexture, x, y, w, h, radius, UiTheme.PanelBorder, 1f, 0.6f * alpha);
 
             float labelWidth = _typography.Measure(label, labelSize);
             _typography.Draw(_spriteBatch, label, x + (w - labelWidth) / 2f, y - 24f * textScale, labelSize, UiTheme.ProgressLabel, alpha: alpha);
@@ -253,14 +254,14 @@ namespace Autonocraft.Engine
         public void DrawRoundedRect(float x, float y, float w, float h, float radius, Color color)
         {
             BeginBatch();
-            DrawRoundedRectInternal(x, y, w, h, radius, color);
+            UiDrawingUtils.DrawRoundedRect(_spriteBatch, _whiteTexture, x, y, w, h, radius, color);
             EndBatch();
         }
 
         public void DrawRoundedRectOutline(float x, float y, float w, float h, float radius, Color color, float thickness, float alpha = 1f)
         {
             BeginBatch();
-            DrawRoundedRectOutlineInternal(x, y, w, h, radius, color, thickness, alpha);
+            UiDrawingUtils.DrawRoundedRectOutline(_spriteBatch, _whiteTexture, x, y, w, h, radius, color, thickness, alpha);
             EndBatch();
         }
 
@@ -341,11 +342,11 @@ namespace Autonocraft.Engine
             float thumbRadius = thumbSize * 0.5f;
 
             BeginBatch();
-            DrawRoundedRectInternal(x, y, width, trackHeight, trackRadius, UiTheme.ProgressTrack);
+            UiDrawingUtils.DrawRoundedRect(_spriteBatch, _whiteTexture, x, y, width, trackHeight, trackRadius, UiTheme.ProgressTrack);
             if (t > 0.01f)
             {
                 float fillWidth = thumbX + thumbSize * 0.5f - x;
-                DrawRoundedRectInternal(x, y, Math.Max(trackHeight, fillWidth), trackHeight, trackRadius, UiTheme.ProgressFill);
+                UiDrawingUtils.DrawRoundedRect(_spriteBatch, _whiteTexture, x, y, Math.Max(trackHeight, fillWidth), trackHeight, trackRadius, UiTheme.ProgressFill);
             }
 
             Color thumbColor = dragging
@@ -354,8 +355,8 @@ namespace Autonocraft.Engine
                     ? UiTheme.SliderThumbHover
                     : UiTheme.SliderThumb;
             float thumbY = y - (thumbSize - trackHeight) * 0.5f;
-            DrawRoundedRectInternal(thumbX, thumbY, thumbSize, thumbSize, thumbRadius, thumbColor);
-            DrawRoundedRectOutlineInternal(x, y, width, trackHeight, trackRadius, UiTheme.PanelBorder, 1f, 0.55f);
+            UiDrawingUtils.DrawRoundedRect(_spriteBatch, _whiteTexture, thumbX, thumbY, thumbSize, thumbSize, thumbRadius, thumbColor);
+            UiDrawingUtils.DrawRoundedRectOutline(_spriteBatch, _whiteTexture, x, y, width, trackHeight, trackRadius, UiTheme.PanelBorder, 1f, 0.55f);
             EndBatch();
         }
 
@@ -387,97 +388,7 @@ namespace Autonocraft.Engine
             _spriteBatch.End();
         }
 
-        private void DrawRoundedRectInternal(float x, float y, float w, float h, float radius, Color color)
-        {
-            radius = Math.Clamp(radius, 0f, Math.Min(w, h) * 0.5f);
-            if (radius <= 0.5f)
-            {
-                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)x, (int)y, (int)w, (int)h), color);
-                return;
-            }
 
-            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(x + radius), (int)y, (int)(w - radius * 2f), (int)h), color);
-            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)x, (int)(y + radius), (int)w, (int)(h - radius * 2f)), color);
-            FillCircleCorner(x + radius, y + radius, radius, color, 2);
-            FillCircleCorner(x + w - radius, y + radius, radius, color, 3);
-            FillCircleCorner(x + radius, y + h - radius, radius, color, 1);
-            FillCircleCorner(x + w - radius, y + h - radius, radius, color, 0);
-        }
-
-        private void DrawRoundedRectOutlineInternal(float x, float y, float w, float h, float radius, Color color, float thickness, float alpha)
-        {
-            Color drawCol = color * alpha;
-            radius = Math.Clamp(radius, 0f, Math.Min(w, h) * 0.5f);
-            if (radius <= 0.5f)
-            {
-                DrawRectOutlineInternal(x, y, w, h, thickness, drawCol);
-                return;
-            }
-
-            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(x + radius), (int)y, (int)(w - radius * 2f), (int)thickness), drawCol);
-            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(x + radius), (int)(y + h - thickness), (int)(w - radius * 2f), (int)thickness), drawCol);
-            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)x, (int)(y + radius), (int)thickness, (int)(h - radius * 2f)), drawCol);
-            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(x + w - thickness), (int)(y + radius), (int)thickness, (int)(h - radius * 2f)), drawCol);
-
-            DrawCornerArcOutline(x + radius, y + radius, radius, thickness, drawCol, 2);
-            DrawCornerArcOutline(x + w - radius, y + radius, radius, thickness, drawCol, 1);
-            DrawCornerArcOutline(x + radius, y + h - radius, radius, thickness, drawCol, 3);
-            DrawCornerArcOutline(x + w - radius, y + h - radius, radius, thickness, drawCol, 0);
-        }
-
-        private void FillCircleCorner(float cx, float cy, float radius, Color color, int quadrant)
-        {
-            int r = (int)MathF.Ceiling(radius);
-            for (int dy = -r; dy <= r; dy++)
-            {
-                for (int dx = -r; dx <= r; dx++)
-                {
-                    if (dx * dx + dy * dy > radius * radius) continue;
-                    bool inQuad = quadrant switch
-                    {
-                        0 => dx >= 0 && dy >= 0,
-                        1 => dx <= 0 && dy >= 0,
-                        2 => dx <= 0 && dy <= 0,
-                        3 => dx >= 0 && dy <= 0,
-                        _ => true
-                    };
-                    if (!inQuad) continue;
-                    _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(cx + dx), (int)(cy + dy), 1, 1), color);
-                }
-            }
-        }
-
-        private void DrawCornerArcOutline(float cx, float cy, float radius, float thickness, Color color, int quadrant)
-        {
-            int r = (int)MathF.Ceiling(radius);
-            float inner = Math.Max(0f, radius - thickness);
-            for (int dy = -r; dy <= r; dy++)
-            {
-                for (int dx = -r; dx <= r; dx++)
-                {
-                    float dist = MathF.Sqrt(dx * dx + dy * dy);
-                    if (dist > radius || dist < inner) continue;
-                    bool inQuad = quadrant switch
-                    {
-                        0 => dx >= 0 && dy >= 0,
-                        1 => dx <= 0 && dy >= 0,
-                        2 => dx <= 0 && dy <= 0,
-                        3 => dx >= 0 && dy <= 0,
-                        _ => true
-                    };
-                    if (!inQuad) continue;
-                    _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(cx + dx), (int)(cy + dy), 1, 1), color);
-                }
-            }
-        }
-
-        private void DrawRectOutlineInternal(float x, float y, float w, float h, float thickness, Color color)
-        {
-            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)x, (int)y, (int)w, (int)thickness), color);
-            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)x, (int)(y + h - thickness), (int)w, (int)thickness), color);
-            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)x, (int)(y + thickness), (int)thickness, (int)(h - 2 * thickness)), color);
-            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(x + w - thickness), (int)(y + thickness), (int)thickness, (int)(h - 2 * thickness)), color);
-        }
 
         public void Dispose()
         {
