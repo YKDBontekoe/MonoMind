@@ -14,7 +14,7 @@ This document describes how AI agents and automation tools should build, test, a
 > dotnet test tests/Autonocraft.Tests -c Release --filter "FullyQualifiedName~Unit"
 > ```
 >
-> CI also runs live HTTP E2E tests (`e2e.yml`) and quality gates (`quality.yml`) on every PR.
+> CI also runs quality gates (`quality.yml`) on every PR.
 >
 > All tests must pass (exit code `0`). Failures print a stack trace and exit with code `1`.
 
@@ -63,17 +63,15 @@ GitHub Actions validates every push and PR on **Ubuntu, Windows, and macOS**:
 | Workflow | Jobs |
 |----------|------|
 | `.github/workflows/ci.yml` | `build` → `unit-tests` (xUnit unit filter) + `integration-tests` (`dotnet run -- --test`) |
-| `.github/workflows/e2e.yml` | Live HTTP API (`test_live_api.py`) + all JSON scenarios via `scripts/ci_e2e.sh` / `scripts/ci_e2e.ps1` |
 | `.github/workflows/quality.yml` | `dotnet format --verify-no-changes`, `build_atlas.py --check`, coverlet coverage |
 | `.github/workflows/codeql.yml` | C# CodeQL analysis |
 | `.github/workflows/release.yml` | Tag-triggered multi-RID `dotnet publish` + GitHub Release assets |
 
-Nightly schedule (06:00 UTC) re-runs CI and E2E on `main`. Local parity:
+Nightly schedule (06:00 UTC) re-runs CI on `main`. Local parity:
 
 ```bash
 dotnet test tests/Autonocraft.Tests -c Release --filter "FullyQualifiedName~Unit"
 dotnet run --project src/Autonocraft -c Release -- --test
-bash scripts/ci_e2e.sh   # macOS/Linux full E2E
 ```
 
 ---
