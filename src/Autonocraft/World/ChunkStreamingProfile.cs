@@ -22,7 +22,7 @@ namespace Autonocraft.World
             float horizontalSpeed = MathF.Sqrt(velocity.X * velocity.X + velocity.Z * velocity.Z);
             return new ChunkStreamingProfile
             {
-                FastTravel = creative || horizontalSpeed > 8f,
+                FastTravel = creative || horizontalSpeed > 6f,
                 Velocity = velocity,
                 AgentChunkX = agentCx,
                 AgentChunkZ = agentCz

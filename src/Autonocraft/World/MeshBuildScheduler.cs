@@ -56,6 +56,7 @@ namespace Autonocraft.World
 
         public int ProcessCompletedUploads(
             GraphicsDevice device,
+            int maxUploadsPerFrame,
             Func<int, int, bool> isChunkLoaded,
             Action<Chunk, ChunkMeshDetail> clearBuildInFlight,
             List<(int cx, int cz)> requeueScratch,
@@ -66,7 +67,7 @@ namespace Autonocraft.World
             bool initialLoading = false,
             Action<Chunk, ChunkMeshDetail>? onMeshUploaded = null)
         {
-            int maxUploads = initialLoading ? LoadingMaxMeshUploadsPerFrame : MaxMeshUploadsPerFrame;
+            int maxUploads = initialLoading ? LoadingMaxMeshUploadsPerFrame : maxUploadsPerFrame;
             float uploadBudgetMs = initialLoading ? LoadingMeshUploadBudgetMs : MeshUploadBudgetMs;
 
             int meshed = 0;
