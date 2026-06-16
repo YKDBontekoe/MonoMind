@@ -75,7 +75,7 @@ namespace Autonocraft.Core
                 case 2:
                     if (_reminderTimer <= 0f)
                     {
-                        showToast("Night falls soon — craft a wood sword at the Bench. Queue a farm plot on BUILD tab.");
+                        showToast("Press I for inventory — craft sticks, then a wood sword at the Bench (B for recipe book).");
                         _reminderTimer = 15f;
                     }
 
@@ -149,6 +149,11 @@ namespace Autonocraft.Core
             if (player.Hunger < SurvivalConstants.MaxHunger * 0.5f)
             {
                 return "Hunt/cook food or take rations at Town Heart";
+            }
+
+            if (stage == 2)
+            {
+                return "Press I — craft sticks/planks, then tools at Bench";
             }
 
             return VillageGuidance.GetNextBestAction(village, villagers, player.Position);

@@ -1436,6 +1436,14 @@ namespace Autonocraft.World
                 }
             }
 
+            chunksToLoad.Sort((a, b) =>
+            {
+                int da = GetChunkSortDistance(a.cx, a.cz, agentCx, agentCz);
+                int db = GetChunkSortDistance(b.cx, b.cz, agentCx, agentCz);
+                int cmp = da.CompareTo(db);
+                return cmp != 0 ? cmp : a.cz.CompareTo(b.cz) != 0 ? a.cz.CompareTo(b.cz) : a.cx.CompareTo(b.cx);
+            });
+
             _initialLoadQueue = chunksToLoad;
             _initialLoadIndex = 0;
             _initialLoadTotal = chunksToLoad.Count;
@@ -1545,8 +1553,9 @@ namespace Autonocraft.World
 
             if (!terrainDone)
             {
-                progress = _initialLoadTotal == 0 ? 0f : (float)_initialLoadIndex / _initialLoadTotal * 0.65f;
-                status = $"BUILDING CHUNKS {_initialLoadIndex}/{_initialLoadTotal}";
+                int loadedChunks = CountActiveChunksInRange(agentCx, agentCz, _initialLoadRenderDistance);
+                progress = _initialLoadTotal == 0 ? 0f : (float)loadedChunks / _initialLoadTotal * 0.65f;
+                status = $"BUILDING CHUNKS {loadedChunks}/{_initialLoadTotal}";
             }
             else
             {

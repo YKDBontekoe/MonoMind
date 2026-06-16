@@ -272,7 +272,7 @@ namespace Autonocraft.UI
             float panelW = layout.S(PanelWidth);
             float panelH = layout.S(PanelHeight);
 
-            _ui.DrawFullscreenBackground(UiTheme.PanelFill * 0.72f * alpha);
+            _ui.DrawFullscreenBackground(UiTheme.Scrim * (UiTheme.MenuScrimAlpha * alpha));
 
             float cx = layout.CenterX;
             float panelX = cx - panelW / 2f;
@@ -305,18 +305,18 @@ namespace Autonocraft.UI
             float mainMenuY = controlsY + buttonH + buttonSpacing;
             float quitY = mainMenuY + buttonH + buttonSpacing;
 
-            _ui.DrawCenteredText("PAUSED", titleY, layout.S(2.2f), UiTheme.Title, alpha);
-            _ui.DrawCenteredText("GAME MENU", subtitleY, layout.S(UiTheme.ScaleSection), UiTheme.Subtitle, alpha);
+            _ui.DrawCenteredTitle("Paused", titleY, layout.S(UiTheme.FontTitle), UiTheme.Title, alpha);
+            _ui.DrawCenteredText("Game menu", subtitleY, layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha);
 
-            DrawButton(cx, resumeY, buttonW, buttonH, "RESUME", 0, layout.S(UiTheme.ScaleTitle), alpha);
-            DrawButton(cx, saveY, buttonW, buttonH, "SAVE NOW", 1, layout.S(UiTheme.ScaleTitle), alpha);
-            DrawButton(cx, settingsY, buttonW, buttonH, "SETTINGS", 2, layout.S(UiTheme.ScaleTitle), alpha);
-            DrawButton(cx, controlsY, buttonW, buttonH, "CONTROLS", 3, layout.S(UiTheme.ScaleTitle), alpha);
-            DrawButton(cx, mainMenuY, buttonW, buttonH, "MAIN MENU", 4, layout.S(UiTheme.ScaleTitle), alpha);
-            DrawButton(cx, quitY, buttonW, buttonH, "QUIT", 5, layout.S(UiTheme.ScaleTitle), alpha);
+            DrawButton(cx, resumeY, buttonW, buttonH, "Resume", 0, UiButtonStyle.Primary, layout, alpha);
+            DrawButton(cx, saveY, buttonW, buttonH, "Save now", 1, UiButtonStyle.Secondary, layout, alpha);
+            DrawButton(cx, settingsY, buttonW, buttonH, "Settings", 2, UiButtonStyle.Secondary, layout, alpha);
+            DrawButton(cx, controlsY, buttonW, buttonH, "Controls", 3, UiButtonStyle.Ghost, layout, alpha);
+            DrawButton(cx, mainMenuY, buttonW, buttonH, "Main menu", 4, UiButtonStyle.Ghost, layout, alpha);
+            DrawButton(cx, quitY, buttonW, buttonH, "Quit", 5, UiButtonStyle.Ghost, layout, alpha);
 
-            _ui.DrawCenteredText("AUTO-SAVES EVERY 5 MIN", layout.Height - layout.S(48f) + offsetY, layout.S(UiTheme.ScaleNormal), UiTheme.Hint, 0.9f * alpha);
-            _ui.DrawCenteredText("ESC TO RESUME", layout.Height - layout.S(28f) + offsetY, layout.S(UiTheme.ScaleNormal), UiTheme.Hint, 0.85f * alpha);
+            _ui.DrawCenteredText("Auto-saves every 5 minutes", layout.Height - layout.S(48f) + offsetY, layout.S(UiTheme.FontSmall), UiTheme.Hint, 0.9f * alpha);
+            _ui.DrawCenteredText("Esc to resume", layout.Height - layout.S(28f) + offsetY, layout.S(UiTheme.FontSmall), UiTheme.Hint, 0.85f * alpha);
         }
 
         private void DrawSettingsPanel(UiLayout layout, float cx, float buttonW, float buttonH, float alpha, float offsetY)
@@ -338,9 +338,9 @@ namespace Autonocraft.UI
             int chunkArea = RenderDistance * 2 + 1;
             int loadedChunks = chunkArea * chunkArea;
 
-            _ui.DrawCenteredText("SETTINGS", titleY, layout.S(2.0f), UiTheme.Title, panelAlpha);
-            _ui.DrawCenteredText("RENDER DISTANCE", labelY, layout.S(UiTheme.ScaleSection), UiTheme.Subtitle, panelAlpha);
-            _ui.DrawCenteredText($"{RenderDistance} CHUNKS  /  {blockRadius} BLOCKS", labelY + layout.S(22f), layout.S(UiTheme.ScaleNormal), UiTheme.Meta, 0.95f * panelAlpha);
+            _ui.DrawCenteredText("Settings", titleY, layout.S(UiTheme.FontTitle), UiTheme.Title, panelAlpha);
+            _ui.DrawCenteredText("Render distance", labelY, layout.S(UiTheme.FontSection), UiTheme.Subtitle, panelAlpha);
+            _ui.DrawCenteredText($"{RenderDistance} chunks  /  {blockRadius} blocks", labelY + layout.S(22f), layout.S(UiTheme.FontBody), UiTheme.Meta, 0.95f * panelAlpha);
 
             _ui.DrawIntSlider(
                 sliderX,
@@ -355,24 +355,24 @@ namespace Autonocraft.UI
                 _sliderDragging);
 
             float minLabelX = sliderX;
-            float maxLabelX = sliderX + sliderW - _ui.MeasureString($"{GameSettings.MaxRenderDistance}", layout.S(UiTheme.ScaleSmall));
-            _ui.DrawString($"{GameSettings.MinRenderDistance}", minLabelX, sliderY + thumbSize + layout.S(10f), layout.S(UiTheme.ScaleSmall), UiTheme.Hint, 0.85f * panelAlpha);
-            _ui.DrawString($"{GameSettings.MaxRenderDistance}", maxLabelX, sliderY + thumbSize + layout.S(10f), layout.S(UiTheme.ScaleSmall), UiTheme.Hint, 0.85f * panelAlpha);
+            float maxLabelX = sliderX + sliderW - _ui.MeasureString($"{GameSettings.MaxRenderDistance}", layout.S(UiTheme.FontSmall));
+            _ui.DrawString($"{GameSettings.MinRenderDistance}", minLabelX, sliderY + thumbSize + layout.S(10f), layout.S(UiTheme.FontSmall), UiTheme.Hint, 0.85f * panelAlpha);
+            _ui.DrawString($"{GameSettings.MaxRenderDistance}", maxLabelX, sliderY + thumbSize + layout.S(10f), layout.S(UiTheme.FontSmall), UiTheme.Hint, 0.85f * panelAlpha);
 
             _ui.DrawCenteredText(
-                $"~{loadedChunks} CHUNKS LOADED",
+                $"~{loadedChunks} chunks loaded",
                 sliderY + thumbSize + layout.S(30f),
-                layout.S(UiTheme.ScaleSmall),
+                layout.S(UiTheme.FontSmall),
                 UiTheme.Hint,
                 0.85f * panelAlpha);
 
-            _ui.DrawCenteredText($"VSYNC: {(VSync ? "ON" : "OFF")} (click)", vsyncY, layout.S(UiTheme.ScaleNormal), UiTheme.Subtitle, 0.95f * panelAlpha);
-            _ui.DrawCenteredText($"HQ LIGHTING: {(HighQualityLighting ? "ON" : "OFF")} (click)", lightingY, layout.S(UiTheme.ScaleNormal), UiTheme.Subtitle, 0.95f * panelAlpha);
-            _ui.DrawCenteredText($"MUTE AUDIO: {(MuteAudio ? "ON" : "OFF")} (click)", muteY, layout.S(UiTheme.ScaleNormal), UiTheme.Subtitle, 0.95f * panelAlpha);
+            _ui.DrawCenteredText($"VSync: {(VSync ? "On" : "Off")} (click)", vsyncY, layout.S(UiTheme.FontBody), UiTheme.Subtitle, 0.95f * panelAlpha);
+            _ui.DrawCenteredText($"HQ lighting: {(HighQualityLighting ? "On" : "Off")} (click)", lightingY, layout.S(UiTheme.FontBody), UiTheme.Subtitle, 0.95f * panelAlpha);
+            _ui.DrawCenteredText($"Mute audio: {(MuteAudio ? "On" : "Off")} (click)", muteY, layout.S(UiTheme.FontBody), UiTheme.Subtitle, 0.95f * panelAlpha);
 
-            DrawButton(cx, backY, buttonW, buttonH, "BACK", 0, layout.S(UiTheme.ScaleTitle), panelAlpha);
-            _ui.DrawCenteredText("DRAG SLIDER TO ADJUST", layout.Height - layout.S(48f) + offsetY, layout.S(UiTheme.ScaleNormal), UiTheme.Hint, 0.85f * panelAlpha);
-            _ui.DrawCenteredText("ESC TO GO BACK", layout.Height - layout.S(28f) + offsetY, layout.S(UiTheme.ScaleNormal), UiTheme.Hint, 0.85f * panelAlpha);
+            DrawButton(cx, backY, buttonW, buttonH, "Back", 0, UiButtonStyle.Secondary, layout, panelAlpha);
+            _ui.DrawCenteredText("Drag slider to adjust", layout.Height - layout.S(48f) + offsetY, layout.S(UiTheme.FontSmall), UiTheme.Hint, 0.85f * panelAlpha);
+            _ui.DrawCenteredText("Esc to go back", layout.Height - layout.S(28f) + offsetY, layout.S(UiTheme.FontSmall), UiTheme.Hint, 0.85f * panelAlpha);
         }
 
         private void UpdateControlsPanel(Viewport viewport, KeyboardState kb, MouseState mouse, KeyboardState prevKb, MouseState prevMouse)
@@ -423,19 +423,19 @@ namespace Autonocraft.UI
                 "F3 OR ` - DEV CONSOLE"
             };
 
-            _ui.DrawCenteredText("CONTROLS", titleY, layout.S(2.0f), UiTheme.Title, panelAlpha);
+            _ui.DrawCenteredText("Controls", titleY, layout.S(UiTheme.FontTitle), UiTheme.Title, panelAlpha);
             for (int i = 0; i < lines.Length; i++)
             {
-                _ui.DrawCenteredText(lines[i], lineY + i * lineStep, layout.S(UiTheme.ScaleSmall), UiTheme.Subtitle, 0.95f * panelAlpha);
+                _ui.DrawCenteredText(lines[i], lineY + i * lineStep, layout.S(UiTheme.FontSmall), UiTheme.Subtitle, 0.95f * panelAlpha);
             }
 
-            DrawButton(cx, backY, buttonW, buttonH, "BACK", 0, layout.S(UiTheme.ScaleTitle), panelAlpha);
+            DrawButton(cx, backY, buttonW, buttonH, "Back", 0, UiButtonStyle.Secondary, layout, panelAlpha);
         }
 
-        private void DrawButton(float centerX, float y, float width, float height, string label, int buttonIndex, float textPixelSize, float alpha = 1f)
+        private void DrawButton(float centerX, float y, float width, float height, string label, int buttonIndex, UiButtonStyle style, UiLayout layout, float alpha = 1f)
         {
             float x = centerX - width / 2f;
-            _ui.DrawButton(x, y, width, height, label, _hoveredButton == buttonIndex, false, textPixelSize, alpha, _buttonHoverT[buttonIndex]);
+            _ui.DrawButton(x, y, width, height, label, _hoveredButton == buttonIndex, false, style, layout.S(UiTheme.FontBody), alpha, _buttonHoverT[buttonIndex]);
         }
 
         private static Rectangle GetButtonRect(float centerX, float y, float width, float height)

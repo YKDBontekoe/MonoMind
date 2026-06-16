@@ -7,14 +7,15 @@ namespace Autonocraft.UI
 {
     public class MainMenuScreen
     {
-        private const float ButtonWidth = 220f;
+        private const float ButtonWidth = 240f;
         private const float ButtonHeight = 48f;
-        private const float ButtonSpacing = 16f;
-        private const float PanelWidth = 420f;
-        private const float PanelHeight = 340f;
+        private const float ButtonSpacing = 12f;
 
         private readonly UiRenderer _ui;
+        private readonly MenuBackdrop _backdrop = new MenuBackdrop();
         private int _hoveredButton = -1;
+        private float _playHoverT;
+        private float _quitHoverT;
 
         public bool PlayRequested { get; private set; }
         public bool QuitRequested { get; private set; }
@@ -24,17 +25,19 @@ namespace Autonocraft.UI
             _ui = ui;
         }
 
-        public void Update(Viewport viewport, KeyboardState kb, MouseState mouse, KeyboardState prevKb, MouseState prevMouse)
+        public void Update(Viewport viewport, KeyboardState kb, MouseState mouse, KeyboardState prevKb, MouseState prevMouse, float deltaTime)
         {
             PlayRequested = false;
             QuitRequested = false;
+
+            _backdrop.Update(deltaTime);
 
             var layout = new UiLayout(viewport);
             float buttonW = layout.S(ButtonWidth);
             float buttonH = layout.S(ButtonHeight);
             float buttonSpacing = layout.S(ButtonSpacing);
             float cx = layout.CenterX;
-            float playY = layout.CenterY + layout.S(20f);
+            float playY = layout.CenterY + layout.S(36f);
             float quitY = playY + buttonH + buttonSpacing;
 
             var playRect = GetButtonRect(cx, playY, buttonW, buttonH);
@@ -43,6 +46,9 @@ namespace Autonocraft.UI
             _hoveredButton = -1;
             if (playRect.Contains(mouse.X, mouse.Y)) _hoveredButton = 0;
             else if (quitRect.Contains(mouse.X, mouse.Y)) _hoveredButton = 1;
+
+            _playHoverT = Autonocraft.Engine.Animation.Tween.SmoothDamp(_playHoverT, _hoveredButton == 0 ? 1f : 0f, 10f, deltaTime);
+            _quitHoverT = Autonocraft.Engine.Animation.Tween.SmoothDamp(_quitHoverT, _hoveredButton == 1 ? 1f : 0f, 10f, deltaTime);
 
             bool click = mouse.LeftButton == ButtonState.Pressed && prevMouse.LeftButton == ButtonState.Released;
             if (click)
@@ -62,40 +68,30 @@ namespace Autonocraft.UI
             }
         }
 
-        public void Draw(Viewport viewport)
+        public void Draw(Viewport viewport, float deltaTime = 0f)
         {
             var layout = new UiLayout(viewport);
             float buttonW = layout.S(ButtonWidth);
             float buttonH = layout.S(ButtonHeight);
             float buttonSpacing = layout.S(ButtonSpacing);
-            float panelW = layout.S(PanelWidth);
-            float panelH = layout.S(PanelHeight);
 
-            _ui.DrawFullscreenBackground(UiTheme.PanelFill);
+            _backdrop.Draw(_ui, viewport);
 
             float cx = layout.CenterX;
-            float titleY = layout.Height * 0.22f;
-            float subtitleY = titleY + layout.S(42f);
-            float playY = layout.CenterY + layout.S(20f);
+            float titleY = layout.Height * 0.28f;
+            float subtitleY = titleY + layout.S(52f);
+            float playY = layout.CenterY + layout.S(36f);
             float quitY = playY + buttonH + buttonSpacing;
 
-            float panelX = cx - panelW / 2f;
-            float panelY = layout.Height * 0.16f;
-            _ui.DrawPanel(panelX, panelY, panelW, panelH, UiTheme.PanelBgMuted * 0.88f, UiTheme.PanelBorder);
+            _ui.DrawCenteredTitle("Autonocraft", titleY, layout.S(UiTheme.FontHero), UiTheme.Title);
+            _ui.DrawCenteredText("A voxel sandbox for builders and explorers", subtitleY, layout.S(UiTheme.FontBody), UiTheme.Subtitle);
 
-            _ui.DrawCenteredText("AUTONOCRAFT", titleY, layout.S(2.4f), UiTheme.Title);
-            _ui.DrawCenteredText("VOXEL SANDBOX", subtitleY, layout.S(UiTheme.ScaleTitle), UiTheme.Subtitle);
+            _ui.DrawButton(cx - buttonW / 2f, playY, buttonW, buttonH, "Play", _hoveredButton == 0, false,
+                UiButtonStyle.Primary, layout.S(UiTheme.FontSection), 1f, _playHoverT);
+            _ui.DrawButton(cx - buttonW / 2f, quitY, buttonW, buttonH, "Quit", _hoveredButton == 1, false,
+                UiButtonStyle.Ghost, layout.S(UiTheme.FontBody), 1f, _quitHoverT);
 
-            DrawButton(cx, playY, buttonW, buttonH, "PLAY", _hoveredButton == 0, layout.S(UiTheme.ScaleTitle));
-            DrawButton(cx, quitY, buttonW, buttonH, "QUIT", _hoveredButton == 1, layout.S(UiTheme.ScaleTitle));
-
-            _ui.DrawCenteredText("CLICK OR PRESS ENTER TO PLAY", layout.Height - layout.S(48f), layout.S(1.15f), UiTheme.Hint, 0.9f);
-        }
-
-        private void DrawButton(float centerX, float y, float width, float height, string label, bool hovered, float textPixelSize)
-        {
-            float x = centerX - width / 2f;
-            _ui.DrawButton(x, y, width, height, label, hovered, false, textPixelSize);
+            _ui.DrawCenteredText("Press Enter to play", layout.Height - layout.S(32f), layout.S(UiTheme.FontSmall), UiTheme.Hint, 0.85f);
         }
 
         private static Rectangle GetButtonRect(float centerX, float y, float width, float height)

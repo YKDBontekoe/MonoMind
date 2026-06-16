@@ -8,13 +8,23 @@ namespace Autonocraft.Crafting
 {
     public sealed class CrucibleSession
     {
+        public const int MaxSlots = 9;
+
         public int StationX { get; private set; }
         public int StationY { get; private set; }
         public int StationZ { get; private set; }
         public BlockType StationType { get; private set; }
         public bool IsOpen { get; private set; }
 
-        public BlockType[] InputSlots { get; } = new BlockType[4];
+        public ItemStack[] InputSlots { get; } = new ItemStack[MaxSlots];
+
+        public CraftGridSize GridSize => StationType switch
+        {
+            BlockType.StationBench => CraftGridSize.ThreeByThree,
+            _ => CraftGridSize.TwoByTwo
+        };
+
+        public int ActiveSlotCount => (int)GridSize * (int)GridSize;
 
         public void Open(int x, int y, int z, BlockType stationType)
         {
@@ -23,41 +33,47 @@ namespace Autonocraft.Crafting
             StationZ = z;
             StationType = stationType;
             IsOpen = true;
-            Array.Fill(InputSlots, BlockType.Air);
+            ClearSlots();
         }
 
         public void Close()
         {
             IsOpen = false;
-            Array.Fill(InputSlots, BlockType.Air);
+            ClearSlots();
+        }
+
+        private void ClearSlots()
+        {
+            for (int i = 0; i < InputSlots.Length; i++)
+            {
+                InputSlots[i] = ItemStack.Empty;
+            }
         }
 
         public bool DepositFromHotbar(Player player, int targetIndex = -1)
         {
-            var slot = player.Hotbar[player.SelectedSlot];
-            if (!slot.IsBlock())
+            ref var hotbarSlot = ref player.Hotbar[player.SelectedSlot];
+            if (hotbarSlot.IsEmpty || (!hotbarSlot.IsBlock() && !hotbarSlot.IsMaterial()))
             {
                 return false;
             }
 
             if (targetIndex >= 0)
             {
-                if (targetIndex >= InputSlots.Length || InputSlots[targetIndex] != BlockType.Air)
+                if (targetIndex >= ActiveSlotCount || !InputSlots[targetIndex].IsEmpty)
                 {
                     return false;
                 }
 
-                InputSlots[targetIndex] = slot.BlockType;
-                player.UseSelectedBlock();
+                InputSlots[targetIndex] = TakeOne(ref hotbarSlot);
                 return true;
             }
 
-            for (int i = 0; i < InputSlots.Length; i++)
+            for (int i = 0; i < ActiveSlotCount; i++)
             {
-                if (InputSlots[i] == BlockType.Air)
+                if (InputSlots[i].IsEmpty)
                 {
-                    InputSlots[i] = slot.BlockType;
-                    player.UseSelectedBlock();
+                    InputSlots[i] = TakeOne(ref hotbarSlot);
                     return true;
                 }
             }
@@ -67,20 +83,72 @@ namespace Autonocraft.Crafting
 
         public bool WithdrawToHotbar(Player player, int inputIndex)
         {
-            if (inputIndex < 0 || inputIndex >= InputSlots.Length)
+            if (inputIndex < 0 || inputIndex >= ActiveSlotCount)
             {
                 return false;
             }
 
-            BlockType type = InputSlots[inputIndex];
-            if (type == BlockType.Air)
+            var stack = InputSlots[inputIndex];
+            if (stack.IsEmpty)
             {
                 return false;
             }
 
-            player.GiveBlocks(type, 1);
-            InputSlots[inputIndex] = BlockType.Air;
+            player.AddItem(stack);
+            InputSlots[inputIndex] = ItemStack.Empty;
             return true;
+        }
+
+        private static ItemStack TakeOne(ref ItemStack source)
+        {
+            if (source.IsBlock())
+            {
+                var result = ItemStack.CreateBlock(source.BlockType, 1);
+                source.Count--;
+                if (source.Count <= 0)
+                {
+                    source = ItemStack.Empty;
+                }
+
+                return result;
+            }
+
+            if (source.IsMaterial())
+            {
+                var result = ItemStack.CreateMaterial(source.MaterialId, 1);
+                source.Count--;
+                if (source.Count <= 0)
+                {
+                    source = ItemStack.Empty;
+                }
+
+                return result;
+            }
+
+            return ItemStack.Empty;
+        }
+
+        public CraftPreview GetPreview(DiscoveryJournal journal, CraftEnvironment env) =>
+            GridCrafting.Preview(ToCraftingGrid(), StationType, journal, env);
+
+        public CraftingGrid ToCraftingGrid()
+        {
+            var grid = new CraftingGrid();
+            grid.SetSize(GridSize);
+            for (int i = 0; i < grid.SlotCount; i++)
+            {
+                grid.SetSlot(i, InputSlots[i]);
+            }
+
+            return grid;
+        }
+
+        public void ApplyGrid(CraftingGrid grid)
+        {
+            for (int i = 0; i < ActiveSlotCount; i++)
+            {
+                InputSlots[i] = grid.GetSlot(i);
+            }
         }
     }
 
@@ -88,7 +156,11 @@ namespace Autonocraft.Crafting
     {
         public DiscoveryJournal Journal { get; } = new();
         public CrucibleSession Crucible { get; } = new();
+        public CraftingGrid PlayerCraftGrid { get; } = new();
+        public ItemStack CraftCursor { get; set; } = ItemStack.Empty;
+        public bool InventoryOpen { get; private set; }
         public bool JournalOpen { get; private set; }
+        public bool RecipeBookOpen { get; private set; }
         public UiTransition JournalTransition { get; } = new();
         public bool ShowCraftingHint { get; set; } = true;
         public Action<string>? OnDiscoveryUnlocked { get; set; }
@@ -107,6 +179,7 @@ namespace Autonocraft.Crafting
 
         private void UnlockDefaultToolRecipes()
         {
+            Journal.Unlock("recipe:plank");
             Journal.Unlock("recipe:wood_pickaxe");
             Journal.Unlock("recipe:wood_axe");
             Journal.Unlock("recipe:wood_shovel");
@@ -132,6 +205,9 @@ namespace Autonocraft.Crafting
 
         private static void UnlockGoldToolRecipes(DiscoveryJournal journal)
         {
+            journal.Unlock("recipe:gold_pickaxe");
+            journal.Unlock("recipe:gold_axe");
+            journal.Unlock("recipe:gold_shovel");
             journal.Unlock("recipe:gold_sword");
         }
 
@@ -186,67 +262,76 @@ namespace Autonocraft.Crafting
                 return CraftAttemptResult.Fail("Crucible closed");
             }
 
-            bool hasFuel = Crucible.InputSlots.Any(t => t == BlockType.CoalOre);
+            bool hasFuel = Crucible.InputSlots.Any(t => t.IsBlock() && t.BlockType == BlockType.CoalOre);
             var env = CraftEnvironment.Sample(world, Crucible.StationX, Crucible.StationY, Crucible.StationZ, timeOfDay, hasFuel);
 
             foreach (var recipe in CraftRecipeRegistry.AvailableForStation(Crucible.StationType, Journal))
             {
-                if (!recipe.EnvironmentMatches(env))
+                if (!recipe.EnvironmentMatches(env) || !recipe.IsFoodInput)
                 {
                     continue;
                 }
 
-                if (recipe.IsFoodInput)
-                {
-                    if (!TryConsumeFoodFromPlayer(player, recipe.InputFood, recipe.InputFoodCount))
-                    {
-                        continue;
-                    }
-
-                    player.AddItem(ItemStack.CreateFood(recipe.OutputItem, recipe.OutputCount));
-                    Journal.Unlock(recipe.Id);
-                    player.Stats.RecordItemCrafted();
-                    OnDiscoveryUnlocked?.Invoke($"Unlocked {recipe.DisplayName}");
-                    return CraftAttemptResult.Success(recipe);
-                }
-
-                if (!recipe.TryMatchInputs(Crucible.InputSlots, out var consumption))
+                if (!TryConsumeFoodFromPlayer(player, recipe.InputFood, recipe.InputFoodCount))
                 {
                     continue;
                 }
 
-                foreach (var (slotIndex, _) in consumption)
-                {
-                    Crucible.InputSlots[slotIndex] = BlockType.Air;
-                }
-
-                if (recipe.IsToolOutput)
-                {
-                    player.AddItem(ToolRegistry.CreateStack(recipe.OutputItem));
-                }
-                else if (recipe.IsFoodOutput)
-                {
-                    player.AddItem(ItemStack.CreateFood(recipe.OutputItem, recipe.OutputCount));
-                }
-                else
-                {
-                    player.GiveBlocks(recipe.Output, recipe.OutputCount);
-                }
-
+                player.AddItem(ItemStack.CreateFood(recipe.OutputItem, recipe.OutputCount));
                 Journal.Unlock(recipe.Id);
-                UnlockRecipesForCraft(recipe.Id);
+                RecipeDiscovery.UnlockRelated(Journal, recipe.Id);
                 player.Stats.RecordItemCrafted();
                 OnDiscoveryUnlocked?.Invoke($"Unlocked {recipe.DisplayName}");
                 return CraftAttemptResult.Success(recipe);
             }
 
-            return CraftAttemptResult.Fail("No matching transmutation");
+            var benchGrid = Crucible.ToCraftingGrid();
+            var matched = GridCrafting.FindMatch(benchGrid, Crucible.StationType, Journal, env);
+
+            if (matched == null || !matched.TryMatchItemGrid(benchGrid.GetItemStacks(), (int)Crucible.GridSize, out var consumption))
+            {
+                return CraftAttemptResult.Fail("No matching transmutation");
+            }
+
+            benchGrid.ConsumeSlots(consumption);
+            Crucible.ApplyGrid(benchGrid);
+
+            if (matched.IsToolOutput)
+            {
+                player.AddItem(ToolRegistry.CreateStack(matched.OutputItem));
+            }
+            else if (matched.IsFoodOutput)
+            {
+                player.AddItem(ItemStack.CreateFood(matched.OutputItem, matched.OutputCount));
+            }
+            else if (matched.IsMaterialOutput)
+            {
+                player.AddItem(ItemStack.CreateMaterial(matched.OutputItem, matched.OutputCount));
+            }
+            else
+            {
+                player.GiveBlocks(matched.Output, matched.OutputCount);
+            }
+
+            Journal.Unlock(matched.Id);
+            UnlockRecipesForCraft(matched.Id);
+            RecipeDiscovery.UnlockRelated(Journal, matched.Id);
+            player.Stats.RecordItemCrafted();
+            OnDiscoveryUnlocked?.Invoke($"Unlocked {matched.DisplayName}");
+            return CraftAttemptResult.Success(matched);
         }
 
-        public CraftAttemptResult TryTransmuteToContainer(VoxelWorld world, IItemContainer output, float timeOfDay, BlockType[] inputSlots, BlockType stationType)
+        public CraftAttemptResult TryTransmuteToContainer(VoxelWorld world, IItemContainer output, float timeOfDay, ItemStack[] inputSlots, BlockType stationType)
         {
-            bool hasFuel = inputSlots.Any(t => t == BlockType.CoalOre);
+            bool hasFuel = inputSlots.Any(t => t.IsBlock() && t.BlockType == BlockType.CoalOre);
             var env = CraftEnvironment.Sample(world, Crucible.StationX, Crucible.StationY, Crucible.StationZ, timeOfDay, hasFuel);
+
+            var grid = new CraftingGrid();
+            grid.SetSize(InferGridSize(inputSlots.Length));
+            for (int i = 0; i < grid.SlotCount; i++)
+            {
+                grid.SetSlot(i, i < inputSlots.Length ? inputSlots[i] : ItemStack.Empty);
+            }
 
             foreach (var recipe in CraftRecipeRegistry.AvailableForStation(stationType, Journal))
             {
@@ -255,7 +340,7 @@ namespace Autonocraft.Crafting
                     continue;
                 }
 
-                if (!recipe.TryMatchInputs(inputSlots, out _))
+                if (!recipe.TryMatchItemGrid(grid.GetItemStacks(), (int)grid.Size, out _))
                 {
                     continue;
                 }
@@ -264,12 +349,21 @@ namespace Autonocraft.Crafting
                 {
                     output.AddItem(ToolRegistry.CreateStack(recipe.OutputItem));
                 }
+                else if (recipe.IsMaterialOutput)
+                {
+                    output.AddItem(ItemStack.CreateMaterial(recipe.OutputItem, recipe.OutputCount));
+                }
+                else if (recipe.IsFoodOutput)
+                {
+                    output.AddItem(ItemStack.CreateFood(recipe.OutputItem, recipe.OutputCount));
+                }
                 else
                 {
                     output.AddItem(ItemStack.CreateBlock(recipe.Output, recipe.OutputCount));
                 }
 
                 Journal.Unlock(recipe.Id);
+                RecipeDiscovery.UnlockRelated(Journal, recipe.Id);
                 return CraftAttemptResult.Success(recipe);
             }
 
@@ -320,8 +414,32 @@ namespace Autonocraft.Crafting
                 return CraftEnvironment.Sample(world, 0, 0, 0, timeOfDay);
             }
 
-            bool hasFuel = Crucible.InputSlots.Any(t => t == BlockType.CoalOre);
+            bool hasFuel = Crucible.InputSlots.Any(t => t.IsBlock() && t.BlockType == BlockType.CoalOre);
             return CraftEnvironment.Sample(world, Crucible.StationX, Crucible.StationY, Crucible.StationZ, timeOfDay, hasFuel);
+        }
+
+        public void ToggleRecipeBook() => RecipeBookOpen = !RecipeBookOpen;
+
+        public void CloseRecipeBook() => RecipeBookOpen = false;
+
+        public bool TryApplyRecipeBookSelection(CraftRecipe recipe, Player player)
+        {
+            var inventory = new PlayerInventoryAdapter(player);
+            if (InventoryOpen)
+            {
+                return RecipeBookResolver.TryFillGrid(recipe, PlayerCraftGrid, inventory);
+            }
+
+            if (Crucible.IsOpen)
+            {
+                return RecipeBookResolver.TryFillBenchSlots(
+                    recipe,
+                    Crucible.InputSlots,
+                    Crucible.ActiveSlotCount,
+                    inventory);
+            }
+
+            return false;
         }
 
         public void OpenCrucible(int x, int y, int z, BlockType stationType)
@@ -366,11 +484,57 @@ namespace Autonocraft.Crafting
         public bool IsJournalUiBlocking =>
             JournalOpen || JournalTransition.IsAnimating || JournalTransition.Alpha > 0.01f;
 
+        public CraftPreview GetPlayerCraftPreview() =>
+            GridCrafting.Preview(PlayerCraftGrid, BlockType.StationBench, Journal);
+
+        public CraftAttemptResult TryPlayerCraft(Player player)
+        {
+            var result = GridCrafting.TryCraft(
+                PlayerCraftGrid,
+                new PlayerInventoryAdapter(player),
+                BlockType.StationBench,
+                Journal,
+                onUnlock: UnlockRecipesForCraft);
+
+            if (result.Succeeded)
+            {
+                player.Stats.RecordItemCrafted();
+                OnDiscoveryUnlocked?.Invoke($"Crafted {result.Recipe!.DisplayName}");
+            }
+
+            return result;
+        }
+
+        public void ToggleInventory()
+        {
+            if (InventoryOpen)
+            {
+                InventoryOpen = false;
+            }
+            else
+            {
+                OpenInventory();
+            }
+        }
+
+        public void OpenInventory()
+        {
+            PlayerCraftGrid.SetSize(CraftGridSize.TwoByTwo);
+            InventoryOpen = true;
+        }
+
+        public void CloseInventory() => InventoryOpen = false;
+
         public void CloseAll()
         {
             CloseCrucible();
             CloseJournal();
+            CloseInventory();
+            CloseRecipeBook();
         }
+
+        private static CraftGridSize InferGridSize(int slotCount) =>
+            slotCount >= 9 ? CraftGridSize.ThreeByThree : CraftGridSize.TwoByTwo;
     }
 
     public readonly struct SigilActivationResult

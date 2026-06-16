@@ -160,6 +160,9 @@ Tests instantiate `AutonocraftGame(runTests: true)` without calling `Run()`, so 
 |------|------------------|
 | Sigil Bench Activation | Shift+right-click activates sigil → station |
 | Crucible Plank Recipe | Crucible transmutation produces planks |
+| Player 2x2 Craft Grid | Personal inventory crafting (log → planks) |
+| Shaped Tool Bench Craft | 3×3 bench-shaped recipe crafts wood pickaxe |
+| Storage Inventory | Main inventory (27 slots) receives overflow beyond hotbar |
 | New Craft Recipes | Station recipe registry |
 
 #### Village & villagers
@@ -400,6 +403,7 @@ For multi-step flows, JSON scenarios, and a reusable Python client, see `.cursor
 | Combat | `Core/CombatSystem.cs` |
 | Survival / hunger | `Core/SurvivalConstants.cs`, `Core/FoodConsumption` in `AnimalLoot.cs`, `Items/FoodRegistry.cs` |
 | Early-game guide | `Core/EarlyGameGuide.cs` |
+| Inventory crafting grid | `Crafting/CraftingGrid.cs`, `Crafting/GridCrafting.cs`, `Crafting/CraftPatternMatcher.cs` |
 | Night threats | `Entities/NightThreatSpawner.cs` |
 | Death penalty | `Core/DeathConsequences.cs` |
 | HTTP agent API | `Core/AgentHttpServer.cs` |
@@ -416,7 +420,7 @@ For multi-step flows, JSON scenarios, and a reusable Python client, see `.cursor
 | Tools & skills | `Items/ToolRegistry.cs`, `Items/MiningCalculator.cs`, `Items/PlayerSkills.cs` |
 | Crafting sigils | `Crafting/SigilRegistry.cs`, `Crafting/SigilPattern.cs` |
 | Station recipes | `Crafting/CraftRecipeRegistry.cs`, `Crafting/CraftingSystem.cs` |
-| Crafting UI | `UI/CrucibleScreen.cs`, `UI/JournalScreen.cs` |
+| Crafting UI | `UI/CrucibleScreen.cs`, `UI/InventoryScreen.cs`, `UI/JournalScreen.cs` |
 | Animals | `Entities/AnimalManager.cs`, `Entities/Animal.cs`, `Entities/EntityCollision.cs` |
 | UI screens | `UI/*.cs` |
 | Player stats dashboard | `Core/PlayerStatistics.cs`, `UI/PlayerDashboardScreen.cs`, `UI/SaveSlotScreen.cs` |

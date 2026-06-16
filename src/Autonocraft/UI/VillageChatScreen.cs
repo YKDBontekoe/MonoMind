@@ -18,7 +18,7 @@ namespace Autonocraft.UI
         private const float PanelWidth = 560f;
         private const float PanelHeight = 440f;
         private const float ButtonWidth = 140f;
-        private const float ButtonHeight = 34f;
+        private const float ButtonHeight = 36f;
         private const int MaxHistoryLines = 12;
 
         private readonly UiRenderer _ui;
@@ -73,10 +73,10 @@ namespace Autonocraft.UI
         {
             if (_stewardMode || _village == null)
             {
-                return "VILLAGE STEWARD";
+                return "Village steward";
             }
 
-            return (_villagerDisplayName ?? "VILLAGER").ToUpperInvariant();
+            return _villagerDisplayName ?? "Villager";
         }
 
         public void Close()
@@ -160,44 +160,53 @@ namespace Autonocraft.UI
             float panelH = layout.S(PanelHeight);
             float panelX = layout.CenterX - panelW / 2f;
             float panelY = layout.CenterY - panelH / 2f + offsetY;
-            float left = panelX + layout.S(20f);
+            float left = panelX + layout.S(24f);
             float buttonW = layout.S(ButtonWidth);
             float buttonH = layout.S(ButtonHeight);
-            float modeY = panelY + layout.S(44f);
-            float stewardX = panelX + layout.S(20f);
+            float modeY = panelY + layout.S(52f);
+            float stewardX = panelX + layout.S(24f);
             float villagerX = stewardX + buttonW + layout.S(10f);
-            float historyY = panelY + layout.S(88f);
-            float inputY = panelY + panelH - layout.S(72f);
+            float historyY = panelY + layout.S(96f);
+            float inputY = panelY + panelH - layout.S(76f);
 
-            _ui.DrawFullscreenBackground(new Color(0.02f, 0.03f, 0.06f) * (0.65f * alpha));
-            _ui.DrawFramedPanel(panelX, panelY, panelW, panelH, UiTheme.PanelFill * alpha, UiTheme.PanelBorder, alpha);
+            _ui.DrawFullscreenBackground(UiTheme.OverlayScrim * (0.55f * alpha));
+            _ui.DrawCard(panelX, panelY, panelW, panelH, alpha, UiTheme.RadiusXl);
 
             string title = GetChatHeaderLabel();
-            _ui.DrawCenteredText(title, panelY + layout.S(16f), layout.S(1.5f), UiTheme.Title * alpha);
-            _ui.DrawCenteredText(_village.Name.ToUpperInvariant(), panelY + layout.S(34f), layout.S(UiTheme.ScaleNormal), UiTheme.Subtitle * alpha);
+            _ui.DrawCenteredTitle(title, panelY + layout.S(20f), layout.S(UiTheme.FontTitle), UiTheme.Title, alpha);
+            _ui.DrawCenteredText(_village.Name, panelY + layout.S(48f), layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha * 0.92f);
 
-            _ui.DrawButton(stewardX, modeY, buttonW, buttonH, "STEWARD", _hoveredButton == 0, _stewardMode, layout.S(1.05f), alpha);
-            _ui.DrawButton(villagerX, modeY, buttonW, buttonH, "VILLAGER", _hoveredButton == 1, !_stewardMode, layout.S(1.05f), alpha);
+            DrawModeButton(stewardX, modeY, buttonW, buttonH, "Steward", 0, _stewardMode, layout, alpha);
+            DrawModeButton(villagerX, modeY, buttonW, buttonH, "Villager", 1, !_stewardMode, layout, alpha);
 
-            float y = historyY;
+            float historyH = inputY - historyY - layout.S(12f);
+            _ui.DrawPanel(left, historyY, panelW - layout.S(48f), historyH, UiTheme.PanelBgMuted, UiTheme.PanelBorder, 0.7f, alpha, UiTheme.RadiusMd);
+
+            float y = historyY + layout.S(10f);
             int start = Math.Max(0, _history.Count - MaxHistoryLines);
             for (int i = start; i < _history.Count; i++)
             {
-                _ui.DrawString(Truncate(_history[i], 64), left, y, layout.S(UiTheme.ScaleSmall), UiTheme.Subtitle * alpha);
-                y += layout.S(16f);
+                _ui.DrawString(Truncate(_history[i], 64), left + layout.S(10f), y, layout.S(UiTheme.FontSmall), UiTheme.Subtitle, alpha);
+                y += layout.S(18f);
             }
 
-            string prompt = _waitingForReply ? "THINKING..." : "> " + _input + (_waitingForReply ? "" : "_");
-            _ui.DrawString(prompt, left, inputY, layout.S(UiTheme.ScaleNormal), UiTheme.Meta * alpha);
+            string prompt = _waitingForReply ? "Thinking…" : "> " + _input + (_waitingForReply ? "" : "_");
+            _ui.DrawString(prompt, left, inputY, layout.S(UiTheme.FontBody), UiTheme.Meta, alpha);
 
             if (_statusTimer > 0f && !string.IsNullOrEmpty(_statusMessage))
             {
-                _ui.DrawCenteredText(_statusMessage, panelY + panelH - layout.S(28f), layout.S(UiTheme.ScaleSmall), UiTheme.Section * alpha);
+                _ui.DrawCenteredText(_statusMessage, panelY + panelH - layout.S(28f), layout.S(UiTheme.FontSmall), UiTheme.Section, alpha);
             }
             else
             {
-                _ui.DrawCenteredText("ENTER TO SEND  ESC TO CLOSE", panelY + panelH - layout.S(28f), layout.S(UiTheme.ScaleSmall), UiTheme.Hint * alpha);
+                _ui.DrawCenteredText("Enter to send · Esc to close", panelY + panelH - layout.S(28f), layout.S(UiTheme.FontSmall), UiTheme.Hint, 0.9f * alpha);
             }
+        }
+
+        private void DrawModeButton(float x, float y, float w, float h, string label, int index, bool selected, UiLayout layout, float alpha)
+        {
+            var style = selected ? UiButtonStyle.Primary : UiButtonStyle.Secondary;
+            _ui.DrawButton(x, y, w, h, label, _hoveredButton == index, false, style, layout.S(UiTheme.FontBody), alpha, _hoveredButton == index ? 1f : 0f);
         }
 
         private void UpdateModeButtons(Viewport viewport, GameSession session, MouseState mouse, MouseState prevMouse)
@@ -207,8 +216,8 @@ namespace Autonocraft.UI
             float panelY = layout.CenterY - layout.S(PanelHeight) / 2f;
             float buttonW = layout.S(ButtonWidth);
             float buttonH = layout.S(ButtonHeight);
-            float modeY = panelY + layout.S(44f);
-            float stewardX = panelX + layout.S(20f);
+            float modeY = panelY + layout.S(52f);
+            float stewardX = panelX + layout.S(24f);
             float villagerX = stewardX + buttonW + layout.S(10f);
 
             var stewardRect = new Rectangle((int)stewardX, (int)modeY, (int)buttonW, (int)buttonH);

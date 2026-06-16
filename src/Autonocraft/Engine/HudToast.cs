@@ -7,7 +7,7 @@ namespace Autonocraft.Engine
     public sealed class HudToast
     {
         private string _message = string.Empty;
-        private Color _color = Color.White;
+        private Color _color = UiTheme.HudTextPrimary;
         private float _timer;
         private float _duration;
 
@@ -18,8 +18,8 @@ namespace Autonocraft.Engine
                 return;
             }
 
-            _message = message.ToUpperInvariant();
-            _color = color ?? new Color(0.95f, 0.92f, 0.85f);
+            _message = message.Trim();
+            _color = color ?? UiTheme.HudTextPrimary;
             _duration = Math.Max(0.5f, durationSeconds);
             _timer = _duration;
         }
@@ -52,7 +52,7 @@ namespace Autonocraft.Engine
             float panelX = layout.CenterX - panelW / 2f;
             float panelY = hotbarPlateY - panelH - layout.S(10f);
 
-            DrawGlassPanel(spriteBatch, white, panelX, panelY, panelW, panelH, _color, alpha * 0.82f);
+            DrawGlassPanel(spriteBatch, white, panelX, panelY, panelW, panelH, _color, alpha * UiTheme.HudGlassAlpha);
             PixelFont.DrawString(
                 spriteBatch,
                 white,
@@ -60,7 +60,7 @@ namespace Autonocraft.Engine
                 panelX + padX,
                 panelY + padY,
                 textSize,
-                _color * (0.92f * alpha),
+                _color * (0.95f * alpha),
                 alpha);
         }
 
@@ -74,11 +74,22 @@ namespace Autonocraft.Engine
             Color accent,
             float alpha)
         {
-            spriteBatch.Draw(white, new Rectangle((int)x, (int)y, (int)w, (int)h), new Color(0.04f, 0.06f, 0.1f) * (0.88f * alpha));
+            spriteBatch.Draw(white, new Rectangle((int)(x + 1f), (int)(y + 2f), (int)w, (int)h), Color.Black * (0.22f * alpha));
+            spriteBatch.Draw(white, new Rectangle((int)x, (int)y, (int)w, (int)h), UiTheme.HudGlassFill * (0.92f * alpha));
             spriteBatch.Draw(
                 white,
-                new Rectangle((int)x, (int)(y + h - Math.Max(1f, h * 0.08f)), (int)w, (int)Math.Max(1f, h * 0.08f)),
-                accent * (0.55f * alpha));
+                new Rectangle((int)x, (int)y, (int)w, (int)Math.Max(1f, h * 0.06f)),
+                accent * (0.75f * alpha));
+            DrawOutline(spriteBatch, white, x, y, w, h, UiTheme.HudGlassBorder, 0.60f * alpha);
+        }
+
+        private static void DrawOutline(SpriteBatch sb, Texture2D white, float x, float y, float w, float h, Color color, float alpha)
+        {
+            Color drawCol = color * alpha;
+            sb.Draw(white, new Rectangle((int)x, (int)y, (int)w, 1), drawCol);
+            sb.Draw(white, new Rectangle((int)x, (int)(y + h - 1f), (int)w, 1), drawCol);
+            sb.Draw(white, new Rectangle((int)x, (int)(y + 1f), 1, (int)(h - 2f)), drawCol);
+            sb.Draw(white, new Rectangle((int)(x + w - 1f), (int)(y + 1f), 1, (int)(h - 2f)), drawCol);
         }
     }
 }

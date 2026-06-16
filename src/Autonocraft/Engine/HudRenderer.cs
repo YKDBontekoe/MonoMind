@@ -20,6 +20,9 @@ namespace Autonocraft.Engine
         private readonly SpriteBatch _spriteBatch;
         private Texture2D _atlasTexture;
         private readonly Texture2D _whiteTexture;
+        private UiTypography? _typography;
+
+        public void SetTypography(UiTypography typography) => _typography = typography;
 
         public HudRenderer(GraphicsDevice device, Texture2D atlas, Texture2D white)
         {
@@ -70,19 +73,19 @@ namespace Autonocraft.Engine
             float plateY = hotbarYMin - hotbarPad;
             float plateW = totalWidth + hotbarPad * 2f;
             float plateH = slotSize + hotbarPad * 2f;
-            DrawHudGlassPanel(_spriteBatch, plateX, plateY, plateW, plateH, new Color(0.0f, 0.75f, 1.0f), 0.82f);
+            DrawHudGlassPanel(_spriteBatch, plateX, plateY, plateW, plateH, UiTheme.Accent, UiTheme.HudGlassAlpha);
             _spriteBatch.Draw(
                 _whiteTexture,
                 new Rectangle((int)plateX, (int)plateY, (int)plateW, (int)Math.Max(1f, layout.S(2f))),
-                new Color(0.0f, 0.8f, 1.0f) * 0.45f);
+                UiTheme.Accent * 0.35f);
 
             for (int i = 0; i < 9; i++)
             {
                 float slotXMin = hotbarXMin + i * (slotSize + slotSpacing);
                 bool selected = i == player.SelectedSlot;
                 Color slotFill = selected
-                    ? new Color(0.12f, 0.18f, 0.26f) * 0.92f
-                    : new Color(0.06f, 0.07f, 0.10f) * 0.88f;
+                    ? UiTheme.HudSlotSelected * 0.95f
+                    : UiTheme.HudSlotFill * 0.92f;
                 _spriteBatch.Draw(_whiteTexture, new Rectangle((int)slotXMin, (int)hotbarYMin, (int)slotSize, (int)slotSize), slotFill);
 
                 if (selected)
@@ -97,16 +100,16 @@ namespace Autonocraft.Engine
                         bracketSize,
                         layout.S(8f),
                         layout.S(2f),
-                        new Color(0.0f, 0.85f, 1.0f),
+                        UiTheme.Accent,
                         0.95f);
                     _spriteBatch.Draw(
                         _whiteTexture,
                         new Rectangle((int)slotXMin, (int)hotbarYMin, (int)slotSize, (int)slotSize),
-                        new Color(0.0f, 0.65f, 0.9f) * 0.12f);
+                        UiTheme.Accent * 0.10f);
                 }
                 else
                 {
-                    DrawRectOutline(_spriteBatch, slotXMin, hotbarYMin, slotSize, slotSize, 1f, new Color(0.14f, 0.16f, 0.20f), 0.75f);
+                    DrawRectOutline(_spriteBatch, slotXMin, hotbarYMin, slotSize, slotSize, 1f, UiTheme.HudSlotBorder, 0.65f);
                 }
             }
 
@@ -143,8 +146,8 @@ namespace Autonocraft.Engine
             {
                 string claimHint = ctx.NearbyClaimHint!;
                 float claimSize = layout.S(0.9f);
-                float claimWidth = PixelFont.MeasureString(claimHint, claimSize);
-                PixelFont.DrawString(_spriteBatch, _whiteTexture, claimHint, cx - claimWidth / 2f, hotbarYMin - layout.S(52f), claimSize, new Color(0.75f, 0.82f, 0.55f), 0.9f);
+                float claimWidth = MeasureHudText(claimHint, claimSize);
+                DrawHudText(_spriteBatch, _whiteTexture, claimHint, cx - claimWidth / 2f, hotbarYMin - layout.S(52f), claimSize, UiTheme.AccentGlow, 0.95f);
             }
 
             var selectedStack = player.GetSelectedStack();
@@ -155,37 +158,37 @@ namespace Autonocraft.Engine
                     ? activeName
                     : $"{activeName} ({selectedStack.Count})";
                 float activeLabelSize = layout.S(1.1f);
-                float labelWidth = PixelFont.MeasureString(labelText, activeLabelSize);
+                float labelWidth = MeasureHudText(labelText, activeLabelSize);
                 float pillPadX = layout.S(10f);
                 float pillPadY = layout.S(5f);
                 float pillH = 7f * activeLabelSize + pillPadY * 2f;
                 float pillW = labelWidth + pillPadX * 2f;
                 float pillX = cx - pillW / 2f;
                 float pillY = hotbarYMin - layout.S(34f);
-                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)pillX, (int)pillY, (int)pillW, (int)pillH), new Color(0.04f, 0.06f, 0.09f) * 0.88f);
-                DrawRectOutline(_spriteBatch, pillX, pillY, pillW, pillH, 1f, new Color(0.2f, 0.32f, 0.42f), 0.7f);
-                PixelFont.DrawString(_spriteBatch, _whiteTexture, labelText, pillX + pillPadX, pillY + pillPadY, activeLabelSize, new Color(0.92f, 0.94f, 0.98f), 0.95f);
+                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)pillX, (int)pillY, (int)pillW, (int)pillH), UiTheme.HudGlassFill * 0.92f);
+                DrawRectOutline(_spriteBatch, pillX, pillY, pillW, pillH, 1f, UiTheme.HudGlassBorder, 0.75f);
+                DrawHudText(_spriteBatch, _whiteTexture, labelText, pillX + pillPadX, pillY + pillPadY, activeLabelSize, UiTheme.HudTextPrimary, 0.95f);
             }
             else if (!string.IsNullOrEmpty(ctx.VillageHudHint))
             {
                 string hint = ctx.VillageHudHint!;
                 float hintSize = layout.S(0.95f);
-                float hintWidth = PixelFont.MeasureString(hint, hintSize);
-                PixelFont.DrawString(_spriteBatch, _whiteTexture, hint, cx - hintWidth / 2f, hotbarYMin - layout.S(30f), hintSize, new Color(0.55f, 0.82f, 0.65f), 0.85f);
+                float hintWidth = MeasureHudText(hint, hintSize);
+                DrawHudText(_spriteBatch, _whiteTexture, hint, cx - hintWidth / 2f, hotbarYMin - layout.S(30f), hintSize, UiTheme.AccentGlow, 0.92f);
             }
             else if (!string.IsNullOrEmpty(ctx.HudPlacementHint))
             {
                 string hint = ctx.HudPlacementHint!;
                 float hintSize = layout.S(0.95f);
-                float hintWidth = PixelFont.MeasureString(hint, hintSize);
-                PixelFont.DrawString(_spriteBatch, _whiteTexture, hint, cx - hintWidth / 2f, hotbarYMin - layout.S(30f), hintSize, new Color(0.55f, 0.82f, 0.65f), 0.85f);
+                float hintWidth = MeasureHudText(hint, hintSize);
+                DrawHudText(_spriteBatch, _whiteTexture, hint, cx - hintWidth / 2f, hotbarYMin - layout.S(30f), hintSize, UiTheme.AccentGlow, 0.92f);
             }
             else if (ctx.Crafting.ShowCraftingHint)
             {
                 string hint = "BUILD PATTERNS  SHIFT+CLICK TO AWAKEN";
                 float hintSize = layout.S(0.95f);
-                float hintWidth = PixelFont.MeasureString(hint, hintSize);
-                PixelFont.DrawString(_spriteBatch, _whiteTexture, hint, cx - hintWidth / 2f, hotbarYMin - layout.S(30f), hintSize, new Color(0.55f, 0.72f, 0.85f), 0.8f);
+                float hintWidth = MeasureHudText(hint, hintSize);
+                DrawHudText(_spriteBatch, _whiteTexture, hint, cx - hintWidth / 2f, hotbarYMin - layout.S(30f), hintSize, UiTheme.AccentGlow, 0.88f);
             }
 
             float keyLabelSize = layout.S(UiTheme.ScaleSmall);
@@ -197,7 +200,7 @@ namespace Autonocraft.Engine
                 float slotYMax = hotbarYMin + slotSize;
 
                 string keyLabel = (i + 1).ToString();
-                PixelFont.DrawString(_spriteBatch, _whiteTexture, keyLabel, slotXMin + layout.S(3f), hotbarYMin + layout.S(2f), keyLabelSize, UiTheme.Hint, 0.9f);
+                DrawHudText(_spriteBatch, _whiteTexture, keyLabel, slotXMin + layout.S(3f), hotbarYMin + layout.S(2f), keyLabelSize, UiTheme.HudTextSecondary, 0.85f);
 
                 var slotItem = player.Hotbar[i];
                 if (slotItem.IsEmpty)
@@ -226,10 +229,10 @@ namespace Autonocraft.Engine
                 }
 
                 string countStr = slotItem.Count.ToString();
-                float textX = slotXMax - PixelFont.MeasureString(countStr, countLabelSize) - layout.S(3f);
+                float textX = slotXMax - MeasureHudText(countStr, countLabelSize) - layout.S(3f);
                 float textY = slotYMax - layout.S(10f);
-                PixelFont.DrawString(_spriteBatch, _whiteTexture, countStr, textX + 1f, textY + 1f, countLabelSize, Color.Black, 0.75f);
-                PixelFont.DrawString(_spriteBatch, _whiteTexture, countStr, textX, textY, countLabelSize, Color.White, 1.0f);
+                DrawHudText(_spriteBatch, _whiteTexture, countStr, textX + 1f, textY + 1f, countLabelSize, Color.Black, 0.75f);
+                DrawHudText(_spriteBatch, _whiteTexture, countStr, textX, textY, countLabelSize, Color.White, 1.0f);
             }
 
             DrawHeldToolItem(layout, sw, sh, player, animator);
@@ -333,18 +336,18 @@ namespace Autonocraft.Engine
 
         private void DrawHudBottomVignette(UiLayout layout)
         {
-            float vignetteH = layout.S(140f);
+            float vignetteH = layout.S(120f);
             int strips = 8;
             for (int i = 0; i < strips; i++)
             {
                 float t = i / (float)(strips - 1);
-                float alpha = 0.55f * t * t;
+                float alpha = 0.28f * t * t;
                 float stripH = vignetteH / strips;
                 float y = layout.Height - vignetteH + i * stripH;
                 _spriteBatch.Draw(
                     _whiteTexture,
                     new Rectangle(0, (int)y, (int)layout.Width, (int)Math.Ceiling(stripH) + 1),
-                    Color.Black * alpha);
+                    UiTheme.HudGlassFill * alpha);
             }
         }
 
@@ -413,8 +416,8 @@ namespace Autonocraft.Engine
             {
                 string prompt = "RIGHT-CLICK TO OPEN";
                 float promptSize = layout.S(0.95f);
-                float promptW = PixelFont.MeasureString(prompt, promptSize);
-                PixelFont.DrawString(
+                float promptW = MeasureHudText(prompt, promptSize);
+                DrawHudText(
                     _spriteBatch,
                     _whiteTexture,
                     prompt,
@@ -432,7 +435,7 @@ namespace Autonocraft.Engine
             float compassH = layout.S(34f);
             float compassX = cx - compassW / 2f;
             float compassY = layout.Padding;
-            DrawHudGlassPanel(_spriteBatch, compassX, compassY, compassW, compassH, new Color(0.35f, 0.65f, 0.95f), 0.78f);
+            DrawHudGlassPanel(_spriteBatch, compassX, compassY, compassW, compassH, UiTheme.Accent, UiTheme.HudGlassAlpha);
 
             string facing = GetDirection(yaw);
             string[] dirs = { "N", "E", "S", "W" };
@@ -445,9 +448,9 @@ namespace Autonocraft.Engine
                 float dirX = compassX + compassW * (0.15f + i * 0.23f);
                 float dirSize = layout.S(active ? 1.15f : 0.95f);
                 Color dirColor = active
-                    ? new Color(0.0f, 0.85f, 1.0f)
-                    : new Color(0.55f, 0.6f, 0.68f);
-                PixelFont.DrawString(_spriteBatch, _whiteTexture, dirs[i], dirX, compassY + layout.S(10f), dirSize, dirColor, active ? 1f : 0.75f);
+                    ? UiTheme.Accent
+                    : UiTheme.HudTextSecondary;
+                DrawHudText(_spriteBatch, _whiteTexture, dirs[i], dirX, compassY + layout.S(10f), dirSize, dirColor, active ? 1f : 0.75f);
                 if (active)
                 {
                     markerX = dirX + layout.S(8f);
@@ -457,7 +460,7 @@ namespace Autonocraft.Engine
             float markerY = compassY + compassH - layout.S(6f);
             int markerW = (int)layout.S(10f);
             int markerH = (int)Math.Max(1f, layout.S(2f));
-            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(markerX - markerW / 2f), (int)markerY, markerW, markerH), new Color(0.0f, 0.85f, 1.0f));
+            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(markerX - markerW / 2f), (int)markerY, markerW, markerH), UiTheme.Accent);
         }
 
         private void DrawHudTimeBadge(UiLayout layout, float timeOfDay)
@@ -467,8 +470,8 @@ namespace Autonocraft.Engine
             float badgeX = layout.Width - layout.Padding - badgeW;
             float badgeY = layout.Padding;
             bool isDay = DayNightCycle.IsBroadDaytime(timeOfDay);
-            Color accent = isDay ? new Color(0.95f, 0.78f, 0.25f) : new Color(0.45f, 0.55f, 0.85f);
-            DrawHudGlassPanel(_spriteBatch, badgeX, badgeY, badgeW, badgeH, accent, 0.78f);
+            Color accent = isDay ? new Color(0.95f, 0.78f, 0.28f) : new Color(0.45f, 0.55f, 0.92f);
+            DrawHudGlassPanel(_spriteBatch, badgeX, badgeY, badgeW, badgeH, accent, 0.84f);
 
             float iconR = layout.S(6f);
             float iconCx = badgeX + layout.S(18f);
@@ -480,7 +483,7 @@ namespace Autonocraft.Engine
 
             string timeLabel = DayNightCycle.GetHudTimeLabel(timeOfDay);
             float textSize = layout.S(0.95f);
-            PixelFont.DrawString(_spriteBatch, _whiteTexture, timeLabel, badgeX + layout.S(34f), badgeY + layout.S(10f), textSize, new Color(0.82f, 0.86f, 0.92f), 0.9f);
+            DrawHudText(_spriteBatch, _whiteTexture, timeLabel, badgeX + layout.S(34f), badgeY + layout.S(10f), textSize, UiTheme.HudTextPrimary, 0.95f);
         }
 
         private void DrawHudStatusCard(UiLayout layout, Player player, int activeChunksCount)
@@ -499,8 +502,8 @@ namespace Autonocraft.Engine
             float barY = cardY + layout.S(16f);
             float barW = cardW - layout.S(28f);
             float barH = layout.S(10f);
-            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(barX - 1), (int)(barY - 1), (int)(barW + 2), (int)(barH + 2)), Color.Black * 0.55f);
-            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)barY, (int)barW, (int)barH), new Color(0.12f, 0.05f, 0.06f) * 0.95f);
+            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(barX - 1), (int)(barY - 1), (int)(barW + 2), (int)(barH + 2)), UiTheme.HudGlassBorder * 0.55f);
+            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)barY, (int)barW, (int)barH), UiTheme.HudBarTrack * 0.95f);
             if (hpRatio > 0.01f)
             {
                 Color fill = lowHealth ? new Color(1.0f, 0.18f, 0.28f) : new Color(0.92f, 0.18f, 0.32f);
@@ -512,37 +515,37 @@ namespace Autonocraft.Engine
                     Color.White * 0.18f);
             }
 
-            DrawRectOutline(_spriteBatch, barX, barY, barW, barH, 1f, new Color(0.25f, 0.12f, 0.14f), 0.8f);
+            DrawRectOutline(_spriteBatch, barX, barY, barW, barH, 1f, new Color(0.72f, 0.42f, 0.46f), 0.65f);
 
             float hungerY = barY + barH + layout.S(8f);
             if (!player.CreativeMode)
             {
                 float hungerRatio = Math.Clamp(player.Hunger / player.MaxHunger, 0f, 1f);
                 bool lowHunger = hungerRatio < SurvivalConstants.HungerWarningFraction && player.Hunger > 0f;
-                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(barX - 1), (int)(hungerY - 1), (int)(barW + 2), (int)(barH + 2)), Color.Black * 0.55f);
-                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)hungerY, (int)barW, (int)barH), new Color(0.12f, 0.08f, 0.04f) * 0.95f);
+                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(barX - 1), (int)(hungerY - 1), (int)(barW + 2), (int)(barH + 2)), UiTheme.HudGlassBorder * 0.55f);
+                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)hungerY, (int)barW, (int)barH), UiTheme.HudBarTrack * 0.95f);
                 if (hungerRatio > 0.01f)
                 {
                     Color hungerFill = lowHunger ? new Color(0.95f, 0.55f, 0.15f) : new Color(0.88f, 0.62f, 0.18f);
                     _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)hungerY, (int)(barW * hungerRatio), (int)barH), hungerFill);
                 }
 
-                DrawRectOutline(_spriteBatch, barX, hungerY, barW, barH, 1f, new Color(0.28f, 0.18f, 0.08f), 0.8f);
+                DrawRectOutline(_spriteBatch, barX, hungerY, barW, barH, 1f, new Color(0.72f, 0.58f, 0.36f), 0.65f);
             }
 
             if (player.HeadUnderwater)
             {
                 float o2Ratio = Math.Clamp(player.Oxygen / Player.MaxOxygen, 0f, 1f);
                 float o2Y = barY + barH + layout.S(8f);
-                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(barX - 1), (int)(o2Y - 1), (int)(barW + 2), (int)(barH + 2)), Color.Black * 0.55f);
-                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)o2Y, (int)barW, (int)barH), new Color(0.05f, 0.08f, 0.12f) * 0.95f);
+                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(barX - 1), (int)(o2Y - 1), (int)(barW + 2), (int)(barH + 2)), UiTheme.HudGlassBorder * 0.55f);
+                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)o2Y, (int)barW, (int)barH), UiTheme.HudBarTrack * 0.95f);
                 if (o2Ratio > 0.01f)
                 {
                     Color o2Fill = o2Ratio < 0.25f ? new Color(0.95f, 0.35f, 0.25f) : new Color(0.25f, 0.65f, 0.95f);
                     _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)o2Y, (int)(barW * o2Ratio), (int)barH), o2Fill);
                 }
 
-                DrawRectOutline(_spriteBatch, barX, o2Y, barW, barH, 1f, new Color(0.12f, 0.18f, 0.24f), 0.8f);
+                DrawRectOutline(_spriteBatch, barX, o2Y, barW, barH, 1f, new Color(0.42f, 0.58f, 0.72f), 0.65f);
             }
 
             float skillY = cardY + layout.S(58f);
@@ -560,29 +563,29 @@ namespace Autonocraft.Engine
             float cardY = layout.Height - layout.S(204f);
             float hpTextSize = layout.S(0.95f);
             string hpText = $"{MathF.Round(player.Health)}/{MathF.Round(player.MaxHealth)}";
-            PixelFont.DrawString(_spriteBatch, _whiteTexture, "HEALTH", cardX + layout.S(14f), cardY + layout.S(4f), hpTextSize, UiTheme.StatLabel, 0.9f);
+            DrawHudText(_spriteBatch, _whiteTexture, "HEALTH", cardX + layout.S(14f), cardY + layout.S(4f), hpTextSize, UiTheme.HudTextSecondary, 0.9f);
             if (!player.CreativeMode)
             {
                 string hungerText = $"{MathF.Round(player.Hunger)}/{MathF.Round(player.MaxHunger)}";
-                PixelFont.DrawString(_spriteBatch, _whiteTexture, "FOOD", cardX + layout.S(14f), cardY + layout.S(28f), layout.S(UiTheme.ScaleSmall), UiTheme.Meta, 0.9f);
-                float hungerTextW = PixelFont.MeasureString(hungerText, layout.S(UiTheme.ScaleSmall));
-                PixelFont.DrawString(_spriteBatch, _whiteTexture, hungerText, cardX + cardW - layout.S(14f) - hungerTextW, cardY + layout.S(28f), layout.S(UiTheme.ScaleSmall), new Color(0.95f, 0.72f, 0.28f), 0.95f);
+                DrawHudText(_spriteBatch, _whiteTexture, "FOOD", cardX + layout.S(14f), cardY + layout.S(28f), layout.S(UiTheme.ScaleSmall), UiTheme.HudTextSecondary, 0.9f);
+                float hungerTextW = MeasureHudText(hungerText, layout.S(UiTheme.ScaleSmall));
+                DrawHudText(_spriteBatch, _whiteTexture, hungerText, cardX + cardW - layout.S(14f) - hungerTextW, cardY + layout.S(28f), layout.S(UiTheme.ScaleSmall), new Color(0.95f, 0.72f, 0.28f), 0.95f);
             }
 
             if (player.HeadUnderwater)
             {
-                PixelFont.DrawString(_spriteBatch, _whiteTexture, "O2", cardX + layout.S(14f), cardY + layout.S(28f), layout.S(UiTheme.ScaleSmall), UiTheme.Meta, 0.9f);
+                DrawHudText(_spriteBatch, _whiteTexture, "O2", cardX + layout.S(14f), cardY + layout.S(28f), layout.S(UiTheme.ScaleSmall), UiTheme.HudTextSecondary, 0.9f);
             }
-            float hpTextW = PixelFont.MeasureString(hpText, hpTextSize);
-            PixelFont.DrawString(_spriteBatch, _whiteTexture, hpText, cardX + cardW - layout.S(14f) - hpTextW, cardY + layout.S(4f), hpTextSize, UiTheme.Danger, 0.95f);
+            float hpTextW = MeasureHudText(hpText, hpTextSize);
+            DrawHudText(_spriteBatch, _whiteTexture, hpText, cardX + cardW - layout.S(14f) - hpTextW, cardY + layout.S(4f), hpTextSize, new Color(0.95f, 0.35f, 0.42f), 0.95f);
 
             string posText = $"{player.Position.X:F0} {player.Position.Y:F0} {player.Position.Z:F0}";
             float metaSize = layout.S(UiTheme.ScaleSmall);
             float metaY = cardY + cardH - layout.S(12f);
-            PixelFont.DrawString(_spriteBatch, _whiteTexture, posText, cardX + layout.S(14f), metaY, metaSize, UiTheme.Meta, 0.9f);
+            DrawHudText(_spriteBatch, _whiteTexture, posText, cardX + layout.S(14f), metaY, metaSize, UiTheme.HudTextSecondary, 0.9f);
             string chunkText = $"{activeChunksCount} CHK";
-            float chunkW = PixelFont.MeasureString(chunkText, metaSize);
-            PixelFont.DrawString(_spriteBatch, _whiteTexture, chunkText, cardX + cardW - layout.S(14f) - chunkW, metaY, metaSize, UiTheme.Meta, 0.9f);
+            float chunkW = MeasureHudText(chunkText, metaSize);
+            DrawHudText(_spriteBatch, _whiteTexture, chunkText, cardX + cardW - layout.S(14f) - chunkW, metaY, metaSize, UiTheme.HudTextSecondary, 0.9f);
         }
 
         private void DrawHudModeBadge(UiLayout layout, Player player)
@@ -591,7 +594,7 @@ namespace Autonocraft.Engine
             float badgeH = layout.S(34f);
             float badgeX = layout.Width - layout.Padding - badgeW;
             float badgeY = layout.Height - layout.S(188f);
-            Color accent = player.CreativeMode ? new Color(0.25f, 0.75f, 1.0f) : new Color(0.95f, 0.62f, 0.22f);
+            Color accent = player.CreativeMode ? UiTheme.Accent : new Color(0.95f, 0.68f, 0.22f);
             DrawHudGlassPanel(_spriteBatch, badgeX, badgeY, badgeW, badgeH, accent, 0.82f);
         }
 
@@ -602,23 +605,24 @@ namespace Autonocraft.Engine
             float badgeX = layout.Width - layout.Padding - badgeW;
             float badgeY = layout.Height - layout.S(188f);
             string modeLabel = player.CreativeMode ? "CREATIVE" : "SURVIVAL";
-            Color modeColor = player.CreativeMode ? new Color(0.45f, 0.85f, 1.0f) : new Color(0.98f, 0.72f, 0.35f);
+            Color modeColor = player.CreativeMode ? UiTheme.AccentGlow : new Color(0.95f, 0.72f, 0.32f);
             float textSize = layout.S(0.95f);
-            float textW = PixelFont.MeasureString(modeLabel, textSize);
-            PixelFont.DrawString(_spriteBatch, _whiteTexture, modeLabel, badgeX + (badgeW - textW) / 2f, badgeY + layout.S(10f), textSize, modeColor, 0.95f);
+            float textW = MeasureHudText(modeLabel, textSize);
+            DrawHudText(_spriteBatch, _whiteTexture, modeLabel, badgeX + (badgeW - textW) / 2f, badgeY + layout.S(10f), textSize, modeColor, 0.95f);
 
             string grounded = player.IsGrounded ? "GROUNDED" : "AIRBORNE";
             float subSize = layout.S(UiTheme.ScaleSmall);
-            float subW = PixelFont.MeasureString(grounded, subSize);
-            PixelFont.DrawString(_spriteBatch, _whiteTexture, grounded, badgeX + (badgeW - subW) / 2f, badgeY + badgeH + layout.S(4f), subSize, UiTheme.Hint, 0.95f);
+            float subW = MeasureHudText(grounded, subSize);
+            DrawHudText(_spriteBatch, _whiteTexture, grounded, badgeX + (badgeW - subW) / 2f, badgeY + badgeH + layout.S(4f), subSize, UiTheme.HudTextSecondary, 0.95f);
         }
 
         private void DrawHudGlassPanel(SpriteBatch sb, float x, float y, float w, float h, Color accent, float alpha)
         {
-            sb.Draw(_whiteTexture, new Rectangle((int)x, (int)y, (int)w, (int)h), new Color(0.04f, 0.05f, 0.08f) * alpha);
-            float stripeW = Math.Max(2f, w * 0.018f);
-            sb.Draw(_whiteTexture, new Rectangle((int)x, (int)y, (int)stripeW, (int)h), accent * 0.8f);
-            DrawRectOutline(sb, x, y, w, h, 1f, new Color(0.18f, 0.28f, 0.38f), 0.55f);
+            sb.Draw(_whiteTexture, new Rectangle((int)(x + 1f), (int)(y + 2f), (int)w, (int)h), Color.Black * (0.25f * alpha));
+            sb.Draw(_whiteTexture, new Rectangle((int)x, (int)y, (int)w, (int)h), UiTheme.HudGlassFill * alpha);
+            float stripeH = Math.Max(2f, h * 0.04f);
+            sb.Draw(_whiteTexture, new Rectangle((int)x, (int)y, (int)w, (int)stripeH), accent * 0.85f);
+            DrawRectOutline(sb, x, y, w, h, 1f, UiTheme.HudGlassBorder, 0.65f);
         }
 
         private void DrawCornerBrackets(SpriteBatch sb, float x, float y, float w, float h, float armLen, float thickness, Color color, float alpha)
@@ -637,16 +641,16 @@ namespace Autonocraft.Engine
         private void DrawSkillBar(UiLayout layout, string label, SkillProgress progress, float x, float y, float totalW, float lineH)
         {
             float labelSize = layout.S(UiTheme.ScaleSmall);
-            PixelFont.DrawString(_spriteBatch, _whiteTexture, $"{label} {progress.Level}", x, y, labelSize, UiTheme.Subtitle, 0.9f);
+            DrawHudText(_spriteBatch, _whiteTexture, $"{label} {progress.Level}", x, y, labelSize, UiTheme.HudTextSecondary, 0.9f);
             float barW = layout.S(72f);
             float barH = layout.S(4f);
             float barX = x + totalW - barW;
             float barY = y + lineH - barH - layout.S(3f);
             float ratio = progress.ProgressToNextLevel();
-            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)barY, (int)barW, (int)barH), new Color(0.07f, 0.09f, 0.12f) * 0.95f);
+            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)barY, (int)barW, (int)barH), UiTheme.HudBarTrack * 0.95f);
             if (ratio > 0.01f)
             {
-                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)barY, (int)(barW * ratio), (int)barH), new Color(0.3f, 0.62f, 0.92f));
+                _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)barY, (int)(barW * ratio), (int)barH), UiTheme.HudSkillFill);
             }
         }
 
@@ -769,13 +773,13 @@ namespace Autonocraft.Engine
             float textSize = layout.S(UiTheme.ScaleSmall);
 
             // Draw a subtle dark background pill for the hints
-            float textWidth = PixelFont.MeasureString(hintsText, textSize);
+            float textWidth = MeasureHudText(hintsText, textSize);
             float pillW = textWidth + layout.S(16f);
             float pillH = layout.S(20f);
 
-            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)cardX, (int)barY, (int)pillW, (int)pillH), Color.Black * 0.45f);
-            DrawRectOutline(_spriteBatch, cardX, barY, pillW, pillH, 1f, new Color(0.2f, 0.25f, 0.3f) * 0.6f, 0.7f);
-            PixelFont.DrawString(_spriteBatch, _whiteTexture, hintsText, cardX + layout.S(8f), barY + layout.S(4f), textSize, UiTheme.Hint, 0.95f);
+            _spriteBatch.Draw(_whiteTexture, new Rectangle((int)cardX, (int)barY, (int)pillW, (int)pillH), UiTheme.HudGlassFill * 0.90f);
+            DrawRectOutline(_spriteBatch, cardX, barY, pillW, pillH, 1f, UiTheme.HudGlassBorder, 0.70f);
+            DrawHudText(_spriteBatch, _whiteTexture, hintsText, cardX + layout.S(8f), barY + layout.S(4f), textSize, UiTheme.HudTextSecondary, 0.95f);
         }
 
         private static string GetDirection(float yaw)
@@ -830,14 +834,35 @@ namespace Autonocraft.Engine
 
             string text = $"{primaryVillage.Name.ToUpperInvariant()} - {(int)distance} BLOCKS {relDir}";
             float textSize = layout.S(UiTheme.ScaleSmall);
-            float textW = PixelFont.MeasureString(text, textSize);
+            float textW = MeasureHudText(text, textSize);
             float badgeW = textW + layout.S(16f);
             float badgeH = layout.S(20f);
             float badgeX = cx - badgeW / 2f;
             float badgeY = compassY + compassH + layout.S(4f);
 
             DrawHudGlassPanel(_spriteBatch, badgeX, badgeY, badgeW, badgeH, UiTheme.Accent, 0.78f);
-            PixelFont.DrawString(_spriteBatch, _whiteTexture, text, badgeX + layout.S(8f), badgeY + layout.S(5f), textSize, UiTheme.Title, 0.95f);
+            DrawHudText(_spriteBatch, _whiteTexture, text, badgeX + layout.S(8f), badgeY + layout.S(5f), textSize, UiTheme.HudTextPrimary, 0.95f);
+        }
+
+        private float MeasureHudText(string text, float legacySize, bool semiBold = false)
+        {
+            if (_typography != null)
+            {
+                return _typography.Measure(text, legacySize * 11f, semiBold);
+            }
+
+            return PixelFont.MeasureString(text, legacySize);
+        }
+
+        private void DrawHudText(SpriteBatch sb, Texture2D tex, string text, float x, float y, float legacySize, Color color, float alpha, bool semiBold = false)
+        {
+            if (_typography != null)
+            {
+                _typography.Draw(sb, text, x, y, legacySize * 11f, color, semiBold, alpha);
+                return;
+            }
+
+            PixelFont.DrawString(sb, tex, text, x, y, legacySize, color, alpha);
         }
     }
 }
