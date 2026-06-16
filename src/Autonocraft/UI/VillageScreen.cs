@@ -11,6 +11,7 @@ using Autonocraft.Items;
 using Autonocraft.World;
 using Autonocraft.Village;
 using Autonocraft.UI.Village;
+using Autonocraft.UI.VillagePanels;
 using VillageEntity = Autonocraft.Village.Village;
 using Vector3 = System.Numerics.Vector3;
 
@@ -18,14 +19,15 @@ namespace Autonocraft.UI
 {
     public sealed class VillageScreen
     {
-        private const float PanelWidth = 900f;
-        private const float PanelHeight = 600f;
+        internal const float PanelWidth = 900f;
+        internal const float PanelHeight = 600f;
+        internal const float ContentTop = 98f;
+        internal const float FooterHeight = 74f;
+
         private const float ButtonWidth = 148f;
         private const float ButtonHeight = 34f;
         private const float TabWidth = 132f;
         private const float TabHeight = 30f;
-        private const float ContentTop = 98f;
-        private const float FooterHeight = 74f;
         private const int HitPadding = 6;
 
         private static readonly (string Label, JobType Job)[] AssignableJobs =
@@ -64,6 +66,8 @@ namespace Autonocraft.UI
         private int _selectedGoalCountIndex;
         private bool _isEditingName;
         private string _editingNameBuffer = "";
+
+        private readonly OverviewPanel _overviewPanel = new();
 
         private static readonly BlockType[] GoalBlockTypes =
         {
@@ -557,6 +561,36 @@ namespace Autonocraft.UI
 
             float contentY = panelY + layout.S(ContentTop);
             float contentH = panelH - layout.S(ContentTop) - layout.S(FooterHeight);
+
+            var panelContext = new VillagePanelContext
+            {
+                Ui = _ui,
+                UiLayout = layout.Ui,
+                Village = _village!,
+                ViewModel = _viewModel,
+                Villagers = _villagers,
+                PlayerPosition = _playerPos,
+                PlayerCreative = _playerCreative,
+                PlayWithAi = _playWithAi,
+                EarlyGuideStage = _earlyGuideStage,
+                PanelX = panelX,
+                PanelY = panelY,
+                PanelWidth = panelW,
+                PanelHeight = panelH,
+                ContentLeft = left,
+                ContentTop = layout.S(ContentTop),
+                ContentHeight = contentH,
+                FooterHeight = layout.S(FooterHeight),
+                Alpha = alpha,
+                Accent = accent,
+                BuildScroll = _buildScroll,
+                PeopleScroll = _peopleScroll,
+                SelectedVillagerId = _selectedVillagerId,
+                SelectedGoalBlockIndex = _selectedGoalBlockIndex,
+                SelectedGoalCountIndex = _selectedGoalCountIndex,
+                OpeningNote = _openingNote
+            };
+
             switch (_selectedTab)
             {
                 case 1:
@@ -569,7 +603,7 @@ namespace Autonocraft.UI
                     DrawGoalsTab(layout, left, contentY, contentH, alpha, accent);
                     break;
                 default:
-                    DrawOverviewTab(layout, left, contentY, contentH, alpha, accent);
+                    _overviewPanel.Draw(panelContext);
                     break;
             }
 
