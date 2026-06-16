@@ -81,11 +81,7 @@ namespace Autonocraft.Core
             DevConsole = new DevConsole(ui);
             PauseMenu = new PauseMenuScreen(ui);
             PauseMenu.SetRenderDistance(settings.RenderDistance);
-            PauseMenu.RenderDistanceChanged += distance => onRenderDistanceChanged(distance);
-            PauseMenu.MuteAudioChanged += mute => onMuteAudioChanged(mute);
-            PauseMenu.VSyncChanged += onVSyncChanged;
-            PauseMenu.HighQualityLightingChanged += onHighQualityLightingChanged;
-            PauseMenu.ApplyAudioSettings(settings);
+                                                            PauseMenu.ApplyAudioSettings(settings);
             PauseMenu.ApplyGraphicsSettings(settings);
             DeathScreen = new DeathScreen(ui);
             CrucibleScreen = new CrucibleScreen(ui);
@@ -210,6 +206,7 @@ namespace Autonocraft.Core
             || PauseMenu?.IsOpen == true
             || DeathScreen?.IsOpen == true
             || DevConsole?.IsOpen == true
+            || _mainMenuSettingsOpen
             || crafting.Crucible.IsOpen
             || crafting.InventoryOpen
             || crafting.IsJournalUiBlocking;
@@ -220,6 +217,7 @@ namespace Autonocraft.Core
                 : PauseMenu?.IsOpen == true
                 || DeathScreen?.IsOpen == true
                 || DevConsole?.IsOpen == true
+            || _mainMenuSettingsOpen
                 || VillageScreen?.IsOpen == true
                 || VillageChatScreen?.IsOpen == true
                 || crafting.Crucible.IsOpen
@@ -299,6 +297,10 @@ namespace Autonocraft.Core
             DevConsole?.Draw(graphicsDevice.Viewport);
             PauseMenu?.Draw(graphicsDevice.Viewport, _pauseFade.Alpha, _pauseFade.OffsetY);
             DeathScreen?.Draw(graphicsDevice.Viewport, _deathFade.Alpha, _deathFade.OffsetY);
+            if (_mainMenuSettingsOpen)
+            {
+                MainMenuSettingsScreen!.Draw(graphicsDevice.Viewport);
+            }
         }
     }
 }

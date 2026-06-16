@@ -13,7 +13,7 @@ namespace Autonocraft.UI
         private enum PanelMode
         {
             Main,
-            Settings,
+
             Controls
         }
 
@@ -32,23 +32,21 @@ namespace Autonocraft.UI
         private PanelMode _prevPanelMode = PanelMode.Main;
         private PanelMode _panelMode = PanelMode.Main;
         private int _hoveredButton = -1;
-        private bool _sliderDragging;
-        private bool _sliderHovered;
-
         public bool IsOpen { get; private set; }
         public bool ResumeRequested { get; private set; }
         public bool SaveNowRequested { get; private set; }
         public bool MainMenuRequested { get; private set; }
+        public bool MainMenuSettingsRequested { get; private set; }
         public bool QuitRequested { get; private set; }
         public int RenderDistance { get; private set; } = GameSettings.GetDefaultRenderDistance();
         public bool MuteAudio { get; private set; }
         public bool VSync { get; private set; } = true;
         public bool HighQualityLighting { get; private set; } = GameSettings.GetDefaultHighQualityLighting();
 
-        public event Action<int>? RenderDistanceChanged;
-        public event Action<bool>? MuteAudioChanged;
-        public event Action<bool>? VSyncChanged;
-        public event Action<bool>? HighQualityLightingChanged;
+
+
+
+
 
         public PauseMenuScreen(UiRenderer ui)
         {
@@ -77,7 +75,7 @@ namespace Autonocraft.UI
             IsOpen = true;
             _panelMode = PanelMode.Main;
             _hoveredButton = -1;
-            _sliderDragging = false;
+
         }
 
         public void Close()
@@ -85,7 +83,7 @@ namespace Autonocraft.UI
             IsOpen = false;
             _panelMode = PanelMode.Main;
             _hoveredButton = -1;
-            _sliderDragging = false;
+
         }
 
         public void Update(Viewport viewport, KeyboardState kb, MouseState mouse, KeyboardState prevKb, MouseState prevMouse, float deltaTime)
@@ -93,6 +91,7 @@ namespace Autonocraft.UI
             ResumeRequested = false;
             SaveNowRequested = false;
             MainMenuRequested = false;
+            MainMenuSettingsRequested = false;
             QuitRequested = false;
 
             if (!IsOpen) return;
@@ -111,11 +110,7 @@ namespace Autonocraft.UI
                 _buttonHoverT[i] = Tween.SmoothDamp(_buttonHoverT[i], target, 8f, deltaTime);
             }
 
-            if (_panelMode == PanelMode.Settings)
-            {
-                UpdateSettingsPanel(viewport, kb, mouse, prevKb, prevMouse);
-                return;
-            }
+
 
             if (_panelMode == PanelMode.Controls)
             {
@@ -160,7 +155,7 @@ namespace Autonocraft.UI
             {
                 if (_hoveredButton == 0) ResumeRequested = true;
                 else if (_hoveredButton == 1) SaveNowRequested = true;
-                else if (_hoveredButton == 2) _panelMode = PanelMode.Settings;
+                else if (_hoveredButton == 2) MainMenuSettingsRequested = true;
                 else if (_hoveredButton == 3) _panelMode = PanelMode.Controls;
                 else if (_hoveredButton == 4) MainMenuRequested = true;
                 else if (_hoveredButton == 5) QuitRequested = true;
@@ -172,94 +167,9 @@ namespace Autonocraft.UI
             }
         }
 
-        private void UpdateSettingsPanel(Viewport viewport, KeyboardState kb, MouseState mouse, KeyboardState prevKb, MouseState prevMouse)
-        {
-            var layout = new UiLayout(viewport);
-            float buttonW = layout.S(ButtonWidth);
-            float buttonH = layout.S(ButtonHeight);
-            float sliderW = layout.S(SliderWidth);
-            float trackH = layout.S(SliderTrackHeight);
-            float thumbSize = layout.S(SliderThumbSize);
-            float cx = layout.CenterX;
-            float sliderX = cx - sliderW / 2f;
-            float sliderY = layout.CenterY - layout.S(24f);
-            float vsyncY = sliderY + thumbSize + layout.S(42f);
-            float lightingY = vsyncY + layout.S(30f);
-            float muteY = lightingY + layout.S(30f);
-            float backY = muteY + layout.S(48f);
 
-            var sliderRect = UiRenderer.GetSliderTrackRect(sliderX, sliderY, sliderW, trackH, thumbSize);
-            var vsyncRect = new Rectangle((int)(cx - buttonW / 2f), (int)vsyncY, (int)buttonW, (int)layout.S(28f));
-            var lightingRect = new Rectangle((int)(cx - buttonW / 2f), (int)lightingY, (int)buttonW, (int)layout.S(28f));
-            var muteRect = new Rectangle((int)(cx - buttonW / 2f), (int)muteY, (int)buttonW, (int)layout.S(28f));
-            var backRect = GetButtonRect(cx, backY, buttonW, buttonH);
 
-            _sliderHovered = sliderRect.Contains(mouse.X, mouse.Y);
-            _hoveredButton = backRect.Contains(mouse.X, mouse.Y) ? 0 : -1;
 
-            bool mouseDown = mouse.LeftButton == ButtonState.Pressed;
-            bool mouseReleased = mouse.LeftButton == ButtonState.Released && prevMouse.LeftButton == ButtonState.Pressed;
-
-            if (mouseReleased)
-            {
-                _sliderDragging = false;
-            }
-
-            if (mouseDown && prevMouse.LeftButton == ButtonState.Released && sliderRect.Contains(mouse.X, mouse.Y))
-            {
-                _sliderDragging = true;
-            }
-
-            if (_sliderDragging && mouseDown)
-            {
-                int next = UiRenderer.GetSliderValueFromPosition(
-                    sliderX,
-                    sliderW,
-                    thumbSize,
-                    GameSettings.MinRenderDistance,
-                    GameSettings.MaxRenderDistance,
-                    mouse.X);
-                ApplyRenderDistance(next);
-            }
-
-            bool click = mouse.LeftButton == ButtonState.Pressed && prevMouse.LeftButton == ButtonState.Released;
-            if (click && muteRect.Contains(mouse.X, mouse.Y))
-            {
-                MuteAudio = !MuteAudio;
-                MuteAudioChanged?.Invoke(MuteAudio);
-            }
-            else if (click && vsyncRect.Contains(mouse.X, mouse.Y))
-            {
-                VSync = !VSync;
-                VSyncChanged?.Invoke(VSync);
-            }
-            else if (click && lightingRect.Contains(mouse.X, mouse.Y))
-            {
-                HighQualityLighting = !HighQualityLighting;
-                HighQualityLightingChanged?.Invoke(HighQualityLighting);
-            }
-            else if (click && _hoveredButton == 0)
-            {
-                _panelMode = PanelMode.Main;
-            }
-
-            if (kb.IsKeyDown(Keys.Escape) && !prevKb.IsKeyDown(Keys.Escape))
-            {
-                _panelMode = PanelMode.Main;
-            }
-        }
-
-        private void ApplyRenderDistance(int value)
-        {
-            int next = Math.Clamp(value, GameSettings.MinRenderDistance, GameSettings.MaxRenderDistance);
-            if (next == RenderDistance)
-            {
-                return;
-            }
-
-            RenderDistance = next;
-            RenderDistanceChanged?.Invoke(RenderDistance);
-        }
 
         public void Draw(Viewport viewport, float alpha = 1f, float offsetY = 0f)
         {
@@ -279,11 +189,7 @@ namespace Autonocraft.UI
             float panelY = layout.Height * 0.16f + offsetY;
             _ui.DrawPanel(panelX, panelY, panelW, panelH, UiTheme.PanelBgMuted * 0.92f, UiTheme.PanelBorder, 0.8f, alpha);
 
-            if (_panelMode == PanelMode.Settings)
-            {
-                DrawSettingsPanel(layout, cx, buttonW, buttonH, alpha, offsetY);
-                return;
-            }
+
 
             if (_panelMode == PanelMode.Controls)
             {
@@ -319,61 +225,7 @@ namespace Autonocraft.UI
             _ui.DrawCenteredText("Esc to resume", layout.Height - layout.S(28f) + offsetY, layout.S(UiTheme.FontSmall), UiTheme.Hint, 0.85f * alpha);
         }
 
-        private void DrawSettingsPanel(UiLayout layout, float cx, float buttonW, float buttonH, float alpha, float offsetY)
-        {
-            float panelAlpha = alpha * _settingsFadeT;
-            float titleY = layout.Height * 0.24f + offsetY;
-            float labelY = layout.CenterY - layout.S(52f) + offsetY;
-            float sliderW = layout.S(SliderWidth);
-            float trackH = layout.S(SliderTrackHeight);
-            float thumbSize = layout.S(SliderThumbSize);
-            float sliderX = cx - sliderW / 2f;
-            float sliderY = layout.CenterY - layout.S(24f) + offsetY;
-            float vsyncY = sliderY + thumbSize + layout.S(42f);
-            float lightingY = vsyncY + layout.S(30f);
-            float muteY = lightingY + layout.S(30f);
-            float backY = muteY + layout.S(48f);
 
-            int blockRadius = RenderDistance * 16;
-            int chunkArea = RenderDistance * 2 + 1;
-            int loadedChunks = chunkArea * chunkArea;
-
-            _ui.DrawCenteredText("Settings", titleY, layout.S(UiTheme.FontTitle), UiTheme.Title, panelAlpha);
-            _ui.DrawCenteredText("Render distance", labelY, layout.S(UiTheme.FontSection), UiTheme.Subtitle, panelAlpha);
-            _ui.DrawCenteredText($"{RenderDistance} chunks  /  {blockRadius} blocks", labelY + layout.S(22f), layout.S(UiTheme.FontBody), UiTheme.Meta, 0.95f * panelAlpha);
-
-            _ui.DrawIntSlider(
-                sliderX,
-                sliderY,
-                sliderW,
-                trackH,
-                thumbSize,
-                GameSettings.MinRenderDistance,
-                GameSettings.MaxRenderDistance,
-                RenderDistance,
-                _sliderHovered,
-                _sliderDragging);
-
-            float minLabelX = sliderX;
-            float maxLabelX = sliderX + sliderW - _ui.MeasureString($"{GameSettings.MaxRenderDistance}", layout.S(UiTheme.FontSmall));
-            _ui.DrawString($"{GameSettings.MinRenderDistance}", minLabelX, sliderY + thumbSize + layout.S(10f), layout.S(UiTheme.FontSmall), UiTheme.Hint, 0.85f * panelAlpha);
-            _ui.DrawString($"{GameSettings.MaxRenderDistance}", maxLabelX, sliderY + thumbSize + layout.S(10f), layout.S(UiTheme.FontSmall), UiTheme.Hint, 0.85f * panelAlpha);
-
-            _ui.DrawCenteredText(
-                $"~{loadedChunks} chunks loaded",
-                sliderY + thumbSize + layout.S(30f),
-                layout.S(UiTheme.FontSmall),
-                UiTheme.Hint,
-                0.85f * panelAlpha);
-
-            _ui.DrawCenteredText($"VSync: {(VSync ? "On" : "Off")} (click)", vsyncY, layout.S(UiTheme.FontBody), UiTheme.Subtitle, 0.95f * panelAlpha);
-            _ui.DrawCenteredText($"HQ lighting: {(HighQualityLighting ? "On" : "Off")} (click)", lightingY, layout.S(UiTheme.FontBody), UiTheme.Subtitle, 0.95f * panelAlpha);
-            _ui.DrawCenteredText($"Mute audio: {(MuteAudio ? "On" : "Off")} (click)", muteY, layout.S(UiTheme.FontBody), UiTheme.Subtitle, 0.95f * panelAlpha);
-
-            DrawButton(cx, backY, buttonW, buttonH, "Back", 0, UiButtonStyle.Secondary, layout, panelAlpha);
-            _ui.DrawCenteredText("Drag slider to adjust", layout.Height - layout.S(48f) + offsetY, layout.S(UiTheme.FontSmall), UiTheme.Hint, 0.85f * panelAlpha);
-            _ui.DrawCenteredText("Esc to go back", layout.Height - layout.S(28f) + offsetY, layout.S(UiTheme.FontSmall), UiTheme.Hint, 0.85f * panelAlpha);
-        }
 
         private void UpdateControlsPanel(Viewport viewport, KeyboardState kb, MouseState mouse, KeyboardState prevKb, MouseState prevMouse)
         {

@@ -1170,14 +1170,45 @@ namespace Autonocraft.Core
                 return true;
             }
 
+                        if (_screens.MainMenuSettingsOpen)
+            {
+                EnsureUiPointerMode();
+                _screens.MainMenuSettingsScreen!.Update(
+                    GraphicsDevice.Viewport,
+                    kbState,
+                    _input.PrevKeyboard,
+                    mouseState,
+                    _input.PrevMouse,
+                    deltaTime);
+
+                if (_screens.MainMenuSettingsScreen.SaveRequested)
+                {
+                    ApplyGameSettings(_screens.MainMenuSettingsScreen.GetWorkingCopy());
+                    _screens.MainMenuSettingsScreen.Close();
+                    _screens.MainMenuSettingsOpen = false;
+                }
+                else if (_screens.MainMenuSettingsScreen.CancelRequested)
+                {
+                    _screens.MainMenuSettingsScreen.Close();
+                    _screens.MainMenuSettingsOpen = false;
+                }
+
+                return true;
+            }
+
             if (_screens.PauseMenu!.IsOpen)
             {
                 EnsureUiPointerMode();
                 _screens.PauseMenu.Update(GraphicsDevice.Viewport, kbState, mouseState, _input.PrevKeyboard, _input.PrevMouse, deltaTime);
 
-                if (_screens.PauseMenu.ResumeRequested)
+                                if (_screens.PauseMenu.ResumeRequested)
                 {
                     ClosePauseMenu();
+                }
+                else if (_screens.PauseMenu.MainMenuSettingsRequested)
+                {
+                    _screens.MainMenuSettingsScreen!.Open(_settings);
+                    _screens.MainMenuSettingsOpen = true;
                 }
                 else if (_screens.PauseMenu.SaveNowRequested)
                 {
