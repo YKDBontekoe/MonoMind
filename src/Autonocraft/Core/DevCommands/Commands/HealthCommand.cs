@@ -13,14 +13,18 @@ namespace Autonocraft.Core.DevCommands.Commands
             var session = host.Session;
             var remaining = args.Trim();
 
-            if (DevCommandParser.TryReadNextToken(ref remaining, out var valueSpan) &&
-                DevCommandParser.TryParseFloat(valueSpan, out float health))
+            if (remaining.IsEmpty)
+            {
+                session.Player.Health = session.Player.MaxHealth;
+            }
+            else if (DevCommandParser.TryReadNextToken(ref remaining, out var valueSpan) &&
+                     DevCommandParser.TryParseFloat(valueSpan, out float health))
             {
                 session.Player.Health = Math.Clamp(health, 0f, session.Player.MaxHealth);
             }
             else
             {
-                session.Player.Health = session.Player.MaxHealth;
+                return "Usage: health [value]";
             }
 
             return $"Health: {session.Player.Health:F0}/{session.Player.MaxHealth:F0}";

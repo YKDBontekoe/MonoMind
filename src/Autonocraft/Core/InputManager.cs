@@ -139,7 +139,7 @@ namespace Autonocraft.Core
         {
             if (ShouldCaptureMouse(state, blockers))
             {
-                SdlMouseCapture.DisableRelativeMode();
+                ReleaseMouseCapture();
                 _game.IsMouseVisible = true;
                 InputDebugTrace.Log("FOCUS_LOST disabled relative mouse");
             }

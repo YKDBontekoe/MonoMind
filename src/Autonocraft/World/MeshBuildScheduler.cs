@@ -62,12 +62,13 @@ namespace Autonocraft.World
             int meshed = 0;
             var uploadStopwatch = Stopwatch.StartNew();
             int uploadsThisFrame = 0;
-            while (_completedMeshUploads.TryDequeue(out var pending) &&
-                   uploadsThisFrame < MaxMeshUploadsPerFrame &&
-                   uploadStopwatch.Elapsed.TotalMilliseconds < MeshUploadBudgetMs)
+            while (uploadsThisFrame < MaxMeshUploadsPerFrame &&
+                   uploadStopwatch.Elapsed.TotalMilliseconds < MeshUploadBudgetMs &&
+                   _completedMeshUploads.TryDequeue(out var pending))
             {
                 if (!isChunkLoaded(pending.Chunk.ChunkX, pending.Chunk.ChunkZ))
                 {
+                    pending.Data.ReturnToPools();
                     clearBuildInFlight(pending.Chunk, pending.Data.Detail);
                     continue;
                 }

@@ -71,7 +71,9 @@ namespace Autonocraft.Core.DevCommands.Commands
 
             // give <BlockType> [count]
             var blockName = firstSpan.ToString();
-            if (!Enum.TryParse<BlockType>(blockName, true, out var blockType) || blockType == BlockType.Air)
+            if (!Enum.TryParse<BlockType>(blockName, true, out var blockType) ||
+                blockType == BlockType.Air ||
+                !Enum.IsDefined(typeof(BlockType), blockType))
             {
                 return $"Unknown block: {blockName}";
             }

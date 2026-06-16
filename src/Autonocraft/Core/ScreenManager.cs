@@ -194,6 +194,7 @@ namespace Autonocraft.Core
             VillageChatScreen?.Close();
             crafting.CloseCrucible();
             crafting.CloseJournal();
+            crafting.CloseInventory();
             if (DevConsole?.IsOpen == true)
             {
                 DevConsole.Toggle();
@@ -269,7 +270,10 @@ namespace Autonocraft.Core
             Player player,
             float timeOfDay)
         {
-            InventoryScreen?.Draw(graphicsDevice.Viewport, player, crafting, atlasTexture);
+            if (atlasTexture != null)
+            {
+                InventoryScreen?.Draw(graphicsDevice.Viewport, player, crafting, atlasTexture);
+            }
             CrucibleScreen?.Draw(
                 graphicsDevice.Viewport,
                 crafting.Crucible,

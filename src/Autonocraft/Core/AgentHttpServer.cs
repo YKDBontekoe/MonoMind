@@ -19,7 +19,6 @@ namespace Autonocraft.Core
         private static HttpListener? _listener;
         private static IGameAgentBridge? _bridge;
         private static bool _isRunning = false;
-        private const int QueuedActionWaitMs = 10000;
         private static readonly Dictionary<string, IAgentAction> _actions = CreateActionRegistry();
 
         public static void Start(IGameAgentBridge bridge, int port = 5000)
@@ -622,7 +621,7 @@ namespace Autonocraft.Core
             try
             {
                 // Chunk-heavy scenes can delay the main-thread screenshot action briefly.
-                if (tcs.Task.Wait(10000))
+                if (tcs.Task.Wait(AgentActionTimeouts.QueuedActionWaitMs))
                 {
                     byte[] bytes = tcs.Task.Result;
                     response.ContentType = "image/png";
@@ -804,22 +803,6 @@ namespace Autonocraft.Core
             {
                 SendJsonResponse(response, HttpStatusCode.InternalServerError, new { error = ex.Message });
             }
-        }
-
-        private static string SerializeActions(IReadOnlyList<string> actions)
-        {
-            if (actions.Count == 0)
-            {
-                return "[]";
-            }
-
-            var parts = new List<string>();
-            foreach (var action in actions)
-            {
-                parts.Add($"\"{action.Replace("\"", "\\\"")}\"");
-            }
-
-            return $"[{string.Join(",", parts)}]";
         }
 
         private static string? ExtractJsonString(string json, string key)

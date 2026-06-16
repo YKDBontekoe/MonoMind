@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Text;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -23,9 +22,8 @@ namespace Autonocraft.UI
         internal const float PanelHeight = 600f;
         internal const float ContentTop = 98f;
         internal const float FooterHeight = 74f;
-
-        private const float ButtonWidth = 148f;
-        private const float ButtonHeight = 34f;
+        internal const float ButtonWidth = 148f;
+        internal const float ButtonHeight = 34f;
         private const float TabWidth = 132f;
         private const float TabHeight = 30f;
         private const int HitPadding = 6;
@@ -67,18 +65,15 @@ namespace Autonocraft.UI
         private bool _isEditingName;
         private string _editingNameBuffer = "";
 
-        private readonly OverviewPanel _overviewPanel = new();
-
-        private static readonly BlockType[] GoalBlockTypes =
+        private readonly IVillagePanel[] _panels =
         {
-            BlockType.OakPlank,
-            BlockType.Cobblestone,
-            BlockType.OakLog,
-            BlockType.Wheat,
-            BlockType.Carrot
+            new OverviewPanel(),
+            new BuildPanel(),
+            new PeoplePanel(),
+            new GoalsPanel(),
         };
 
-        private static readonly int[] GoalTargetCounts = { 10, 20, 32, 64 };
+        private readonly FoundingPanel _foundingPanel = new();
 
         public bool IsOpen { get; private set; }
         public bool IsFoundingMode => _isFoundingMode;
@@ -417,79 +412,22 @@ namespace Autonocraft.UI
         {
             var layout = CreateLayout(viewport);
             layout.PanelY += offsetY;
-            float panelX = layout.PanelX;
-            float panelY = layout.PanelY;
-            float panelW = layout.S(PanelWidth);
-            float panelH = layout.S(PanelHeight);
-            float left = layout.Left;
-            float buttonW = layout.S(ButtonWidth);
-            float buttonH = layout.S(ButtonHeight);
-            var accent = UiTheme.PanelBorder;
-
-            _ui.DrawFullscreenBackground(UiTheme.OverlayScrim * (0.55f * alpha));
-            _ui.DrawCard(panelX, panelY, panelW, panelH, alpha, UiTheme.RadiusXl);
-
-            _ui.DrawCenteredTitle("Start a settlement", panelY + layout.S(20f), layout.S(UiTheme.FontTitle),
-                UiTheme.Title, alpha);
-            _ui.DrawCenteredText("No village yet", panelY + layout.S(48f), layout.S(UiTheme.FontBody),
-                UiTheme.Subtitle, alpha * 0.92f);
-
-            float contentY = panelY + layout.S(ContentTop);
-            float contentH = panelH - layout.S(ContentTop) - layout.S(FooterHeight);
-            _ui.DrawPanel(left, contentY, panelW - layout.S(40f), contentH,
-                UiTheme.PanelBgMuted, UiTheme.PanelBorder, 0.75f, alpha * 0.95f, UiTheme.RadiusMd);
-
-            float textY = contentY + layout.S(28f);
-            _ui.DrawString("This save has no settlement yet.",
-                left + layout.S(18f), textY, layout.S(UiTheme.FontBody), UiTheme.StatValue, alpha);
-            textY += layout.S(28f);
-            _ui.DrawString("Place a Town Heart — one settler joins automatically and builds it.",
-                left + layout.S(18f), textY, layout.S(UiTheme.FontSmall), UiTheme.Subtitle, alpha);
-            textY += layout.S(28f);
-            _ui.DrawString("Recruit is only for extra workers after you already have at least one villager.",
-                left + layout.S(18f), textY, layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha);
-
-            if (_canClaimNearby)
+            var foundingContext = new FoundingPanelContext
             {
-                textY += layout.S(28f);
-                _ui.DrawString("Abandoned outpost nearby — claim it for a free settler.",
-                    left + layout.S(18f), textY, layout.S(UiTheme.FontSmall), UiTheme.Subtitle, alpha);
-            }
-            else
-            {
-                textY += layout.S(28f);
-                _ui.DrawString("Wild outposts (cottages, forest camps) are rare — roughly one every few hundred blocks.",
-                    left + layout.S(18f), textY, layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha);
-            }
-
-            if (PlayerStructureRegistry.TryGet("town_heart", out var blueprint))
-            {
-                textY += layout.S(36f);
-                string costLine = _playerCreative
-                    ? "Town Heart cost: free in creative"
-                    : $"Town Heart cost: {FormatCosts(blueprint)}";
-                bool canAfford = _playerCreative || (_playerPayer != null && blueprint.CanAfford(_playerPayer));
-                _ui.DrawString(costLine, left + layout.S(18f), textY, layout.S(UiTheme.FontSmall),
-                    canAfford ? UiTheme.Subtitle : UiTheme.Danger, alpha);
-            }
-
-            float footerY = panelY + panelH - layout.S(FooterHeight);
-            bool canPlace = CanAffordTownHeart();
-            DrawStyledButton(left, footerY, buttonW, buttonH, "Place Town Heart", _hoveredButton == 14,
-                UiButtonStyle.Primary, layout.Ui, alpha, !canPlace);
-
-            if (_canClaimNearby)
-            {
-                DrawStyledButton(left + buttonW + layout.S(10f), footerY, buttonW, buttonH, "Claim outpost",
-                    _hoveredButton == 12, UiButtonStyle.Secondary, layout.Ui, alpha);
-            }
-
-            float closeX = panelX + panelW - layout.S(20f) - buttonW;
-            float closeY = panelY + panelH - layout.S(30f);
-            DrawStyledButton(closeX, closeY, buttonW, buttonH, "Close", _hoveredButton == 11, UiButtonStyle.Ghost, layout.Ui, alpha);
-
-            _ui.DrawCenteredText("Esc close · Enter confirm", panelY + panelH - layout.S(12f), layout.S(UiTheme.FontSmall),
-                UiTheme.Hint, 0.9f * alpha);
+                Ui = _ui,
+                UiLayout = layout.Ui,
+                PlayerPayer = _playerPayer,
+                PlayerCreative = _playerCreative,
+                CanClaimNearby = _canClaimNearby,
+                HoveredButton = _hoveredButton,
+                PanelX = layout.PanelX,
+                PanelY = layout.PanelY,
+                PanelWidth = layout.S(PanelWidth),
+                PanelHeight = layout.S(PanelHeight),
+                ContentLeft = layout.Left,
+                Alpha = alpha
+            };
+            _foundingPanel.Draw(foundingContext);
         }
 
         private void HandleFoundingActivate()
@@ -506,22 +444,10 @@ namespace Autonocraft.UI
                 return;
             }
 
-            if (_hoveredButton == 14 && CanAffordTownHeart())
+            if (_hoveredButton == 14 && FoundingPanel.CanAffordTownHeart(_playerPayer, _playerCreative))
             {
                 PlaceTownHeartRequested = true;
             }
-        }
-
-        private bool CanAffordTownHeart()
-        {
-            if (_playerCreative)
-            {
-                return true;
-            }
-
-            return PlayerStructureRegistry.TryGet("town_heart", out var blueprint)
-                && _playerPayer != null
-                && blueprint.CanAfford(_playerPayer);
         }
 
         public void Draw(Viewport viewport, float alpha = 1f, float offsetY = 0f)
@@ -588,24 +514,13 @@ namespace Autonocraft.UI
                 SelectedVillagerId = _selectedVillagerId,
                 SelectedGoalBlockIndex = _selectedGoalBlockIndex,
                 SelectedGoalCountIndex = _selectedGoalCountIndex,
+                HoveredButton = _hoveredButton,
+                PlayerPayer = _playerPayer,
                 OpeningNote = _openingNote
             };
 
-            switch (_selectedTab)
-            {
-                case 1:
-                    DrawBuildTab(layout, left, contentY, contentH, alpha, accent);
-                    break;
-                case 2:
-                    DrawPeopleTab(layout, panelX, contentY, contentH, alpha, accent);
-                    break;
-                case 3:
-                    DrawGoalsTab(layout, left, contentY, contentH, alpha, accent);
-                    break;
-                default:
-                    _overviewPanel.Draw(panelContext);
-                    break;
-            }
+            if (_selectedTab >= 0 && _selectedTab < _panels.Length)
+                _panels[_selectedTab].Draw(panelContext);
 
             float footerY = panelY + panelH - layout.S(FooterHeight);
             string recruitLabel = GetRecruitButtonLabel();
@@ -743,497 +658,19 @@ namespace Autonocraft.UI
             }
         }
 
-        private void DrawOverviewTab(ScreenLayout layout, float left, float y, float height, float alpha, Color accent)
-        {
-            float cardW = layout.S(198f);
-            float cardH = layout.S(68f);
-            float gap = layout.S(10f);
-            float x = left;
-
-            if (_viewModel != null)
-            {
-                _ui.DrawString(_viewModel.StatusLine, left, y - layout.S(18f), layout.S(UiTheme.FontSmall),
-                    UiTheme.Subtitle, alpha);
-                _ui.DrawString("Next: " + _viewModel.NextAction, left, y - layout.S(4f), layout.S(UiTheme.FontSmall),
-                    UiTheme.Hint, alpha);
-            }
-
-            int citizens = CountDisplayedCitizens();
-            if (citizens == 0)
-            {
-                float bannerH = layout.S(54f);
-                _ui.DrawPanel(left, y, layout.S(PanelWidth) - layout.S(40f), bannerH,
-                    UiTheme.DangerSoft, UiTheme.Danger, 0.85f, alpha, UiTheme.RadiusMd);
-                string bannerTitle = VillageSettlementHealth.IsPlayerNearTownHeart(_village!, _playerPos)
-                    ? "No settlers in village"
-                    : "No settlers nearby";
-                _ui.DrawString(bannerTitle, left + layout.S(14f), y + layout.S(10f), layout.S(UiTheme.FontBody),
-                    UiTheme.Title, alpha, semiBold: true);
-                _ui.DrawString(VillageGuidance.GetQuickStartSteps(_village!, _villagers, _playerPos), left + layout.S(14f),
-                    y + layout.S(30f), layout.S(UiTheme.FontSmall), UiTheme.Subtitle, alpha);
-                y += bannerH + layout.S(10f);
-            }
-            else if (citizens > 0 && citizens <= 2)
-            {
-                float bannerH = layout.S(40f);
-                _ui.DrawPanel(left, y, layout.S(PanelWidth) - layout.S(40f), bannerH,
-                    UiTheme.AccentSoft, UiTheme.Accent, 0.75f, alpha, UiTheme.RadiusMd);
-                _ui.DrawString("Quick start: " + VillageGuidance.GetQuickStartSteps(_village!, _villagers, _playerPos),
-                    left + layout.S(14f), y + layout.S(12f), layout.S(UiTheme.FontSmall), UiTheme.Subtitle, alpha);
-                y += bannerH + layout.S(10f);
-            }
-
-            DrawStatCard(layout, x, y, cardW, cardH, "Population", $"{citizens}/{_village!.PopulationCap}",
-                (float)citizens / Math.Max(1, _village.PopulationCap), new Color(0.45f, 0.78f, 0.55f), alpha, accent);
-            x += cardW + gap;
-            DrawStatCard(layout, x, y, cardW, cardH, "Food", $"{_village.FoodStock:F0}",
-                Math.Clamp(_village.FoodStock / Math.Max(1f, Math.Max(1, citizens) * 2f), 0f, 1f),
-                new Color(0.92f, 0.72f, 0.28f), alpha, accent);
-            x += cardW + gap;
-            DrawStatCard(layout, x, y, cardW, cardH, "Happiness", $"{_village.Happiness:P0}", _village.Happiness,
-                new Color(0.55f, 0.82f, 0.95f), alpha, accent);
-            x += cardW + gap;
-            DrawStatCard(layout, x, y, cardW, cardH, "Housing", $"{citizens}/{Math.Max(1, _village.HousingCapacity)}",
-                Math.Clamp((float)citizens / Math.Max(1, _village.HousingCapacity), 0f, 1f),
-                new Color(0.78f, 0.58f, 0.92f), alpha, accent);
-
-            y += cardH + layout.S(14f);
-
-            if (!string.IsNullOrWhiteSpace(_openingNote))
-            {
-                float bannerH = layout.S(42f);
-                _ui.DrawPanel(left, y, layout.S(PanelWidth) - layout.S(40f), bannerH,
-                    UiTheme.AccentSoft, UiTheme.Accent, 0.75f, alpha, UiTheme.RadiusMd);
-                _ui.DrawString(_openingNote!, left + layout.S(14f), y + layout.S(12f), layout.S(UiTheme.FontSmall),
-                    UiTheme.Subtitle, alpha);
-                y += bannerH + layout.S(10f);
-            }
-
-            float colW = (layout.S(PanelWidth) - layout.S(40f) - layout.S(12f)) / 2f;
-            float colH = height - (y - (layout.PanelY + layout.S(ContentTop))) - layout.S(8f);
-            DrawStoragePanel(layout, left, y, colW, colH, alpha, accent);
-            DrawActivityPanel(layout, left + colW + layout.S(12f), y, colW, colH, alpha, accent);
-        }
-
-        private void DrawStoragePanel(ScreenLayout layout, float x, float y, float w, float h, float alpha, Color accent)
-        {
-            _ui.DrawPanel(x, y, w, h, UiTheme.PanelBgMuted, accent, 0.75f, alpha * 0.95f, UiTheme.RadiusMd);
-            UiTheme.DrawSectionHeader(_ui, "Village storage", x + layout.S(12f), y + layout.S(10f), layout.Ui, alpha);
-
-            float rowY = y + layout.S(32f);
-            int shown = 0;
-            for (int i = 0; i < _village!.Storage.SlotCount && shown < 10; i++)
-            {
-                var stack = _village.Storage.GetSlot(i);
-                if (stack.IsEmpty)
-                {
-                    continue;
-                }
-
-                string label = FormatStack(stack);
-                _ui.DrawString(label, x + layout.S(14f), rowY, layout.S(UiTheme.FontSmall), UiTheme.StatValue, alpha);
-                rowY += layout.S(18f);
-                shown++;
-            }
-
-            if (shown == 0)
-            {
-                _ui.DrawString("Empty — haulers deliver here", x + layout.S(14f), rowY, layout.S(UiTheme.FontSmall),
-                    UiTheme.Hint, alpha);
-            }
-
-            int plankCount = _village.Storage.CountBlock(VillageEntity.RationBlock);
-            float recruitY = y + h - layout.S(36f);
-            string recruitHint = _playerCreative
-                ? "Recruit cost: free in creative"
-                : $"Recruit cost: {VillageEntity.RecruitFoodCost} oak planks ({plankCount} in storage)";
-            _ui.DrawHorizontalRule(x + layout.S(10f), recruitY - layout.S(8f), w - layout.S(20f),
-                UiTheme.Rule, 1f, alpha * 0.7f);
-            _ui.DrawString(recruitHint, x + layout.S(14f), recruitY, layout.S(UiTheme.FontSmall),
-                UiTheme.Meta, alpha);
-        }
-
-        private void DrawActivityPanel(ScreenLayout layout, float x, float y, float w, float h, float alpha, Color accent)
-        {
-            _ui.DrawPanel(x, y, w, h, UiTheme.PanelBgMuted, accent, 0.75f, alpha * 0.95f, UiTheme.RadiusMd);
-            UiTheme.DrawSectionHeader(_ui, "Activity", x + layout.S(12f), y + layout.S(10f), layout.Ui, alpha);
-
-            float rowY = y + layout.S(32f);
-            int pendingSites = 0;
-            foreach (var site in _village!.BuildingSites)
-            {
-                if (site.IsComplete)
-                {
-                    continue;
-                }
-
-                pendingSites++;
-                string line = $"{site.BlueprintId} {site.CompletionRatio:P0}";
-                _ui.DrawString(line, x + layout.S(14f), rowY, layout.S(UiTheme.FontSmall), UiTheme.Subtitle, alpha);
-                DrawMiniBar(x + layout.S(14f), rowY + layout.S(14f), w - layout.S(28f), layout.S(6f),
-                    site.CompletionRatio, UiTheme.Accent, alpha);
-                rowY += layout.S(28f);
-            }
-
-            if (pendingSites == 0)
-            {
-                _ui.DrawString("No active construction", x + layout.S(14f), rowY, layout.S(UiTheme.FontSmall),
-                    UiTheme.Hint, alpha);
-                rowY += layout.S(20f);
-            }
-
-            rowY += layout.S(6f);
-            _ui.DrawString("Gather queue", x + layout.S(12f), rowY, layout.S(UiTheme.FontSmall), UiTheme.Section, alpha, semiBold: true);
-            rowY += layout.S(18f);
-            int queued = _village.WorkQueue.Count;
-            string queueLine = queued == 0
-                ? "Shift+click blocks or paint zone"
-                : $"{queued} block(s) marked for workers";
-            _ui.DrawString(queueLine, x + layout.S(14f), rowY, layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha);
-            rowY += layout.S(20f);
-
-            _ui.DrawString("Quick guide", x + layout.S(12f), rowY, layout.S(UiTheme.FontSmall), UiTheme.Section, alpha, semiBold: true);
-            rowY += layout.S(18f);
-            int guideLines = 0;
-            foreach (string line in GetGuideLines())
-            {
-                if (guideLines >= 4)
-                {
-                    break;
-                }
-
-                _ui.DrawString($"• {line}", x + layout.S(14f), rowY, layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha);
-                rowY += layout.S(16f);
-                guideLines++;
-            }
-        }
-
-        private void DrawBuildTab(ScreenLayout layout, float left, float y, float height, float alpha, Color accent)
-        {
-            float sectionH = layout.S(130f);
-            _ui.DrawPanel(left, y, layout.S(PanelWidth) - layout.S(40f), sectionH,
-                UiTheme.PanelBgMuted, accent, 0.75f, alpha * 0.95f, UiTheme.RadiusMd);
-            UiTheme.DrawSectionHeader(_ui, "Construction sites", left + layout.S(12f), y + layout.S(10f), layout.Ui, alpha);
-
-            float siteY = y + layout.S(34f);
-            int drawn = 0;
-            foreach (var site in _village!.BuildingSites)
-            {
-                if (site.IsComplete || drawn >= 3)
-                {
-                    continue;
-                }
-
-                string name = site.BlueprintId;
-                _ui.DrawString(name, left + layout.S(16f), siteY, layout.S(UiTheme.FontBody), UiTheme.StatValue, alpha, semiBold: true);
-                DrawMiniBar(left + layout.S(200f), siteY + layout.S(4f), layout.S(420f), layout.S(10f),
-                    site.CompletionRatio, UiTheme.Accent, alpha);
-                _ui.DrawString($"{site.CompletionRatio:P0}", left + layout.S(640f), siteY, layout.S(UiTheme.FontSmall),
-                    UiTheme.Subtitle, alpha);
-                siteY += layout.S(28f);
-                drawn++;
-            }
-
-            if (drawn == 0)
-            {
-                _ui.DrawString("No build sites — pick a structure below", left + layout.S(16f), siteY, layout.S(UiTheme.FontSmall),
-                    UiTheme.Hint, alpha);
-            }
-
-            float catalogY = y + sectionH + layout.S(12f);
-            float catalogH = height - sectionH - layout.S(12f);
-            _ui.DrawPanel(left, catalogY, layout.S(PanelWidth) - layout.S(40f), catalogH,
-                UiTheme.PanelBgMuted, accent, 0.75f, alpha * 0.95f, UiTheme.RadiusMd);
-            UiTheme.DrawSectionHeader(_ui, "Build catalog", left + layout.S(12f), catalogY + layout.S(10f), layout.Ui, alpha);
-
-            float cardY = catalogY + layout.S(38f) - _buildScroll;
-            float cardH = layout.S(58f);
-            float cardW = layout.S(PanelWidth) - layout.S(64f);
-            int buildIndex = 0;
-            foreach (var blueprint in PlayerStructureRegistry.All)
-            {
-                if (blueprint.Id == "town_heart")
-                {
-                    continue;
-                }
-
-                bool hovered = _hoveredButton == 20 + buildIndex;
-                bool canAfford = CanAffordBlueprint(blueprint);
-                Color cardBorder = hovered ? UiTheme.Accent : (canAfford ? UiTheme.PanelBorder : UiTheme.Rule);
-                Color cardFill = hovered ? UiTheme.PanelBgHighlight : UiTheme.PanelBgMuted;
-                if (cardY + cardH >= catalogY + layout.S(34f) && cardY <= catalogY + catalogH - layout.S(6f))
-                {
-                    _ui.DrawPanel(left + layout.S(12f), cardY, cardW, cardH, cardFill, cardBorder, 0.8f, alpha, UiTheme.RadiusMd);
-                    _ui.DrawString(blueprint.DisplayName, left + layout.S(22f), cardY + layout.S(10f),
-                        layout.S(UiTheme.FontBody), canAfford ? UiTheme.Title : UiTheme.Meta, alpha, semiBold: true);
-                    _ui.DrawString(GetBuildingBlurb(blueprint.Kind), left + layout.S(22f), cardY + layout.S(28f),
-                        layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha);
-                    string costs = FormatCosts(blueprint);
-                    float costW = _ui.MeasureString(costs, layout.S(UiTheme.FontSmall));
-                    _ui.DrawString(costs, left + layout.S(12f) + cardW - costW - layout.S(12f), cardY + layout.S(18f),
-                        layout.S(UiTheme.FontSmall), canAfford ? UiTheme.Subtitle : UiTheme.Danger, alpha);
-                }
-
-                cardY += cardH + layout.S(8f);
-                buildIndex++;
-            }
-        }
-
-        private void DrawPeopleTab(ScreenLayout layout, float panelX, float y, float height, float alpha, Color accent)
-        {
-            float left = layout.Left;
-            float listW = layout.S(300f);
-            float detailX = left + listW + layout.S(14f);
-            float detailW = layout.S(PanelWidth) - layout.S(40f) - listW - layout.S(14f);
-
-            _ui.DrawPanel(left, y, listW, height, UiTheme.PanelBgMuted, accent, 0.75f, alpha * 0.95f, UiTheme.RadiusMd);
-            int citizenCount = CountDisplayedCitizens();
-            UiTheme.DrawSectionHeader(_ui, $"Citizens ({citizenCount})", left + layout.S(12f), y + layout.S(10f), layout.Ui, alpha);
-
-            float rowY = y + layout.S(32f) - _peopleScroll;
-            float rowH = layout.S(42f);
-            foreach (var villager in EnumerateCitizens())
-            {
-                int villagerId = villager.Id;
-                bool isSelected = villagerId == _selectedVillagerId;
-                bool hovered = _hoveredButton == 30 + villagerId;
-                if (rowY + rowH >= y + layout.S(28f) && rowY <= y + height - layout.S(6f))
-                {
-                    if (isSelected || hovered)
-                    {
-                        _ui.DrawFilledRect(left + layout.S(8f), rowY, listW - layout.S(16f), rowH,
-                            (isSelected ? UiTheme.PanelBgHighlight : new Color(0.08f, 0.12f, 0.15f)) * alpha);
-                    }
-
-                    var roleColor = VillagerVisuals.GetRoleColor(villager.Role);
-                    _ui.DrawRoundedRect(left + layout.S(14f), rowY + layout.S(12f), layout.S(10f), layout.S(10f), layout.S(3f), roleColor * alpha);
-                    _ui.DrawString(villager.Name, left + layout.S(30f), rowY + layout.S(8f),
-                        layout.S(UiTheme.FontBody), isSelected ? UiTheme.Title : UiTheme.StatValue, alpha, semiBold: isSelected);
-                    string statusText = $"{villager.Role} · {villager.CurrentJob}";
-                    Color textCol = roleColor;
-                    if (_village!.ConsecutiveDaysWithoutFood >= 2)
-                    {
-                        statusText = "Starving · " + statusText;
-                        textCol = UiTheme.Danger;
-                    }
-                    _ui.DrawString(statusText, left + layout.S(30f),
-                        rowY + layout.S(24f), layout.S(UiTheme.FontSmall), textCol, alpha);
-                }
-
-                rowY += rowH + layout.S(4f);
-            }
-
-            if (!HasDisplayedCitizens())
-            {
-                string emptyHint = VillageSettlementHealth.IsPlayerNearTownHeart(_village!, _playerPos)
-                    ? "No villagers — click Summon settlers below"
-                    : "No villagers — walk to Town Heart, then summon settlers";
-                _ui.DrawString(emptyHint, left + layout.S(14f), y + layout.S(40f), layout.S(UiTheme.FontSmall),
-                    UiTheme.Hint, alpha);
-            }
-
-            _ui.DrawPanel(detailX, y, detailW, height, UiTheme.PanelBgMuted, accent, 0.75f, alpha * 0.95f, UiTheme.RadiusMd);
-            if (_selectedVillagerId >= 0 && _villagers.TryGet(_selectedVillagerId, out var selected))
-            {
-                DrawVillagerDetail(layout, detailX, y, detailW, height, selected, alpha, accent);
-            }
-            else
-            {
-                _ui.DrawString("Select a citizen", detailX + layout.S(16f), y + layout.S(40f), layout.S(UiTheme.FontBody),
-                    UiTheme.Hint, alpha);
-            }
-        }
-
-        private void DrawVillagerDetail(ScreenLayout layout, float x, float y, float w, float h, Villager villager, float alpha, Color accent)
-        {
-            float pad = layout.S(16f);
-            float detailY = y + pad;
-            var roleColor = VillagerVisuals.GetRoleColor(villager.Role);
-
-            _ui.DrawString(villager.Name, x + pad, detailY, layout.S(UiTheme.FontTitle),
-                UiTheme.Title, alpha, semiBold: true);
-            detailY += layout.S(28f);
-            string detailStatusText = $"{villager.Role} · {villager.CurrentJob}";
-            Color detailCol = roleColor;
-            if (_village!.ConsecutiveDaysWithoutFood >= 2)
-            {
-                detailStatusText = "Starving · " + detailStatusText;
-                detailCol = UiTheme.Danger;
-            }
-            _ui.DrawString(detailStatusText, x + pad, detailY,
-                layout.S(UiTheme.FontBody), detailCol, alpha);
-            detailY += layout.S(24f);
-            _ui.DrawString($"Trait: {villager.Persona.Trait}", x + pad, detailY, layout.S(UiTheme.FontSmall),
-                UiTheme.Meta, alpha);
-            detailY += layout.S(28f);
-
-            _ui.DrawString(
-                $"Skills — Mining {villager.Skills.Mining.Level} · Wood {villager.Skills.Woodcutting.Level} · Farm {villager.Skills.Farming.Level}",
-                x + pad, detailY, layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha);
-            detailY += layout.S(28f);
-            _ui.DrawProgressBar(x + pad, detailY, w - pad * 2f, layout.S(12f), villager.Happiness, "Morale", 1f, alpha);
-            detailY += layout.S(52f);
-
-            DrawStyledButton(x + pad, detailY, layout.S(96f), layout.S(ButtonHeight), "Talk", _hoveredButton == 50,
-                UiButtonStyle.Secondary, layout.Ui, alpha);
-            detailY += layout.S(48f);
-            _ui.DrawString("Assign job", x + pad, detailY, layout.S(UiTheme.FontSection), UiTheme.Section, alpha, semiBold: true);
-            detailY += layout.S(24f);
-
-            float jobW = layout.S(96f);
-            float jobH = layout.S(ButtonHeight);
-            float jobGap = layout.S(10f);
-            for (int i = 0; i < AssignableJobs.Length; i++)
-            {
-                int row = i / 3;
-                int col = i % 3;
-                float jobX = x + pad + col * (jobW + jobGap);
-                float jobY = detailY + row * (jobH + jobGap);
-                DrawStyledButton(jobX, jobY, jobW, jobH, AssignableJobs[i].Label, _hoveredButton == 40 + i,
-                    UiButtonStyle.Ghost, layout.Ui, alpha);
-            }
-        }
-
-        private void DrawGoalsTab(ScreenLayout layout, float left, float y, float height, float alpha, Color accent)
-        {
-            _ui.DrawPanel(left, y, layout.S(PanelWidth) - layout.S(40f), height,
-                UiTheme.PanelBgMuted, accent, 0.75f, alpha * 0.95f, UiTheme.RadiusMd);
-
-            if (_playWithAi)
-            {
-                UiTheme.DrawSectionHeader(_ui, "Steward goals", left + layout.S(12f), y + layout.S(10f), layout.Ui, alpha);
-                _ui.DrawString("Priority tasks set by the village AI steward", left + layout.S(12f), y + layout.S(32f),
-                    layout.S(UiTheme.FontSmall), UiTheme.Hint, alpha);
-
-                float rowY = y + layout.S(56f);
-                int shown = 0;
-                foreach (var goal in _village!.Scheduler.Goals)
-                {
-                    if (shown >= 8) break;
-
-                    Color statusColor = goal.Completed ? UiTheme.Success : UiTheme.StatValue;
-                    string status = goal.Completed ? "Done" : "Active";
-                    _ui.DrawString($"[{status}] {goal.Description}", left + layout.S(16f), rowY,
-                        layout.S(UiTheme.FontSmall), statusColor, alpha);
-
-                    if (!goal.Completed && goal.Kind == VillageGoalKind.Stock && goal.StockBlock.HasValue && goal.TargetCount > 0)
-                    {
-                        int have = _village.Scheduler.GetStockProgress(goal, _village);
-                        float progress = Math.Clamp(have / (float)goal.TargetCount, 0f, 1f);
-                        DrawMiniBar(left + layout.S(16f), rowY + layout.S(16f), layout.S(500f), layout.S(6f), progress, UiTheme.Accent, alpha);
-                        _ui.DrawString($"{have}/{goal.TargetCount} {goal.StockBlock.Value}",
-                            left + layout.S(530f), rowY + layout.S(12f), layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha);
-                        rowY += layout.S(34f);
-                    }
-                    else rowY += layout.S(22f);
-
-                    shown++;
-                }
-
-                if (shown == 0)
-                {
-                    _ui.DrawString("No active goals — chat with the steward (C) to set priorities", left + layout.S(16f),
-                        rowY + layout.S(10f), layout.S(UiTheme.FontSmall), UiTheme.Hint, alpha);
-                }
-            }
-            else
-            {
-                UiTheme.DrawSectionHeader(_ui, "Manual goals", left + layout.S(12f), y + layout.S(10f), layout.Ui, alpha);
-                _ui.DrawString("Define local resource gathering priorities for your villagers", left + layout.S(12f), y + layout.S(32f),
-                    layout.S(UiTheme.FontSmall), UiTheme.Hint, alpha);
-
-                float colLeft = left + layout.S(16f);
-                _ui.DrawString("Create new goal", colLeft, y + layout.S(56f), layout.S(UiTheme.FontSmall), UiTheme.Subtitle, alpha);
-                _ui.DrawString("Resource:", colLeft, y + layout.S(82f), layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha);
-
-                for (int i = 0; i < GoalBlockTypes.Length; i++)
-                {
-                    float btnX = colLeft + i * layout.S(70f);
-                    float btnY = y + layout.S(98f);
-                    bool selected = i == _selectedGoalBlockIndex;
-                    bool hovered = _hoveredButton == 60 + i;
-                    _ui.DrawPanel(btnX, btnY, layout.S(64f), layout.S(26f),
-                        selected ? UiTheme.PanelBgHighlight : UiTheme.PanelBgMuted,
-                        hovered ? UiTheme.Accent : (selected ? UiTheme.Accent : accent), 0.8f, alpha, UiTheme.RadiusSm);
-                    string label = GoalBlockTypes[i].ToString();
-                    if (label.Length > 8) label = label[..8];
-                    float labelW = _ui.MeasureString(label, layout.S(UiTheme.FontSmall));
-                    _ui.DrawString(label, btnX + (layout.S(64f) - labelW) / 2f, btnY + layout.S(5f), layout.S(UiTheme.FontSmall),
-                        selected ? UiTheme.Title : UiTheme.Meta, alpha);
-                }
-
-                _ui.DrawString("Target amount:", colLeft, y + layout.S(136f), layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha);
-                for (int j = 0; j < GoalTargetCounts.Length; j++)
-                {
-                    float btnX = colLeft + j * layout.S(70f);
-                    float btnY = y + layout.S(152f);
-                    bool selected = j == _selectedGoalCountIndex;
-                    bool hovered = _hoveredButton == 70 + j;
-                    _ui.DrawPanel(btnX, btnY, layout.S(64f), layout.S(26f),
-                        selected ? UiTheme.PanelBgHighlight : UiTheme.PanelBgMuted,
-                        hovered ? UiTheme.Accent : (selected ? UiTheme.Accent : accent), 0.8f, alpha, UiTheme.RadiusSm);
-                    string label = GoalTargetCounts[j].ToString();
-                    float labelW = _ui.MeasureString(label, layout.S(UiTheme.FontSmall));
-                    _ui.DrawString(label, btnX + (layout.S(64f) - labelW) / 2f, btnY + layout.S(5f), layout.S(UiTheme.FontSmall),
-                        selected ? UiTheme.Title : UiTheme.Meta, alpha);
-                }
-
-                DrawStyledButton(colLeft, y + layout.S(200f), layout.S(140f), layout.S(32f), "Add goal", _hoveredButton == 80,
-                    UiButtonStyle.Primary, layout.Ui, alpha);
-
-                float rightLeft = left + layout.S(420f);
-                float rightW = layout.S(PanelWidth) - layout.S(40f) - layout.S(420f) - layout.S(16f);
-                _ui.DrawString("Active goals", rightLeft, y + layout.S(56f), layout.S(UiTheme.FontSmall), UiTheme.Subtitle, alpha, semiBold: true);
-
-                float rowY = y + layout.S(82f);
-                int shown = 0;
-                foreach (var goal in _village!.Scheduler.Goals)
-                {
-                    if (shown >= 6) break;
-
-                    Color statusColor = goal.Completed ? UiTheme.Success : UiTheme.StatValue;
-                    string status = goal.Completed ? "Done" : "Active";
-                    _ui.DrawString($"[{status}] {goal.Description}", rightLeft, rowY, layout.S(UiTheme.FontSmall), statusColor, alpha);
-
-                    float remW = layout.S(72f);
-                    float remH = layout.S(26f);
-                    DrawStyledButton(rightLeft + rightW - remW, rowY - layout.S(2f), remW, remH, "Remove", _hoveredButton == 100 + goal.Id,
-                        UiButtonStyle.Danger, layout.Ui, alpha);
-
-                    if (!goal.Completed && goal.Kind == VillageGoalKind.Stock && goal.StockBlock.HasValue && goal.TargetCount > 0)
-                    {
-                        int have = _village.Scheduler.GetStockProgress(goal, _village);
-                        float progress = Math.Clamp(have / (float)goal.TargetCount, 0f, 1f);
-                        DrawMiniBar(rightLeft, rowY + layout.S(16f), rightW - remW - layout.S(12f), layout.S(6f), progress, UiTheme.Accent, alpha);
-                        _ui.DrawString($"{have}/{goal.TargetCount} {goal.StockBlock.Value}",
-                            rightLeft + rightW - remW - layout.S(120f), rowY + layout.S(26f), layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha);
-                        rowY += layout.S(40f);
-                    }
-                    else rowY += layout.S(26f);
-
-                    shown++;
-                }
-
-                if (shown == 0)
-                {
-                    _ui.DrawString("No active goals specified", rightLeft, rowY + layout.S(10f), layout.S(UiTheme.FontSmall), UiTheme.Hint, alpha);
-                }
-            }
-        }
-
         private void HitManualGoals(ScreenLayout layout, MouseState mouse)
         {
             float y = layout.PanelY + layout.S(ContentTop);
             float colLeft = layout.Left + layout.S(16f);
 
-            for (int i = 0; i < GoalBlockTypes.Length; i++)
+            for (int i = 0; i < GoalsPanel.GoalBlockTypes.Length; i++)
             {
                 float btnX = colLeft + i * layout.S(70f);
                 float btnY = y + layout.S(98f);
                 HitRect(btnX, btnY, layout.S(64f), layout.S(26f), 60 + i, mouse);
             }
 
-            for (int j = 0; j < GoalTargetCounts.Length; j++)
+            for (int j = 0; j < GoalsPanel.GoalTargetCounts.Length; j++)
             {
                 float btnX = colLeft + j * layout.S(70f);
                 float btnY = y + layout.S(152f);
@@ -1271,28 +708,9 @@ namespace Autonocraft.UI
             }
         }
 
-        private void DrawStatCard(ScreenLayout layout, float x, float y, float w, float h, string label, string value, float ratio, Color barColor,
-            float alpha, Color accent)
-        {
-            _ui.DrawPanel(x, y, w, h, UiTheme.PanelBgMuted, accent, 0.75f, alpha * 0.92f, UiTheme.RadiusMd);
-            _ui.DrawString(label, x + layout.S(10f), y + layout.S(8f), layout.S(UiTheme.FontSmall), UiTheme.StatLabel, alpha);
-            _ui.DrawString(value, x + layout.S(10f), y + layout.S(24f), layout.S(UiTheme.FontBody), UiTheme.StatValue, alpha, semiBold: true);
-            DrawMiniBar(x + layout.S(10f), y + h - layout.S(14f), w - layout.S(20f), layout.S(6f), ratio, barColor, alpha);
-        }
-
         private void DrawStyledButton(float x, float y, float w, float h, string label, bool hovered, UiButtonStyle style, UiLayout layout, float alpha, bool disabled = false)
         {
             _ui.DrawButton(x, y, w, h, label, hovered && !disabled, false, style, layout.S(UiTheme.FontBody), alpha, hovered ? 1f : 0f, disabled);
-        }
-
-        private void DrawMiniBar(float x, float y, float w, float h, float ratio, Color fill, float alpha)
-        {
-            ratio = Math.Clamp(ratio, 0f, 1f);
-            _ui.DrawFilledRect(x, y, w, h, UiTheme.PanelBgMuted * alpha);
-            if (ratio > 0.01f)
-            {
-                _ui.DrawFilledRect(x, y, w * ratio, h, fill * alpha);
-            }
         }
 
         private void HitTestTabs(ScreenLayout layout, MouseState mouse)
@@ -1466,13 +884,13 @@ namespace Autonocraft.UI
 
             if (!_playWithAi)
             {
-                if (_hoveredButton >= 60 && _hoveredButton < 60 + GoalBlockTypes.Length)
+                if (_hoveredButton >= 60 && _hoveredButton < 60 + GoalsPanel.GoalBlockTypes.Length)
                 {
                     _selectedGoalBlockIndex = _hoveredButton - 60;
                     return;
                 }
 
-                if (_hoveredButton >= 70 && _hoveredButton < 70 + GoalTargetCounts.Length)
+                if (_hoveredButton >= 70 && _hoveredButton < 70 + GoalsPanel.GoalTargetCounts.Length)
                 {
                     _selectedGoalCountIndex = _hoveredButton - 70;
                     return;
@@ -1480,8 +898,8 @@ namespace Autonocraft.UI
 
                 if (_hoveredButton == 80)
                 {
-                    var block = GoalBlockTypes[_selectedGoalBlockIndex];
-                    int count = GoalTargetCounts[_selectedGoalCountIndex];
+                    var block = GoalsPanel.GoalBlockTypes[_selectedGoalBlockIndex];
+                    int count = GoalsPanel.GoalTargetCounts[_selectedGoalCountIndex];
                     string desc = $"Gather {count} {block}";
                     _village!.Scheduler.AddStockGoal(block, count, 0, desc);
                     return;
@@ -1508,21 +926,6 @@ namespace Autonocraft.UI
             RequestedChatVillagerId = -1;
             RequestBlueprintPlacement = false;
             RequestWorkZonePlacement = false;
-        }
-
-        private bool CanAffordBlueprint(BuildingBlueprint blueprint)
-        {
-            if (_playerCreative || _village == null)
-            {
-                return _playerCreative;
-            }
-
-            if (blueprint.CanAfford(_village.Storage))
-            {
-                return true;
-            }
-
-            return _playerPayer != null && blueprint.CanAfford(_playerPayer);
         }
 
         private void RefreshVillageState()
@@ -1588,83 +991,6 @@ namespace Autonocraft.UI
 
             return "Recruit (need 4 planks)";
         }
-
-        private IEnumerable<string> GetGuideLines()
-        {
-            if (_village == null)
-            {
-                yield break;
-            }
-
-            int citizens = CountDisplayedCitizens();
-            if (citizens == 0)
-            {
-                yield return VillageGuidance.GetQuickStartSteps(_village, _villagers, _playerPos);
-                yield break;
-            }
-
-            yield return "People tab: pick a villager, click Lumber / Build / Farm.";
-            yield return "BUILD tab: queue farm plot or peasant house.";
-            yield return "Shift+click a tree to mark it for lumberjacks.";
-            if (_village.CanRecruit(_villagers, _playerCreative))
-            {
-                yield return "Press R to recruit another worker (4 oak planks).";
-            }
-        }
-
-        private static string GetBuildingBlurb(BuildingKind kind) => kind switch
-        {
-            BuildingKind.House => "Housing for 2 citizens, adds 2 to population cap",
-            BuildingKind.FarmPlot => "Grows food over time for citizens to eat",
-            BuildingKind.LumberCamp => "Boosts woodcutting speed for lumberjacks",
-            BuildingKind.Quarry => "Boosts stone mining speed for miners",
-            BuildingKind.Workshop => "Smith workers craft tools and planks automatically",
-            BuildingKind.Storage => "Adds 18 shared slots for storage and hauling",
-            BuildingKind.Kitchen => "Cook workers transmute raw food more efficiently",
-            BuildingKind.Well => "Boosts farm crop growth speed by 15%",
-            BuildingKind.Market => "Keeps citizens happy, raises happiness limit by 10%",
-            _ => "Expands your settlement"
-        };
-
-        private static string FormatCosts(BuildingBlueprint blueprint)
-        {
-            if (blueprint.Costs.Length == 0)
-            {
-                return "Free";
-            }
-
-            var sb = new StringBuilder();
-            for (int i = 0; i < blueprint.Costs.Length; i++)
-            {
-                var cost = blueprint.Costs[i];
-                if (i > 0)
-                {
-                    sb.Append(" + ");
-                }
-
-                sb.Append(cost.Count);
-                sb.Append(' ');
-                sb.Append(ShortBlockName(cost.BlockType));
-            }
-
-            return sb.ToString();
-        }
-
-        private static string ShortBlockName(BlockType type) => type switch
-        {
-            BlockType.OakPlank => "plank",
-            BlockType.Cobblestone => "cobble",
-            BlockType.Dirt => "dirt",
-            BlockType.Stone => "stone",
-            _ => type.ToString()
-        };
-
-        private static string FormatStack(ItemStack stack) => stack.Kind switch
-        {
-            ItemKind.Block => $"{stack.BlockType} ×{stack.Count}",
-            ItemKind.Tool => $"{stack.ToolId} ({stack.Durability}/{stack.MaxDurability})",
-            _ => $"Item ×{stack.Count}"
-        };
 
         private IEnumerable<Villager> EnumerateCitizens()
         {

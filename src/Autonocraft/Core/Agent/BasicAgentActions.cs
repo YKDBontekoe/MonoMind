@@ -34,7 +34,7 @@ internal sealed class KeyDownAction : AgentActionBase
         string? keyStrDown = request.QueryString["key"];
         if (AgentHttpServer.TryParseKeyInternal(keyStrDown, out var keyValDown))
         {
-            bridge.SimulatedKeys.Add(keyValDown);
+            bridge.EnqueueAction(() => bridge.SimulatedKeys.Add(keyValDown), runImmediatelyInTests: false);
             return Ok($"Key {keyValDown} pressed");
         }
 
@@ -51,7 +51,7 @@ internal sealed class KeyUpAction : AgentActionBase
         string? keyStrUp = request.QueryString["key"];
         if (AgentHttpServer.TryParseKeyInternal(keyStrUp, out var keyValUp))
         {
-            bridge.SimulatedKeys.Remove(keyValUp);
+            bridge.EnqueueAction(() => bridge.SimulatedKeys.Remove(keyValUp), runImmediatelyInTests: false);
             return Ok($"Key {keyValUp} released");
         }
 
@@ -79,13 +79,13 @@ internal sealed class ClickAction : AgentActionBase
         string? btnStr = request.QueryString["button"];
         if (btnStr?.ToLower() == "left")
         {
-            bridge.SimulateClick(MouseButton.Left);
+            bridge.EnqueueAction(() => bridge.SimulateClick(MouseButton.Left), runImmediatelyInTests: false);
             return Ok("Left click simulated");
         }
 
         if (btnStr?.ToLower() == "right")
         {
-            bridge.SimulateClick(MouseButton.Right);
+            bridge.EnqueueAction(() => bridge.SimulateClick(MouseButton.Right), runImmediatelyInTests: false);
             return Ok("Right click simulated");
         }
 
@@ -213,7 +213,7 @@ internal sealed class SelectSlotAction : AgentActionBase
                 bridge.Host.Session.Player.SelectedSlot = slot;
             }, runImmediatelyInTests: false);
 
-            return Ok($"Selected inventory slot {slot + 1}");
+            return Ok($"Selected inventory slot {slot}");
         }
 
         return Fail("Invalid or missing 'slot' parameter (must be 0-8)");
@@ -480,10 +480,12 @@ internal sealed class CloseVillageAction : AgentActionBase
 
 internal sealed class CloseVillageUiAliasAction : AgentActionBase
 {
+    private static readonly CloseVillageAction CloseVillage = new();
+
     public override string Command => "close_village_ui";
 
     public override AgentActionResponseDto Execute(IGameAgentBridge bridge, HttpListenerRequest request)
-        => new CloseVillageAction().Execute(bridge, request);
+        => CloseVillage.Execute(bridge, request);
 }
 
 internal sealed class SummonSettlersAction : AgentActionBase

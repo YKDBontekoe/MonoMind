@@ -27,13 +27,10 @@ namespace Autonocraft.UI.VillagePanels
             var ui = context.Ui;
             var layout = context.UiLayout;
 
-            const float PanelWidth = 900f;
-            const float ContentTop = 98f;
-
             float left = context.ContentLeft;
-            float y = context.PanelY + layout.S(ContentTop);
+            float y = context.PanelY + context.ContentTop;
             float height = context.ContentHeight;
-            float panelWidth = layout.S(PanelWidth);
+            float panelWidth = context.PanelWidth;
             float alpha = context.Alpha;
             Color accent = context.Accent;
 
@@ -55,7 +52,7 @@ namespace Autonocraft.UI.VillagePanels
             if (citizens == 0)
             {
                 float bannerH = layout.S(54f);
-                ui.DrawPanel(left, y, layout.S(PanelWidth) - layout.S(40f), bannerH,
+                ui.DrawPanel(left, y, panelWidth - layout.S(40f), bannerH,
                     UiTheme.DangerSoft, UiTheme.Danger, 0.85f, alpha, UiTheme.RadiusMd);
                 string bannerTitle = VillageSettlementHealth.IsPlayerNearTownHeart(village, context.PlayerPosition)
                     ? "No settlers in village"
@@ -69,7 +66,7 @@ namespace Autonocraft.UI.VillagePanels
             else if (citizens > 0 && citizens <= 2)
             {
                 float bannerH = layout.S(40f);
-                ui.DrawPanel(left, y, layout.S(PanelWidth) - layout.S(40f), bannerH,
+                ui.DrawPanel(left, y, panelWidth - layout.S(40f), bannerH,
                     UiTheme.AccentSoft, UiTheme.Accent, 0.75f, alpha, UiTheme.RadiusMd);
                 ui.DrawString("Quick start: " + VillageGuidance.GetQuickStartSteps(village, context.Villagers, context.PlayerPosition),
                     left + layout.S(14f), y + layout.S(12f), layout.S(UiTheme.FontSmall), UiTheme.Subtitle, alpha);
@@ -95,15 +92,15 @@ namespace Autonocraft.UI.VillagePanels
             if (!string.IsNullOrWhiteSpace(context.OpeningNote))
             {
                 float bannerH = layout.S(42f);
-                ui.DrawPanel(left, y, layout.S(PanelWidth) - layout.S(40f), bannerH,
+                ui.DrawPanel(left, y, panelWidth - layout.S(40f), bannerH,
                     UiTheme.AccentSoft, UiTheme.Accent, 0.75f, alpha, UiTheme.RadiusMd);
                 ui.DrawString(context.OpeningNote!, left + layout.S(14f), y + layout.S(12f), layout.S(UiTheme.FontSmall),
                     UiTheme.Subtitle, alpha);
                 y += bannerH + layout.S(10f);
             }
 
-            float colW = (layout.S(PanelWidth) - layout.S(40f) - layout.S(12f)) / 2f;
-            float colH = height - (y - (context.PanelY + layout.S(ContentTop))) - layout.S(8f);
+            float colW = (panelWidth - layout.S(40f) - layout.S(12f)) / 2f;
+            float colH = height - (y - (context.PanelY + context.ContentTop)) - layout.S(8f);
             DrawStoragePanel(context, left, y, colW, colH, alpha, accent);
             DrawActivityPanel(context, left + colW + layout.S(12f), y, colW, colH, alpha, accent);
         }

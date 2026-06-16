@@ -481,6 +481,7 @@ namespace Autonocraft.Core
 
         private void EnterPlaying()
         {
+            _screens.State = GameState.Playing;
             CloseAllGameplayOverlays();
 
             bool fromSave = _loadingFromSave;
@@ -655,10 +656,6 @@ namespace Autonocraft.Core
             _screens.LoadingScreen!.Begin(loadCenter, _settings.RenderDistance, _pendingSaveData, _activeSlotName);
             _screens.State = GameState.WorldLoading;
             Window.Title = "Autonocraft | Loading World...";
-            if (_skipMenu)
-            {
-                TryStartAgentServer();
-            }
         }
 
         private void OnGameExiting(object? sender, EventArgs e)
@@ -1087,7 +1084,6 @@ namespace Autonocraft.Core
             if (_screens.LoadingScreen.IsComplete)
             {
                 EnterPlaying();
-                _screens.State = GameState.Playing;
             }
             else
             {

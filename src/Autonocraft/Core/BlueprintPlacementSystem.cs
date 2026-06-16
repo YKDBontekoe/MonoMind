@@ -116,9 +116,13 @@ namespace Autonocraft.Core
                 return;
             }
 
-            var payer = village.Storage.HasSpaceFor(ItemStack.CreateBlock(BlockType.Dirt, 1))
-                ? (IItemContainer)village.Storage
-                : _hotbarProvider();
+            if (!PlayerStructureRegistry.TryGet(PendingBlueprintId, out var blueprint))
+            {
+                CancelBlueprintPlacement();
+                return;
+            }
+
+            var payer = ResolveBlueprintPayer(village, blueprint);
 
             _session.Villages.TryQueueBlueprint(
                 _session.Grid,
@@ -256,9 +260,7 @@ namespace Autonocraft.Core
                 }
                 else if (village != null)
                 {
-                    var payer = village.Storage.HasSpaceFor(ItemStack.CreateBlock(BlockType.Dirt, 1))
-                        ? (IItemContainer)village.Storage
-                        : _hotbarProvider();
+                    var payer = ResolveBlueprintPayer(village, blueprint);
                     valid = _session.Villages.CanPlaceBlueprint(
                         _session.Grid,
                         village,
@@ -285,6 +287,21 @@ namespace Autonocraft.Core
 
         private void UpdateBlueprintPlacementPreview(Village.Village village, BuildingBlueprint blueprint) =>
             UpdateBlueprintPlacementPreview(blueprint, village);
+
+        private IItemContainer ResolveBlueprintPayer(Village.Village village, BuildingBlueprint blueprint)
+        {
+            if (_session.Player.CreativeMode)
+            {
+                return village.Storage;
+            }
+
+            if (blueprint.CanAfford(village.Storage))
+            {
+                return village.Storage;
+            }
+
+            return _hotbarProvider();
+        }
 
         public void PopulateConstructionSitePreviews(GameRenderContext renderContext, VillageManager villages, Vector3 playerPos)
         {

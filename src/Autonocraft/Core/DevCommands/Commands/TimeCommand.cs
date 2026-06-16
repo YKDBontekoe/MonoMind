@@ -25,7 +25,8 @@ namespace Autonocraft.Core.DevCommands.Commands
             if (DevCommandParser.EqualsIgnoreCase(subSpan, "set"))
             {
                 if (!DevCommandParser.TryReadNextToken(ref remaining, out var valueSpan) ||
-                    !DevCommandParser.TryParseFloat(valueSpan, out float value))
+                    !DevCommandParser.TryParseFloat(valueSpan, out float value) ||
+                    !float.IsFinite(value))
                 {
                     return "Usage: time set <0-1>";
                 }
@@ -61,7 +62,8 @@ namespace Autonocraft.Core.DevCommands.Commands
             if (DevCommandParser.EqualsIgnoreCase(subSpan, "scale"))
             {
                 if (!DevCommandParser.TryReadNextToken(ref remaining, out var scaleSpan) ||
-                    !DevCommandParser.TryParseFloat(scaleSpan, out float scale))
+                    !DevCommandParser.TryParseFloat(scaleSpan, out float scale) ||
+                    !float.IsFinite(scale))
                 {
                     return "Usage: time scale <number> (0 to pause)";
                 }

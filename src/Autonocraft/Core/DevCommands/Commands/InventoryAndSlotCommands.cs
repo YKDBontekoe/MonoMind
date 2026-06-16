@@ -22,15 +22,15 @@ namespace Autonocraft.Core.DevCommands.Commands
             session.Player.SelectedSlot = slot;
             var item = session.Player.Hotbar[slot];
             return item.IsEmpty
-                ? $"Selected slot {slot + 1} (empty)"
-                : $"Selected slot {slot + 1}: {DevCommandHelpers.FormatStack(item)}";
+                ? $"Selected slot {slot} (empty)"
+                : $"Selected slot {slot}: {DevCommandHelpers.FormatStack(item)}";
         }
     }
 
     internal sealed class InventoryCommand : IDevCommand
     {
         public string Name => "inv";
-        public System.Collections.Generic.IEnumerable<string> Aliases { get; } = new[] { "hotbar" };
+        public System.Collections.Generic.IEnumerable<string> Aliases { get; } = new[] { "hotbar", "inventory" };
 
         public string Execute(GameHostContext host, ReadOnlySpan<char> args)
         {
