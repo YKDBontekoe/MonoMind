@@ -54,6 +54,18 @@ namespace Autonocraft.UI
             var layout = new UiLayout(viewport.Width, viewport.Height);
             var bounds = BuildSlotBounds(layout, out int totalSlots);
             Point mousePt = new Point(mouse.X, mouse.Y);
+            Rectangle? recipeBookRect = null;
+
+            if (crafting.RecipeBookOpen)
+            {
+                float panelW = layout.S(520f);
+                float panelH = layout.S(300f);
+                float panelX = layout.CenterX - panelW / 2f;
+                float panelY = layout.CenterY - panelH / 2f;
+                recipeBookRect = RecipeBookPanel.BuildPanelRect(layout, panelX, panelX + panelW, panelY, panelH);
+            }
+
+            bool skipSlotClicks = recipeBookRect.HasValue && recipeBookRect.Value.Contains(mousePt);
 
             for (int i = 0; i < totalSlots; i++)
             {
@@ -63,6 +75,11 @@ namespace Autonocraft.UI
                 }
 
                 _hoveredSlot = i;
+                if (skipSlotClicks)
+                {
+                    continue;
+                }
+
                 if (mouse.LeftButton == ButtonState.Pressed && prevMouse.LeftButton == ButtonState.Released)
                 {
                     _leftClicked = true;
@@ -82,7 +99,7 @@ namespace Autonocraft.UI
                 float panelH = layout.S(300f);
                 float panelX = layout.CenterX - panelW / 2f;
                 float panelY = layout.CenterY - panelH / 2f;
-                var bookRect = RecipeBookPanel.BuildPanelRect(layout, panelX, panelX + panelW, panelY, panelH);
+                var bookRect = recipeBookRect ?? RecipeBookPanel.BuildPanelRect(layout, panelX, panelX + panelW, panelY, panelH);
                 var recipes = RecipeBookResolver.GetVisibleRecipes(
                     BlockType.StationBench,
                     CraftGridSize.TwoByTwo,

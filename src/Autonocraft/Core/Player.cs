@@ -193,7 +193,11 @@ namespace Autonocraft.Core
 
         public void GiveBlocks(BlockType blockType, int count)
         {
-            AddBlockStack(blockType, count);
+            if (!AddBlockStack(blockType, count))
+            {
+                return;
+            }
+
             if (count > 0 && blockType != BlockType.Air)
             {
                 OnItemAdded?.Invoke(ItemStack.CreateBlock(blockType, count));
@@ -238,46 +242,69 @@ namespace Autonocraft.Core
             }
         }
 
-        public void AddItem(ItemStack item)
+        public bool AddItem(ItemStack item)
         {
             if (item.IsEmpty)
             {
-                return;
+                return false;
             }
 
             if (item.IsBlock())
             {
-                AddBlockStack(item.BlockType, item.Count);
+                if (!AddBlockStack(item.BlockType, item.Count))
+                {
+                    return false;
+                }
+
                 OnItemAdded?.Invoke(item);
-                return;
+                return true;
             }
 
             if (item.IsTool())
             {
-                AddToolStack(item);
+                if (!AddToolStack(item))
+                {
+                    return false;
+                }
+
                 OnItemAdded?.Invoke(item);
-                return;
+                return true;
             }
 
             if (item.IsFluidContainer())
             {
-                AddFluidContainerStack(item);
+                if (!AddFluidContainerStack(item))
+                {
+                    return false;
+                }
+
                 OnItemAdded?.Invoke(item);
-                return;
+                return true;
             }
 
             if (item.IsFood())
             {
-                AddFoodStack(item);
+                if (!AddFoodStack(item))
+                {
+                    return false;
+                }
+
                 OnItemAdded?.Invoke(item);
-                return;
+                return true;
             }
 
             if (item.IsMaterial())
             {
-                AddMaterialStack(item);
+                if (!AddMaterialStack(item))
+                {
+                    return false;
+                }
+
                 OnItemAdded?.Invoke(item);
+                return true;
             }
+
+            return false;
         }
 
         public void AddToInventory(BlockType blockType)
@@ -290,11 +317,11 @@ namespace Autonocraft.Core
             AddBlockStack(blockType, 1);
         }
 
-        private void AddBlockStack(BlockType blockType, int count)
+        private bool AddBlockStack(BlockType blockType, int count)
         {
             if (blockType == BlockType.Air || count <= 0)
             {
-                return;
+                return false;
             }
 
             var proxy = new Inventory(StorageSlotCount + Hotbar.Length);
@@ -302,13 +329,14 @@ namespace Autonocraft.Core
             proxy.OnOverflow = Notify;
             if (!proxy.AddItem(ItemStack.CreateBlock(blockType, count)))
             {
-                return;
+                return false;
             }
 
             CopyFromInventory(proxy);
+            return true;
         }
 
-        private void AddToolStack(ItemStack tool)
+        private bool AddToolStack(ItemStack tool)
         {
             var proxy = new Inventory(StorageSlotCount + Hotbar.Length);
             CopyToInventory(proxy);
@@ -322,29 +350,40 @@ namespace Autonocraft.Core
             {
                 CopyFromInventory(proxy);
                 Console.WriteLine($"[Inventory] Added {tool.GetDisplayName()}");
-                return;
+                return true;
             }
 
             Console.WriteLine($"[Inventory] Inventory full! Cannot collect {tool.GetDisplayName()}.");
             Notify($"Inventory full! Cannot collect {tool.GetDisplayName()}");
+            return false;
         }
 
-        private void AddFoodStack(ItemStack food)
+        private bool AddFoodStack(ItemStack food)
         {
             var proxy = new Inventory(StorageSlotCount + Hotbar.Length);
             CopyToInventory(proxy);
             proxy.OnOverflow = Notify;
-            proxy.AddItem(food);
+            if (!proxy.AddItem(food))
+            {
+                return false;
+            }
+
             CopyFromInventory(proxy);
+            return true;
         }
 
-        private void AddMaterialStack(ItemStack material)
+        private bool AddMaterialStack(ItemStack material)
         {
             var proxy = new Inventory(StorageSlotCount + Hotbar.Length);
             CopyToInventory(proxy);
             proxy.OnOverflow = Notify;
-            proxy.AddItem(material);
+            if (!proxy.AddItem(material))
+            {
+                return false;
+            }
+
             CopyFromInventory(proxy);
+            return true;
         }
 
         public void RestoreHunger(float amount)
@@ -394,7 +433,7 @@ namespace Autonocraft.Core
             return SurvivalConstants.LowHungerSpeedMultiplier;
         }
 
-        private void AddFluidContainerStack(ItemStack container)
+        private bool AddFluidContainerStack(ItemStack container)
         {
             var proxy = new Inventory(StorageSlotCount + Hotbar.Length);
             CopyToInventory(proxy);
@@ -408,11 +447,12 @@ namespace Autonocraft.Core
             {
                 CopyFromInventory(proxy);
                 Console.WriteLine($"[Inventory] Added {container.GetDisplayName()}");
-                return;
+                return true;
             }
 
             Console.WriteLine($"[Inventory] Inventory full! Cannot collect {container.GetDisplayName()}.");
             Notify($"Inventory full! Cannot collect {container.GetDisplayName()}");
+            return false;
         }
 
         public bool TakeDamage(float amount, out bool tookDamage)

@@ -482,6 +482,7 @@ namespace Autonocraft.Engine
         public void Dispose()
         {
             _worldThumbnails?.Dispose();
+            _typography.Dispose();
             _spriteBatch.Dispose();
         }
     }

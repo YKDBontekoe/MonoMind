@@ -104,6 +104,12 @@ namespace Autonocraft.Crafting
         public bool TryMatchItemGrid(IReadOnlyList<ItemStack> slots, int gridDimension, out Dictionary<int, int> slotConsumption)
         {
             int activeSlots = gridDimension * gridDimension;
+            if (slots.Count < activeSlots)
+            {
+                slotConsumption = new Dictionary<int, int>();
+                return false;
+            }
+
             if (ShapedPattern is { Count: > 0 })
             {
                 return CraftPatternMatcher.TryMatch(ShapedPattern, gridDimension, slots, out slotConsumption);
@@ -189,6 +195,15 @@ namespace Autonocraft.Crafting
                 }
 
                 if (needed > 0)
+                {
+                    slotConsumption.Clear();
+                    return false;
+                }
+            }
+
+            for (int slot = 0; slot < activeSlots; slot++)
+            {
+                if (!slotUsed[slot] && !slots[slot].IsEmpty)
                 {
                     slotConsumption.Clear();
                     return false;

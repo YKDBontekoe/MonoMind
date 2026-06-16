@@ -43,6 +43,11 @@ namespace Autonocraft.Crafting
                 return false;
             }
 
+            if (slots.Count < gridSize * gridSize)
+            {
+                return false;
+            }
+
             for (int offsetY = 0; offsetY <= gridSize - patternHeight; offsetY++)
             {
                 for (int offsetX = 0; offsetX <= gridSize - patternWidth; offsetX++)

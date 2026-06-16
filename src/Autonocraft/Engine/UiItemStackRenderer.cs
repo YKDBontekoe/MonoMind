@@ -46,10 +46,14 @@ namespace Autonocraft.Engine
                 float cy = rect.Y + rect.Height / 2f;
                 DrawIsometricBlock(atlas, cx, cy + layout.S(6f), layout.S(13f), stack.BlockType, itemAlpha);
             }
-            else if (stack.IsTool() || stack.IsFluidContainer())
+            else if (stack.IsTool())
             {
                 DrawToolIcon(ui, atlas, rect, stack, itemAlpha);
                 DrawDurabilityBar(ui, rect, stack, layout, itemAlpha);
+            }
+            else if (stack.IsFluidContainer())
+            {
+                DrawFluidContainerIcon(ui, rect, stack, layout, itemAlpha);
             }
             else if (stack.IsMaterial())
             {
@@ -110,7 +114,7 @@ namespace Autonocraft.Engine
 
         private static void DrawToolIcon(UiRenderer ui, Texture2D atlas, Rectangle rect, ItemStack tool, float alpha)
         {
-            if (!tool.IsTool() && !tool.IsFluidContainer())
+            if (!tool.IsTool())
             {
                 return;
             }
@@ -130,6 +134,15 @@ namespace Autonocraft.Engine
                     (int)(rect.Height - pad * 2f)),
                 source,
                 alpha);
+        }
+
+        private static void DrawFluidContainerIcon(UiRenderer ui, Rectangle rect, ItemStack stack, UiLayout layout, float alpha)
+        {
+            float pad = layout.S(8f);
+            Color color = stack.IsWaterBucket()
+                ? new Color(0.28f, 0.48f, 0.92f)
+                : new Color(0.62f, 0.58f, 0.52f);
+            ui.DrawFilledRect(rect.X + pad, rect.Y + pad, rect.Width - pad * 2f, rect.Height - pad * 2f, color * alpha);
         }
 
         private static void DrawMaterialIcon(UiRenderer ui, ItemStack stack, Rectangle rect, UiLayout layout, float alpha)

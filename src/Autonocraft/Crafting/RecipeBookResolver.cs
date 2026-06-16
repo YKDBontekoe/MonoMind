@@ -41,6 +41,11 @@ namespace Autonocraft.Crafting
         public static bool TryFillGrid(CraftRecipe recipe, CraftingGrid grid, PlayerInventoryAdapter inventory)
         {
             grid.Clear();
+            if (!CanCraftWithInventory(recipe, grid.Size, inventory))
+            {
+                return false;
+            }
+
             if (recipe.ShapedPattern is not { Count: > 0 } pattern)
             {
                 return TryFillShapeless(recipe, grid, inventory);

@@ -161,7 +161,7 @@ Tests instantiate `AutonocraftGame(runTests: true)` without calling `Run()`, so 
 | Sigil Bench Activation | Shift+right-click activates sigil → station |
 | Crucible Plank Recipe | Crucible transmutation produces planks |
 | Player 2x2 Craft Grid | Personal inventory crafting (log → planks) |
-| Shaped Tool Bench Craft | 3×3 bench shaped recipe crafts wood pickaxe |
+| Shaped Tool Bench Craft | 3×3 bench-shaped recipe crafts wood pickaxe |
 | Storage Inventory | Main inventory (27 slots) receives overflow beyond hotbar |
 | New Craft Recipes | Station recipe registry |
 

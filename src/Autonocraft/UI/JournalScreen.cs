@@ -67,6 +67,12 @@ namespace Autonocraft.UI
                 }
 
                 bool unlocked = journal.IsUnlocked(recipe.Id);
+
+                if (y > panelY + panelH - layout.S(44f))
+                {
+                    break;
+                }
+
                 if (recipe.RequiresUnlock && !unlocked)
                 {
                     _ui.DrawString("???", left + layout.S(12f), y, layout.S(UiTheme.FontBody), UiTheme.Hint, alpha);

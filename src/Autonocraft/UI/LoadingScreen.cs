@@ -356,7 +356,7 @@ namespace Autonocraft.UI
         private static string FormatChunkStatus(string label, string rawStatus, string prefix)
         {
             int spaceIndex = rawStatus.IndexOf(' ');
-            if (spaceIndex < 0)
+            if (spaceIndex < 0 || rawStatus.Length <= prefix.Length + 1)
             {
                 return label + "…";
             }

@@ -40,7 +40,15 @@ namespace Autonocraft.Crafting
                         continue;
                     }
 
-                    if (env != null && !recipe.EnvironmentMatches(env))
+                    if (env == null)
+                    {
+                        if (recipe.RequiresHeat || recipe.RequiresWater || recipe.RequiredTimePhase.HasValue
+                            || recipe.RequiredBiome.HasValue || recipe.AllowedBiomes is { Count: > 0 })
+                        {
+                            continue;
+                        }
+                    }
+                    else if (!recipe.EnvironmentMatches(env))
                     {
                         continue;
                     }

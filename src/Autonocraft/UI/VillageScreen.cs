@@ -1219,8 +1219,8 @@ namespace Autonocraft.UI
                     break;
                 }
 
-                float remW = layout.S(64f);
-                float remH = layout.S(20f);
+                float remW = layout.S(72f);
+                float remH = layout.S(26f);
                 float remX = rightLeft + rightW - remW;
                 HitRect(remX, rowY - layout.S(2f), remW, remH, 100 + goal.Id, mouse);
 
@@ -1329,10 +1329,10 @@ namespace Autonocraft.UI
                 float detailX = layout.Left + listW + layout.S(14f);
                 float detailW = layout.S(PanelWidth) - layout.S(40f) - listW - layout.S(14f);
                 float pad = layout.S(16f);
-                float talkY = y + pad + layout.S(152f);
-                HitRect(detailX + pad, talkY, layout.S(96f), layout.S(ButtonHeight), 50, mouse);
+                float detailY = y + pad + layout.S(28f) + layout.S(24f) + layout.S(28f) + layout.S(28f) + layout.S(52f);
+                HitRect(detailX + pad, detailY, layout.S(96f), layout.S(ButtonHeight), 50, mouse);
 
-                float jobY = talkY + layout.S(48f) + layout.S(24f);
+                float jobY = detailY + layout.S(48f) + layout.S(24f);
                 float jobW = layout.S(96f);
                 float jobH = layout.S(ButtonHeight);
                 float jobGap = layout.S(10f);

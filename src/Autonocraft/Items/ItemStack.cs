@@ -21,7 +21,7 @@ namespace Autonocraft.Items
             (Kind == ItemKind.Tool && ToolId == ItemId.None) ||
             (Kind == ItemKind.FluidContainer && ToolId == ItemId.None) ||
             (Kind == ItemKind.Food && FoodId == ItemId.None) ||
-            (Kind == ItemKind.Material && MaterialId == ItemId.None);
+            (Kind == ItemKind.Material && (MaterialId == ItemId.None || Count <= 0));
 
         public static ItemStack CreateBlock(BlockType blockType, int count)
         {
@@ -68,7 +68,7 @@ namespace Autonocraft.Items
 
         public bool IsFood() => Kind == ItemKind.Food && FoodId != ItemId.None;
 
-        public bool IsMaterial() => Kind == ItemKind.Material && MaterialId != ItemId.None;
+        public bool IsMaterial() => Kind == ItemKind.Material && MaterialId != ItemId.None && Count > 0;
 
         public bool IsTool() => Kind == ItemKind.Tool && ToolId != ItemId.None;
 

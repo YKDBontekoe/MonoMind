@@ -599,10 +599,20 @@ namespace Autonocraft.Core
             });
             _villageChatScreen = new VillageChatScreen(_ui, _session.VillageAi);
 
-            _audio = new AudioManager(enabled: true);
-            _audio.Initialize();
-            _audio.ApplySettings(_settings);
-            _session.BindAudio(_audio);
+            try
+            {
+                _audio = new AudioManager(enabled: !_runTests);
+                _audio.Initialize();
+                _audio.ApplySettings(_settings);
+                _session.BindAudio(_audio);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Audio] Initialization failed: {ex.Message}");
+                _audio = new AudioManager(enabled: false);
+                _session.BindAudio(null);
+            }
+
             UpdateMusicForState(_state);
 
             if (_skipMenu)
@@ -2673,6 +2683,15 @@ namespace Autonocraft.Core
                 return false;
             }
 
+            if (_pauseMenu?.IsOpen == true
+                || _deathScreen?.IsOpen == true
+                || _villageScreen?.IsOpen == true
+                || _session.Crafting.Crucible.IsOpen
+                || _session.Crafting.IsJournalUiBlocking)
+            {
+                return false;
+            }
+
             if (!kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.I) || _prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.I))
             {
                 return false;
@@ -2811,7 +2830,7 @@ namespace Autonocraft.Core
             public int SlotCount => _player.Hotbar.Length;
             public ItemStack GetSlot(int index) => _player.Hotbar[index];
             public void SetSlot(int index, ItemStack stack) => _player.Hotbar[index] = stack;
-            public bool AddItem(ItemStack item) { _player.AddItem(item); return true; }
+            public bool AddItem(ItemStack item) => _player.AddItem(item);
             public bool TryConsumeBlock(BlockType blockType, int count)
             {
                 if (_player.CreativeMode)

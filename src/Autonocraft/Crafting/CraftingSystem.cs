@@ -353,6 +353,10 @@ namespace Autonocraft.Crafting
                 {
                     output.AddItem(ItemStack.CreateMaterial(recipe.OutputItem, recipe.OutputCount));
                 }
+                else if (recipe.IsFoodOutput)
+                {
+                    output.AddItem(ItemStack.CreateFood(recipe.OutputItem, recipe.OutputCount));
+                }
                 else
                 {
                     output.AddItem(ItemStack.CreateBlock(recipe.Output, recipe.OutputCount));

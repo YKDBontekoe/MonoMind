@@ -33,17 +33,19 @@ namespace Autonocraft.Items
             _player.Storage.SetSlot(index - _player.Hotbar.Length, stack);
         }
 
-        public bool AddItem(ItemStack item)
-        {
-            _player.AddItem(item);
-            return true;
-        }
+        public bool AddItem(ItemStack item) => _player.AddItem(item);
 
         public bool TryConsumeBlock(BlockType blockType, int count)
         {
             if (_player.CreativeMode)
             {
                 return true;
+            }
+
+            int available = CountBlock(blockType);
+            if (available < count)
+            {
+                return false;
             }
 
             int remaining = count;

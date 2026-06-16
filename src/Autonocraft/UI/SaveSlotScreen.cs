@@ -185,20 +185,23 @@ namespace Autonocraft.UI
 
             var layout = new UiLayout(viewport);
             var metrics = ComputeLayout(layout);
+            float offsetY = _panelTransition.OffsetY;
 
             _hoveredButton = -1;
             for (int i = 0; i < metrics.ButtonRects.Length; i++)
             {
-                if (metrics.ButtonRects[i].Contains(mouse.X, mouse.Y))
+                var rect = metrics.ButtonRects[i];
+                var hitRect = new Rectangle(rect.X, rect.Y + (int)offsetY, rect.Width, rect.Height);
+                if (hitRect.Contains(mouse.X, mouse.Y))
                 {
                     _hoveredButton = i;
                     break;
                 }
             }
 
-            _hoveredSlotIndex = GetHoveredSlotIndex(mouse, metrics, layout);
+            _hoveredSlotIndex = GetHoveredSlotIndex(mouse, metrics, layout, offsetY);
 
-            int clickedSlot = GetClickedSlotIndex(mouse, metrics, layout);
+            int clickedSlot = GetClickedSlotIndex(mouse, metrics, layout, offsetY);
             bool click = mouse.LeftButton == ButtonState.Pressed && prevMouse.LeftButton == ButtonState.Released;
 
             if (click && clickedSlot >= 0)
@@ -778,18 +781,18 @@ namespace Autonocraft.UI
             };
         }
 
-        private int GetHoveredSlotIndex(MouseState mouse, MenuMetrics metrics, UiLayout layout)
+        private int GetHoveredSlotIndex(MouseState mouse, MenuMetrics metrics, UiLayout layout, float offsetY)
         {
-            return GetSlotIndexAt(mouse.X, mouse.Y, metrics, layout);
+            return GetSlotIndexAt(mouse.X, mouse.Y, metrics, layout, offsetY);
         }
 
-        private int GetClickedSlotIndex(MouseState mouse, MenuMetrics metrics, UiLayout layout)
+        private int GetClickedSlotIndex(MouseState mouse, MenuMetrics metrics, UiLayout layout, float offsetY)
         {
             if (mouse.LeftButton != ButtonState.Pressed) return -1;
-            return GetSlotIndexAt(mouse.X, mouse.Y, metrics, layout);
+            return GetSlotIndexAt(mouse.X, mouse.Y, metrics, layout, offsetY);
         }
 
-        private int GetSlotIndexAt(int mouseX, int mouseY, MenuMetrics metrics, UiLayout layout)
+        private int GetSlotIndexAt(int mouseX, int mouseY, MenuMetrics metrics, UiLayout layout, float offsetY)
         {
             if (_slots.Count == 0) return -1;
 
@@ -797,11 +800,12 @@ namespace Autonocraft.UI
             float listW = metrics.SidebarW - layout.S(28f);
             float rowH = layout.S(SlotRowHeight);
             float listHeight = rowH * MaxVisibleSlots;
+            float listTop = metrics.SlotListTop + offsetY;
 
-            var listRect = new Rectangle((int)listX, (int)metrics.SlotListTop, (int)listW, (int)listHeight);
+            var listRect = new Rectangle((int)listX, (int)listTop, (int)listW, (int)listHeight);
             if (!listRect.Contains(mouseX, mouseY)) return -1;
 
-            int row = (int)((mouseY - metrics.SlotListTop) / rowH);
+            int row = (int)((mouseY - listTop) / rowH);
             if (row < 0 || row >= MaxVisibleSlots) return -1;
 
             int slotIndex = _scrollOffset + row;

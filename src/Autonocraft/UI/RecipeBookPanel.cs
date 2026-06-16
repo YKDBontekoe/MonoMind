@@ -18,6 +18,7 @@ namespace Autonocraft.UI
         private readonly UiRenderer _ui;
         private int _hoveredIndex = -1;
         private int _clickedIndex = -1;
+        private int _scrollOffset;
 
         public RecipeBookPanel(UiRenderer ui) => _ui = ui;
 
@@ -58,10 +59,22 @@ namespace Autonocraft.UI
             Point mousePt = new Point(mouse.X, mouse.Y);
             float rowH = RowHeight;
             int visibleRows = Math.Max(1, (int)((panelRect.Height - 56f) / rowH));
+            int maxScroll = Math.Max(0, recipes.Count - visibleRows);
+
+            if (mouse.ScrollWheelValue > prevMouse.ScrollWheelValue)
+            {
+                _scrollOffset = Math.Max(0, _scrollOffset - 1);
+            }
+            else if (mouse.ScrollWheelValue < prevMouse.ScrollWheelValue)
+            {
+                _scrollOffset = Math.Min(maxScroll, _scrollOffset + 1);
+            }
+
+            _scrollOffset = Math.Clamp(_scrollOffset, 0, maxScroll);
 
             for (int i = 0; i < visibleRows; i++)
             {
-                int recipeIndex = i;
+                int recipeIndex = _scrollOffset + i;
                 if (recipeIndex >= recipes.Count)
                 {
                     break;
@@ -112,10 +125,12 @@ namespace Autonocraft.UI
             var inventory = new PlayerInventoryAdapter(player);
             float rowH = RowHeight;
             int visibleRows = Math.Max(1, (int)((panelRect.Height - 56f) / rowH));
+            int maxScroll = Math.Max(0, recipes.Count - visibleRows);
+            _scrollOffset = Math.Clamp(_scrollOffset, 0, maxScroll);
 
             for (int i = 0; i < visibleRows; i++)
             {
-                int recipeIndex = i;
+                int recipeIndex = _scrollOffset + i;
                 if (recipeIndex >= recipes.Count)
                 {
                     break;

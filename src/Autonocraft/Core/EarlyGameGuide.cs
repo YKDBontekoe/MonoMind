@@ -151,7 +151,7 @@ namespace Autonocraft.Core
                 return "Hunt/cook food or take rations at Town Heart";
             }
 
-            if (stage <= 2)
+            if (stage == 2)
             {
                 return "Press I — craft sticks/planks, then tools at Bench";
             }
