@@ -39,6 +39,7 @@ namespace Autonocraft.Core
         private SkyEffect? _skyEffect;
         private UiRenderer? _ui;
         private CrucibleScreen? _crucibleScreen;
+        private InventoryScreen? _inventoryScreen;
         private JournalScreen? _journalScreen;
         private VillageScreen? _villageScreen;
         private VillageChatScreen? _villageChatScreen;
@@ -101,6 +102,8 @@ namespace Autonocraft.Core
 
         // Input state tracking
         private KeyboardState _prevKbState;
+        private int _lastInventoryKeyFrame = -1;
+        private int _gameFrameCount;
         private MouseState _prevMouseState;
         private bool _isMouseLocked = true;
         private bool _prevSpacePressed = false;
@@ -399,7 +402,8 @@ namespace Autonocraft.Core
                 && _villageScreen is not { IsOpen: true }
                 && _villageChatScreen is not { IsOpen: true }
                 && !_session.Crafting.JournalOpen
-                && !_session.Crafting.Crucible.IsOpen;
+                && !_session.Crafting.Crucible.IsOpen
+                && !_session.Crafting.InventoryOpen;
         }
 
         private void PrepareMouseForUi()
@@ -435,6 +439,7 @@ namespace Autonocraft.Core
                 || _deathScreen?.IsOpen == true
                 || _devConsole?.IsOpen == true
                 || _session.Crafting.Crucible.IsOpen
+                || _session.Crafting.InventoryOpen
                 || _session.Crafting.IsJournalUiBlocking;
         }
 
@@ -561,7 +566,9 @@ namespace Autonocraft.Core
             _renderer = new Renderer(GraphicsDevice, _atlasTexture!, _whiteTexture, blockTerrainEffect, _skyEffect, _settings.HighQualityLighting);
             _renderer.SetPreferPerPixelLighting(_settings.HighQualityLighting);
             BlockAtlas.UseCpuBlockVariation = true;
-            _ui = new UiRenderer(GraphicsDevice, _whiteTexture);
+            var typography = new UiTypography(GraphicsDevice);
+            _renderer.Hud.SetTypography(typography);
+            _ui = new UiRenderer(GraphicsDevice, _whiteTexture, typography);
             _saveSlotScreen = new SaveSlotScreen(_ui);
             _mainMenuSettingsScreen = new MainMenuSettingsScreen(_ui);
             _playerDashboardScreen = new PlayerDashboardScreen(_ui);
@@ -578,6 +585,7 @@ namespace Autonocraft.Core
             _pauseMenu.ApplyGraphicsSettings(_settings);
             _deathScreen = new DeathScreen(_ui);
             _crucibleScreen = new CrucibleScreen(_ui);
+            _inventoryScreen = new InventoryScreen(_ui);
             _journalScreen = new JournalScreen(_ui);
             _villageAiOrchestrator = _session.VillageAi;
             _villageScreen = new VillageScreen(_ui, _session.Villagers);
@@ -796,7 +804,7 @@ namespace Autonocraft.Core
             Vector3 loadCenter = _loadingFromSave
                 ? _camera.Position
                 : new Vector3(_worldSpawnX + 0.5f, 64f, _worldSpawnZ + 0.5f);
-            _loadingScreen!.Begin(loadCenter, _settings.RenderDistance, _pendingSaveData);
+            _loadingScreen!.Begin(loadCenter, _settings.RenderDistance, _pendingSaveData, _activeSlotName);
             _state = GameState.WorldLoading;
             Window.Title = "Autonocraft | Loading World...";
             if (_skipMenu)
@@ -1044,7 +1052,15 @@ namespace Autonocraft.Core
                     InputDebugTrace.Log($"LEFT_PLAYING -> {_state}, cursor released");
                 }
 
-                _screenFade.BeginFadeIn(0.25f);
+                if (_state == GameState.WorldLoading || _prevState == GameState.WorldLoading)
+                {
+                    _screenFade.SnapVisible();
+                }
+                else
+                {
+                    _screenFade.BeginFadeIn(0.25f);
+                }
+
                 UpdateMusicForState(_state);
                 _prevState = _state;
             }
@@ -1058,6 +1074,7 @@ namespace Autonocraft.Core
 
             var kbState = Keyboard.GetState();
             var mouseState = GetUiMouseState();
+            _gameFrameCount++;
 
             if (IsActive && !_wasActive)
             {
@@ -1416,6 +1433,12 @@ namespace Autonocraft.Core
                     HandleVillageScreenActions();
                 }
 
+                return true;
+            }
+
+            if (_session.Crafting.InventoryOpen)
+            {
+                UpdateInventoryOverlay(kbState, mouseState);
                 return true;
             }
 
@@ -1920,6 +1943,8 @@ namespace Autonocraft.Core
                 try { action(); }
                 catch (Exception ex) { Console.WriteLine($"[Agent Action Error] {ex.Message}"); }
             }
+
+            HandleInventoryKey(kbState);
 
             if (UpdateBlockingGameplayOverlays(deltaTime, kbState, mouseState))
             {
@@ -2507,7 +2532,8 @@ namespace Autonocraft.Core
                     _newWorldSetupScreen!.Draw(GraphicsDevice.Viewport);
                     break;
                 case GameState.WorldLoading:
-                    _loadingScreen!.Draw(GraphicsDevice.Viewport, _screenFade.Alpha, _screenFade.OffsetY);
+                    GraphicsDevice.Clear(ClearOptions.Target, UiTheme.Scrim, 1f, 0);
+                    _loadingScreen!.Draw(GraphicsDevice.Viewport);
                     break;
                 case GameState.Playing:
                     if (HasBlockingGameplayOverlay())
@@ -2536,7 +2562,15 @@ namespace Autonocraft.Core
                         PerfCounters.RecordDraw((float)drawStopwatch.Elapsed.TotalMilliseconds);
                     }
 
-                    _crucibleScreen?.Draw(GraphicsDevice.Viewport, _session.Crafting.Crucible, _session.Crafting.GetCurrentEnvironment(_session.Grid, _timeOfDay), _atlasTexture);
+                    _inventoryScreen?.Draw(GraphicsDevice.Viewport, _session.Player, _session.Crafting, _atlasTexture);
+                    _crucibleScreen?.Draw(
+                        GraphicsDevice.Viewport,
+                        _session.Crafting.Crucible,
+                        _session.Crafting.GetCurrentEnvironment(_session.Grid, _timeOfDay),
+                        _session.Crafting.Journal,
+                        _session.Crafting,
+                        _session.Player,
+                        _atlasTexture);
                     if (_session.Crafting.ShouldDrawJournal())
                     {
                         var journalFade = _session.Crafting.JournalTransition;
@@ -2570,6 +2604,7 @@ namespace Autonocraft.Core
         private void CloseCrucibleUi()
         {
             _session.Crafting.CloseCrucible();
+            _session.Crafting.CloseRecipeBook();
             _isMouseLocked = _mouseLockedBeforeCrafting;
             if (_isMouseLocked)
             {
@@ -2579,6 +2614,89 @@ namespace Autonocraft.Core
             {
                 IsMouseVisible = true;
             }
+        }
+
+        private void CloseInventoryUi()
+        {
+            if (!_session.Crafting.CraftCursor.IsEmpty)
+            {
+                _session.Player.AddItem(_session.Crafting.CraftCursor);
+                _session.Crafting.CraftCursor = ItemStack.Empty;
+            }
+
+            _session.Crafting.CloseInventory();
+            _session.Crafting.CloseRecipeBook();
+            _isMouseLocked = _mouseLockedBeforeCrafting;
+            if (_isMouseLocked)
+            {
+                ApplyMouseCapture();
+            }
+            else
+            {
+                IsMouseVisible = true;
+            }
+        }
+
+        private void UpdateInventoryOverlay(KeyboardState kbState, MouseState mouseState)
+        {
+            EnsureUiPointerMode();
+            _inventoryScreen!.Update(
+                GraphicsDevice.Viewport,
+                _session.Player,
+                _session.Crafting,
+                kbState,
+                mouseState,
+                _prevKbState,
+                _prevMouseState);
+
+            _inventoryScreen.HandleClicks(_session.Player, _session.Crafting);
+            _inventoryScreen.HandleRecipeBookClick(_session.Crafting, _session.Player);
+
+            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.B) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.B))
+            {
+                _session.Crafting.ToggleRecipeBook();
+            }
+
+            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape))
+            {
+                CloseInventoryUi();
+            }
+        }
+
+        /// <summary>
+        /// Toggle inventory on I edge. Frame guard prevents fixed-timestep double Update from open+close on one press.
+        /// </summary>
+        private bool HandleInventoryKey(KeyboardState kbState)
+        {
+            if (!_session.Player.IsAlive)
+            {
+                return false;
+            }
+
+            if (!kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.I) || _prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.I))
+            {
+                return false;
+            }
+
+            if (_lastInventoryKeyFrame == _gameFrameCount)
+            {
+                return false;
+            }
+
+            _lastInventoryKeyFrame = _gameFrameCount;
+
+            if (_session.Crafting.InventoryOpen)
+            {
+                CloseInventoryUi();
+            }
+            else
+            {
+                _mouseLockedBeforeCrafting = _isMouseLocked;
+                PrepareMouseForUi();
+                _session.Crafting.OpenInventory();
+            }
+
+            return true;
         }
 
         private void OpenVillageUi()
@@ -2739,11 +2857,21 @@ namespace Autonocraft.Core
                 GraphicsDevice.Viewport,
                 _session.Crafting.Crucible,
                 env,
+                _session.Crafting.Journal,
+                _session.Crafting,
+                _session.Player,
                 kbState,
                 mouseState,
                 _prevKbState,
                 _prevMouseState,
                 deltaTime);
+
+            _crucibleScreen.HandleRecipeBookClick(_session.Crafting, _session.Player);
+
+            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.B) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.B))
+            {
+                _session.Crafting.ToggleRecipeBook();
+            }
 
             if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !_prevKbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape))
             {
@@ -2751,31 +2879,31 @@ namespace Autonocraft.Core
                 return;
             }
 
-            if (_crucibleScreen.ClickedOrbIndex >= 0)
+            if (_crucibleScreen.ClickedSlotIndex >= 0)
             {
-                if (_crucibleScreen.RightClickedOrb)
+                if (_crucibleScreen.RightClickedSlot)
                 {
-                    if (_session.Crafting.Crucible.WithdrawToHotbar(_session.Player, _crucibleScreen.ClickedOrbIndex))
+                    if (_session.Crafting.Crucible.WithdrawToHotbar(_session.Player, _crucibleScreen.ClickedSlotIndex))
                     {
-                        _crucibleScreen.TriggerOrbPulse(_crucibleScreen.ClickedOrbIndex);
+                        _crucibleScreen.TriggerSlotPulse(_crucibleScreen.ClickedSlotIndex);
                     }
                 }
                 else
                 {
-                    if (_session.Crafting.Crucible.DepositFromHotbar(_session.Player, _crucibleScreen.ClickedOrbIndex))
+                    if (_session.Crafting.Crucible.DepositFromHotbar(_session.Player, _crucibleScreen.ClickedSlotIndex))
                     {
-                        _crucibleScreen.TriggerOrbPulse(_crucibleScreen.ClickedOrbIndex);
+                        _crucibleScreen.TriggerSlotPulse(_crucibleScreen.ClickedSlotIndex);
                     }
                     else
                     {
                         var slot = _session.Player.GetSelectedStack();
-                        if (!slot.IsBlock())
+                        if (!slot.IsBlock() && !slot.IsMaterial())
                         {
-                            _crucibleScreen.SetStatus("SELECT A BLOCK IN HOTBAR");
+                            _crucibleScreen.SetStatus("SELECT BLOCKS OR STICKS");
                         }
                         else
                         {
-                            _crucibleScreen.SetStatus("ORB SLOT FULL");
+                            _crucibleScreen.SetStatus("SLOT FULL");
                         }
                     }
                 }
@@ -2791,7 +2919,12 @@ namespace Autonocraft.Core
                 var result = _session.Crafting.TryTransmute(_session.Grid, _session.Player, _timeOfDay);
                 if (result.Succeeded)
                 {
-                    _crucibleScreen.SetStatus($"CREATED {result.Recipe!.Output}");
+                    string created = result.Recipe!.IsToolOutput
+                        ? result.Recipe.DisplayName.ToUpperInvariant()
+                        : result.Recipe.IsMaterialOutput
+                            ? $"{result.Recipe.DisplayName.ToUpperInvariant()} x{result.Recipe.OutputCount}"
+                            : result.Recipe.Output.ToString().ToUpperInvariant();
+                    _crucibleScreen.SetStatus($"CREATED {created}");
                     _session.BlockInteraction.TriggerCrosshairFlash();
                     _session.Particles.SpawnHint(_session.Player.Position + new Vector3(0f, Player.EyeHeight, 0f));
                 }

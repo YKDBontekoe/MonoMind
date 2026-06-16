@@ -115,7 +115,7 @@ namespace Autonocraft.UI
 
             _hoveredButton = -1;
 
-            string[] tabs = { "OVERVIEW", "COMBAT", "MINING", "SKILLS" };
+            string[] tabs = { "Overview", "Combat", "Mining", "Skills" };
             float tabY = panelY + layout.S(54f);
             float tabX = left;
             for (int i = 0; i < tabs.Length; i++)
@@ -167,8 +167,8 @@ namespace Autonocraft.UI
 
             _ui.DrawFramedPanel(panelX, panelY, panelW, panelH, UiTheme.PanelFill * 0.96f, UiTheme.PanelBorder, alpha);
 
-            string title = string.IsNullOrWhiteSpace(_slotName) ? "PLAYER DASHBOARD" : $"DASHBOARD — {_slotName.ToUpperInvariant()}";
-            _ui.DrawCenteredTitle(title, panelY + layout.S(16f), layout.S(1.45f), UiTheme.Title, alpha);
+            string title = string.IsNullOrWhiteSpace(_slotName) ? "Player dashboard" : _slotName;
+            _ui.DrawCenteredTitle(title, panelY + layout.S(20f), layout.S(UiTheme.FontTitle), UiTheme.Title, alpha);
             _ui.DrawHorizontalRule(panelX + layout.S(20f), panelY + layout.S(48f), panelW - layout.S(40f), UiTheme.Rule, 1f, alpha * 0.7f);
 
             DrawTabs(layout, panelX, panelY, panelW, left, alpha);
@@ -176,10 +176,10 @@ namespace Autonocraft.UI
             if (!_hasData)
             {
                 _ui.DrawCenteredText(
-                    "CREATE A WORLD TO TRACK STATS",
+                    "Create a world to track stats",
                     panelY + panelH * 0.5f,
-                    layout.S(1.2f),
-                    UiTheme.Meta,
+                    layout.S(UiTheme.FontSection),
+                    UiTheme.Subtitle,
                     alpha);
             }
             else
@@ -203,13 +203,13 @@ namespace Autonocraft.UI
 
             float closeX = panelX + panelW - layout.S(20f) - buttonW;
             float closeY = panelY + panelH - layout.S(28f);
-            _ui.DrawButton(closeX, closeY, buttonW, buttonH, "BACK", _hoveredButton == 1, false, layout.S(1.2f), alpha, _buttonHoverT[1]);
-            _ui.DrawCenteredText("ESC BACK  |  LEFT/RIGHT TAB", panelY + panelH - layout.S(8f), layout.S(0.95f), UiTheme.Hint, alpha);
+            _ui.DrawButton(closeX, closeY, buttonW, buttonH, "Back", _hoveredButton == 1, false, UiButtonStyle.Ghost, layout.S(UiTheme.FontBody), alpha, _buttonHoverT[1]);
+            _ui.DrawCenteredText("Esc back · ←→ switch tabs", panelY + panelH - layout.S(8f), layout.S(UiTheme.FontSmall), UiTheme.Hint, alpha);
         }
 
         private void DrawTabs(UiLayout layout, float panelX, float panelY, float panelW, float left, float alpha)
         {
-            string[] tabs = { "OVERVIEW", "COMBAT", "MINING", "SKILLS" };
+            string[] tabs = { "Overview", "Combat", "Mining", "Skills" };
             float tabY = panelY + layout.S(54f);
             float tabX = left;
             for (int i = 0; i < tabs.Length; i++)
@@ -217,7 +217,7 @@ namespace Autonocraft.UI
                 bool selected = i == _selectedTab;
                 Color color = selected ? UiTheme.Accent : UiTheme.Meta;
                 float tabW = layout.S(108f);
-                _ui.DrawString(tabs[i], tabX, tabY, layout.S(1.05f), color * alpha);
+                _ui.DrawString(tabs[i], tabX, tabY, layout.S(UiTheme.FontBody), color, alpha);
                 if (selected)
                 {
                     _ui.DrawFilledRect(tabX, tabY + layout.S(18f), tabW, layout.S(2f), UiTheme.Accent * alpha);
@@ -309,15 +309,15 @@ namespace Autonocraft.UI
 
         private void DrawStatLine(string label, string value, float left, ref float y, UiLayout layout, float alpha)
         {
-            _ui.DrawString(label, left + layout.S(8f), y, layout.S(1.0f), UiTheme.StatLabel * alpha);
-            _ui.DrawString(value, left + layout.S(220f), y, layout.S(1.05f), UiTheme.StatValue * alpha);
+            _ui.DrawString(label, left + layout.S(8f), y, layout.S(UiTheme.FontBody), UiTheme.StatLabel, alpha);
+            _ui.DrawString(value, left + layout.S(220f), y, layout.S(UiTheme.FontBody), UiTheme.StatValue, alpha);
             y += layout.S(20f);
         }
 
         private void DrawSkillLine(string name, int level, float xp, float left, ref float y, UiLayout layout, float alpha)
         {
-            _ui.DrawString($"{name} LVL {level}", left + layout.S(8f), y, layout.S(1.0f), UiTheme.StatValue * alpha);
-            _ui.DrawString($"XP {xp:F0}", left + layout.S(220f), y, layout.S(1.0f), UiTheme.Subtitle * alpha);
+            _ui.DrawString($"{name} LVL {level}", left + layout.S(8f), y, layout.S(UiTheme.FontBody), UiTheme.StatValue, alpha);
+            _ui.DrawString($"XP {xp:F0}", left + layout.S(220f), y, layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha);
             y += layout.S(20f);
         }
 

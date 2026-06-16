@@ -47,6 +47,7 @@ namespace Autonocraft.Core
         public float FallDistance { get; private set; }
 
         public Action<string>? ShowToast { get; set; }
+        public Action<ItemStack>? OnItemAdded { get; set; }
 
         public PlayerSkills Skills { get; } = new();
         public PlayerStatistics Stats { get; } = new();
@@ -81,6 +82,9 @@ namespace Autonocraft.Core
 
         public ItemStack[] Hotbar { get; } = new ItemStack[9];
         public int SelectedSlot { get; set; } = 0;
+
+        public const int StorageSlotCount = 27;
+        public Inventory Storage { get; } = new(StorageSlotCount);
 
         public Player(Vector3 spawnPosition)
         {
@@ -125,8 +129,13 @@ namespace Autonocraft.Core
 
         public bool UseSelectedBlock()
         {
+            return UseSelectedStack(stack => stack.IsBlock());
+        }
+
+        public bool UseSelectedStack(Func<ItemStack, bool>? predicate = null)
+        {
             ref var slot = ref Hotbar[SelectedSlot];
-            if (!slot.IsBlock())
+            if (slot.IsEmpty || predicate != null && !predicate(slot))
             {
                 return false;
             }
@@ -184,7 +193,49 @@ namespace Autonocraft.Core
 
         public void GiveBlocks(BlockType blockType, int count)
         {
-            AddItem(ItemStack.CreateBlock(blockType, count));
+            AddBlockStack(blockType, count);
+            if (count > 0 && blockType != BlockType.Air)
+            {
+                OnItemAdded?.Invoke(ItemStack.CreateBlock(blockType, count));
+            }
+        }
+
+        public bool HasSpaceFor(ItemStack item)
+        {
+            if (item.IsEmpty || CreativeMode)
+            {
+                return true;
+            }
+
+            var adapter = new Inventory(StorageSlotCount + Hotbar.Length);
+            CopyToInventory(adapter);
+            return adapter.HasSpaceFor(item);
+        }
+
+        private void CopyToInventory(Inventory proxy)
+        {
+            for (int i = 0; i < Hotbar.Length; i++)
+            {
+                proxy.SetSlot(i, Hotbar[i]);
+            }
+
+            for (int i = 0; i < StorageSlotCount; i++)
+            {
+                proxy.SetSlot(Hotbar.Length + i, Storage.GetSlot(i));
+            }
+        }
+
+        private void CopyFromInventory(Inventory proxy)
+        {
+            for (int i = 0; i < Hotbar.Length; i++)
+            {
+                Hotbar[i] = proxy.GetSlot(i);
+            }
+
+            for (int i = 0; i < StorageSlotCount; i++)
+            {
+                Storage.SetSlot(i, proxy.GetSlot(Hotbar.Length + i));
+            }
         }
 
         public void AddItem(ItemStack item)
@@ -197,24 +248,35 @@ namespace Autonocraft.Core
             if (item.IsBlock())
             {
                 AddBlockStack(item.BlockType, item.Count);
+                OnItemAdded?.Invoke(item);
                 return;
             }
 
             if (item.IsTool())
             {
                 AddToolStack(item);
+                OnItemAdded?.Invoke(item);
                 return;
             }
 
             if (item.IsFluidContainer())
             {
                 AddFluidContainerStack(item);
+                OnItemAdded?.Invoke(item);
                 return;
             }
 
             if (item.IsFood())
             {
                 AddFoodStack(item);
+                OnItemAdded?.Invoke(item);
+                return;
+            }
+
+            if (item.IsMaterial())
+            {
+                AddMaterialStack(item);
+                OnItemAdded?.Invoke(item);
             }
         }
 
@@ -235,86 +297,54 @@ namespace Autonocraft.Core
                 return;
             }
 
-            int remaining = count;
-            for (int i = 0; i < 9 && remaining > 0; i++)
+            var proxy = new Inventory(StorageSlotCount + Hotbar.Length);
+            CopyToInventory(proxy);
+            proxy.OnOverflow = Notify;
+            if (!proxy.AddItem(ItemStack.CreateBlock(blockType, count)))
             {
-                if (Hotbar[i].IsBlock() && Hotbar[i].BlockType == blockType && Hotbar[i].Count < 64)
-                {
-                    int add = Math.Min(64 - Hotbar[i].Count, remaining);
-                    Hotbar[i].Count += add;
-                    remaining -= add;
-                }
+                return;
             }
 
-            for (int i = 0; i < 9 && remaining > 0; i++)
-            {
-                if (Hotbar[i].IsEmpty)
-                {
-                    int add = Math.Min(64, remaining);
-                    Hotbar[i] = ItemStack.CreateBlock(blockType, add);
-                    remaining -= add;
-                }
-            }
-
-            if (remaining > 0)
-            {
-                Notify($"Hotbar full! Lost {remaining}x {blockType}");
-            }
+            CopyFromInventory(proxy);
         }
 
         private void AddToolStack(ItemStack tool)
         {
-            for (int i = 0; i < 9; i++)
+            var proxy = new Inventory(StorageSlotCount + Hotbar.Length);
+            CopyToInventory(proxy);
+            proxy.OnOverflow = msg =>
             {
-                if (Hotbar[i].CanStackWith(tool))
-                {
-                    Hotbar[i].Count++;
-                    Console.WriteLine($"[Inventory] Added {tool.GetDisplayName()} to slot {i + 1}");
-                    return;
-                }
+                Console.WriteLine($"[Inventory] {msg}");
+                Notify(msg);
+            };
+
+            if (proxy.AddItem(tool))
+            {
+                CopyFromInventory(proxy);
+                Console.WriteLine($"[Inventory] Added {tool.GetDisplayName()}");
+                return;
             }
 
-            for (int i = 0; i < 9; i++)
-            {
-                if (Hotbar[i].IsEmpty)
-                {
-                    Hotbar[i] = tool;
-                    Console.WriteLine($"[Inventory] Added {tool.GetDisplayName()} to slot {i + 1}");
-                    return;
-                }
-            }
-
-            Console.WriteLine($"[Inventory] Hotbar full! Cannot collect {tool.GetDisplayName()}.");
-            Notify($"Hotbar full! Cannot collect {tool.GetDisplayName()}");
+            Console.WriteLine($"[Inventory] Inventory full! Cannot collect {tool.GetDisplayName()}.");
+            Notify($"Inventory full! Cannot collect {tool.GetDisplayName()}");
         }
 
         private void AddFoodStack(ItemStack food)
         {
-            int remaining = food.Count;
-            for (int i = 0; i < 9 && remaining > 0; i++)
-            {
-                if (Hotbar[i].IsFood() && Hotbar[i].FoodId == food.FoodId && Hotbar[i].Count < 64)
-                {
-                    int add = Math.Min(64 - Hotbar[i].Count, remaining);
-                    Hotbar[i].Count += add;
-                    remaining -= add;
-                }
-            }
+            var proxy = new Inventory(StorageSlotCount + Hotbar.Length);
+            CopyToInventory(proxy);
+            proxy.OnOverflow = Notify;
+            proxy.AddItem(food);
+            CopyFromInventory(proxy);
+        }
 
-            for (int i = 0; i < 9 && remaining > 0; i++)
-            {
-                if (Hotbar[i].IsEmpty)
-                {
-                    int add = Math.Min(64, remaining);
-                    Hotbar[i] = ItemStack.CreateFood(food.FoodId, add);
-                    remaining -= add;
-                }
-            }
-
-            if (remaining > 0)
-            {
-                Notify($"Hotbar full! Lost {remaining}x {food.GetDisplayName()}");
-            }
+        private void AddMaterialStack(ItemStack material)
+        {
+            var proxy = new Inventory(StorageSlotCount + Hotbar.Length);
+            CopyToInventory(proxy);
+            proxy.OnOverflow = Notify;
+            proxy.AddItem(material);
+            CopyFromInventory(proxy);
         }
 
         public void RestoreHunger(float amount)
@@ -366,18 +396,23 @@ namespace Autonocraft.Core
 
         private void AddFluidContainerStack(ItemStack container)
         {
-            for (int i = 0; i < 9; i++)
+            var proxy = new Inventory(StorageSlotCount + Hotbar.Length);
+            CopyToInventory(proxy);
+            proxy.OnOverflow = msg =>
             {
-                if (Hotbar[i].IsEmpty)
-                {
-                    Hotbar[i] = container;
-                    Console.WriteLine($"[Inventory] Added {container.GetDisplayName()} to slot {i + 1}");
-                    return;
-                }
+                Console.WriteLine($"[Inventory] {msg}");
+                Notify(msg);
+            };
+
+            if (proxy.AddItem(container))
+            {
+                CopyFromInventory(proxy);
+                Console.WriteLine($"[Inventory] Added {container.GetDisplayName()}");
+                return;
             }
 
-            Console.WriteLine($"[Inventory] Hotbar full! Cannot collect {container.GetDisplayName()}.");
-            Notify($"Hotbar full! Cannot collect {container.GetDisplayName()}");
+            Console.WriteLine($"[Inventory] Inventory full! Cannot collect {container.GetDisplayName()}.");
+            Notify($"Inventory full! Cannot collect {container.GetDisplayName()}");
         }
 
         public bool TakeDamage(float amount, out bool tookDamage)

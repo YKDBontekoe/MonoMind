@@ -11,7 +11,6 @@ namespace Autonocraft.UI
     public class DevConsole
     {
         private const int MaxLines = 100;
-        private const float TextScale = 1.2f;
 
         private readonly UiRenderer _ui;
         private readonly List<string> _lines = new();
@@ -102,8 +101,8 @@ namespace Autonocraft.UI
             if (!IsOpen) return;
 
             var layout = new UiLayout(viewport);
-            float textScale = layout.S(TextScale);
-            float lineHeight = 7f * textScale + layout.S(4f);
+            float fontSize = layout.S(UiTheme.FontSmall);
+            float lineHeight = fontSize + layout.S(4f);
             float panelH = layout.Height * 0.45f;
             float panelW = layout.Width;
             float panelX = 0f;
@@ -114,7 +113,7 @@ namespace Autonocraft.UI
                 UiTheme.PanelBgMuted * 0.92f,
                 UiTheme.Accent, 0.9f);
 
-            _ui.DrawString("DEV CONSOLE", panelX + contentPadding, panelY + layout.S(8f), layout.S(UiTheme.ScaleSection), UiTheme.Accent);
+            _ui.DrawString("Dev console", panelX + contentPadding, panelY + layout.S(8f), layout.S(UiTheme.FontSection), UiTheme.Accent);
 
             float contentX = panelX + contentPadding;
             float contentY = panelY + layout.S(32f);
@@ -131,12 +130,12 @@ namespace Autonocraft.UI
                             _lines[i].StartsWith("Usage:", StringComparison.OrdinalIgnoreCase)
                     ? UiTheme.Danger
                     : UiTheme.StatValue;
-                _ui.DrawString(_lines[i], contentX, y, textScale, color);
+                _ui.DrawString(_lines[i], contentX, y, fontSize, color);
             }
 
             float inputY = panelY + panelH - layout.S(36f);
             _ui.DrawFilledRect(contentX - 2f, inputY - layout.S(4f), contentW + 4f, layout.S(28f), UiTheme.PanelFill * 0.95f);
-            _ui.DrawString("> " + _input + "_", contentX, inputY, textScale, Color.White);
+            _ui.DrawString("> " + _input + "_", contentX, inputY, fontSize, UiTheme.Title);
         }
 
         private void SubmitInput(GameHostContext host)

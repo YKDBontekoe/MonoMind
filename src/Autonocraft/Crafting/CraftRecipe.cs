@@ -51,12 +51,19 @@ namespace Autonocraft.Crafting
         public bool RequiresUnlock { get; init; }
         public bool IsToolOutput => OutputKind == ItemKind.Tool && OutputItem != ItemId.None;
         public bool IsFoodOutput => OutputKind == ItemKind.Food && OutputItem != ItemId.None;
+        public bool IsMaterialOutput => OutputKind == ItemKind.Material && OutputItem != ItemId.None;
         public bool IsFoodInput => InputFood != ItemId.None;
         public bool RequiresHeat { get; init; }
         public bool RequiresWater { get; init; }
         public TimePhase? RequiredTimePhase { get; init; }
         public BiomeType? RequiredBiome { get; init; }
         public IReadOnlyList<BiomeType>? AllowedBiomes { get; init; }
+
+        /// <summary>Minimum grid size (2×2 player craft or 3×3 bench). Defaults to 2×2.</summary>
+        public CraftGridSize GridSize { get; init; } = CraftGridSize.TwoByTwo;
+
+        /// <summary>Optional shaped pattern rows (P=plank, L=log, S=stone, C=cobble, I=iron, G=gold).</summary>
+        public IReadOnlyList<string>? ShapedPattern { get; init; }
 
         public bool EnvironmentMatches(CraftEnvironment env)
         {
@@ -88,15 +95,48 @@ namespace Autonocraft.Crafting
             return true;
         }
 
-        public bool TryMatchInputs(IReadOnlyList<BlockType> slotTypes, out Dictionary<int, int> slotConsumption)
+        public bool TryMatchInputs(IReadOnlyList<BlockType> slotTypes, out Dictionary<int, int> slotConsumption) =>
+            TryMatchGrid(slotTypes, InferGridSize(slotTypes.Count), out slotConsumption);
+
+        public bool TryMatchGrid(IReadOnlyList<BlockType> slotTypes, int gridDimension, out Dictionary<int, int> slotConsumption) =>
+            TryMatchItemGrid(ToItemStacks(slotTypes), gridDimension, out slotConsumption);
+
+        public bool TryMatchItemGrid(IReadOnlyList<ItemStack> slots, int gridDimension, out Dictionary<int, int> slotConsumption)
+        {
+            int activeSlots = gridDimension * gridDimension;
+            if (ShapedPattern is { Count: > 0 })
+            {
+                return CraftPatternMatcher.TryMatch(ShapedPattern, gridDimension, slots, out slotConsumption);
+            }
+
+            return TryMatchShapelessItems(slots, activeSlots, out slotConsumption);
+        }
+
+        private static ItemStack[] ToItemStacks(IReadOnlyList<BlockType> slotTypes)
+        {
+            var stacks = new ItemStack[slotTypes.Count];
+            for (int i = 0; i < slotTypes.Count; i++)
+            {
+                stacks[i] = slotTypes[i] == BlockType.Air
+                    ? ItemStack.Empty
+                    : ItemStack.CreateBlock(slotTypes[i], 1);
+            }
+
+            return stacks;
+        }
+
+        private static int InferGridSize(int slotCount) =>
+            slotCount >= 9 ? 3 : 2;
+
+        private bool TryMatchShapeless(IReadOnlyList<BlockType> slotTypes, int activeSlots, out Dictionary<int, int> slotConsumption)
         {
             slotConsumption = new Dictionary<int, int>();
-            var slotUsed = new bool[slotTypes.Count];
+            var slotUsed = new bool[activeSlots];
 
             foreach (var input in Inputs)
             {
                 int needed = input.Count;
-                for (int slot = 0; slot < slotTypes.Count && needed > 0; slot++)
+                for (int slot = 0; slot < activeSlots && needed > 0; slot++)
                 {
                     if (slotUsed[slot] || slotTypes[slot] == BlockType.Air)
                     {
@@ -104,6 +144,41 @@ namespace Autonocraft.Crafting
                     }
 
                     if (!input.Matches(slotTypes[slot]))
+                    {
+                        continue;
+                    }
+
+                    slotConsumption[slot] = 1;
+                    slotUsed[slot] = true;
+                    needed--;
+                }
+
+                if (needed > 0)
+                {
+                    slotConsumption.Clear();
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private bool TryMatchShapelessItems(IReadOnlyList<ItemStack> slots, int activeSlots, out Dictionary<int, int> slotConsumption)
+        {
+            slotConsumption = new Dictionary<int, int>();
+            var slotUsed = new bool[activeSlots];
+
+            foreach (var input in Inputs)
+            {
+                int needed = input.Count;
+                for (int slot = 0; slot < activeSlots && needed > 0; slot++)
+                {
+                    if (slotUsed[slot] || slots[slot].IsEmpty)
+                    {
+                        continue;
+                    }
+
+                    if (!slots[slot].IsBlock() || !input.Matches(slots[slot].BlockType))
                     {
                         continue;
                     }

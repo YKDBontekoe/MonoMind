@@ -99,6 +99,12 @@ public static class IntegrationTestRunner
                 FluidTests.RunNoWalkOnWater(player, world);
                 FluidTests.RunWaterFillsExcavatedGap(world);
                 CraftingTests.RunNewCraftRecipes(game, player, world);
+                CraftingTests.RunPlayerCraftGrid(game, player);
+                CraftingTests.RunShapedToolBenchCraft(game, player, world);
+                CraftingTests.RunSticksCrafting(game, player);
+                CraftingTests.RunRecipeUnlockOnDiscovery(game, player);
+                CraftingTests.RunRecipeBookToolResolve(player);
+                CraftingTests.RunStorageInventory(player);
                 VillageTests.RunStarterSettlementOnNewWorld(game);
                 SurvivalTests.RunVillageRations(player, game.Session.Villages.GetPrimaryVillage()!);
                 VillageTests.RunVillageFoundAndRecruit(game);

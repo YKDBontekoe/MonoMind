@@ -244,22 +244,22 @@ namespace Autonocraft.UI
             _backdrop.Draw(_ui, viewport, alpha * 0.85f);
             UiTheme.DrawMenuScrim(_ui, viewport, alpha);
 
-            _ui.DrawFramedPanel(panelX, panelY, panelW, panelH, UiTheme.PanelFill * 0.96f, UiTheme.PanelBorder, alpha);
-            _ui.DrawCenteredTitle("SETTINGS", panelY + layout.S(16f), layout.S(1.9f), UiTheme.Title, alpha);
-            _ui.DrawHorizontalRule(panelX + layout.S(20f), panelY + layout.S(48f), panelW - layout.S(40f), UiTheme.Rule, 1f, alpha * 0.7f);
+            _ui.DrawCard(panelX, panelY, panelW, panelH, alpha, UiTheme.RadiusXl);
+            _ui.DrawCenteredTitle("Settings", panelY + layout.S(20f), layout.S(UiTheme.FontTitle), UiTheme.Title, alpha);
+            _ui.DrawHorizontalRule(panelX + layout.S(24f), panelY + layout.S(52f), panelW - layout.S(48f), UiTheme.Rule, 1f, alpha * 0.7f);
 
             float y = panelY + layout.S(72f);
-            UiTheme.DrawSectionHeader(_ui, "GRAPHICS", left, y, layout, alpha);
+            UiTheme.DrawSectionHeader(_ui, "Graphics", left, y, layout, alpha);
             y += rowH;
-            _ui.DrawString($"Render distance: {_working.RenderDistance}", left, y, layout.S(1.05f), Color.White * alpha);
+            _ui.DrawString($"Render distance: {_working.RenderDistance}", left, y, layout.S(UiTheme.FontBody), UiTheme.StatValue, alpha);
             DrawSlider(left, y + layout.S(22f), layout, alpha, SliderTarget.RenderDistance, _working.RenderDistance, GameSettings.MinRenderDistance, GameSettings.MaxRenderDistance);
             y += rowH * 1.8f;
-            _ui.DrawString($"VSync: {(_working.VSync ? "ON" : "OFF")} (click)", left, y, layout.S(1.05f), Color.White * alpha);
+            _ui.DrawString($"VSync: {(_working.VSync ? "On" : "Off")} (click)", left, y, layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha);
             y += rowH;
-            _ui.DrawString($"High quality lighting: {(_working.HighQualityLighting ? "ON" : "OFF")} (click)", left, y, layout.S(1.05f), Color.White * alpha);
+            _ui.DrawString($"High quality lighting: {(_working.HighQualityLighting ? "On" : "Off")} (click)", left, y, layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha);
 
             y += rowH * 1.6f;
-            UiTheme.DrawSectionHeader(_ui, "AUDIO", left, y, layout, alpha);
+            UiTheme.DrawSectionHeader(_ui, "Audio", left, y, layout, alpha);
             y += rowH;
             DrawVolumeSlider(left, y, layout, alpha, SliderTarget.MasterVolume, "Master", _working.MasterVolume);
             y += rowH * 1.2f;
@@ -269,14 +269,14 @@ namespace Autonocraft.UI
             y += rowH * 1.2f;
             DrawVolumeSlider(left, y, layout, alpha, SliderTarget.MusicVolume, "Music", _working.MusicVolume);
             y += rowH * 1.1f;
-            _ui.DrawString($"Mute audio: {(_working.MuteAudio ? "ON" : "OFF")} (click)", left, y, layout.S(1.05f), Color.White * alpha);
+            _ui.DrawString($"Mute audio: {(_working.MuteAudio ? "On" : "Off")} (click)", left, y, layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha);
 
             y += rowH * 1.6f;
-            UiTheme.DrawSectionHeader(_ui, "VILLAGE AI", left, y, layout, alpha);
+            UiTheme.DrawSectionHeader(_ui, "Village AI", left, y, layout, alpha);
             y += rowH;
-            _ui.DrawString($"Play with AI: {(_working.PlayWithAi ? "ON" : "OFF")} (click)", left, y, layout.S(1.05f), Color.White * alpha);
+            _ui.DrawString($"Play with AI: {(_working.PlayWithAi ? "On" : "Off")} (click)", left, y, layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha);
             y += rowH * 1.2f;
-            _ui.DrawString($"Provider: {ProviderLabel(_working.AiProvider)} (click)", left, y, layout.S(1.05f), Color.White * alpha);
+            _ui.DrawString($"Provider: {ProviderLabel(_working.AiProvider)} (click)", left, y, layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha);
 
             y += rowH * 1.4f;
             DrawField(left, y, "OpenRouter model", _openRouterModel, EditField.OpenRouterModel, layout, alpha);
@@ -288,10 +288,10 @@ namespace Autonocraft.UI
             DrawField(left, y, "llama.cpp model", _llamaCppModel, EditField.LlamaCppModel, layout, alpha);
 
             y = panelY + panelH - layout.S(52f);
-            DrawButton(cx - buttonW - layout.S(8f), y, buttonW, buttonH, "SAVE", _hoveredButton == 0, layout.S(1.4f), alpha, _buttonHoverT[0]);
-            DrawButton(cx + layout.S(8f), y, buttonW, buttonH, "BACK", _hoveredButton == 1, layout.S(1.4f), alpha, _buttonHoverT[1]);
+            DrawButton(cx - buttonW - layout.S(8f), y, buttonW, buttonH, "Save", _hoveredButton == 0, UiButtonStyle.Primary, layout, alpha, _buttonHoverT[0]);
+            DrawButton(cx + layout.S(8f), y, buttonW, buttonH, "Back", _hoveredButton == 1, UiButtonStyle.Ghost, layout, alpha, _buttonHoverT[1]);
 
-            _ui.DrawCenteredText("Run: llama-server -m model.gguf --port 8080", panelY + panelH - layout.S(18f), layout.S(0.95f), UiTheme.Hint, 0.85f * alpha);
+            _ui.DrawCenteredText("Run: llama-server -m model.gguf --port 8080", panelY + panelH - layout.S(18f), layout.S(UiTheme.FontSmall), UiTheme.Hint, 0.85f * alpha);
         }
 
         private GameSettings ApplyEditsToSettings()
@@ -367,12 +367,12 @@ namespace Autonocraft.UI
             float t = max <= min ? 0f : (value - min) / (max - min);
             float thumbX = left + t * sliderW - thumb / 2f;
             _ui.DrawProgressBar(left, sliderY - trackH / 2f, sliderW, trackH, t, string.Empty, layout.Scale, alpha);
-            _ui.DrawPanel(thumbX, sliderY - thumb / 2f, thumb, thumb, new Color(0.55f, 0.78f, 0.98f) * alpha, new Color(0.2f, 0.45f, 0.65f), 0.8f, alpha);
+            _ui.DrawPanel(thumbX, sliderY - thumb / 2f, thumb, thumb, UiTheme.SliderThumb * alpha, UiTheme.PanelBorder, 0.8f, alpha);
         }
 
         private void DrawVolumeSlider(float left, float y, UiLayout layout, float alpha, SliderTarget target, string label, float value)
         {
-            _ui.DrawString($"{label}: {MathF.Round(value * 100f)}%", left, y, layout.S(1.0f), Color.White * alpha);
+            _ui.DrawString($"{label}: {MathF.Round(value * 100f)}%", left, y, layout.S(UiTheme.FontBody), UiTheme.StatValue, alpha);
             DrawSlider(left, y + layout.S(22f), layout, alpha, target, value, 0f, 1f);
         }
 
@@ -384,9 +384,9 @@ namespace Autonocraft.UI
         private void DrawField(float x, float y, string label, string value, EditField field, UiLayout layout, float alpha)
         {
             bool active = _activeField == field;
-            _ui.DrawString(label.ToUpperInvariant(), x, y, layout.S(0.95f), UiTheme.Meta * alpha);
+            _ui.DrawString(label, x, y, layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha);
             string display = active ? value + "_" : value;
-            _ui.DrawString(display, x, y + layout.S(16f), layout.S(1.0f), (active ? new Color(0.9f, 0.95f, 1f) : Color.White) * alpha);
+            _ui.DrawString(display, x, y + layout.S(18f), layout.S(UiTheme.FontBody), active ? UiTheme.Accent : UiTheme.Title, alpha);
         }
 
         private void HandleTextInput(KeyboardState kb, KeyboardState prevKb)
@@ -496,9 +496,9 @@ namespace Autonocraft.UI
             };
         }
 
-        private void DrawButton(float x, float y, float w, float h, string label, bool hovered, float textSize, float alpha, float hoverT = 1f)
+        private void DrawButton(float x, float y, float w, float h, string label, bool hovered, UiButtonStyle style, UiLayout layout, float alpha, float hoverT = 1f)
         {
-            _ui.DrawButton(x, y, w, h, label, hovered, false, textSize, alpha, hoverT);
+            _ui.DrawButton(x, y, w, h, label, hovered, false, style, layout.S(UiTheme.FontBody), alpha, hoverT);
         }
 
         private static Rectangle GetButtonRect(float x, float y, float w, float h) => new((int)x, (int)y, (int)w, (int)h);

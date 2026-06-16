@@ -29,6 +29,8 @@ namespace Autonocraft.Domain.Items
 
         RawMeat = 50,
         CookedMeat = 51,
-        Bread = 52
+        Bread = 52,
+
+        Stick = 60
     }
 }

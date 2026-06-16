@@ -13,6 +13,8 @@ namespace Autonocraft.Engine
         private readonly VillagerNameplateRenderer _villagerNameplateRenderer;
         private Texture2D _atlasTexture;
 
+        public HudRenderer Hud => _hudRenderer;
+
         public Renderer(GraphicsDevice device, Texture2D atlas, Texture2D white, BlockTerrainEffect blockTerrainEffect, SkyEffect skyEffect, bool highQualityLighting = false)
         {
             _device = device;

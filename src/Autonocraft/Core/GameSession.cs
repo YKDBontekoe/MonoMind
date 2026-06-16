@@ -75,6 +75,7 @@ namespace Autonocraft.Core
         private void WireNotifications()
         {
             Player.ShowToast = msg => _hudToast.Show(msg);
+            Player.OnItemAdded = stack => RecipeDiscovery.OnItemAcquired(Crafting.Journal, stack);
             _blockInteraction.ShowToast = msg => _hudToast.Show(msg);
             _combatSystem.ShowToast = msg => _hudToast.Show(msg);
             Villages.ShowToast = msg => _hudToast.Show(msg);

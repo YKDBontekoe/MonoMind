@@ -7,6 +7,7 @@ namespace Autonocraft.Items
         public ItemKind Kind;
         public ItemId ToolId;
         public ItemId FoodId;
+        public ItemId MaterialId;
         public BlockType BlockType;
         public int Count;
         public int Durability;
@@ -19,7 +20,8 @@ namespace Autonocraft.Items
             (Kind == ItemKind.Block && (BlockType == BlockType.Air || Count <= 0)) ||
             (Kind == ItemKind.Tool && ToolId == ItemId.None) ||
             (Kind == ItemKind.FluidContainer && ToolId == ItemId.None) ||
-            (Kind == ItemKind.Food && FoodId == ItemId.None);
+            (Kind == ItemKind.Food && FoodId == ItemId.None) ||
+            (Kind == ItemKind.Material && MaterialId == ItemId.None);
 
         public static ItemStack CreateBlock(BlockType blockType, int count)
         {
@@ -54,7 +56,19 @@ namespace Autonocraft.Items
             };
         }
 
+        public static ItemStack CreateMaterial(ItemId materialId, int count)
+        {
+            return new ItemStack
+            {
+                Kind = ItemKind.Material,
+                MaterialId = materialId,
+                Count = count
+            };
+        }
+
         public bool IsFood() => Kind == ItemKind.Food && FoodId != ItemId.None;
+
+        public bool IsMaterial() => Kind == ItemKind.Material && MaterialId != ItemId.None;
 
         public bool IsTool() => Kind == ItemKind.Tool && ToolId != ItemId.None;
 
@@ -96,6 +110,7 @@ namespace Autonocraft.Items
                                  MaxDurability == other.MaxDurability &&
                                  Count < 64,
                 ItemKind.Food => FoodId == other.FoodId && Count < 64 && other.Count < 64,
+                ItemKind.Material => MaterialId == other.MaterialId && Count < 64 && other.Count < 64,
                 _ => false
             };
         }
@@ -125,6 +140,11 @@ namespace Autonocraft.Items
             if (IsFood())
             {
                 return FoodRegistry.GetDisplayName(FoodId);
+            }
+
+            if (IsMaterial())
+            {
+                return MaterialRegistry.GetDisplayName(MaterialId);
             }
 
             return BlockType.ToString();

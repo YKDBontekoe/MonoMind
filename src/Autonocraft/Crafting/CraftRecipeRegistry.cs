@@ -33,6 +33,17 @@ namespace Autonocraft.Crafting
                 },
                 new CraftRecipe
                 {
+                    Id = "recipe:sticks",
+                    DisplayName = "Sticks",
+                    StationType = BlockType.StationBench,
+                    ShapedPattern = new[] { "P", "P" },
+                    GridSize = CraftGridSize.TwoByTwo,
+                    OutputKind = ItemKind.Material,
+                    OutputItem = ItemId.Stick,
+                    OutputCount = 4
+                },
+                new CraftRecipe
+                {
                     Id = "recipe:sandstone",
                     DisplayName = "Sand Compression",
                     StationType = BlockType.StationBench,
@@ -41,29 +52,21 @@ namespace Autonocraft.Crafting
                     OutputCount = 1
                 },
                 ToolRecipe("recipe:wood_pickaxe", "Wood Pickaxe", BlockType.StationBench,
-                    new[] { new CraftInput { ExactBlock = BlockType.OakPlank, Count = 2 }, new CraftInput { Tag = MaterialTag.Wood, Count = 1 } },
-                    ItemId.WoodPickaxe),
+                    WoodPickPattern(), ItemId.WoodPickaxe),
                 ToolRecipe("recipe:wood_axe", "Wood Axe", BlockType.StationBench,
-                    new[] { new CraftInput { ExactBlock = BlockType.OakPlank, Count = 2 }, new CraftInput { Tag = MaterialTag.Wood, Count = 1 } },
-                    ItemId.WoodAxe),
+                    WoodAxePattern(), ItemId.WoodAxe),
                 ToolRecipe("recipe:wood_shovel", "Wood Shovel", BlockType.StationBench,
-                    new[] { new CraftInput { ExactBlock = BlockType.OakPlank, Count = 2 }, new CraftInput { Tag = MaterialTag.Wood, Count = 1 } },
-                    ItemId.WoodShovel),
+                    WoodShovelPattern(), ItemId.WoodShovel),
                 ToolRecipe("recipe:wood_sword", "Wood Sword", BlockType.StationBench,
-                    new[] { new CraftInput { ExactBlock = BlockType.OakPlank, Count = 2 }, new CraftInput { Tag = MaterialTag.Wood, Count = 1 } },
-                    ItemId.WoodSword),
+                    WoodSwordPattern(), ItemId.WoodSword),
                 ToolRecipe("recipe:stone_pickaxe", "Stone Pickaxe", BlockType.StationBench,
-                    new[] { new CraftInput { ExactBlock = BlockType.OakPlank, Count = 2 }, new CraftInput { ExactBlock = BlockType.Stone, Count = 3 } },
-                    ItemId.StonePickaxe, requiresUnlock: true),
+                    StonePickPattern(), ItemId.StonePickaxe, requiresUnlock: true),
                 ToolRecipe("recipe:stone_axe", "Stone Axe", BlockType.StationBench,
-                    new[] { new CraftInput { ExactBlock = BlockType.OakPlank, Count = 2 }, new CraftInput { ExactBlock = BlockType.Stone, Count = 3 } },
-                    ItemId.StoneAxe, requiresUnlock: true),
+                    StoneAxePattern(), ItemId.StoneAxe, requiresUnlock: true),
                 ToolRecipe("recipe:stone_shovel", "Stone Shovel", BlockType.StationBench,
-                    new[] { new CraftInput { ExactBlock = BlockType.OakPlank, Count = 2 }, new CraftInput { ExactBlock = BlockType.Stone, Count = 3 } },
-                    ItemId.StoneShovel, requiresUnlock: true),
+                    StoneShovelPattern(), ItemId.StoneShovel, requiresUnlock: true),
                 ToolRecipe("recipe:stone_sword", "Stone Sword", BlockType.StationBench,
-                    new[] { new CraftInput { ExactBlock = BlockType.OakPlank, Count = 2 }, new CraftInput { ExactBlock = BlockType.Stone, Count = 3 } },
-                    ItemId.StoneSword, requiresUnlock: true),
+                    StoneSwordPattern(), ItemId.StoneSword, requiresUnlock: true),
                 new CraftRecipe
                 {
                     Id = "recipe:bread",
@@ -109,20 +112,21 @@ namespace Autonocraft.Crafting
                     RequiredTimePhase = TimePhase.Night
                 },
                 ToolRecipe("recipe:iron_pickaxe", "Iron Pickaxe", BlockType.StationForge,
-                    new[] { new CraftInput { ExactBlock = BlockType.IronBlock, Count = 1 }, new CraftInput { ExactBlock = BlockType.OakPlank, Count = 2 } },
-                    ItemId.IronPickaxe, requiresUnlock: true, requiresHeat: true),
+                    IronPickPattern(), ItemId.IronPickaxe, requiresUnlock: true, requiresHeat: true),
                 ToolRecipe("recipe:iron_axe", "Iron Axe", BlockType.StationForge,
-                    new[] { new CraftInput { ExactBlock = BlockType.IronBlock, Count = 1 }, new CraftInput { ExactBlock = BlockType.OakPlank, Count = 2 } },
-                    ItemId.IronAxe, requiresUnlock: true, requiresHeat: true),
+                    IronAxePattern(), ItemId.IronAxe, requiresUnlock: true, requiresHeat: true),
                 ToolRecipe("recipe:iron_shovel", "Iron Shovel", BlockType.StationForge,
-                    new[] { new CraftInput { ExactBlock = BlockType.IronBlock, Count = 1 }, new CraftInput { ExactBlock = BlockType.OakPlank, Count = 2 } },
-                    ItemId.IronShovel, requiresUnlock: true, requiresHeat: true),
+                    IronShovelPattern(), ItemId.IronShovel, requiresUnlock: true, requiresHeat: true),
                 ToolRecipe("recipe:iron_sword", "Iron Sword", BlockType.StationForge,
-                    new[] { new CraftInput { ExactBlock = BlockType.IronBlock, Count = 1 }, new CraftInput { ExactBlock = BlockType.OakPlank, Count = 2 } },
-                    ItemId.IronSword, requiresUnlock: true, requiresHeat: true),
+                    IronSwordPattern(), ItemId.IronSword, requiresUnlock: true, requiresHeat: true),
                 ToolRecipe("recipe:gold_sword", "Gold Sword", BlockType.StationForge,
-                    new[] { new CraftInput { ExactBlock = BlockType.GoldBlock, Count = 1 }, new CraftInput { ExactBlock = BlockType.OakPlank, Count = 2 } },
-                    ItemId.GoldSword, requiresUnlock: true, requiresHeat: true, requiredTimePhase: TimePhase.Night),
+                    GoldSwordPattern(), ItemId.GoldSword, requiresUnlock: true, requiresHeat: true, requiredTimePhase: TimePhase.Night),
+                ToolRecipe("recipe:gold_pickaxe", "Gold Pickaxe", BlockType.StationForge,
+                    GoldPickPattern(), ItemId.GoldPickaxe, requiresUnlock: true, requiresHeat: true, requiredTimePhase: TimePhase.Night),
+                ToolRecipe("recipe:gold_axe", "Gold Axe", BlockType.StationForge,
+                    GoldAxePattern(), ItemId.GoldAxe, requiresUnlock: true, requiresHeat: true, requiredTimePhase: TimePhase.Night),
+                ToolRecipe("recipe:gold_shovel", "Gold Shovel", BlockType.StationForge,
+                    GoldShovelPattern(), ItemId.GoldShovel, requiresUnlock: true, requiresHeat: true, requiredTimePhase: TimePhase.Night),
                 new CraftRecipe
                 {
                     Id = "recipe:birch_plank",
@@ -216,6 +220,49 @@ namespace Autonocraft.Crafting
                 }
             };
         }
+
+        private static CraftRecipe ToolRecipe(
+            string id,
+            string displayName,
+            BlockType station,
+            string[] shapedPattern,
+            ItemId outputItem,
+            bool requiresUnlock = false,
+            bool requiresHeat = false,
+            TimePhase? requiredTimePhase = null)
+        {
+            return new CraftRecipe
+            {
+                Id = id,
+                DisplayName = displayName,
+                StationType = station,
+                ShapedPattern = shapedPattern,
+                GridSize = CraftGridSize.ThreeByThree,
+                OutputKind = ItemKind.Tool,
+                OutputItem = outputItem,
+                OutputCount = 1,
+                RequiresUnlock = requiresUnlock,
+                RequiresHeat = requiresHeat,
+                RequiredTimePhase = requiredTimePhase
+            };
+        }
+
+        private static string[] WoodPickPattern() => new[] { "PPP", " T ", " T " };
+        private static string[] WoodAxePattern() => new[] { "PP", "PT", " T" };
+        private static string[] WoodShovelPattern() => new[] { " P", " T", " T" };
+        private static string[] WoodSwordPattern() => new[] { " P", " P", " T" };
+        private static string[] StonePickPattern() => new[] { "SSS", " T ", " T " };
+        private static string[] StoneAxePattern() => new[] { "SS", "ST", " T" };
+        private static string[] StoneShovelPattern() => new[] { " S", " T", " T" };
+        private static string[] StoneSwordPattern() => new[] { " S", " S", " T" };
+        private static string[] IronPickPattern() => new[] { "III", " T ", " T " };
+        private static string[] IronAxePattern() => new[] { "II", "IT", " T" };
+        private static string[] IronShovelPattern() => new[] { " I", " T", " T" };
+        private static string[] IronSwordPattern() => new[] { " I", " I", " T" };
+        private static string[] GoldPickPattern() => new[] { "GGG", " T ", " T " };
+        private static string[] GoldAxePattern() => new[] { "GG", "GT", " T" };
+        private static string[] GoldShovelPattern() => new[] { " G", " T", " T" };
+        private static string[] GoldSwordPattern() => new[] { " G", " G", " T" };
 
         private static CraftRecipe ToolRecipe(
             string id,

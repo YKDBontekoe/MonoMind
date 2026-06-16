@@ -9,11 +9,11 @@ namespace Autonocraft.UI
 {
     public class DeathScreen
     {
-        private const float ButtonWidth = 220f;
-        private const float ButtonHeight = 44f;
-        private const float ButtonSpacing = 14f;
-        private const float PanelWidth = 420f;
-        private const float PanelHeight = 340f;
+        private const float ButtonWidth = 240f;
+        private const float ButtonHeight = 48f;
+        private const float ButtonSpacing = 12f;
+        private const float PanelWidth = 440f;
+        private const float PanelHeight = 360f;
 
         private readonly UiRenderer _ui;
         private readonly float[] _buttonHoverT = new float[2];
@@ -62,7 +62,7 @@ namespace Autonocraft.UI
             float buttonH = layout.S(ButtonHeight);
             float buttonSpacing = layout.S(ButtonSpacing);
             float cx = layout.CenterX;
-            float respawnY = layout.CenterY + layout.S(12f);
+            float respawnY = layout.CenterY + layout.S(20f);
             float mainMenuY = respawnY + buttonH + buttonSpacing;
 
             var respawnRect = GetButtonRect(cx, respawnY, buttonW, buttonH);
@@ -96,39 +96,40 @@ namespace Autonocraft.UI
             float panelW = layout.S(PanelWidth);
             float panelH = layout.S(PanelHeight);
 
-            _ui.DrawFullscreenBackground(new Color(0.12f, 0.02f, 0.03f) * 0.78f * alpha);
+            _ui.DrawFullscreenBackground(UiTheme.DeathScrim * 0.65f * alpha);
 
             float cx = layout.CenterX;
             float panelX = cx - panelW / 2f;
             float panelY = layout.Height * 0.2f + offsetY;
-            _ui.DrawPanel(panelX, panelY, panelW, panelH, new Color(0.08f, 0.03f, 0.04f) * 0.94f, new Color(0.45f, 0.15f, 0.18f), 0.8f, alpha);
+            _ui.DrawCard(panelX, panelY, panelW, panelH, alpha, UiTheme.RadiusXl);
+            _ui.DrawRoundedRectOutline(panelX, panelY, panelW, panelH, UiTheme.RadiusXl, UiTheme.Danger * 0.35f, 2f, alpha);
 
             float titleY = layout.Height * 0.28f + offsetY;
-            float subtitleY = titleY + layout.S(34f);
-            float respawnY = layout.CenterY + layout.S(12f) + offsetY;
+            float subtitleY = titleY + layout.S(40f);
+            float respawnY = layout.CenterY + layout.S(20f) + offsetY;
             float mainMenuY = respawnY + buttonH + buttonSpacing;
 
-            _ui.DrawCenteredText("YOU DIED", titleY, layout.S(2.4f), UiTheme.Danger, alpha);
+            _ui.DrawCenteredTitle("You died", titleY, layout.S(UiTheme.FontTitle), UiTheme.Danger, alpha);
             string subtitle = string.IsNullOrWhiteSpace(CauseText)
-                ? "YOUR ADVENTURE ISN'T OVER"
+                ? "Your adventure isn't over"
                 : CauseText!;
-            _ui.DrawCenteredText(subtitle, subtitleY, layout.S(UiTheme.ScaleSection), new Color(0.85f, 0.72f, 0.74f), alpha);
+            _ui.DrawCenteredText(subtitle, subtitleY, layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha);
             if (!string.IsNullOrWhiteSpace(PenaltyText))
             {
-                _ui.DrawCenteredText(PenaltyText!, subtitleY + layout.S(22f), layout.S(UiTheme.ScaleSmall),
-                    new Color(0.78f, 0.62f, 0.55f), alpha * 0.95f);
+                _ui.DrawCenteredText(PenaltyText!, subtitleY + layout.S(26f), layout.S(UiTheme.FontSmall),
+                    UiTheme.Meta, alpha * 0.95f);
             }
 
-            DrawButton(cx, respawnY, buttonW, buttonH, "RESPAWN", 0, layout.S(1.5f), alpha);
-            DrawButton(cx, mainMenuY, buttonW, buttonH, "MAIN MENU", 1, layout.S(1.4f), alpha);
+            DrawButton(cx, respawnY, buttonW, buttonH, "Respawn", 0, UiButtonStyle.Primary, layout, alpha);
+            DrawButton(cx, mainMenuY, buttonW, buttonH, "Main menu", 1, UiButtonStyle.Ghost, layout, alpha);
 
-            _ui.DrawCenteredText("CLICK OR PRESS ENTER TO RESPAWN", layout.Height - layout.S(28f) + offsetY, layout.S(UiTheme.ScaleSmall), new Color(0.72f, 0.65f, 0.67f), 0.85f * alpha);
+            _ui.DrawCenteredText("Press Enter to respawn", layout.Height - layout.S(28f) + offsetY, layout.S(UiTheme.FontSmall), UiTheme.Hint, 0.85f * alpha);
         }
 
-        private void DrawButton(float centerX, float y, float width, float height, string label, int buttonIndex, float textPixelSize, float alpha = 1f)
+        private void DrawButton(float centerX, float y, float width, float height, string label, int buttonIndex, UiButtonStyle style, UiLayout layout, float alpha = 1f)
         {
             float x = centerX - width / 2f;
-            _ui.DrawButton(x, y, width, height, label, _hoveredButton == buttonIndex, false, textPixelSize, alpha, _buttonHoverT[buttonIndex]);
+            _ui.DrawButton(x, y, width, height, label, _hoveredButton == buttonIndex, false, style, layout.S(UiTheme.FontBody), alpha, _buttonHoverT[buttonIndex]);
         }
 
         private static Rectangle GetButtonRect(float centerX, float y, float width, float height)

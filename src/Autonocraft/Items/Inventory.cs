@@ -51,6 +51,11 @@ namespace Autonocraft.Items
                 return AddFoodStack(item);
             }
 
+            if (item.IsMaterial())
+            {
+                return AddMaterialStack(item);
+            }
+
             return false;
         }
 
@@ -116,6 +121,11 @@ namespace Autonocraft.Items
             if (item.IsFood())
             {
                 return CountFreeSpaceForFood(item.FoodId) >= item.Count;
+            }
+
+            if (item.IsMaterial())
+            {
+                return CountFreeSpaceForMaterial(item.MaterialId) >= item.Count;
             }
 
             return HasEmptySlot();
@@ -190,6 +200,38 @@ namespace Autonocraft.Items
             return true;
         }
 
+        private bool AddMaterialStack(ItemStack material)
+        {
+            int remaining = material.Count;
+            for (int i = 0; i < _slots.Length && remaining > 0; i++)
+            {
+                if (_slots[i].IsMaterial() && _slots[i].MaterialId == material.MaterialId && _slots[i].Count < DefaultStackSize)
+                {
+                    int add = Math.Min(DefaultStackSize - _slots[i].Count, remaining);
+                    _slots[i].Count += add;
+                    remaining -= add;
+                }
+            }
+
+            for (int i = 0; i < _slots.Length && remaining > 0; i++)
+            {
+                if (_slots[i].IsEmpty)
+                {
+                    int add = Math.Min(DefaultStackSize, remaining);
+                    _slots[i] = ItemStack.CreateMaterial(material.MaterialId, add);
+                    remaining -= add;
+                }
+            }
+
+            if (remaining > 0)
+            {
+                OnOverflow?.Invoke($"Inventory full! Lost {remaining}x {material.GetDisplayName()}");
+                return false;
+            }
+
+            return true;
+        }
+
         private int CountFreeSpaceForFood(ItemId foodId)
         {
             int free = 0;
@@ -200,6 +242,24 @@ namespace Autonocraft.Items
                     free += DefaultStackSize;
                 }
                 else if (_slots[i].IsFood() && _slots[i].FoodId == foodId)
+                {
+                    free += DefaultStackSize - _slots[i].Count;
+                }
+            }
+
+            return free;
+        }
+
+        private int CountFreeSpaceForMaterial(ItemId materialId)
+        {
+            int free = 0;
+            for (int i = 0; i < _slots.Length; i++)
+            {
+                if (_slots[i].IsEmpty)
+                {
+                    free += DefaultStackSize;
+                }
+                else if (_slots[i].IsMaterial() && _slots[i].MaterialId == materialId)
                 {
                     free += DefaultStackSize - _slots[i].Count;
                 }

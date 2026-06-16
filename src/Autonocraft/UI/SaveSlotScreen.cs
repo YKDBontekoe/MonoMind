@@ -12,14 +12,23 @@ namespace Autonocraft.UI
 {
     public class SaveSlotScreen
     {
-        private const float PrimaryButtonWidth = 168f;
-        private const float SecondaryButtonWidth = 128f;
-        private const float ButtonHeight = 40f;
-        private const float ButtonSpacing = 14f;
-        private const float PanelWidth = 680f;
-        private const float PanelHeight = 440f;
-        private const float SlotRowHeight = 56f;
-        private const int MaxVisibleSlots = 5;
+        private const float ShellWidth = 920f;
+        private const float ShellHeight = 640f;
+        private const float SidebarWidth = 300f;
+        private const float SlotRowHeight = 64f;
+        private const int MaxVisibleSlots = 6;
+
+        // Vertical zones inside the main card (720p reference, scaled via UiLayout)
+        private const float LifetimeStatsPadTop = 16f;
+        private const float LifetimeStatsHeight = 56f;
+        private const float BodyTopGap = 12f;
+        private const float BodyTopOffset = LifetimeStatsPadTop + LifetimeStatsHeight + BodyTopGap;
+        private const float ActionButtonHeight = 44f;
+        private const float ActionButtonGap = 10f;
+        private const float FooterLinkHeight = 34f;
+        private const float CardBottomPad = 20f;
+        private const float DetailHeroHeight = 108f;
+        private const float DetailStatCardHeight = 50f;
         private const float DoubleClickWindow = 0.4f;
         private const int MaxRenameLength = 32;
 
@@ -228,12 +237,12 @@ namespace Autonocraft.UI
             {
                 if (_hoveredButton == 0)
                 {
-                    NewWorldRequested = true;
+                    if (_slots.Count > 0) TryRequestLoad();
                     _confirmingDelete = false;
                 }
-                else if (_hoveredButton == 1 && _slots.Count > 0)
+                else if (_hoveredButton == 1)
                 {
-                    TryRequestLoad();
+                    NewWorldRequested = true;
                     _confirmingDelete = false;
                 }
                 else if (_hoveredButton == 2 && _slots.Count > 0)
@@ -341,136 +350,118 @@ namespace Autonocraft.UI
 
             _backdrop.Draw(_ui, viewport, alpha);
 
-            float titlePulse = 0.88f + 0.12f * Tween.Pulse(_animTime, 0.3f);
-            float titleY = layout.Height * 0.085f + offsetY;
-            float subtitleY = titleY + layout.S(40f);
-            float accentY = subtitleY + layout.S(20f);
+            float titleY = layout.S(52f) + offsetY;
+            _ui.DrawCenteredTitle("Autonocraft", titleY, layout.S(UiTheme.FontHero), UiTheme.Title, alpha);
+            _ui.DrawCenteredText("Build, explore, and thrive", titleY + layout.S(46f), layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha * 0.92f);
 
-            Color titleColor = Color.Lerp(UiTheme.Subtitle, UiTheme.Title, Tween.Pulse(_animTime, 0.2f) * 0.5f);
-            _ui.DrawCenteredTitle("AUTONOCRAFT", titleY, layout.S(2.8f), titleColor * titlePulse, alpha);
-            _ui.DrawCenteredText("BUILD  EXPLORE  THRIVE", subtitleY, layout.S(UiTheme.ScaleNormal), UiTheme.Subtitle, alpha * 0.92f);
+            _ui.DrawCard(metrics.ShellX, metrics.ShellY + offsetY, metrics.ShellW, metrics.ShellH, alpha, UiTheme.RadiusXl);
 
-            float accentW = layout.S(200f) * (0.85f + 0.15f * Tween.Pulse(_animTime, 0.25f));
-            float accentX = layout.CenterX - accentW / 2f;
-            _ui.DrawSoftGlow(accentX, accentY, accentW, layout.S(2f), UiTheme.AccentGlow, alpha * 0.5f, 2);
-            _ui.DrawFilledRect(accentX, accentY, accentW, layout.S(2f), UiTheme.Accent * (0.85f * alpha));
+            DrawLifetimeCards(layout, metrics.LifetimeStatsY + offsetY, alpha);
 
-            DrawLifetimeStrip(layout, accentY, alpha, offsetY);
+            float statsRuleY = metrics.ShellY + layout.S(BodyTopOffset - 4f) + offsetY;
+            _ui.DrawFilledRect(metrics.ShellX + layout.S(20f), statsRuleY, metrics.ShellW - layout.S(40f), 1f, UiTheme.Rule * (0.7f * alpha));
 
-            _ui.DrawFramedPanel(
-                metrics.PanelX,
-                metrics.PanelY,
-                metrics.PanelW,
-                metrics.PanelH,
-                UiTheme.PanelFill * 0.94f,
-                UiTheme.PanelBorder,
-                alpha);
+            float dividerX = metrics.SidebarX + metrics.SidebarW;
+            float dividerTop = metrics.ShellY + layout.S(BodyTopOffset) + offsetY;
+            _ui.DrawFilledRect(dividerX, dividerTop, 1f, metrics.ShellH - layout.S(BodyTopOffset + 16f), UiTheme.Rule * (0.85f * alpha));
 
-            DrawPanelHeader(metrics, layout, alpha);
-            DrawWorldDetailStrip(metrics, layout, alpha);
+            DrawSidebarHeader(metrics, layout, alpha, offsetY);
             DrawSlotList(metrics, layout, alpha, offsetY);
-            DrawActionDivider(metrics, layout, alpha);
-            DrawActionButtons(metrics, layout, alpha);
+            DrawDetailPanel(metrics, layout, alpha, offsetY);
+            DrawActionButtons(metrics, layout, alpha, offsetY);
 
             if (!string.IsNullOrEmpty(_loadErrorMessage))
             {
                 float flash = 0.65f + 0.35f * MathF.Sin(_errorFlashT * MathF.PI * 4f);
                 _ui.DrawCenteredText(
-                    Truncate(_loadErrorMessage, 52),
-                    metrics.PanelY + metrics.PanelH + layout.S(14f) + offsetY,
-                    layout.S(UiTheme.ScaleNormal),
+                    Truncate(_loadErrorMessage, 64),
+                    metrics.ShellY + metrics.ShellH + layout.S(16f) + offsetY,
+                    layout.S(UiTheme.FontBody),
                     UiTheme.Danger * flash,
                     alpha);
             }
 
             string hint = _slots.Count == 0
-                ? "CREATE YOUR FIRST WORLD TO BEGIN"
+                ? "Create your first world to begin"
                 : _renaming
-                    ? "ENTER SAVE  ESC CANCEL"
-                    : "ARROWS SELECT  ENTER CONTINUE  F2 RENAME  DBL-CLICK LOAD  DEL DELETE";
-            _ui.DrawCenteredText(hint, layout.Height - layout.S(28f) + offsetY, layout.S(0.92f), UiTheme.Hint, 0.82f * alpha);
-            _ui.DrawString("VOXEL SANDBOX", layout.S(16f), layout.Height - layout.S(22f) + offsetY, layout.S(0.85f), UiTheme.Hint * 0.85f, 0.7f * alpha);
+                    ? "Enter to save · Esc to cancel"
+                    : "↑↓ select · Enter continue · F2 rename · Double-click load";
+            float hintsY = metrics.ShellY + metrics.ShellH + layout.S(string.IsNullOrEmpty(_loadErrorMessage) ? 28f : 48f) + offsetY;
+            _ui.DrawCenteredText(hint, hintsY, layout.S(UiTheme.FontSmall), UiTheme.Hint, 0.85f * alpha);
         }
 
-        private void DrawPanelHeader(MenuMetrics metrics, UiLayout layout, float alpha)
+        private void DrawLifetimeCards(UiLayout layout, float y, float alpha)
         {
-            float headerY = metrics.PanelY + layout.S(14f);
-            UiTheme.DrawSectionHeader(_ui, "YOUR WORLDS", metrics.PanelX + layout.S(22f), headerY, layout, alpha, 1.35f);
+            float cardH = layout.S(LifetimeStatsHeight);
+            float gap = layout.S(12f);
+            float cardW = layout.S(148f);
+            int cardCount = _worldCount == 0 ? 1 : 4;
+            float totalW = cardCount * cardW + (cardCount - 1) * gap;
+            float startX = layout.CenterX - totalW / 2f;
+
+            if (_worldCount == 0)
+            {
+                _ui.DrawCard(startX, y, totalW, cardH, alpha * 0.9f, UiTheme.RadiusMd);
+                _ui.DrawCenteredText("No worlds yet — start a new adventure", y + layout.S(20f), layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha);
+                return;
+            }
+
+            DrawLifetimeStatCard(startX, y, cardW, cardH, "Play time", PlayerStatistics.FormatDuration(_lifetimeStats.TotalPlayTimeSeconds), UiTheme.StatAccentTime, layout, alpha, (float)(_lifetimeStats.TotalPlayTimeSeconds / 86400.0));
+            DrawLifetimeStatCard(startX + (cardW + gap), y, cardW, cardH, "Distance", PlayerStatistics.FormatDistance(_lifetimeStats.DistanceWalked), UiTheme.StatAccentMove, layout, alpha, _lifetimeStats.DistanceWalked / 50000f);
+            DrawLifetimeStatCard(startX + (cardW + gap) * 2f, y, cardW, cardH, "Kills", PlayerStatistics.FormatCount(_lifetimeStats.AnimalsKilled), UiTheme.StatAccentCombat, layout, alpha, _lifetimeStats.AnimalsKilled / 100f);
+            DrawLifetimeStatCard(startX + (cardW + gap) * 3f, y, cardW, cardH, "Worlds", _worldCount.ToString(), UiTheme.StatAccentWorld, layout, alpha, _worldCount / 8f);
+        }
+
+        private void DrawLifetimeStatCard(float x, float y, float w, float h, string label, string value, Color accent, UiLayout layout, float alpha, float fillT)
+        {
+            _ui.DrawRoundedRect(x, y, w, h, layout.S(UiTheme.RadiusMd), UiTheme.SurfaceElevated * (0.94f * alpha));
+            _ui.DrawRoundedRectOutline(x, y, w, h, layout.S(UiTheme.RadiusMd), UiTheme.PanelBorder, 1f, 0.65f * alpha);
+
+            float accentW = layout.S(4f);
+            _ui.DrawRoundedRect(x, y, accentW, h, layout.S(3f), accent * (0.92f * alpha));
+
+            float iconSize = layout.S(8f);
+            _ui.DrawRoundedRect(x + layout.S(14f), y + layout.S(12f), iconSize, iconSize, iconSize * 0.5f, accent * (0.85f * alpha));
+
+            _ui.DrawLabel(label, x + layout.S(28f), y + layout.S(10f), layout.S(UiTheme.FontCaption), UiTheme.StatLabel, alpha: alpha);
+            _ui.DrawLabel(value, x + layout.S(14f), y + layout.S(28f), layout.S(UiTheme.FontSection), UiTheme.StatValue, semiBold: true, alpha: alpha);
+
+            float barY = y + h - layout.S(10f);
+            float barW = w - layout.S(28f);
+            float barH = layout.S(3f);
+            _ui.DrawRoundedRect(x + layout.S(14f), barY, barW, barH, barH * 0.5f, UiTheme.ProgressTrack * alpha);
+            float progress = Math.Clamp(fillT, 0.04f, 1f);
+            _ui.DrawRoundedRect(x + layout.S(14f), barY, barW * progress, barH, barH * 0.5f, accent * (0.75f * alpha));
+        }
+
+        private void DrawSidebarHeader(MenuMetrics metrics, UiLayout layout, float alpha, float offsetY)
+        {
+            float headerY = metrics.BodyTop + layout.S(8f) + offsetY;
+            UiTheme.DrawSectionHeader(_ui, "Your worlds", metrics.SidebarX + layout.S(20f), headerY, layout, alpha);
 
             if (_slots.Count > 0)
             {
-                string count = $"{_selectedIndex + 1}/{_slots.Count}";
-                float countW = _ui.MeasureString(count, layout.S(1.0f));
-                _ui.DrawString(count, metrics.PanelX + metrics.PanelW - layout.S(22f) - countW, headerY + layout.S(2f), layout.S(1.0f), UiTheme.Meta, alpha);
-
-                if (_slots.Count > MaxVisibleSlots)
-                {
-                    int first = _scrollOffset + 1;
-                    int last = Math.Min(_scrollOffset + MaxVisibleSlots, _slots.Count);
-                    string scrollHint = $"{first}-{last} OF {_slots.Count}";
-                    float hintW = _ui.MeasureString(scrollHint, layout.S(0.9f));
-                    _ui.DrawString(scrollHint, metrics.PanelX + metrics.PanelW - layout.S(22f) - hintW, headerY + layout.S(18f), layout.S(0.9f), UiTheme.Meta * 0.9f, alpha * 0.85f);
-                }
+                string count = $"{_selectedIndex + 1} of {_slots.Count}";
+                float countW = _ui.MeasureString(count, layout.S(UiTheme.FontSmall));
+                _ui.DrawString(count, metrics.SidebarX + metrics.SidebarW - layout.S(20f) - countW, headerY + layout.S(2f),
+                    layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha);
             }
-        }
-
-        private void DrawWorldDetailStrip(MenuMetrics metrics, UiLayout layout, float alpha)
-        {
-            if (_slots.Count == 0)
-            {
-                return;
-            }
-
-            float stripY = metrics.DetailStripY;
-            float stripX = metrics.PanelX + layout.S(18f);
-            float stripW = metrics.PanelW - layout.S(36f);
-            float stripH = layout.S(22f);
-
-            _ui.DrawPanel(stripX, stripY, stripW, stripH, UiTheme.PanelBgMuted * 0.9f, UiTheme.Rule, 0.6f, alpha);
-
-            if (_renaming)
-            {
-                string display = _renameBuffer + "_";
-                _ui.DrawString(display, stripX + layout.S(10f), stripY + layout.S(5f), layout.S(0.95f), UiTheme.Accent, alpha);
-                return;
-            }
-
-            string worldStats = $"THIS WORLD  ·  {PlayerStatistics.FormatDuration(_selectedWorldStats.TotalPlayTimeSeconds)}  ·  {PlayerStatistics.FormatDistance(_selectedWorldStats.DistanceWalked)}  ·  {PlayerStatistics.FormatCount(_selectedWorldStats.AnimalsKilled)} kills";
-            _ui.DrawString(worldStats, stripX + layout.S(10f), stripY + layout.S(5f), layout.S(0.92f), UiTheme.Subtitle * 0.9f, alpha * 0.88f);
         }
 
         private void DrawSlotList(MenuMetrics metrics, UiLayout layout, float alpha, float offsetY)
         {
-            float slotListX = metrics.PanelX + layout.S(18f);
-            float slotListW = metrics.PanelW - layout.S(36f);
-            float slotListTop = metrics.SlotListTop + offsetY;
+            float listX = metrics.SidebarX + layout.S(14f);
+            float listW = metrics.SidebarW - layout.S(28f);
+            float listTop = metrics.SlotListTop + offsetY;
             float rowH = layout.S(SlotRowHeight);
-            float slotListHeight = rowH * MaxVisibleSlots;
+            float listHeight = rowH * MaxVisibleSlots;
             float slideOffset = (1f - _scrollOffsetT) * layout.S(6f);
-
-            _ui.DrawPanel(slotListX, slotListTop, slotListW, slotListHeight, UiTheme.PanelBgMuted * 0.96f, UiTheme.Rule, 0.75f, alpha);
-
-            if (_slots.Count > MaxVisibleSlots)
-            {
-                if (_scrollOffset > 0)
-                {
-                    _ui.DrawFilledRect(slotListX, slotListTop, slotListW, layout.S(10f), Color.Black * (0.35f * alpha));
-                    _ui.DrawCenteredText("^", slotListTop + layout.S(1f), layout.S(UiTheme.ScaleSmall), UiTheme.Accent * 0.7f, alpha * 0.75f);
-                }
-
-                if (_scrollOffset < _slots.Count - MaxVisibleSlots)
-                {
-                    _ui.DrawFilledRect(slotListX, slotListTop + slotListHeight - layout.S(10f), slotListW, layout.S(10f), Color.Black * (0.35f * alpha));
-                    _ui.DrawCenteredText("V", slotListTop + slotListHeight - layout.S(9f), layout.S(UiTheme.ScaleSmall), UiTheme.Accent * 0.7f, alpha * 0.75f);
-                }
-            }
 
             if (_slots.Count == 0)
             {
-                float emptyY = slotListTop + slotListHeight / 2f - layout.S(24f);
-                _ui.DrawCenteredText("NO SAVED WORLDS YET", emptyY, layout.S(UiTheme.ScaleSection), UiTheme.Subtitle, alpha);
-                float pulse = 0.55f + 0.45f * Tween.Pulse(_animTime, 0.45f);
-                _ui.DrawCenteredText("HIT NEW WORLD TO START", emptyY + layout.S(30f), layout.S(UiTheme.ScaleNormal), UiTheme.Accent * pulse, alpha);
+                float emptyY = listTop + listHeight / 2f - layout.S(20f);
+                _ui.DrawString("No saved worlds", listX, emptyY, layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha);
+                _ui.DrawString("Create one on the right →", listX, emptyY + layout.S(24f), layout.S(UiTheme.FontSmall), UiTheme.Accent, alpha);
                 return;
             }
 
@@ -480,161 +471,244 @@ namespace Autonocraft.UI
                 if (slotIndex >= _slots.Count) break;
 
                 var slot = _slots[slotIndex];
-                float rowY = slotListTop + i * rowH + layout.S(4f) + slideOffset;
+                float rowY = listTop + i * rowH + slideOffset;
                 bool selected = slotIndex == _selectedIndex;
                 float hoverBlend = _slotHoverT[i];
-                float staggerDelay = i * 0.04f;
-                float staggerT = Math.Clamp((_animTime - staggerDelay) / 0.2f, 0f, 1f);
-                float rowAlpha = alpha * Tween.EaseOut(staggerT);
+                float rowAlpha = alpha;
 
-                Color baseColor = UiTheme.PanelBgMuted;
-                Color hoverColor = UiTheme.PanelBgHighlight;
-                Color selectedColor = Color.Lerp(UiTheme.PanelBgMuted, UiTheme.PanelBgHighlight, _selectedBorderT);
-                Color rowColor = Color.Lerp(
-                    selected ? selectedColor : baseColor,
-                    hoverColor,
-                    hoverBlend * (selected ? 0.35f : 0.85f));
+                Color fill = selected
+                    ? Color.Lerp(UiTheme.AccentSoft, UiTheme.PanelBgHighlight, _selectedBorderT)
+                    : Color.Lerp(UiTheme.PanelBgMuted, UiTheme.PanelBgHighlight, hoverBlend * 0.75f);
 
-                float rowX = slotListX + layout.S(6f);
-                float rowW = slotListW - layout.S(12f);
+                float rowW = listW;
                 float rowInnerH = rowH - layout.S(8f);
+                float radius = layout.S(UiTheme.RadiusMd);
 
+                _ui.DrawRoundedRect(listX, rowY, rowW, rowInnerH, radius, fill * rowAlpha);
                 if (selected)
                 {
-                    _ui.DrawSoftGlow(rowX, rowY, rowW, rowInnerH, UiTheme.AccentGlow, rowAlpha * 0.35f, 2);
+                    _ui.DrawRoundedRectOutline(listX, rowY, rowW, rowInnerH, radius, UiTheme.Accent, 2f, 0.9f * rowAlpha);
+                }
+                else if (hoverBlend > 0.01f)
+                {
+                    _ui.DrawRoundedRectOutline(listX, rowY, rowW, rowInnerH, radius, UiTheme.PanelBorder, 1f, 0.5f * rowAlpha);
                 }
 
-                _ui.DrawPanel(rowX, rowY, rowW, rowInnerH, rowColor, selected ? UiTheme.Accent : UiTheme.Rule, selected ? 0.95f : 0.55f, rowAlpha);
-
+                float accentBarW = layout.S(4f);
                 if (selected)
                 {
-                    _ui.DrawFilledRect(rowX, rowY, layout.S(4f), rowInnerH, UiTheme.Accent * rowAlpha);
+                    _ui.DrawRoundedRect(listX, rowY, accentBarW, rowInnerH, layout.S(3f), UiTheme.Accent * rowAlpha);
                 }
 
-                float swatch = layout.S(22f);
-                float swatchX = rowX + layout.S(12f);
+                float swatch = layout.S(36f);
+                float swatchX = listX + layout.S(14f);
                 float swatchY = rowY + (rowInnerH - swatch) / 2f;
-                Color swatchColor = slot.IsCorrupt ? UiTheme.Danger : SeedToColor(slot.Seed);
-                _ui.DrawPanel(swatchX, swatchY, swatch, swatch, swatchColor, Color.Black * 0.4f, 0.5f, rowAlpha);
-                _ui.DrawFilledRect(swatchX, swatchY, swatch, Math.Max(1f, swatch * 0.22f), Color.Lerp(swatchColor, Color.White, 0.35f) * rowAlpha);
-
-                float textX = swatchX + swatch + layout.S(10f);
-                string title = Truncate(slot.SlotName, 20);
-                string meta = slot.IsCorrupt ? "CORRUPT SAVE" : $"SEED {slot.Seed}  {FormatRelative(slot.SavedAt)}";
-                Color titleColor = slot.IsCorrupt ? UiTheme.Danger : UiTheme.Title;
-                _ui.DrawString(title, textX, rowY + layout.S(9f), layout.S(UiTheme.ScaleNormal), titleColor, rowAlpha);
-                _ui.DrawString(meta, textX, rowY + layout.S(27f), layout.S(UiTheme.ScaleSmall), UiTheme.Meta, rowAlpha * 0.95f);
-
-                if (selected)
+                if (slot.IsCorrupt)
                 {
-                    string marker = ">";
-                    _ui.DrawString(marker, rowX + rowW - layout.S(18f), rowY + rowInnerH / 2f - layout.S(5f), layout.S(UiTheme.ScaleNormal), UiTheme.Accent, rowAlpha * _selectedBorderT);
+                    _ui.DrawRoundedRect(swatchX, swatchY, swatch, swatch, layout.S(8f), UiTheme.DangerSoft * rowAlpha);
+                    _ui.DrawRoundedRectOutline(swatchX, swatchY, swatch, swatch, layout.S(8f), UiTheme.Danger, 1.5f, 0.8f * rowAlpha);
                 }
+                else
+                {
+                    var thumbnail = _ui.WorldThumbnails.GetThumbnail(slot.Seed);
+                    _ui.DrawThumbnailFrame(thumbnail, swatchX, swatchY, swatch, rowAlpha, layout.S(8f));
+                }
+
+                float textX = swatchX + swatch + layout.S(12f);
+                string title = Truncate(slot.SlotName, 18);
+                string meta = slot.IsCorrupt ? "Corrupt save" : $"Seed {slot.Seed} · {FormatRelative(slot.SavedAt)}";
+                Color titleColor = slot.IsCorrupt ? UiTheme.Danger : UiTheme.Title;
+                _ui.DrawString(title, textX, rowY + layout.S(10f), layout.S(UiTheme.FontBody), titleColor, rowAlpha, semiBold: selected);
+                _ui.DrawString(meta, textX, rowY + layout.S(30f), layout.S(UiTheme.FontSmall), UiTheme.Meta, rowAlpha * 0.95f);
+            }
+
+            if (_slots.Count > MaxVisibleSlots)
+            {
+                string scrollHint = $"Showing {_scrollOffset + 1}–{Math.Min(_scrollOffset + MaxVisibleSlots, _slots.Count)}";
+                _ui.DrawString(scrollHint, listX, listTop + listHeight + layout.S(4f), layout.S(UiTheme.FontCaption), UiTheme.Hint, alpha * 0.85f);
             }
         }
 
-        private void DrawActionDivider(MenuMetrics metrics, UiLayout layout, float alpha)
+        private void DrawDetailPanel(MenuMetrics metrics, UiLayout layout, float alpha, float offsetY)
         {
-            float y = metrics.PanelY + metrics.PanelH - layout.S(118f);
-            float x = metrics.PanelX + layout.S(22f);
-            float w = metrics.PanelW - layout.S(44f);
-            _ui.DrawHorizontalRule(x, y, w, UiTheme.Rule, 1f, alpha * 0.65f);
-        }
+            float panelX = metrics.DetailX + layout.S(24f);
+            float panelY = metrics.BodyTop + layout.S(8f) + offsetY;
+            float panelW = metrics.DetailW - layout.S(48f);
 
-        private void DrawActionButtons(MenuMetrics metrics, UiLayout layout, float alpha)
-        {
-            string deleteLabel = _confirmingDelete ? "CONFIRM?" : "DELETE";
-            bool hasSlots = _slots.Count > 0;
-
-            DrawButton(metrics.ButtonRects[0], "NEW WORLD", _hoveredButton == 0, layout.S(1.35f), _buttonHoverT[0], alpha, primary: true);
-            DrawButton(metrics.ButtonRects[1], "CONTINUE", _hoveredButton == 1, layout.S(1.35f), _buttonHoverT[1], alpha, !hasSlots, accent: hasSlots);
-            DrawButton(metrics.ButtonRects[2], deleteLabel, _hoveredButton == 2, layout.S(1.2f), _buttonHoverT[2], alpha, !hasSlots, danger: _confirmingDelete);
-            DrawButton(metrics.ButtonRects[3], "STATS", _hoveredButton == 3, layout.S(1.2f), _buttonHoverT[3], alpha, !hasSlots, accent: hasSlots);
-            DrawButton(metrics.ButtonRects[4], "SETTINGS", _hoveredButton == 4, layout.S(1.2f), _buttonHoverT[4], alpha);
-            DrawButton(metrics.ButtonRects[5], "QUIT", _hoveredButton == 5, layout.S(1.25f), _buttonHoverT[5], alpha);
-        }
-
-        private void DrawLifetimeStrip(UiLayout layout, float accentY, float alpha, float offsetY)
-        {
-            float stripY = accentY + layout.S(14f) + offsetY;
-            float stripW = layout.S(620f);
-            float stripH = layout.S(24f);
-            float stripX = layout.CenterX - stripW / 2f;
-
-            _ui.DrawFramedPanel(stripX, stripY, stripW, stripH, UiTheme.PanelFill * 0.88f, UiTheme.PanelBorder, alpha * 0.75f);
-
-            string lifetimeText = _worldCount == 0
-                ? "LIFETIME  |  NO WORLDS YET"
-                : $"LIFETIME  |  {PlayerStatistics.FormatDuration(_lifetimeStats.TotalPlayTimeSeconds)} played  |  {PlayerStatistics.FormatDistance(_lifetimeStats.DistanceWalked)} walked  |  {PlayerStatistics.FormatCount(_lifetimeStats.AnimalsKilled)} kills  |  {_worldCount} worlds";
-
-            _ui.DrawCenteredText(lifetimeText, stripY + layout.S(5f), layout.S(0.92f), UiTheme.Subtitle, alpha * 0.92f);
-        }
-
-        private void DrawButton(Rectangle rect, string label, bool hovered, float textSize, float hoverT, float alpha, bool disabled = false, bool accent = false, bool danger = false, bool primary = false)
-        {
-            if (disabled)
+            if (_slots.Count == 0)
             {
-                _ui.DrawButton(rect.X, rect.Y, rect.Width, rect.Height, label, false, false, textSize, alpha * 0.45f, 0f);
+                _ui.DrawLabel("Welcome", panelX, panelY, layout.S(UiTheme.FontTitle), UiTheme.Title, semiBold: true, alpha: alpha);
+                _ui.DrawLabel("Start a fresh world and shape the landscape block by block.", panelX, panelY + layout.S(36f),
+                    layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha: alpha * 0.9f);
+                _ui.DrawRoundedRect(panelX, panelY + layout.S(88f), panelW, layout.S(120f), layout.S(UiTheme.RadiusMd),
+                    UiTheme.PanelBgAccent * (0.85f * alpha));
+                _ui.DrawCenteredText("Your first world preview will appear here", panelY + layout.S(140f),
+                    layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha * 0.9f);
                 return;
             }
 
-            if (primary)
+            var slot = _slots[_selectedIndex];
+            string worldTitle = _renaming ? _renameBuffer + "|" : slot.SlotName;
+            _ui.DrawLabel(worldTitle, panelX, panelY, layout.S(UiTheme.FontTitle), slot.IsCorrupt ? UiTheme.Danger : UiTheme.Title, semiBold: true, alpha: alpha);
+
+            string biomeSummary = string.Empty;
+            float metaY = panelY + layout.S(36f);
+            if (slot.IsCorrupt)
             {
-                float glow = 0.45f + 0.55f * hoverT;
-                _ui.DrawFilledRect(rect.X - 1, rect.Y - 1, rect.Width + 2, rect.Height + 2, new Color(0.15f, 0.55f, 0.35f) * (0.2f * glow * alpha));
+                _ui.DrawLabel("This save could not be read", panelX, metaY, layout.S(UiTheme.FontBody), UiTheme.Danger, alpha: alpha * 0.9f);
+            }
+            else
+            {
+                biomeSummary = _ui.WorldThumbnails.GetBiomeSummary(slot.Seed);
+                string seedText = $"Seed {slot.Seed}";
+                float seedFont = layout.S(UiTheme.FontSmall);
+                _ui.DrawLabel(seedText, panelX, metaY, seedFont, UiTheme.Subtitle, alpha: alpha * 0.92f);
+                float chipX = panelX + _ui.MeasureString(seedText, seedFont) + layout.S(12f);
+                DrawMetaChip(chipX, metaY - layout.S(2f), biomeSummary, UiTheme.StatAccentExplore, layout, alpha);
+                _ui.DrawLabel(FormatLastPlayed(slot.SavedAt), panelX, metaY + layout.S(22f), layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha: alpha * 0.95f);
             }
 
-            if (accent && !disabled)
+            float heroY = panelY + layout.S(68f);
+            float heroH = layout.S(DetailHeroHeight);
+            if (slot.IsCorrupt)
             {
-                float glow = 0.5f + 0.5f * hoverT;
-                _ui.DrawSoftGlow(rect.X, rect.Y, rect.Width, rect.Height, new Color(0.12f, 0.55f, 0.88f), 0.35f * glow * alpha, 2);
+                _ui.DrawRoundedRect(panelX, heroY, panelW, heroH, layout.S(UiTheme.RadiusMd), UiTheme.DangerSoft * (0.75f * alpha));
+                _ui.DrawRoundedRectOutline(panelX, heroY, panelW, heroH, layout.S(UiTheme.RadiusMd), UiTheme.Danger, 1.5f, 0.7f * alpha);
+                _ui.DrawCenteredText("Save data unavailable", heroY + heroH * 0.42f, layout.S(UiTheme.FontBody), UiTheme.Danger, alpha);
+            }
+            else
+            {
+                var heroTexture = _ui.WorldThumbnails.GetThumbnail(slot.Seed);
+                _ui.DrawTexture(heroTexture, panelX, heroY, panelW, heroH, alpha);
+                _ui.DrawRoundedRectOutline(panelX, heroY, panelW, heroH, layout.S(UiTheme.RadiusMd), UiTheme.PanelBorder, 1.5f, 0.85f * alpha);
+                _ui.DrawFilledRect(panelX, heroY + heroH - layout.S(36f), panelW, layout.S(36f), new Color(0.08f, 0.10f, 0.14f) * (0.35f * alpha));
+                _ui.DrawLabel(biomeSummary, panelX + layout.S(12f), heroY + heroH - layout.S(28f),
+                    layout.S(UiTheme.FontSmall), Color.White, semiBold: true, alpha: alpha * 0.95f);
             }
 
-            if (danger)
-            {
-                _ui.DrawSoftGlow(rect.X, rect.Y, rect.Width, rect.Height, new Color(0.85f, 0.2f, 0.2f), 0.4f * alpha, 2);
-            }
+            float gridY = heroY + heroH + layout.S(14f);
+            float cardGap = layout.S(10f);
+            float cardW = (panelW - cardGap) / 2f;
+            float cardH = layout.S(DetailStatCardHeight);
 
-            _ui.DrawButton(rect.X, rect.Y, rect.Width, rect.Height, label, hovered && !disabled, false, textSize, alpha, hoverT);
+            DrawWorldDetailCard(panelX, gridY, cardW, cardH, "Play time",
+                PlayerStatistics.FormatDuration(_selectedWorldStats.TotalPlayTimeSeconds),
+                UiTheme.StatAccentTime, layout, alpha, (float)(_selectedWorldStats.TotalPlayTimeSeconds / Math.Max(1.0, _lifetimeStats.TotalPlayTimeSeconds)));
+            DrawWorldDetailCard(panelX + cardW + cardGap, gridY, cardW, cardH, "Distance",
+                PlayerStatistics.FormatDistance(_selectedWorldStats.DistanceWalked),
+                UiTheme.StatAccentMove, layout, alpha, (float)(_selectedWorldStats.DistanceWalked / Math.Max(1.0, _lifetimeStats.DistanceWalked)));
+            DrawWorldDetailCard(panelX, gridY + cardH + cardGap, cardW, cardH, "Defeated",
+                PlayerStatistics.FormatCount(_selectedWorldStats.AnimalsKilled),
+                UiTheme.StatAccentCombat, layout, alpha, (float)(_selectedWorldStats.AnimalsKilled / Math.Max(1.0, _lifetimeStats.AnimalsKilled)));
+            DrawWorldDetailCard(panelX + cardW + cardGap, gridY + cardH + cardGap, cardW, cardH, "Sessions",
+                PlayerStatistics.FormatCount(_selectedWorldStats.SessionCount),
+                UiTheme.StatAccentWorld, layout, alpha, (float)(_selectedWorldStats.SessionCount / Math.Max(1.0, _lifetimeStats.SessionCount)));
+        }
+
+        private void DrawMetaChip(float x, float y, string label, Color accent, UiLayout layout, float alpha)
+        {
+            float padX = layout.S(10f);
+            float padY = layout.S(4f);
+            float textW = _ui.MeasureString(label, layout.S(UiTheme.FontCaption));
+            float chipW = textW + padX * 2f;
+            float chipH = layout.S(18f);
+            _ui.DrawRoundedRect(x, y, chipW, chipH, chipH * 0.5f, accent * (0.14f * alpha));
+            _ui.DrawRoundedRectOutline(x, y, chipW, chipH, chipH * 0.5f, accent * (0.45f * alpha), 1f, alpha);
+            _ui.DrawLabel(label, x + padX, y + padY, layout.S(UiTheme.FontCaption), accent, semiBold: true, alpha: alpha * 0.95f);
+        }
+
+        private void DrawWorldDetailCard(float x, float y, float w, float h, string label, string value, Color accent, UiLayout layout, float alpha, float fillT)
+        {
+            _ui.DrawRoundedRect(x, y, w, h, layout.S(UiTheme.RadiusSm), UiTheme.PanelBgMuted * (0.92f * alpha));
+            _ui.DrawRoundedRectOutline(x, y, w, h, layout.S(UiTheme.RadiusSm), UiTheme.PanelBorder, 1f, 0.55f * alpha);
+            _ui.DrawRoundedRect(x, y, layout.S(3f), h, layout.S(2f), accent * (0.9f * alpha));
+            _ui.DrawLabel(label, x + layout.S(12f), y + layout.S(10f), layout.S(UiTheme.FontCaption), UiTheme.StatLabel, alpha: alpha);
+            _ui.DrawLabel(value, x + layout.S(12f), y + layout.S(26f), layout.S(UiTheme.FontBody), UiTheme.StatValue, semiBold: true, alpha: alpha);
+
+            float barY = y + h - layout.S(8f);
+            float barW = w - layout.S(24f);
+            float barH = layout.S(2f);
+            _ui.DrawRoundedRect(x + layout.S(12f), barY, barW, barH, barH, UiTheme.ProgressTrack * alpha);
+            _ui.DrawRoundedRect(x + layout.S(12f), barY, barW * Math.Clamp(fillT, 0.05f, 1f), barH, barH, accent * (0.7f * alpha));
+        }
+
+        private void DrawActionButtons(MenuMetrics metrics, UiLayout layout, float alpha, float offsetY)
+        {
+            bool hasSlots = _slots.Count > 0;
+            string deleteLabel = _confirmingDelete ? "Confirm delete?" : "Delete world";
+
+            DrawStyledButton(metrics.ButtonRects[0], "Continue", 0, layout, alpha, offsetY, UiButtonStyle.Primary, !hasSlots);
+            DrawStyledButton(metrics.ButtonRects[1], "New world", 1, layout, alpha, offsetY, UiButtonStyle.Secondary);
+            DrawStyledButton(metrics.ButtonRects[2], deleteLabel, 2, layout, alpha, offsetY, UiButtonStyle.Danger, !hasSlots);
+            DrawStyledButton(metrics.ButtonRects[3], "Statistics", 3, layout, alpha, offsetY, UiButtonStyle.Ghost, !hasSlots);
+            DrawStyledButton(metrics.ButtonRects[4], "Settings", 4, layout, alpha, offsetY, UiButtonStyle.Ghost);
+            DrawStyledButton(metrics.ButtonRects[5], "Quit", 5, layout, alpha, offsetY, UiButtonStyle.Ghost);
+        }
+
+        private void DrawStyledButton(Rectangle rect, string label, int index, UiLayout layout, float alpha, float offsetY, UiButtonStyle style, bool disabled = false)
+        {
+            _ui.DrawButton(
+                rect.X,
+                rect.Y + offsetY,
+                rect.Width,
+                rect.Height,
+                label,
+                _hoveredButton == index && !disabled,
+                false,
+                style,
+                layout.S(UiTheme.FontBody),
+                alpha,
+                _buttonHoverT[index],
+                disabled);
         }
 
         private MenuMetrics ComputeLayout(UiLayout layout)
         {
-            float panelW = layout.S(PanelWidth);
-            float panelH = layout.S(PanelHeight);
-            float panelX = layout.CenterX - panelW / 2f;
-            float panelY = layout.Height * 0.235f;
+            float shellW = layout.S(ShellWidth);
+            float shellH = layout.S(ShellHeight);
+            float shellX = layout.CenterX - shellW / 2f;
+            float shellY = layout.Height * 0.20f;
 
-            float primaryW = layout.S(PrimaryButtonWidth);
-            float secondaryW = layout.S(SecondaryButtonWidth);
-            float buttonH = layout.S(ButtonHeight);
-            float spacing = layout.S(ButtonSpacing);
-            float rowGap = layout.S(18f);
+            float sidebarW = layout.S(SidebarWidth);
+            float sidebarX = shellX;
+            float detailX = shellX + sidebarW;
+            float detailW = shellW - sidebarW;
+            float bodyTop = shellY + layout.S(BodyTopOffset);
+            float lifetimeStatsY = shellY + layout.S(LifetimeStatsPadTop);
 
-            float row1Y = panelY + panelH - layout.S(112f);
-            float row2Y = row1Y + buttonH + rowGap;
-            float row1TotalW = primaryW * 2f + secondaryW + spacing * 2f;
-            float row1X = layout.CenterX - row1TotalW / 2f;
+            float buttonH = layout.S(ActionButtonHeight);
+            float buttonGap = layout.S(ActionButtonGap);
+            float footerH = layout.S(FooterLinkHeight);
+            float detailPadX = detailX + layout.S(24f);
+            float buttonW = detailW - layout.S(48f);
+            float ghostW = (buttonW - buttonGap * 2f) / 3f;
+
+            float footerRowY = shellY + shellH - layout.S(CardBottomPad) - footerH;
+            float deleteY = footerRowY - buttonGap - buttonH;
+            float newWorldY = deleteY - buttonGap - buttonH;
+            float continueY = newWorldY - buttonGap - buttonH;
 
             var buttons = new Rectangle[6];
-            buttons[0] = new Rectangle((int)row1X, (int)row1Y, (int)primaryW, (int)buttonH);
-            buttons[1] = new Rectangle((int)(row1X + primaryW + spacing), (int)row1Y, (int)primaryW, (int)buttonH);
-            buttons[2] = new Rectangle((int)(row1X + (primaryW + spacing) * 2f), (int)row1Y, (int)secondaryW, (int)buttonH);
-
-            float row2TotalW = primaryW * 2f + secondaryW + spacing * 2f;
-            float row2X = layout.CenterX - row2TotalW / 2f;
-            buttons[3] = new Rectangle((int)row2X, (int)row2Y, (int)primaryW, (int)buttonH);
-            buttons[4] = new Rectangle((int)(row2X + primaryW + spacing), (int)row2Y, (int)primaryW, (int)buttonH);
-            buttons[5] = new Rectangle((int)(row2X + (primaryW + spacing) * 2f), (int)row2Y, (int)secondaryW, (int)buttonH);
+            buttons[0] = new Rectangle((int)detailPadX, (int)continueY, (int)buttonW, (int)buttonH);
+            buttons[1] = new Rectangle((int)detailPadX, (int)newWorldY, (int)buttonW, (int)buttonH);
+            buttons[2] = new Rectangle((int)detailPadX, (int)deleteY, (int)buttonW, (int)buttonH);
+            buttons[3] = new Rectangle((int)detailPadX, (int)footerRowY, (int)ghostW, (int)footerH);
+            buttons[4] = new Rectangle((int)(detailPadX + ghostW + buttonGap), (int)footerRowY, (int)ghostW, (int)footerH);
+            buttons[5] = new Rectangle((int)(detailPadX + (ghostW + buttonGap) * 2f), (int)footerRowY, (int)ghostW, (int)footerH);
 
             return new MenuMetrics
             {
-                PanelX = panelX,
-                PanelY = panelY,
-                PanelW = panelW,
-                PanelH = panelH,
-                DetailStripY = panelY + layout.S(52f),
-                SlotListTop = panelY + layout.S(80f),
+                ShellX = shellX,
+                ShellY = shellY,
+                ShellW = shellW,
+                ShellH = shellH,
+                SidebarX = sidebarX,
+                SidebarW = sidebarW,
+                DetailX = detailX,
+                DetailW = detailW,
+                BodyTop = bodyTop,
+                LifetimeStatsY = lifetimeStatsY,
+                SlotListTop = bodyTop + layout.S(42f),
                 ButtonRects = buttons
             };
         }
@@ -719,12 +793,12 @@ namespace Autonocraft.UI
         {
             if (_slots.Count == 0) return -1;
 
-            float slotListX = metrics.PanelX + layout.S(18f);
-            float slotListW = metrics.PanelW - layout.S(36f);
+            float listX = metrics.SidebarX + layout.S(14f);
+            float listW = metrics.SidebarW - layout.S(28f);
             float rowH = layout.S(SlotRowHeight);
-            float slotListHeight = rowH * MaxVisibleSlots;
+            float listHeight = rowH * MaxVisibleSlots;
 
-            var listRect = new Rectangle((int)slotListX, (int)metrics.SlotListTop, (int)slotListW, (int)slotListHeight);
+            var listRect = new Rectangle((int)listX, (int)metrics.SlotListTop, (int)listW, (int)listHeight);
             if (!listRect.Contains(mouseX, mouseY)) return -1;
 
             int row = (int)((mouseY - metrics.SlotListTop) / rowH);
@@ -760,23 +834,24 @@ namespace Autonocraft.UI
             }
         }
 
-        private static Color SeedToColor(int seed)
+        private static string FormatLastPlayed(DateTime savedAt)
         {
-            uint hash = (uint)seed * 2654435761u;
-            float r = ((hash >> 16) & 0xFF) / 255f;
-            float g = ((hash >> 8) & 0xFF) / 255f;
-            float b = (hash & 0xFF) / 255f;
-            return new Color(0.25f + r * 0.55f, 0.25f + g * 0.55f, 0.25f + b * 0.55f);
+            var diff = DateTime.UtcNow - savedAt.ToUniversalTime();
+            if (diff.TotalMinutes < 1) return "Last played just now";
+            if (diff.TotalHours < 1) return $"Last played {(int)diff.TotalMinutes}m ago";
+            if (diff.TotalDays < 1) return $"Last played {(int)diff.TotalHours}h ago";
+            if (diff.TotalDays < 7) return $"Last played {(int)diff.TotalDays}d ago";
+            return $"Last played {savedAt.ToLocalTime():MMM d, yyyy}";
         }
 
         private static string FormatRelative(DateTime savedAt)
         {
             var diff = DateTime.UtcNow - savedAt.ToUniversalTime();
-            if (diff.TotalMinutes < 1) return "JUST NOW";
-            if (diff.TotalHours < 1) return $"{(int)diff.TotalMinutes}M AGO";
-            if (diff.TotalDays < 1) return $"{(int)diff.TotalHours}H AGO";
-            if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}D AGO";
-            return savedAt.ToLocalTime().ToString("MMM dd").ToUpperInvariant();
+            if (diff.TotalMinutes < 1) return "just now";
+            if (diff.TotalHours < 1) return $"{(int)diff.TotalMinutes}m ago";
+            if (diff.TotalDays < 1) return $"{(int)diff.TotalHours}h ago";
+            if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
+            return savedAt.ToLocalTime().ToString("MMM d");
         }
 
         private static string Truncate(string value, int maxLength)
@@ -787,11 +862,16 @@ namespace Autonocraft.UI
 
         private readonly struct MenuMetrics
         {
-            public float PanelX { get; init; }
-            public float PanelY { get; init; }
-            public float PanelW { get; init; }
-            public float PanelH { get; init; }
-            public float DetailStripY { get; init; }
+            public float ShellX { get; init; }
+            public float ShellY { get; init; }
+            public float ShellW { get; init; }
+            public float ShellH { get; init; }
+            public float SidebarX { get; init; }
+            public float SidebarW { get; init; }
+            public float DetailX { get; init; }
+            public float DetailW { get; init; }
+            public float BodyTop { get; init; }
+            public float LifetimeStatsY { get; init; }
             public float SlotListTop { get; init; }
             public Rectangle[] ButtonRects { get; init; }
         }
