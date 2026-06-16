@@ -512,11 +512,6 @@ namespace Autonocraft.Core
 
         private void PrepareNewWorldSettlement()
         {
-            _session.Grid.UpdateChunksAround(
-                null,
-                new Vector3(_worldSpawnX + 0.5f, 64f, _worldSpawnZ + 0.5f),
-                2);
-
             _session.Villages.EnsureStarterSettlement(_session.Grid, _worldSpawnX, _worldSpawnZ);
             _session.PlacePlayerOnSurface(_worldSpawnX, _worldSpawnZ);
             SyncCameraFromPlayer();

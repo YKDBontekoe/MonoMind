@@ -41,6 +41,11 @@ namespace Autonocraft.Engine
             _effect.FogEnd = fogEnd;
         }
 
+        public void SetAlpha(float alpha)
+        {
+            _effect.Alpha = alpha;
+        }
+
         public void ApplyTerrainPassBase(
             Matrix world,
             Matrix view,

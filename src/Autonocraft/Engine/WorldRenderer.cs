@@ -50,7 +50,13 @@ namespace Autonocraft.Engine
         private Vector3 _currentMoonColor;
         private float _currentFogMultiplier = 1.0f;
         private bool _isLightingInitialized = false;
-        private Vertex[] _waterScratch = Array.Empty<Vertex>();
+        private static readonly DepthStencilState WaterDepthState = new()
+        {
+            DepthBufferEnable = true,
+            DepthBufferWriteEnable = true
+        };
+
+        private const float WaterSurfaceAlpha = 0.8f;
 
         private static readonly Vertex[] TexturedBoxVertices = new Vertex[24];
         private static readonly short[] TexturedBoxIndices = BuildBoxIndices();
@@ -952,7 +958,7 @@ namespace Autonocraft.Engine
                 twilightFactor,
                 fogMultiplier,
                 BlendState.AlphaBlend,
-                DepthStencilState.Default,
+                WaterDepthState,
                 waterOnly: true,
                 alphaCutoutOnly: false,
                 TerrainPassKind.Water);
@@ -994,134 +1000,79 @@ namespace Autonocraft.Engine
         {
             _device.BlendState = blendState;
             _device.DepthStencilState = depthState;
+            _device.SamplerStates[0] = waterOnly ? SamplerState.LinearClamp : SamplerState.PointClamp;
 
-            var bandDetails = new[]
+            if (waterOnly)
             {
-                ChunkMeshDetail.Full,
-                ChunkMeshDetail.Surface,
-                ChunkMeshDetail.Shell
-            };
-
-            foreach (var bandDetail in bandDetails)
-            {
-                if (!BandHasDrawableChunks(bandDetail, waterOnly, alphaCutoutOnly))
-                {
-                    continue;
-                }
-
-                var (fogStart, detailFogEnd) = ChunkLod.GetFogRange(renderDistance, bandDetail, twilightFactor);
-                _blockTerrainEffect.SetFogRange(fogStart * fogMultiplier, detailFogEnd * fogMultiplier);
-
-                foreach (var entry in _visibleChunksScratch)
-                {
-                    if (waterOnly && !entry.Chunk.HasWaterBlocks)
-                    {
-                        continue;
-                    }
-
-                    if (alphaCutoutOnly && !entry.Chunk.HasAlphaCutoutBlocks)
-                    {
-                        continue;
-                    }
-
-                    if (entry.RenderDetail != bandDetail)
-                    {
-                        continue;
-                    }
-
-                    var (vb, ib, count) = waterOnly
-                        ? entry.Chunk.GetWaterMesh(entry.RenderDetail)
-                        : entry.Chunk.GetMesh(entry.RenderDetail);
-                    if (vb == null || ib == null || count <= 0)
-                    {
-                        continue;
-                    }
-
-                    if (waterOnly && entry.ChunkDistance <= 3)
-                    {
-                        var waterVertices = entry.Chunk.GetWaterVertices(entry.RenderDetail);
-                        if (waterVertices != null && waterVertices.Length > 0)
-                        {
-                            EnsureWaterScratch(waterVertices.Length);
-                            for (int i = 0; i < waterVertices.Length; i++)
-                            {
-                                var v = waterVertices[i];
-                                if (v.Normal.Y > 0.9f)
-                                {
-                                    float wave = MathF.Sin(waterAnimTime * 2.2f + (v.Position.X * 0.45f) + (v.Position.Z * 0.45f)) * 0.08f;
-                                    v.Position.Y += wave;
-                                }
-                                _waterScratch[i] = v;
-                            }
-                            vb.SetData(_waterScratch, 0, waterVertices.Length);
-                        }
-                    }
-
-                    _device.SetVertexBuffer(vb);
-                    _device.Indices = ib;
-                    foreach (var pass in _blockTerrainEffect.CurrentTechnique.Passes)
-                    {
-                        pass.Apply();
-                        _device.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, count / 3);
-                        Autonocraft.Core.PerfCounters.TerrainDrawCalls++;
-                        switch (passKind)
-                        {
-                            case TerrainPassKind.Water:
-                                Autonocraft.Core.PerfCounters.TerrainWaterDrawCalls++;
-                                Autonocraft.Core.PerfCounters.TerrainWaterIndexCount += count;
-                                break;
-                            case TerrainPassKind.Cutout:
-                                Autonocraft.Core.PerfCounters.TerrainCutoutDrawCalls++;
-                                Autonocraft.Core.PerfCounters.TerrainCutoutIndexCount += count;
-                                break;
-                            default:
-                                Autonocraft.Core.PerfCounters.TerrainOpaqueDrawCalls++;
-                                Autonocraft.Core.PerfCounters.TerrainOpaqueIndexCount += count;
-                                break;
-                        }
-                    }
-                }
+                float wave = MathF.Sin(waterAnimTime * 2.0f);
+                _blockTerrainEffect.SetAlpha(WaterSurfaceAlpha + wave * 0.03f);
+                var (waterFogStart, waterFogEnd) = ChunkLod.GetFogRange(renderDistance, ChunkMeshDetail.Full, twilightFactor);
+                _blockTerrainEffect.SetFogRange(waterFogStart * fogMultiplier, waterFogEnd * fogMultiplier);
             }
-        }
-
-        private void EnsureWaterScratch(int size)
-        {
-            if (_waterScratch.Length < size)
+            else
             {
-                int capacity = Math.Max(size, _waterScratch.Length < 1 ? 2048 : _waterScratch.Length * 2);
-                _waterScratch = new Vertex[capacity];
+                _blockTerrainEffect.SetAlpha(1f);
             }
-        }
 
-        private bool BandHasDrawableChunks(ChunkMeshDetail bandDetail, bool waterOnly, bool alphaCutoutOnly)
-        {
+            ChunkMeshDetail fogDetail = ChunkMeshDetail.Full;
+            bool fogInitialized = waterOnly;
             foreach (var entry in _visibleChunksScratch)
             {
-                if (waterOnly && !entry.Chunk.HasWaterBlocks)
+                if (waterOnly)
                 {
-                    continue;
+                    if (!entry.Chunk.HasWaterBlocks)
+                    {
+                        continue;
+                    }
+                }
+                else if (alphaCutoutOnly)
+                {
+                    if (!entry.Chunk.HasAlphaCutoutBlocks)
+                    {
+                        continue;
+                    }
                 }
 
-                if (alphaCutoutOnly && !entry.Chunk.HasAlphaCutoutBlocks)
+                if (!waterOnly && (!fogInitialized || entry.RenderDetail != fogDetail))
                 {
-                    continue;
+                    fogDetail = entry.RenderDetail;
+                    var (fogStart, detailFogEnd) = ChunkLod.GetFogRange(renderDistance, fogDetail, twilightFactor);
+                    _blockTerrainEffect.SetFogRange(fogStart * fogMultiplier, detailFogEnd * fogMultiplier);
+                    fogInitialized = true;
                 }
 
-                if (entry.RenderDetail != bandDetail)
-                {
-                    continue;
-                }
-
-                var (_, _, count) = waterOnly
+                var (vb, ib, count) = waterOnly
                     ? entry.Chunk.GetWaterMesh(entry.RenderDetail)
                     : entry.Chunk.GetMesh(entry.RenderDetail);
-                if (count > 0)
+                if (vb == null || ib == null || count <= 0)
                 {
-                    return true;
+                    continue;
+                }
+
+                _device.SetVertexBuffer(vb);
+                _device.Indices = ib;
+                foreach (var pass in _blockTerrainEffect.CurrentTechnique.Passes)
+                {
+                    pass.Apply();
+                    _device.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, count / 3);
+                    Autonocraft.Core.PerfCounters.TerrainDrawCalls++;
+                    switch (passKind)
+                    {
+                        case TerrainPassKind.Water:
+                            Autonocraft.Core.PerfCounters.TerrainWaterDrawCalls++;
+                            Autonocraft.Core.PerfCounters.TerrainWaterIndexCount += count;
+                            break;
+                        case TerrainPassKind.Cutout:
+                            Autonocraft.Core.PerfCounters.TerrainCutoutDrawCalls++;
+                            Autonocraft.Core.PerfCounters.TerrainCutoutIndexCount += count;
+                            break;
+                        default:
+                            Autonocraft.Core.PerfCounters.TerrainOpaqueDrawCalls++;
+                            Autonocraft.Core.PerfCounters.TerrainOpaqueIndexCount += count;
+                            break;
+                    }
                 }
             }
-
-            return false;
         }
 
         private static void ExtractFrustumPlanes(Matrix viewProjection, Microsoft.Xna.Framework.Vector4[] planes)

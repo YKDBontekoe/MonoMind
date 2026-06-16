@@ -37,6 +37,7 @@ namespace Autonocraft.Core
             {
                 RunInitialLoad(sb, device);
                 RunStreamingStep(sb, device);
+                RunOceanWaterMeshStats(sb, device);
             }
             else
             {
@@ -256,6 +257,49 @@ namespace Autonocraft.Core
             }
 
             sb.AppendLine($" 40 chunk-hop frames: avg {totalMs / frames:F2} ms/frame | peak pending mesh {peakPending}");
+        }
+
+        private static void RunOceanWaterMeshStats(StringBuilder sb, GraphicsDevice device)
+        {
+            sb.AppendLine();
+            sb.AppendLine("--- Ocean water mesh load (RD=12, pos 64,64,64) ---");
+            var oceanPos = new Vector3(64.5f, 64f, 64.5f);
+            int rd = 12;
+            using var world = new VoxelWorld(BenchmarkSeed);
+            world.BeginInitialLoad(oceanPos, rd);
+            int guard = 0;
+            while (guard++ < 100_000)
+            {
+                if (SimulateLoadingFrame(world, device, rd))
+                {
+                    break;
+                }
+            }
+
+            int waterChunks = 0;
+            long waterIndices = 0;
+            long opaqueIndices = 0;
+            foreach (var chunk in world.ActiveChunks)
+            {
+                if (!chunk.HasWaterBlocks)
+                {
+                    continue;
+                }
+
+                waterChunks++;
+                var (_, _, fullWater) = chunk.GetWaterMesh(ChunkMeshDetail.Full);
+                var (_, _, shellWater) = chunk.GetWaterMesh(ChunkMeshDetail.Shell);
+                waterIndices += fullWater + shellWater;
+                var (_, _, fullOpaque) = chunk.GetMesh(ChunkMeshDetail.Full);
+                var (_, _, shellOpaque) = chunk.GetMesh(ChunkMeshDetail.Shell);
+                opaqueIndices += fullOpaque + shellOpaque;
+            }
+
+            sb.AppendLine($" Chunks loaded: {world.ActiveChunkCount}");
+            sb.AppendLine($" Water chunks:  {waterChunks}");
+            sb.AppendLine($" Water tris:    {waterIndices / 3:N0}");
+            sb.AppendLine($" Opaque tris:   {opaqueIndices / 3:N0}");
+            sb.AppendLine(" Draw path: single visible-chunk loop (no per-frame vb.SetData)");
         }
 
         private static bool SimulateLoadingFrame(VoxelWorld world, GraphicsDevice device, int rd)

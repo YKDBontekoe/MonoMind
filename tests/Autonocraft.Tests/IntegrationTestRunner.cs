@@ -32,6 +32,7 @@ public static class IntegrationTestRunner
             ChunkStreamingTests.RunInitialLoadWaitsForInFlightGeneration();
             ChunkStreamingTests.RunFaultedChunkGenerationDoesNotCrash();
             ChunkStreamingTests.RunChunkUnloadDiscardsStaleInFlight();
+            ChunkStreamingTests.RunEnsureChunksLoadedDoesNotUnloadPlayerRadius();
             WorldGenTests.RunChunkStreamingStability();
             WorldGenTests.RunWorldGenerationBasics();
             WorldGenTests.RunStructureGeneration();

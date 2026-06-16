@@ -1047,6 +1047,58 @@ namespace Autonocraft.World
             UpdateChunksAround(context, agentPos, renderDistance, ChunkStreamingProfile.Stationary(agentPos));
         }
 
+        /// <summary>
+        /// Queues terrain generation for a small area without changing the player stream
+        /// center or unloading distant chunks. Use for villages / jobs — never call
+        /// <see cref="UpdateChunksAround"/> with a tiny render distance for this.
+        /// </summary>
+        public void EnsureChunksLoaded(Vector3 center, int chunkRadius)
+        {
+            int centerX = (int)MathF.Round(center.X);
+            int centerZ = (int)MathF.Round(center.Z);
+            GetChunkCoords(centerX, centerZ, out int centerCx, out int centerCz, out _, out _);
+
+            _lock.EnterWriteLock();
+            try
+            {
+                for (int dx = -chunkRadius; dx <= chunkRadius; dx++)
+                {
+                    for (int dz = -chunkRadius; dz <= chunkRadius; dz++)
+                    {
+                        QueueTerrainLoad(centerCx + dx, centerCz + dz);
+                    }
+                }
+
+                _terrainScheduler.DrainPendingSync((cx, cz) =>
+                {
+                    if (!_chunks.ContainsKey((cx, cz)))
+                    {
+                        CreateChunkTerrain(cx, cz);
+                    }
+                });
+            }
+            finally
+            {
+                _lock.ExitWriteLock();
+            }
+        }
+
+        /// <summary>Marks the streaming agent chunk after initial load so the first gameplay frame does not treat it as a teleport.</summary>
+        internal void SyncStreamingAgent(Vector3 agentPos)
+        {
+            GetChunkCoords(
+                (int)MathF.Round(agentPos.X),
+                (int)MathF.Round(agentPos.Z),
+                out int agentCx,
+                out int agentCz,
+                out _,
+                out _);
+            _lastAgentCx = agentCx;
+            _lastAgentCz = agentCz;
+            _streamAgentCx = agentCx;
+            _streamAgentCz = agentCz;
+        }
+
         public int ProcessPendingWork(
             GraphicsDevice? device,
             Vector3 agentPos,
@@ -1445,6 +1497,7 @@ namespace Autonocraft.World
             if (_initialLoadQueue == null && _terrainScheduler.PendingTerrainCount == 0 && _pendingMesh.Count == 0 && _terrainScheduler.InFlightCount == 0)
             {
                 _initialLoading = false;
+                SyncStreamingAgent(_initialLoadAgentPos);
                 progress = 1f;
                 status = "READY";
                 return true;
@@ -1523,6 +1576,7 @@ namespace Autonocraft.World
             if (terrainDone && meshesDone)
             {
                 _initialLoading = false;
+                SyncStreamingAgent(agentPos);
                 progress = 1f;
                 status = "READY";
                 return true;
@@ -1562,6 +1616,7 @@ namespace Autonocraft.World
             {
                 int expectedChunkCount = (renderDistance * 2 + 1) * (renderDistance * 2 + 1);
                 bool needsRadiusFill = _activeChunkList.Count < expectedChunkCount;
+
                 if (crossedChunk || needsRadiusFill)
                 {
                     for (int dx = -renderDistance; dx <= renderDistance; dx++)
@@ -1571,7 +1626,10 @@ namespace Autonocraft.World
                             QueueTerrainLoad(agentCx + dx, agentCz + dz);
                         }
                     }
+                }
 
+                if (crossedChunk)
+                {
                     _lastAgentCx = agentCx;
                     _lastAgentCz = agentCz;
 

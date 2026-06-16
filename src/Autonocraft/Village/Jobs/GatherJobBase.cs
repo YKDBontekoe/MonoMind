@@ -33,7 +33,7 @@ namespace Autonocraft.Village.Jobs
             }
             else
             {
-                world.UpdateChunksAround(null, target, 1);
+                world.EnsureChunksLoaded(target, chunkRadius: 1);
             }
 
             if (villager.AiPhase == VillagerAiPhase.PathTo)

@@ -73,5 +73,56 @@ namespace Autonocraft.World
 
             return neighbor.GetBlock(wx & 15, wy, wz & 15);
         }
+
+        public bool IsBlockKnown(int wx, int wy, int wz)
+        {
+            if (wy < 0 || wy >= Chunk.Height)
+            {
+                return true;
+            }
+
+            int originX = _center.ChunkX << 4;
+            int originZ = _center.ChunkZ << 4;
+            int localX = wx - originX;
+            int localZ = wz - originZ;
+            if ((uint)localX < Chunk.Width && (uint)localZ < Chunk.Depth)
+            {
+                return true;
+            }
+
+            Chunk? neighbor = null;
+            if (wx < originX)
+            {
+                neighbor = _negX;
+            }
+            else if (wx >= originX + Chunk.Width)
+            {
+                neighbor = _posX;
+            }
+            else if (wz < originZ)
+            {
+                neighbor = _negZ;
+            }
+            else if (wz >= originZ + Chunk.Depth)
+            {
+                neighbor = _posZ;
+            }
+
+            return neighbor != null;
+        }
+
+        /// <summary>
+        /// Neighbor lookup for face culling. Unknown horizontal neighbors outside the
+        /// loaded snapshot are treated as water so chunk edges do not get false air gaps.
+        /// </summary>
+        public BlockType GetCullingBlock(int wx, int wy, int wz, BlockType selfType)
+        {
+            if (selfType.IsWater() && wy >= 0 && wy < Chunk.Height && !IsBlockKnown(wx, wy, wz))
+            {
+                return BlockType.Water;
+            }
+
+            return GetBlock(wx, wy, wz);
+        }
     }
 }

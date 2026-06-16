@@ -129,7 +129,7 @@ namespace Autonocraft.Village
 
         public static void EnsureVillageChunksLoaded(VoxelWorld world, Village village)
         {
-            world.UpdateChunksAround(null, village.Center, 2);
+            world.EnsureChunksLoaded(village.Center, chunkRadius: 2);
         }
 
         private static bool IsNearTownHeart(Vector3 position, Village village, float maxHorizontalDistance)
