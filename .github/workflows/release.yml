@@ -40,6 +40,9 @@ jobs:
             arch: x64
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Resolve version
         id: version
@@ -87,11 +90,30 @@ jobs:
         run: |
           Compress-Archive -Path "publish/${{ matrix.rid }}/*" -DestinationPath "Autonocraft-${{ steps.version.outputs.version }}-${{ matrix.os_name }}-${{ matrix.arch }}.zip"
 
-      - name: Upload release asset
-        uses: softprops/action-gh-release@v2
+      - name: Extract changelog notes
+        if: matrix.rid == 'linux-x64'
+        id: notes
+        shell: bash
+        run: |
+          NOTES_FILE="${RUNNER_TEMP}/release-notes.md"
+          python3 scripts/release_bump.py extract "${{ steps.version.outputs.version }}" > "$NOTES_FILE"
+          echo "path=$NOTES_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Upload release asset (with notes)
+        if: matrix.rid == 'linux-x64'
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
         with:
           tag_name: ${{ github.event_name == 'push' && github.ref_name || format('v{0}', steps.version.outputs.version) }}
-          name: ${{ github.event_name == 'push' && github.ref_name || format('v{0}', steps.version.outputs.version) }}
+          name: Autonocraft ${{ steps.version.outputs.version }}
+          body_path: ${{ steps.notes.outputs.path }}
           files: Autonocraft-${{ steps.version.outputs.version }}-${{ matrix.os_name }}-${{ matrix.arch }}.zip
           draft: ${{ github.event_name == 'workflow_dispatch' }}
-          generate_release_notes: ${{ matrix.rid == 'linux-x64' }}
+
+      - name: Upload release asset
+        if: matrix.rid != 'linux-x64'
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        with:
+          tag_name: ${{ github.event_name == 'push' && github.ref_name || format('v{0}', steps.version.outputs.version) }}
+          name: Autonocraft ${{ steps.version.outputs.version }}
+          files: Autonocraft-${{ steps.version.outputs.version }}-${{ matrix.os_name }}-${{ matrix.arch }}.zip
+          draft: ${{ github.event_name == 'workflow_dispatch' }}
