@@ -18,7 +18,7 @@ CHANGELOG_FILE = ROOT / "CHANGELOG.md"
 COMMIT_RE = re.compile(
     r"^(?P<type>\w+)(?:\((?P<scope>[^)]+)\))?(?P<breaking>!)?: (?P<subject>.+)$"
 )
-SKIP_PREFIXES = ("chore(release):", "Merge ", "Merge pull request")
+SKIP_PREFIXES = ("chore(release):", "chore:", "chore(", "Merge ", "Merge pull request")
 
 
 @dataclass(frozen=True)
