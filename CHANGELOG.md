@@ -7,6 +7,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 Releases are created automatically when changes land on `main` (after CI passes).
 
+## [0.2.1] - 2026-06-16
+
+### Other
+- Improve animal and villager models with panic flee behavior.
+
 ## [0.2.0] - 2026-06-16
 
 ### Added
