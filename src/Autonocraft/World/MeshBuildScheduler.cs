@@ -19,6 +19,11 @@ namespace Autonocraft.World
         public const int MaxMeshUploadsPerFrame = 6;
         private const float MeshUploadBudgetMs = 9f;
 
+        public const int LoadingMaxMeshBuildsInFlight = 12;
+        public const int LoadingMaxMeshDispatchesPerFrame = 8;
+        public const int LoadingMaxMeshUploadsPerFrame = 14;
+        private const float LoadingMeshUploadBudgetMs = 18f;
+
         public sealed class CompletedMeshUpload
         {
             public readonly Chunk Chunk;
@@ -51,19 +56,25 @@ namespace Autonocraft.World
 
         public int ProcessCompletedUploads(
             GraphicsDevice device,
+            int maxUploadsPerFrame,
             Func<int, int, bool> isChunkLoaded,
             Action<Chunk, ChunkMeshDetail> clearBuildInFlight,
             List<(int cx, int cz)> requeueScratch,
             int agentCx,
             int agentCz,
             int renderDistance,
-            bool restrictLod)
+            bool restrictLod,
+            bool initialLoading = false,
+            Action<Chunk, ChunkMeshDetail>? onMeshUploaded = null)
         {
+            int maxUploads = initialLoading ? LoadingMaxMeshUploadsPerFrame : maxUploadsPerFrame;
+            float uploadBudgetMs = initialLoading ? LoadingMeshUploadBudgetMs : MeshUploadBudgetMs;
+
             int meshed = 0;
             var uploadStopwatch = Stopwatch.StartNew();
             int uploadsThisFrame = 0;
-            while (uploadsThisFrame < MaxMeshUploadsPerFrame &&
-                   uploadStopwatch.Elapsed.TotalMilliseconds < MeshUploadBudgetMs &&
+            while (uploadsThisFrame < maxUploads &&
+                   uploadStopwatch.Elapsed.TotalMilliseconds < uploadBudgetMs &&
                    _completedMeshUploads.TryDequeue(out var pending))
             {
                 if (!isChunkLoaded(pending.Chunk.ChunkX, pending.Chunk.ChunkZ))
@@ -99,6 +110,7 @@ namespace Autonocraft.World
                 PerfCounters.RecordMeshBuild((float)uploadChunkStopwatch.Elapsed.TotalMilliseconds);
                 meshed++;
                 uploadsThisFrame++;
+                onMeshUploaded?.Invoke(pending.Chunk, pending.Data.Detail);
 
                 int chunkDist = ChunkLod.GetChunkDistance(pending.Chunk.ChunkX, pending.Chunk.ChunkZ, agentCx, agentCz);
                 if (ChunkLod.NeedsHigherDetailBuild(pending.Chunk, chunkDist, renderDistance, restrictLod))
@@ -120,9 +132,11 @@ namespace Autonocraft.World
             Action<Chunk, ChunkMeshDetail, bool> setBuildInFlight,
             Action<Chunk, ChunkMeshDetail> clearBuildInFlight,
             List<(int cx, int cz)> requeueScratch,
-            Func<Chunk, int, int, bool, bool> needsHigherDetailBuild)
+            Func<Chunk, int, int, bool, bool> needsHigherDetailBuild,
+            bool initialLoading = false)
         {
-            if (Volatile.Read(ref _meshBuildsInFlight) >= MaxMeshBuildsInFlight)
+            int maxInFlight = initialLoading ? LoadingMaxMeshBuildsInFlight : MaxMeshBuildsInFlight;
+            if (Volatile.Read(ref _meshBuildsInFlight) >= maxInFlight)
             {
                 return false;
             }

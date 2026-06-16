@@ -12,10 +12,10 @@ namespace Autonocraft.UI
 {
     public class LoadingScreen
     {
-        private const int DefaultChunksPerFrame = 10;
-        private const int HighDistanceChunksPerFrame = 18;
-        private const int MaxLoadStepsPerFrame = 16;
-        private const float LoadStepBudgetMs = 14f;
+        private const int DefaultChunksPerFrame = 12;
+        private const int HighDistanceChunksPerFrame = 22;
+        private const int MaxLoadStepsPerFrame = 24;
+        private const float LoadStepBudgetMs = 20f;
         private const float TipCycleSeconds = 5.5f;
 
         private static readonly string[] LoadingTips =
@@ -86,8 +86,8 @@ namespace Autonocraft.UI
 
             _renderDistance = renderDistance;
             _world.BeginInitialLoad(spawnPos, renderDistance);
-            _chunksPerFrame = renderDistance >= 24 ? 24 :
-                renderDistance >= 16 ? 20 :
+            _chunksPerFrame = renderDistance >= 24 ? 28 :
+                renderDistance >= 16 ? 24 :
                 renderDistance >= 8 ? HighDistanceChunksPerFrame :
                 DefaultChunksPerFrame;
             _totalLoadTimeoutSeconds = 120f + renderDistance * 4f;

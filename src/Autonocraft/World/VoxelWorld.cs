@@ -18,13 +18,13 @@ namespace Autonocraft.World
         public const int LoadingMeshChunksPerFrame = 10;
 
         public static int GetLoadingMeshChunksPerFrame(int renderDistance) =>
-            renderDistance >= 40 ? 40 :
-            renderDistance >= 32 ? 34 :
-            renderDistance >= 24 ? 28 :
-            renderDistance >= 18 ? 24 :
-            renderDistance >= 16 ? 20 :
-            renderDistance >= 12 ? 16 :
-            renderDistance >= 8 ? 12 :
+            renderDistance >= 40 ? 48 :
+            renderDistance >= 32 ? 40 :
+            renderDistance >= 24 ? 32 :
+            renderDistance >= 18 ? 28 :
+            renderDistance >= 16 ? 24 :
+            renderDistance >= 12 ? 20 :
+            renderDistance >= 8 ? 16 :
             LoadingMeshChunksPerFrame;
 
         public static int GetRuntimeTerrainChunksPerFrame(int renderDistance) =>
@@ -42,10 +42,12 @@ namespace Autonocraft.World
             renderDistance >= 18 ? 6 :
             renderDistance >= 12 ? 5 :
             DefaultMeshChunksPerFrame;
-        public const int LoadingTerrainCompletionsPerFrame = 8;
+        public const int LoadingTerrainCompletionsPerFrame = 12;
         public const int MaxTerrainCompletionsPerFrame = 4;
         public const int MaxMeshCandidatesPerFrame = 24;
+        public const int LoadingMaxMeshCandidatesPerFrame = 48;
         public const float MeshBuildBudgetMs = 14f;
+        public const float LoadingMeshBuildBudgetMs = 22f;
         public const float FastTravelMeshBuildBudgetMs = 10f;
         public const int MissingMeshScanIntervalFrames = 120;
         public const int MaxMeshBuildsInFlight = 6;
@@ -54,6 +56,12 @@ namespace Autonocraft.World
         private const float MeshUploadBudgetMs = 9f;
         public const int FastTravelPrefetchIntervalFrames = 4;
         public const int NeighborRemeshDistanceFastTravel = 2;
+        public const int NeighborRemeshMaxChunkDistance = 5;
+        public const int MaxSyncMeshBuildsPerFrame = 1;
+        public const int SyncMeshMaxChunkDistance = 1;
+        public const int MeshPressurePendingThreshold = 36;
+        public const int MaxTerrainCompletionsUnderMeshPressure = 2;
+        public const int MaxDistantShellDispatchesPerFrame = 2;
 
         private readonly Dictionary<(int x, int z), Chunk> _chunks = new Dictionary<(int x, int z), Chunk>();
         private readonly Dictionary<(int x, int y, int z), byte> _modifications = new Dictionary<(int x, int y, int z), byte>();
@@ -62,6 +70,18 @@ namespace Autonocraft.World
         private readonly FluidSystem _fluids = new();
         private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
         private readonly WorldGenerator _generator;
+
+        [ThreadStatic]
+        private static Chunk? _lastChunk;
+        [ThreadStatic]
+        private static int _lastCx;
+        [ThreadStatic]
+        private static int _lastCz;
+        [ThreadStatic]
+        private static VoxelWorld? _lastWorld;
+
+        private readonly List<(int cx, int cz)> _unloadedChunkCoordsScratch = new();
+        private readonly List<(int x, int z)> _keysToRemoveScratch = new();
         private readonly TerrainGenScheduler _terrainScheduler = new();
         private readonly MeshBuildScheduler _meshScheduler = new();
         private readonly HashSet<(int cx, int cz)> _pendingMesh = new HashSet<(int cx, int cz)>();
@@ -75,6 +95,7 @@ namespace Autonocraft.World
         private readonly List<(int cx, int cz)> _pendingMeshSortScratch = new();
         private readonly List<(int cx, int cz)> _requeueScratch = new();
         private readonly List<(int cx, int cz)> _meshRescanScratch = new();
+        private readonly List<Chunk> _forceShellScratch = new();
 
         private int _lastAgentCx = int.MinValue;
         private int _lastAgentCz = int.MinValue;
@@ -87,6 +108,10 @@ namespace Autonocraft.World
         private int _initialLoadMeshTotal;
         private Vector3 _initialLoadAgentPos;
         private int _initialLoadRenderDistance = 8;
+        private bool _initialLoading;
+        private int _initialLoadShellsPending;
+
+        public bool InitialLoading => _initialLoading;
 
         public int Seed { get; }
         public WorldGenParams GenerationParams { get; }
@@ -174,11 +199,10 @@ namespace Autonocraft.World
 
         public static void GetChunkCoords(int x, int z, out int cx, out int cz, out int lx, out int lz)
         {
-            cx = x >= 0 ? x / Chunk.Width : (x - Chunk.Width + 1) / Chunk.Width;
-            cz = z >= 0 ? z / Chunk.Depth : (z - Chunk.Depth + 1) / Chunk.Depth;
-
-            lx = x - cx * Chunk.Width;
-            lz = z - cz * Chunk.Depth;
+            cx = x >> 4;
+            cz = z >> 4;
+            lx = x & 15;
+            lz = z & 15;
         }
 
         public BlockType GetBlock(int x, int y, int z)
@@ -186,12 +210,23 @@ namespace Autonocraft.World
             if (y < 0 || y >= Chunk.Height) return BlockType.Air;
 
             Autonocraft.Core.PerfCounters.GetBlockCalls++;
+            GetChunkCoords(x, z, out int cx, out int cz, out int lx, out int lz);
+
+            var lastChunk = _lastChunk;
+            if (lastChunk != null && _lastCx == cx && _lastCz == cz && _lastWorld == this && !lastChunk.IsUnloaded)
+            {
+                return lastChunk.GetBlock(lx, y, lz);
+            }
+
             _lock.EnterReadLock();
             try
             {
-                GetChunkCoords(x, z, out int cx, out int cz, out int lx, out int lz);
                 if (_chunks.TryGetValue((cx, cz), out var chunk))
                 {
+                    _lastChunk = chunk;
+                    _lastCx = cx;
+                    _lastCz = cz;
+                    _lastWorld = this;
                     return chunk.GetBlock(lx, y, lz);
                 }
                 return BlockType.Air;
@@ -348,6 +383,11 @@ namespace Autonocraft.World
         private void UnregisterChunk(Chunk chunk)
         {
             _activeChunkList.Remove(chunk);
+            if (_lastChunk == chunk)
+            {
+                _lastChunk = null;
+                _lastWorld = null;
+            }
         }
 
         private bool ShouldAcceptChunkAt(int cx, int cz)
@@ -477,6 +517,18 @@ namespace Autonocraft.World
         {
             EnqueueMeshForChunk(chunk.ChunkX, chunk.ChunkZ, invalidateExisting: true);
 
+            if (_initialLoading)
+            {
+                _initialLoadShellsPending++;
+                return;
+            }
+
+            int chunkDistance = GetChunkSortDistance(chunk.ChunkX, chunk.ChunkZ, profile.AgentChunkX, profile.AgentChunkZ);
+            if (chunkDistance > NeighborRemeshMaxChunkDistance)
+            {
+                return;
+            }
+
             if (profile.FastTravel)
             {
                 TryEnqueueNeighborRemesh(chunk.ChunkX - 1, chunk.ChunkZ, profile);
@@ -563,6 +615,17 @@ namespace Autonocraft.World
         private static bool ChunkHasInitialLoadMesh(Chunk chunk) =>
             chunk.HasMesh(ChunkMeshDetail.Shell);
 
+        private void NotifyInitialLoadShellComplete(Chunk chunk)
+        {
+            if (!_initialLoading || chunk.InitialLoadShellReported || !chunk.HasMesh(ChunkMeshDetail.Shell))
+            {
+                return;
+            }
+
+            chunk.InitialLoadShellReported = true;
+            _initialLoadShellsPending = Math.Max(0, _initialLoadShellsPending - 1);
+        }
+
         private int CountChunksNeedingInitialLoadMeshInRange(int agentCx, int agentCz, int renderDistance)
         {
             int count = 0;
@@ -620,14 +683,9 @@ namespace Autonocraft.World
                 return;
             }
 
-            int built = 0;
-            foreach (var chunk in _activeChunkList.ToArray())
+            _forceShellScratch.Clear();
+            foreach (var chunk in _activeChunkList)
             {
-                if (built >= maxPerFrame)
-                {
-                    break;
-                }
-
                 int chunkDistance = GetChunkSortDistance(chunk.ChunkX, chunk.ChunkZ, agentCx, agentCz);
                 if (chunkDistance > renderDistance || ChunkHasInitialLoadMesh(chunk))
                 {
@@ -639,22 +697,41 @@ namespace Autonocraft.World
                     continue;
                 }
 
-                if (!TryCreateMeshBuildContext(canonical, out var context))
+                _forceShellScratch.Add(chunk);
+            }
+
+            _forceShellScratch.Sort((a, b) =>
+            {
+                int da = GetChunkSortDistance(a.ChunkX, a.ChunkZ, agentCx, agentCz);
+                int db = GetChunkSortDistance(b.ChunkX, b.ChunkZ, agentCx, agentCz);
+                return da != db ? da.CompareTo(db) : a.ChunkZ != b.ChunkZ ? a.ChunkZ.CompareTo(b.ChunkZ) : a.ChunkX.CompareTo(b.ChunkX);
+            });
+
+            int built = 0;
+            foreach (var chunk in _forceShellScratch)
+            {
+                if (built >= maxPerFrame)
+                {
+                    break;
+                }
+
+                if (!TryCreateMeshBuildContext(chunk, out var context))
                 {
                     continue;
                 }
 
-                ClearMeshBuildInFlight(canonical, ChunkMeshDetail.Shell);
+                ClearMeshBuildInFlight(chunk, ChunkMeshDetail.Shell);
                 try
                 {
-                    canonical.EnsureMesh(device, context, ChunkMeshDetail.Shell, buildFlora: false);
+                    chunk.EnsureMesh(device, context, ChunkMeshDetail.Shell, buildFlora: false);
+                    NotifyInitialLoadShellComplete(chunk);
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine(
-                        $"[Load] Force shell mesh failed ({canonical.ChunkX},{canonical.ChunkZ}): {ex.Message}");
-                    canonical.ForceMarkMeshDetailComplete(ChunkMeshDetail.Shell);
-                    canonical.MeshStale = false;
+                        $"[Load] Force shell mesh failed ({chunk.ChunkX},{chunk.ChunkZ}): {ex.Message}");
+                    chunk.ForceMarkMeshDetailComplete(ChunkMeshDetail.Shell);
+                    chunk.MeshStale = false;
                 }
 
                 built++;
@@ -771,7 +848,20 @@ namespace Autonocraft.World
             int chunkDistance,
             ChunkStreamingProfile profile)
         {
-            int key = (chunk.HasAnyMesh() ? 1 : 0) * 1000 + chunkDistance * 12;
+            int key = chunkDistance * 12;
+            if (!chunk.HasAnyMesh())
+            {
+                key -= 200;
+            }
+            else
+            {
+                key += 400;
+            }
+
+            if (chunkDistance > 4 && !chunk.HasAnyMesh())
+            {
+                key += 300;
+            }
             if (chunk.HasAlphaCutoutBlocks)
             {
                 key -= 60;
@@ -1054,17 +1144,43 @@ namespace Autonocraft.World
             int maxMeshPerFrame = DefaultMeshChunksPerFrame)
         {
             GetChunkCoords((int)MathF.Round(agentPos.X), (int)MathF.Round(agentPos.Z), out int agentCx, out int agentCz, out _, out _);
-            bool restrictLod = profile.FastTravel;
-            int maxCompletions = restrictLod ? 1 : MaxTerrainCompletionsPerFrame;
-            float meshBudgetMs = restrictLod ? FastTravelMeshBuildBudgetMs : MeshBuildBudgetMs;
+            bool initialLoading = _initialLoading;
+
+            _lock.EnterReadLock();
+            int meshPressure;
+            try
+            {
+                meshPressure = _pendingMesh.Count + _meshScheduler.BuildsInFlight + _meshScheduler.CompletedUploadQueueCount;
+            }
+            finally
+            {
+                _lock.ExitReadLock();
+            }
+
+            bool highMeshPressure = !initialLoading && meshPressure > MeshPressurePendingThreshold;
+            bool restrictLod = profile.FastTravel || highMeshPressure;
+            int maxCompletions = profile.FastTravel && !highMeshPressure
+                ? 1
+                : highMeshPressure
+                    ? MaxTerrainCompletionsUnderMeshPressure
+                    : initialLoading
+                        ? LoadingTerrainCompletionsPerFrame
+                        : MaxTerrainCompletionsPerFrame;
+            float meshBudgetMs = restrictLod
+                ? FastTravelMeshBuildBudgetMs
+                : initialLoading ? LoadingMeshBuildBudgetMs : MeshBuildBudgetMs;
 
             _newChunkCoordsScratch.Clear();
             _meshJobsScratch.Clear();
             _requeueScratch.Clear();
             int meshed = 0;
+            int meshCandidateCap = initialLoading ? LoadingMaxMeshCandidatesPerFrame : MaxMeshCandidatesPerFrame;
             int maxMeshJobs = maxMeshPerFrame > 0
-                ? Math.Min(maxMeshPerFrame, MaxMeshCandidatesPerFrame)
+                ? Math.Min(maxMeshPerFrame, meshCandidateCap)
                 : 0;
+            int maxMeshDispatches = initialLoading
+                ? MeshBuildScheduler.LoadingMaxMeshDispatchesPerFrame
+                : MeshBuildScheduler.MaxMeshDispatchesPerFrame;
 
             _lock.EnterWriteLock();
             try
@@ -1117,8 +1233,14 @@ namespace Autonocraft.World
             // Phase A: upload pre-built mesh data on the main thread within a small GPU budget.
             if (device != null)
             {
+                int uploadCap = initialLoading
+                    ? MeshBuildScheduler.LoadingMaxMeshUploadsPerFrame
+                    : highMeshPressure
+                        ? 3
+                        : MeshBuildScheduler.MaxMeshUploadsPerFrame;
                 meshed += _meshScheduler.ProcessCompletedUploads(
                     device,
+                    uploadCap,
                     (cx, cz) =>
                     {
                         _lock.EnterReadLock();
@@ -1136,12 +1258,24 @@ namespace Autonocraft.World
                     agentCx,
                     agentCz,
                     renderDistance,
-                    restrictLod);
+                    restrictLod,
+                    initialLoading,
+                    initialLoading
+                        ? (Action<Chunk, ChunkMeshDetail>?)((chunk, detail) =>
+                        {
+                            if (detail == ChunkMeshDetail.Shell)
+                            {
+                                NotifyInitialLoadShellComplete(chunk);
+                            }
+                        })
+                        : null);
             }
 
             // Phase B: dispatch background CPU mesh builds, then fall back to synchronous builds if needed.
             var meshStopwatch = Stopwatch.StartNew();
             int dispatchesThisFrame = 0;
+            int syncMeshBuildsThisFrame = 0;
+            int distantShellDispatchesThisFrame = 0;
             foreach (var (chunk, context, detail, chunkDistance) in _meshJobsScratch)
             {
                 if (meshed > 0 && meshStopwatch.Elapsed.TotalMilliseconds >= meshBudgetMs)
@@ -1156,41 +1290,19 @@ namespace Autonocraft.World
                     continue;
                 }
 
-                if (!chunk.HasAnyMesh())
+                bool isDistantShell = chunkDistance > 4 && detail == ChunkMeshDetail.Shell;
+                if (isDistantShell && distantShellDispatchesThisFrame >= MaxDistantShellDispatchesPerFrame)
                 {
-                    if (device == null)
-                    {
-                        _requeueScratch.Add((chunk.ChunkX, chunk.ChunkZ));
-                        continue;
-                    }
-
-                    var firstMeshStopwatch = Stopwatch.StartNew();
-                    bool firstFlora = !restrictLod && ChunkLod.ShouldBuildFlora(chunkDistance, renderDistance);
-                    try
-                    {
-                        chunk.EnsureMesh(device, context, detail, firstFlora);
-                    }
-                    catch (Exception ex)
-                    {
-                        InputDebugTrace.LogChunkEvent($"mesh failed ({chunk.ChunkX},{chunk.ChunkZ}) detail={detail}: {ex.Message}");
-                        Console.WriteLine($"[Streaming] Mesh build failed for chunk ({chunk.ChunkX},{chunk.ChunkZ}) detail={detail}: {ex.Message}");
-                        _requeueScratch.Add((chunk.ChunkX, chunk.ChunkZ));
-                        continue;
-                    }
-
-                    firstMeshStopwatch.Stop();
-                    PerfCounters.RecordMeshBuild((float)firstMeshStopwatch.Elapsed.TotalMilliseconds);
-                    meshed++;
-
-                    if (ChunkLod.NeedsHigherDetailBuild(chunk, chunkDistance, renderDistance, restrictLod))
-                    {
-                        _requeueScratch.Add((chunk.ChunkX, chunk.ChunkZ));
-                    }
-
+                    _requeueScratch.Add((chunk.ChunkX, chunk.ChunkZ));
                     continue;
                 }
 
-                if (dispatchesThisFrame < MeshBuildScheduler.MaxMeshDispatchesPerFrame &&
+                bool preferAsync = initialLoading
+                    ? chunkDistance > SyncMeshMaxChunkDistance
+                    : chunkDistance > SyncMeshMaxChunkDistance || !chunk.HasAnyMesh();
+
+                if (preferAsync &&
+                    dispatchesThisFrame < maxMeshDispatches &&
                     _meshScheduler.TryDispatchAsyncBuild(
                         chunk,
                         context,
@@ -1201,22 +1313,37 @@ namespace Autonocraft.World
                         SetMeshBuildInFlight,
                         ClearMeshBuildInFlight,
                         _requeueScratch,
-                        ChunkLod.NeedsHigherDetailBuild))
+                        ChunkLod.NeedsHigherDetailBuild,
+                        initialLoading))
                 {
                     dispatchesThisFrame++;
+                    if (isDistantShell)
+                    {
+                        distantShellDispatchesThisFrame++;
+                    }
+
                     continue;
                 }
 
                 if (device == null)
                 {
+                    _requeueScratch.Add((chunk.ChunkX, chunk.ChunkZ));
+                    continue;
+                }
+
+                if (!initialLoading &&
+                    (syncMeshBuildsThisFrame >= MaxSyncMeshBuildsPerFrame ||
+                     chunkDistance > SyncMeshMaxChunkDistance))
+                {
+                    _requeueScratch.Add((chunk.ChunkX, chunk.ChunkZ));
                     continue;
                 }
 
                 var buildStopwatch = Stopwatch.StartNew();
-                bool syncFlora = !restrictLod && ChunkLod.ShouldBuildFlora(chunkDistance, renderDistance);
+                bool buildFlora = !restrictLod && ChunkLod.ShouldBuildFlora(chunkDistance, renderDistance);
                 try
                 {
-                    chunk.EnsureMesh(device, context, detail, syncFlora);
+                    chunk.EnsureMesh(device, context, detail, buildFlora);
                 }
                 catch (Exception ex)
                 {
@@ -1229,6 +1356,11 @@ namespace Autonocraft.World
                 buildStopwatch.Stop();
                 PerfCounters.RecordMeshBuild((float)buildStopwatch.Elapsed.TotalMilliseconds);
                 meshed++;
+                syncMeshBuildsThisFrame++;
+                if (initialLoading && detail == ChunkMeshDetail.Shell)
+                {
+                    NotifyInitialLoadShellComplete(chunk);
+                }
 
                 if (ChunkLod.NeedsHigherDetailBuild(chunk, chunkDistance, renderDistance, restrictLod))
                 {
@@ -1294,6 +1426,8 @@ namespace Autonocraft.World
             _streamAgentCx = agentCx;
             _streamAgentCz = agentCz;
             _streamRenderDistance = renderDistance;
+            _initialLoading = true;
+            _initialLoadShellsPending = 0;
             _terrainScheduler.ClearPending();
             _pendingMesh.Clear();
             _lastAgentCx = int.MinValue;
@@ -1310,6 +1444,7 @@ namespace Autonocraft.World
         {
             if (_initialLoadQueue == null && _terrainScheduler.PendingTerrainCount == 0 && _pendingMesh.Count == 0 && _terrainScheduler.InFlightCount == 0)
             {
+                _initialLoading = false;
                 progress = 1f;
                 status = "READY";
                 return true;
@@ -1318,27 +1453,30 @@ namespace Autonocraft.World
             Vector3 agentPos = _initialLoadAgentPos;
             var profile = ChunkStreamingProfile.Stationary(agentPos);
 
-            int terrainProcessed = 0;
+            int terrainDispatched = 0;
+            int terrainDispatchBudget = Math.Max(chunksPerFrame, Environment.ProcessorCount);
             _lock.EnterWriteLock();
             try
             {
-                while (_initialLoadQueue != null && _initialLoadIndex < _initialLoadQueue.Count && terrainProcessed < chunksPerFrame)
+                while (_initialLoadQueue != null &&
+                       _initialLoadIndex < _initialLoadQueue.Count &&
+                       terrainDispatched < terrainDispatchBudget)
                 {
                     var coord = _initialLoadQueue[_initialLoadIndex];
                     if (!_chunks.ContainsKey(coord) && !_terrainScheduler.ContainsInFlight(coord))
                     {
                         StartChunkGeneration(coord.cx, coord.cz);
+                        terrainDispatched++;
                     }
 
                     _initialLoadIndex++;
-                    terrainProcessed++;
                 }
 
                 _completedCoordsScratch.Clear();
                 _terrainScheduler.SnapshotInFlightKeys(_completedCoordsScratch);
-                int maxTerrainCompletions = renderDistance >= 32 ? 20 :
-                    renderDistance >= 24 ? 16 :
-                    renderDistance >= 16 ? 12 :
+                int maxTerrainCompletions = renderDistance >= 32 ? 28 :
+                    renderDistance >= 24 ? 22 :
+                    renderDistance >= 16 ? 18 :
                     LoadingTerrainCompletionsPerFrame;
                 int completionsThisFrame = 0;
                 foreach (var coord in _completedCoordsScratch)
@@ -1375,17 +1513,16 @@ namespace Autonocraft.World
 
             GetChunkCoords((int)MathF.Round(agentPos.X), (int)MathF.Round(agentPos.Z), out int agentCx, out int agentCz, out _, out _);
             bool terrainDone = _initialLoadQueue == null && _terrainScheduler.InFlightCount == 0;
-            int chunksNeedingShell = CountChunksNeedingInitialLoadMeshInRange(agentCx, agentCz, _initialLoadRenderDistance);
-            if (terrainDone && chunksNeedingShell > 0)
+            if (terrainDone && _initialLoadShellsPending > 0)
             {
                 ForceCompleteShellMeshes(device, agentCx, agentCz, _initialLoadRenderDistance, maxPerFrame: meshesPerFrame * 2);
-                chunksNeedingShell = CountChunksNeedingInitialLoadMeshInRange(agentCx, agentCz, _initialLoadRenderDistance);
             }
 
-            bool meshesDone = terrainDone && chunksNeedingShell == 0;
+            bool meshesDone = terrainDone && _initialLoadShellsPending == 0;
 
             if (terrainDone && meshesDone)
             {
+                _initialLoading = false;
                 progress = 1f;
                 status = "READY";
                 return true;
@@ -1399,7 +1536,7 @@ namespace Autonocraft.World
             }
             else
             {
-                int completed = Math.Max(0, _initialLoadMeshTotal - chunksNeedingShell);
+                int completed = Math.Max(0, _initialLoadMeshTotal - _initialLoadShellsPending);
                 progress = 0.65f + completed / (float)_initialLoadMeshTotal * 0.35f;
                 status = $"MESHING CHUNKS {completed}/{_initialLoadMeshTotal}";
             }
@@ -1417,7 +1554,7 @@ namespace Autonocraft.World
             _streamAgentCz = agentCz;
             _streamRenderDistance = renderDistance;
 
-            var unloadedChunkCoords = new List<(int cx, int cz)>();
+            _unloadedChunkCoordsScratch.Clear();
             bool crossedChunk = agentCx != _lastAgentCx || agentCz != _lastAgentCz;
 
             _lock.EnterWriteLock();
@@ -1438,7 +1575,7 @@ namespace Autonocraft.World
                     _lastAgentCx = agentCx;
                     _lastAgentCz = agentCz;
 
-                    var keysToRemove = new List<(int x, int z)>();
+                    _keysToRemoveScratch.Clear();
                     foreach (var coord in _chunks.Keys)
                     {
                         int distanceX = Math.Abs(coord.x - agentCx);
@@ -1446,18 +1583,18 @@ namespace Autonocraft.World
 
                         if (distanceX > renderDistance + 1 || distanceZ > renderDistance + 1)
                         {
-                            keysToRemove.Add(coord);
+                            _keysToRemoveScratch.Add(coord);
                         }
                     }
 
-                    foreach (var key in keysToRemove)
+                    foreach (var key in _keysToRemoveScratch)
                     {
                         if (_chunks.TryGetValue(key, out var chunk))
                         {
                             UnregisterChunk(chunk);
                             chunk.Dispose();
                             _chunks.Remove(key);
-                            unloadedChunkCoords.Add(key);
+                            _unloadedChunkCoordsScratch.Add(key);
                         }
 
                         _terrainScheduler.RemoveCoord(key);
@@ -1483,9 +1620,9 @@ namespace Autonocraft.World
                 _lock.ExitWriteLock();
             }
 
-            if (unloadedChunkCoords.Count > 0)
+            if (_unloadedChunkCoordsScratch.Count > 0)
             {
-                ChunksUnloaded?.Invoke(unloadedChunkCoords);
+                ChunksUnloaded?.Invoke(_unloadedChunkCoordsScratch);
             }
         }
 

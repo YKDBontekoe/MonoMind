@@ -55,17 +55,34 @@ namespace Autonocraft.Entities
                     return waypoints.Count > 0;
                 }
 
-                foreach (var neighbor in GetNeighbors(world, current))
+                for (int i = 0; i < 4; i++)
                 {
-                    float tentative = gScore[current] + 1f;
-                    if (gScore.TryGetValue(neighbor, out float existing) && tentative >= existing)
-                    {
-                        continue;
-                    }
+                    int nx = current.x;
+                    int nz = current.z;
+                    if (i == 0) nx += 1;
+                    else if (i == 1) nx -= 1;
+                    else if (i == 2) nz += 1;
+                    else nz -= 1;
 
-                    cameFrom[neighbor] = current;
-                    gScore[neighbor] = tentative;
-                    open.Enqueue(neighbor, tentative + Heuristic(neighbor, goal));
+                    for (int step = -MaxStepDown; step <= MaxStepUp; step++)
+                    {
+                        int ny = current.y + step;
+                        if (!IsWalkable(world, nx, ny, nz))
+                        {
+                            continue;
+                        }
+
+                        var neighbor = (nx, ny, nz);
+                        float tentative = gScore[current] + 1f;
+                        if (gScore.TryGetValue(neighbor, out float existing) && tentative >= existing)
+                        {
+                            continue;
+                        }
+
+                        cameFrom[neighbor] = current;
+                        gScore[neighbor] = tentative;
+                        open.Enqueue(neighbor, tentative + Heuristic(neighbor, goal));
+                    }
                 }
             }
 
@@ -75,27 +92,6 @@ namespace Autonocraft.Entities
         private static float Heuristic((int x, int y, int z) a, (int x, int y, int z) b)
         {
             return MathF.Abs(a.x - b.x) + MathF.Abs(a.y - b.y) + MathF.Abs(a.z - b.z);
-        }
-
-        private static IEnumerable<(int x, int y, int z)> GetNeighbors(VoxelWorld world, (int x, int y, int z) node)
-        {
-            int[] dx = { 1, -1, 0, 0 };
-            int[] dz = { 0, 0, 1, -1 };
-            for (int i = 0; i < 4; i++)
-            {
-                for (int step = -MaxStepDown; step <= MaxStepUp; step++)
-                {
-                    int nx = node.x + dx[i];
-                    int ny = node.y + step;
-                    int nz = node.z + dz[i];
-                    if (!IsWalkable(world, nx, ny, nz))
-                    {
-                        continue;
-                    }
-
-                    yield return (nx, ny, nz);
-                }
-            }
         }
 
         private static bool IsWalkable(VoxelWorld world, int x, int y, int z)
@@ -123,19 +119,14 @@ namespace Autonocraft.Entities
             (int x, int y, int z) current,
             List<Vector3> waypoints)
         {
-            var chain = new Stack<(int, int, int)>();
-            chain.Push(current);
-            while (cameFrom.TryGetValue(current, out var prev))
+            waypoints.Add(new Vector3(current.x + 0.5f, current.y, current.z + 0.5f));
+            var node = current;
+            while (cameFrom.TryGetValue((node.x, node.y, node.z), out var prev))
             {
-                current = prev;
-                chain.Push(current);
+                node = prev;
+                waypoints.Add(new Vector3(node.x + 0.5f, node.y, node.z + 0.5f));
             }
-
-            while (chain.Count > 0)
-            {
-                var node = chain.Pop();
-                waypoints.Add(new Vector3(node.Item1 + 0.5f, node.Item2, node.Item3 + 0.5f));
-            }
+            waypoints.Reverse();
         }
     }
 }

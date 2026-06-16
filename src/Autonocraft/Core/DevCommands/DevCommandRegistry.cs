@@ -25,6 +25,7 @@ namespace Autonocraft.Core.DevCommands
             Register(new Commands.InventoryCommand());
             Register(new Commands.SeedCommand());
             Register(new Commands.PerfCommand());
+            Register(new Commands.PerfHudCommand());
             Register(new Commands.ChunksCommand());
             Register(new Commands.SpawnCommand());
             Register(new Commands.AnimalsCommand());

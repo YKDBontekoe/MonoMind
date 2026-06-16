@@ -204,9 +204,12 @@ namespace Autonocraft.Engine
             ExtractFrustumPlanes(viewProjection, _frustumPlanes);
             BuildVisibleChunkList(ctx.Grid, agentChunkX, agentChunkZ, renderDistance, _frustumPlanes);
 
+            var swSky = System.Diagnostics.Stopwatch.StartNew();
             DrawSkyBox(monoView, monoProj, lighting, ctx.TimeOfDay, ctx.Grid.Seed);
             _cloudLayerRenderer.Draw(_device, _skyEffect, monoView, monoProj, ctx.TimeOfDay, lighting);
             DrawSunAndMoon(ctx.Camera, sunDir, moonDir);
+            swSky.Stop();
+            PerfCounters.DrawSkyMs = (float)swSky.Elapsed.TotalMilliseconds;
 
             _device.DepthStencilState = DepthStencilState.Default;
             _device.RasterizerState = RasterizerState.CullClockwise;
@@ -242,6 +245,8 @@ namespace Autonocraft.Engine
 
             var floraFogStart = ChunkLod.GetFogStart(renderDistance) * lighting.FogMultiplier;
             var floraFogEnd = ChunkLod.GetFogEnd(renderDistance, twilightFactor) * lighting.FogMultiplier;
+
+            var swFlora = System.Diagnostics.Stopwatch.StartNew();
             _floraRenderer.Draw(
                 _visibleChunksScratch,
                 monoView,
@@ -252,9 +257,14 @@ namespace Autonocraft.Engine
                 renderDistance,
                 ctx.WaterAnimTime,
                 _atlasTexture);
+            swFlora.Stop();
+            PerfCounters.DrawFloraMs = (float)swFlora.Elapsed.TotalMilliseconds;
 
+            var swEntities = System.Diagnostics.Stopwatch.StartNew();
             DrawAnimals(ctx, monoView, monoProj, renderDistance, lighting);
             DrawVillagers(ctx, monoView, monoProj, renderDistance, lighting);
+            swEntities.Stop();
+            PerfCounters.DrawEntitiesMs = (float)swEntities.Elapsed.TotalMilliseconds;
 
             _overlayRenderer.Draw(
                 ctx.BlockInteraction,
@@ -724,6 +734,7 @@ namespace Autonocraft.Engine
                 moonEnabled,
                 _atlasTexture);
 
+            var swOpaque = System.Diagnostics.Stopwatch.StartNew();
             DrawTerrainPass(
                 waterAnimTime,
                 renderDistance,
@@ -734,7 +745,10 @@ namespace Autonocraft.Engine
                 waterOnly: false,
                 alphaCutoutOnly: false,
                 TerrainPassKind.Opaque);
+            swOpaque.Stop();
+            PerfCounters.DrawTerrainOpaqueMs = (float)swOpaque.Elapsed.TotalMilliseconds;
 
+            var swWater = System.Diagnostics.Stopwatch.StartNew();
             DrawTerrainPass(
                 waterAnimTime,
                 renderDistance,
@@ -745,7 +759,10 @@ namespace Autonocraft.Engine
                 waterOnly: true,
                 alphaCutoutOnly: false,
                 TerrainPassKind.Water);
+            swWater.Stop();
+            PerfCounters.DrawTerrainWaterMs = (float)swWater.Elapsed.TotalMilliseconds;
 
+            var swCutout = System.Diagnostics.Stopwatch.StartNew();
             DrawTerrainPass(
                 waterAnimTime,
                 renderDistance,
@@ -756,6 +773,8 @@ namespace Autonocraft.Engine
                 waterOnly: false,
                 alphaCutoutOnly: true,
                 TerrainPassKind.Cutout);
+            swCutout.Stop();
+            PerfCounters.DrawTerrainCutoutMs = (float)swCutout.Elapsed.TotalMilliseconds;
         }
 
         private enum TerrainPassKind
@@ -821,7 +840,7 @@ namespace Autonocraft.Engine
                         continue;
                     }
 
-                    if (waterOnly)
+                    if (waterOnly && entry.ChunkDistance <= 3)
                     {
                         var waterVertices = entry.Chunk.GetWaterVertices(entry.RenderDetail);
                         if (waterVertices != null && waterVertices.Length > 0)
@@ -852,12 +871,15 @@ namespace Autonocraft.Engine
                         {
                             case TerrainPassKind.Water:
                                 Autonocraft.Core.PerfCounters.TerrainWaterDrawCalls++;
+                                Autonocraft.Core.PerfCounters.TerrainWaterIndexCount += count;
                                 break;
                             case TerrainPassKind.Cutout:
                                 Autonocraft.Core.PerfCounters.TerrainCutoutDrawCalls++;
+                                Autonocraft.Core.PerfCounters.TerrainCutoutIndexCount += count;
                                 break;
                             default:
                                 Autonocraft.Core.PerfCounters.TerrainOpaqueDrawCalls++;
+                                Autonocraft.Core.PerfCounters.TerrainOpaqueIndexCount += count;
                                 break;
                         }
                     }

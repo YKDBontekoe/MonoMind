@@ -6,8 +6,39 @@ namespace Autonocraft.World
     public static class TerrainPostProcessor
     {
         private const int Padding = 8;
+        private const int PaddedWidth = Chunk.Width + Padding * 2;
+        private const int PaddedDepth = Chunk.Depth + Padding * 2;
         private const float RiverFlowThreshold = 32f;
         private const float TributaryFlowThreshold = 10f;
+
+        [ThreadStatic]
+        private static float[,]? _heightsScratch;
+        [ThreadStatic]
+        private static float[,]? _smoothScratch;
+        [ThreadStatic]
+        private static float[,]? _rawHeightsScratch;
+        [ThreadStatic]
+        private static TerrainColumn[,]? _draftsScratch;
+        [ThreadStatic]
+        private static float[,]? _flowScratch;
+        [ThreadStatic]
+        private static int[,]? _downstreamXScratch;
+        [ThreadStatic]
+        private static int[,]? _downstreamZScratch;
+        [ThreadStatic]
+        private static List<(int x, int z, float height)>? _riverCellsScratch;
+
+        private static void EnsureScratch()
+        {
+            _heightsScratch ??= new float[PaddedWidth, PaddedDepth];
+            _smoothScratch ??= new float[PaddedWidth, PaddedDepth];
+            _rawHeightsScratch ??= new float[PaddedWidth, PaddedDepth];
+            _draftsScratch ??= new TerrainColumn[PaddedWidth, PaddedDepth];
+            _flowScratch ??= new float[PaddedWidth, PaddedDepth];
+            _downstreamXScratch ??= new int[PaddedWidth, PaddedDepth];
+            _downstreamZScratch ??= new int[PaddedWidth, PaddedDepth];
+            _riverCellsScratch ??= new List<(int x, int z, float height)>(PaddedWidth * PaddedDepth);
+        }
 
         public static void ProcessChunk(
             int chunkX,
@@ -16,14 +47,14 @@ namespace Autonocraft.World
             Func<int, int, (float height, TerrainColumn draft)> sampleBase,
             bool enableRivers)
         {
-            int width = Chunk.Width + Padding * 2;
-            int depth = Chunk.Depth + Padding * 2;
+            EnsureScratch();
+            var heights = _heightsScratch!;
+            var rawHeights = _rawHeightsScratch!;
+            var drafts = _draftsScratch!;
+            int width = PaddedWidth;
+            int depth = PaddedDepth;
             int originX = chunkX * Chunk.Width - Padding;
             int originZ = chunkZ * Chunk.Depth - Padding;
-
-            var heights = new float[width, depth];
-            var rawHeights = new float[width, depth];
-            var drafts = new TerrainColumn[width, depth];
 
             for (int lz = 0; lz < depth; lz++)
             {
@@ -62,11 +93,11 @@ namespace Autonocraft.World
         {
             int width = heights.GetLength(0);
             int depth = heights.GetLength(1);
+            var next = _smoothScratch!;
 
             for (int pass = 0; pass < passes; pass++)
             {
-                var next = (float[,])heights.Clone();
-
+                Array.Copy(heights, next, heights.Length);
                 for (int z = 1; z < depth - 1; z++)
                 {
                     for (int x = 1; x < width - 1; x++)
@@ -105,7 +136,12 @@ namespace Autonocraft.World
                     }
                 }
 
-                Array.Copy(next, heights, next.Length);
+                SwapHeightBuffers(ref heights, ref next);
+            }
+
+            if (!ReferenceEquals(heights, _heightsScratch))
+            {
+                Array.Copy(heights, _heightsScratch!, heights.Length);
             }
         }
 
@@ -113,11 +149,11 @@ namespace Autonocraft.World
         {
             int width = heights.GetLength(0);
             int depth = heights.GetLength(1);
+            var next = _smoothScratch!;
 
             for (int pass = 0; pass < passes; pass++)
             {
-                var next = (float[,])heights.Clone();
-
+                Array.Copy(heights, next, heights.Length);
                 for (int z = 1; z < depth - 1; z++)
                 {
                     for (int x = 1; x < width - 1; x++)
@@ -151,8 +187,20 @@ namespace Autonocraft.World
                     }
                 }
 
-                Array.Copy(next, heights, next.Length);
+                SwapHeightBuffers(ref heights, ref next);
             }
+
+            if (!ReferenceEquals(heights, _heightsScratch))
+            {
+                Array.Copy(heights, _heightsScratch!, heights.Length);
+            }
+        }
+
+        private static void SwapHeightBuffers(ref float[,] primary, ref float[,] secondary)
+        {
+            var temp = primary;
+            primary = secondary;
+            secondary = temp;
         }
 
         private static void StabilizeCoastalHeights(float[,] heights, TerrainColumn[,] drafts)
@@ -232,8 +280,11 @@ namespace Autonocraft.World
         {
             int width = heights.GetLength(0);
             int depth = heights.GetLength(1);
-            var flow = new float[width, depth];
-            var downstream = new (int x, int z)[width, depth];
+            var flow = _flowScratch!;
+            var downstreamX = _downstreamXScratch!;
+            var downstreamZ = _downstreamZScratch!;
+            var cells = _riverCellsScratch!;
+            cells.Clear();
 
             for (int z = 0; z < depth; z++)
             {
@@ -242,11 +293,12 @@ namespace Autonocraft.World
                     int wx = originX + x;
                     int wz = originZ + z;
                     flow[x, z] = GetInitialFlow(wx, wz, drafts[x, z], heights, rawHeights, x, z);
-                    downstream[x, z] = FindDownstream(x, z, heights, drafts);
+                    var (dx, dz) = FindDownstream(x, z, heights, drafts);
+                    downstreamX[x, z] = dx;
+                    downstreamZ[x, z] = dz;
                 }
             }
 
-            var cells = new List<(int x, int z, float height)>(width * depth);
             for (int z = 0; z < depth; z++)
             {
                 for (int x = 0; x < width; x++)
@@ -262,7 +314,8 @@ namespace Autonocraft.World
 
             foreach (var cell in cells)
             {
-                var (dx, dz) = downstream[cell.x, cell.z];
+                int dx = downstreamX[cell.x, cell.z];
+                int dz = downstreamZ[cell.x, cell.z];
                 if (dx < 0)
                 {
                     continue;

@@ -13,6 +13,7 @@ namespace Autonocraft
             Console.WriteLine();
             Console.WriteLine("Options:");
             Console.WriteLine("  --test        Run headless integration tests and exit");
+            Console.WriteLine("  --bench       Run performance benchmarks and exit (brief windowed GPU pass)");
             Console.WriteLine("  --skip-menu   Skip main menu and load a world immediately");
             Console.WriteLine("  --agent-port  Agent HTTP API port (default: 5001; macOS often blocks 5000)");
             Console.WriteLine($"  --render-distance  Override render distance for this session ({GameSettings.MinRenderDistance}-{GameSettings.MaxRenderDistance})");
@@ -24,6 +25,7 @@ namespace Autonocraft
         private static void Main(string[] args)
         {
             bool runTests = false;
+            bool runBench = false;
             bool skipMenu = false;
             bool debugInput = false;
             bool debugMetrics = false;
@@ -40,6 +42,10 @@ namespace Autonocraft
                 if (arg == "--test")
                 {
                     runTests = true;
+                }
+                else if (arg == "--bench")
+                {
+                    runBench = true;
                 }
                 else if (arg == "--skip-menu")
                 {
@@ -88,6 +94,18 @@ namespace Autonocraft
             {
                 bool success = GameIntegrationTests.Run();
                 Environment.Exit(success ? 0 : 1);
+                return;
+            }
+
+            if (runBench)
+            {
+                using (var bench = new PerformanceBenchmarkGame())
+                {
+                    bench.Run();
+                }
+
+                RuntimeMetrics.Shutdown();
+                InputDebugTrace.Shutdown();
                 return;
             }
 
