@@ -94,4 +94,42 @@ public static class ChunkStreamingTests
         Console.WriteLine("PASSED");
         Console.ResetColor();
     }
+
+    public static void RunEnsureChunksLoadedDoesNotUnloadPlayerRadius()
+    {
+        Console.Write("Running Ensure Chunks Loaded No Unload Test... ");
+
+        using var world = new VoxelWorld(1337, WorldGenParams.ForType(WorldType.Default));
+        const int renderDistance = 8;
+        var playerPos = new Vector3(16.5f, 64f, 16.5f);
+        world.UpdateChunksAround(null, playerPos, renderDistance);
+
+        for (int frame = 0; frame < 80; frame++)
+        {
+            world.ProcessPendingWork(null, playerPos, renderDistance, maxTerrainPerFrame: 24, maxMeshPerFrame: 8);
+        }
+
+        int loadedAroundPlayer = world.ActiveChunkCount;
+        if (loadedAroundPlayer < (renderDistance * 2) * (renderDistance * 2))
+        {
+            throw new Exception($"Expected a full player radius loaded, got {loadedAroundPlayer} chunks.");
+        }
+
+        var farVillageCenter = new Vector3(64.5f, 64f, 64.5f);
+        for (int i = 0; i < 30; i++)
+        {
+            world.EnsureChunksLoaded(farVillageCenter, chunkRadius: 2);
+            world.ProcessPendingWork(null, playerPos, renderDistance, maxTerrainPerFrame: 4, maxMeshPerFrame: 2);
+        }
+
+        if (world.ActiveChunkCount < loadedAroundPlayer - 16)
+        {
+            throw new Exception(
+                $"EnsureChunksLoaded unloaded player chunks: before={loadedAroundPlayer}, after={world.ActiveChunkCount}.");
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
 }
