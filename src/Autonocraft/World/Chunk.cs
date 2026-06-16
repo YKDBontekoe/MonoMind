@@ -406,6 +406,16 @@ namespace Autonocraft.World
                     _columnLowestMesh[idx] = (short)y;
                 }
 
+                if (!solid)
+                {
+                    int solidHigh = _columnHighestSolid[idx];
+                    int solidLow = _columnLowestSolid[idx];
+                    if (y == solidHigh || y == solidLow)
+                    {
+                        RescanColumnHeights(lx, lz);
+                    }
+                }
+
                 return;
             }
 
@@ -418,6 +428,12 @@ namespace Autonocraft.World
                 return;
             }
 
+            RescanColumnHeights(lx, lz);
+        }
+
+        private void RescanColumnHeights(int lx, int lz)
+        {
+            int idx = lz * Width + lx;
             int lowestSolid = -1;
             int highestSolid = -1;
             int lowestMesh = -1;

@@ -300,7 +300,7 @@ namespace Autonocraft.Engine
 
             Vector3 bitangent = Vector3.Normalize(Vector3.Cross(n, tangent));
             tangent = Vector3.Normalize(Vector3.Cross(bitangent, n));
-            
+
             float halfH = (MathF.Abs(n.Y) > 0.5f) ? 0.495f : (topY * 0.495f);
             float halfW = 0.495f;
 

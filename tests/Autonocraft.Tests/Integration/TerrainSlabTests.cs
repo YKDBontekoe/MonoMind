@@ -56,15 +56,15 @@ public static class TerrainSlabTests
         var mountains = MakeDraft(BiomeType.Mountains, BlockType.Stone, ridgeWeight: 0.75f);
         var forestHigh = MakeDraft(BiomeType.Forest, BlockType.Grass, ridgeWeight: 0f);
 
-            if (!TerrainSlabRules.TryGetPlacement(plains, 65.0f, heights, 3, 3, BlockType.Grass, out int y, out var slab) || slab != BlockType.GrassSlab || y != 65)
-            {
-                throw new Exception("Expected grass slab on the upper cell of a gentle lowland step.");
-            }
+        if (!TerrainSlabRules.TryGetPlacement(plains, 65.0f, heights, 3, 3, BlockType.Grass, out int y, out var slab) || slab != BlockType.GrassSlab || y != 65)
+        {
+            throw new Exception("Expected grass slab on the upper cell of a gentle lowland step.");
+        }
 
-            if (TerrainSlabRules.TryGetPlacement(plains, 64.0f, heights, 2, 3, BlockType.Grass, out _, out _))
-            {
-                throw new Exception("Lower step cells must use full blocks, not terrain slabs.");
-            }
+        if (TerrainSlabRules.TryGetPlacement(plains, 64.0f, heights, 2, 3, BlockType.Grass, out _, out _))
+        {
+            throw new Exception("Lower step cells must use full blocks, not terrain slabs.");
+        }
 
         if (TerrainSlabRules.TryGetPlacement(mountains, 64.0f, heights, 2, 3, BlockType.Stone, out _, out _))
         {

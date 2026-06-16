@@ -28,6 +28,11 @@ namespace Autonocraft.Engine
 
         public static Texture2D LoadOrGenerate(GraphicsDevice device, int paletteSeed = 0)
         {
+            if (paletteSeed != 0)
+            {
+                return Generate(device, paletteSeed);
+            }
+
             string path = Path.Combine(AppContext.BaseDirectory, "atlas.png");
             if (!File.Exists(path))
             {

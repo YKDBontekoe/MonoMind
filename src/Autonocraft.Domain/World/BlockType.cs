@@ -345,8 +345,8 @@ namespace Autonocraft.Domain.World
 
         public static bool CanSupportBleeding(this BlockType type)
         {
-            return type is BlockType.Dirt or BlockType.Stone or BlockType.Gravel or BlockType.Clay 
-                or BlockType.Mud or BlockType.Limestone or BlockType.Granite or BlockType.Basalt 
+            return type is BlockType.Dirt or BlockType.Stone or BlockType.Gravel or BlockType.Clay
+                or BlockType.Mud or BlockType.Limestone or BlockType.Granite or BlockType.Basalt
                 or BlockType.Marble or BlockType.Slate or BlockType.Cobblestone or BlockType.MossStone;
         }
     }

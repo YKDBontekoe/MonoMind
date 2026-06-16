@@ -324,12 +324,6 @@ namespace Autonocraft.Entities
             int yStart = startY;
             int yEnd = endY;
             int yStep = 1;
-            if (axis == 1 && state.Velocity.Y < 0)
-            {
-                yStart = endY;
-                yEnd = startY;
-                yStep = -1;
-            }
 
             int zStart = startZ;
             int zEnd = endZ;

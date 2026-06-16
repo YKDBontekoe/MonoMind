@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import argparse
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -11,9 +13,10 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+DEFAULT_PORT = 5001
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "test_output" / "slab_verify"
-PORT = 5001
+PORT = DEFAULT_PORT
 BASE = f"http://127.0.0.1:{PORT}"
 
 
@@ -63,6 +66,14 @@ def slab_scan(radius: int = 12) -> dict:
 
 
 def main() -> int:
+    global PORT, BASE
+
+    parser = argparse.ArgumentParser(description="Verify terrain slab placement in-game.")
+    parser.add_argument("--port", type=int, default=int(os.environ.get("AGENT_PORT", DEFAULT_PORT)))
+    args = parser.parse_args()
+    PORT = args.port
+    BASE = f"http://127.0.0.1:{PORT}"
+
     print("Waiting for agent API...")
     wait_ready()
 
