@@ -63,6 +63,7 @@ GitHub Actions validates every push and PR on **Ubuntu, Windows, and macOS**:
 | Workflow | Jobs |
 |----------|------|
 | `.github/workflows/ci.yml` | `build` → `unit-tests` (xUnit unit filter) + `integration-tests` (`dotnet run -- --test`) |
+| `.github/workflows/version.yml` | After CI on `main`: semver bump, `CHANGELOG.md` update, git tag `v*.*.*` |
 | `.github/workflows/quality.yml` | `dotnet format --verify-no-changes`, `build_atlas.py --check`, coverlet coverage |
 | `.github/workflows/codeql.yml` | C# CodeQL analysis |
 | `.github/workflows/release.yml` | Tag-triggered multi-RID `dotnet publish` + GitHub Release assets |

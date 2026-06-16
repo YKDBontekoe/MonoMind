@@ -109,6 +109,15 @@ The C# runtime also has `ProceduralAtlasBuilder` as a fallback when the PNG is m
 
 When gameplay starts, a local server listens on **http://localhost:5001/** (override with `--agent-port`). Use it to query state, capture screenshots, and queue input actions. See [AGENTS.md](AGENTS.md) for the full API reference and [tests/interact.py](tests/interact.py) for a Python CLI wrapper.
 
+## Releases
+
+Pushes to `main` trigger an automated release pipeline after CI passes:
+
+1. **Version** — bumps `VERSION` (semver from conventional commits: `feat` → minor, `fix` → patch, `!`/`BREAKING CHANGE` → major), prepends [CHANGELOG.md](CHANGELOG.md), commits `chore(release): vX.Y.Z`, and pushes tag `vX.Y.Z`.
+2. **Release** — builds and publishes zip assets for Linux, Windows, and macOS (x64 + arm64) to [GitHub Releases](https://github.com/YKDBontekoe/MonoMind/releases).
+
+Manual releases are still supported via **Actions → Release → Run workflow** (creates a draft).
+
 ## Continuous Integration
 
 GitHub Actions runs on every push and pull request to `main`/`master`, plus a nightly schedule at 06:00 UTC.
@@ -118,6 +127,7 @@ GitHub Actions runs on every push and pull request to `main`/`master`, plus a ni
 | [CI](.github/workflows/ci.yml) | Build + unit tests + headless integration (`--test`) on Ubuntu, Windows, and macOS |
 | [Quality](.github/workflows/quality.yml) | `dotnet format`, atlas validation, unit-test code coverage |
 | [CodeQL](.github/workflows/codeql.yml) | C# security analysis |
+| [Version](.github/workflows/version.yml) | After CI on `main`: semver bump, [CHANGELOG.md](CHANGELOG.md) update, git tag |
 | [Release](.github/workflows/release.yml) | Multi-platform publish on version tags (`v*.*.*`) |
 
 Reproduce CI locally:
