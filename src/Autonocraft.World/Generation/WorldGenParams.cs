@@ -3,7 +3,7 @@ namespace Autonocraft.World
     public sealed class WorldGenParams
     {
         public WorldType WorldType { get; init; } = WorldType.Default;
-        public float HeightScale { get; init; } = 1f;
+        public float HeightScale { get; init; } = 1.25f;
         public float HeightOffset { get; init; } = 0f;
         public float ContinentalnessBias { get; init; } = 0f;
         public float MountainWeight { get; init; } = 1f;
@@ -20,8 +20,8 @@ namespace Autonocraft.World
             WorldType.Mountains => new WorldGenParams
             {
                 WorldType = type,
-                HeightScale = 1.45f,
-                HeightOffset = 8f,
+                HeightScale = 1.65f,
+                HeightOffset = 12f,
                 MountainWeight = 2.2f,
                 TreeDensityScale = 0.7f
             },
@@ -43,7 +43,22 @@ namespace Autonocraft.World
                 EnableRivers = false,
                 EnableStructures = false
             },
-            _ => new WorldGenParams { WorldType = WorldType.Default }
+            WorldType.StructureGallery => new WorldGenParams
+            {
+                WorldType = type,
+                HeightScale = 0f,
+                HeightOffset = 0f,
+                MountainWeight = 0f,
+                TreeDensityScale = 0f,
+                EnableCaves = false,
+                EnableRivers = false,
+                EnableStructures = true
+            },
+            _ => new WorldGenParams
+            {
+                WorldType = WorldType.Default,
+                MountainWeight = 1.10f
+            }
         };
     }
 }

@@ -197,17 +197,33 @@ namespace Autonocraft.World
 
         private void BuildFullMeshList(MeshBuildContext context, List<Vertex> vertices, List<uint> indices, List<Vertex> waterVertices, List<uint> waterIndices)
         {
+            if (!_columnHeightsBuilt)
+            {
+                RebuildColumnHeights();
+            }
+
             int worldOffsetX = ChunkX * Width;
             int worldOffsetZ = ChunkZ * Depth;
 
-            for (int y = 0; y < Height; y++)
+            for (int z = 0; z < Depth; z++)
             {
-                for (int z = 0; z < Depth; z++)
+                for (int x = 0; x < Width; x++)
                 {
-                    for (int x = 0; x < Width; x++)
+                    int yMin = GetCachedLowestMeshY(x, z);
+                    int yMax = GetCachedHighestMeshY(x, z);
+                    if (yMin < 0 || yMax < 0)
+                    {
+                        continue;
+                    }
+
+                    for (int y = yMin; y <= yMax; y++)
                     {
                         BlockType type = _blocks[GetIndex(x, y, z)];
-                        if (type == BlockType.Air) continue;
+                        if (type == BlockType.Air)
+                        {
+                            continue;
+                        }
+
                         NoteBlockType(type);
 
                         EmitBlockFaces(

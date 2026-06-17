@@ -91,13 +91,9 @@ namespace Autonocraft.Core
             centerX = 0;
             centerY = 0;
 
-            while (_pendingActions.TryDequeue(out var action))
-            {
-                try { action(); }
-                catch (Exception ex) { Console.WriteLine($"[Agent Action Error] {ex.Message}"); }
-            }
-
             HandleInventoryKey(kbState);
+
+            _input.TryRecaptureMouseOnClick(_screens.State, InputBlockers, mouseState);
 
             if (UpdateBlockingGameplayOverlays(deltaTime, kbState, mouseState))
             {
@@ -440,6 +436,12 @@ namespace Autonocraft.Core
                     (int)stationPos.Y,
                     (int)stationPos.Z,
                     _session.BlockInteraction.PendingStationType);
+            }
+
+            if (_session.BlockInteraction.PendingChestOpen.HasValue)
+            {
+                var chestPos = _session.BlockInteraction.PendingChestOpen.Value;
+                OpenChestAt((int)chestPos.X, (int)chestPos.Y, (int)chestPos.Z);
             }
         }
 

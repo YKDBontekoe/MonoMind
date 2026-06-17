@@ -1,10 +1,12 @@
 using System;
+using System.Linq;
 using Microsoft.Xna.Framework.Input;
 using Autonocraft.Ai;
 using Autonocraft.Crafting;
 using Autonocraft.Items;
 using Autonocraft.Village;
-using Autonocraft.World;
+using Autonocraft.Domain.Items;
+using Autonocraft.World.Loot;
 using Vector3 = System.Numerics.Vector3;
 
 namespace Autonocraft.Core
@@ -122,6 +124,13 @@ namespace Autonocraft.Core
             {
                 EnsureUiPointerMode();
                 _screens.VillageChatScreen.Update(GraphicsDevice.Viewport, _session, kbState, _input.PrevKeyboard, mouseState, _input.PrevMouse, deltaTime);
+                if (!_screens.VillageChatScreen.IsOpen)
+                {
+                    _input.IsMouseLocked = _input.MouseLockedBeforeVillageUi;
+                    RestoreMouseLockAfterOverlay();
+                    return false;
+                }
+
                 return true;
             }
 
@@ -158,6 +167,12 @@ namespace Autonocraft.Core
             if (_session.Crafting.Crucible.IsOpen)
             {
                 UpdateCrucibleOverlay(deltaTime, kbState, mouseState);
+                return true;
+            }
+
+            if (_session.Chest.IsOpen)
+            {
+                UpdateChestOverlay(deltaTime, kbState, mouseState);
                 return true;
             }
 
@@ -264,6 +279,7 @@ namespace Autonocraft.Core
 
         private void OpenVillageChatWithVillager(Village.Village village, int villagerId, string villagerName)
         {
+            _input.MouseLockedBeforeVillageUi = _input.IsMouseLocked;
             PrepareMouseForUi();
             _screens.VillageChatScreen!.OpenWithVillager(village, villagerId, villagerName);
         }
@@ -273,6 +289,100 @@ namespace Autonocraft.Core
             _input.MouseLockedBeforeCrafting = _input.IsMouseLocked;
             PrepareMouseForUi();
             _session.Crafting.OpenCrucible(x, y, z, stationType);
+        }
+
+        public void OpenChestAt(int x, int y, int z)
+        {
+            if (!_session.Grid.Containers.TryGet(x, y, z, out var chest) || chest == null)
+            {
+                if (_session.Grid.GetBlock(x, y, z) != BlockType.Chest)
+                {
+                    return;
+                }
+
+                _session.HudToast.Show("Chest loot is still loading — try again.", durationSeconds: 2f);
+                return;
+            }
+
+            _input.MouseLockedBeforeCrafting = _input.IsMouseLocked;
+            PrepareMouseForUi();
+            _session.Chest.Open(x, y, z, chest.Inventory);
+            chest.Opened = true;
+
+            if (!_session.Player.CreativeMode)
+            {
+                var rarity = LootRoller.PeekHighestRarity(
+                    Enumerable.Range(0, chest.Inventory.SlotCount)
+                        .Select(i => chest.Inventory.GetSlot(i))
+                        .Where(s => !s.IsEmpty)
+                        .ToList());
+
+                if (rarity is LootRarity.Epic or LootRarity.Legendary)
+                {
+                    _session.HudToast.Show($"{rarity} loot discovered!", durationSeconds: 3f);
+                }
+            }
+        }
+
+        private void CloseChestUi()
+        {
+            _session.Chest.Close();
+            _input.IsMouseLocked = _input.MouseLockedBeforeCrafting;
+            RestoreMouseLockAfterOverlay();
+        }
+
+        private void UpdateChestOverlay(float deltaTime, KeyboardState kbState, MouseState mouseState)
+        {
+            EnsureUiPointerMode();
+            _screens.ChestScreen!.Update(
+                deltaTime,
+                GraphicsDevice.Viewport,
+                _session.Chest,
+                kbState,
+                mouseState,
+                _input.PrevKeyboard,
+                _input.PrevMouse);
+
+            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape))
+            {
+                CloseChestUi();
+                return;
+            }
+
+            int slot = _screens.ChestScreen.ClickedSlotIndex;
+            if (slot < 0)
+            {
+                return;
+            }
+
+            if (_screens.ChestScreen.RightClickedSlot)
+            {
+                if (_session.Chest.DepositFromPlayer(_session.Player, slot))
+                {
+                    _screens.ChestScreen.SetStatus("DEPOSITED");
+                }
+                else
+                {
+                    _screens.ChestScreen.SetStatus("SELECT HOTBAR ITEM");
+                }
+            }
+            else if (_session.Chest.WithdrawToPlayer(_session.Player, slot))
+            {
+                var stack = _session.Player.Hotbar[_session.Player.SelectedSlot];
+                if (stack.Kind == ItemKind.Tool && ToolRegistry.IsLootOnly(stack.ToolId))
+                {
+                    var def = ToolRegistry.Get(stack.ToolId);
+                    _screens.ChestScreen.SetStatus($"{def.DisplayName.ToUpperInvariant()}!");
+                }
+                else
+                {
+                    _screens.ChestScreen.SetStatus("TAKEN");
+                }
+            }
+            else
+            {
+                _screens.ChestScreen.SetStatus("INVENTORY FULL");
+            }
         }
 
         private void CloseCrucibleUi()
@@ -337,6 +447,7 @@ namespace Autonocraft.Core
                 || _screens.DeathScreen?.IsOpen == true
                 || _screens.VillageScreen?.IsOpen == true
                 || _session.Crafting.Crucible.IsOpen
+                || _session.Chest.IsOpen
                 || _session.Crafting.IsJournalUiBlocking)
             {
                 return false;

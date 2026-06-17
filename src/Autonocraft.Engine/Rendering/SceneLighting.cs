@@ -1,5 +1,6 @@
 using Microsoft.Xna.Framework;
 using Vector3 = System.Numerics.Vector3;
+using Autonocraft.Domain.Core;
 using Autonocraft.World;
 
 namespace Autonocraft.Engine
@@ -23,13 +24,12 @@ namespace Autonocraft.Engine
 
         public static SceneLighting FromTimeOfDay(float timeOfDay, BiomeType biome = BiomeType.Plains, float rainIntensity = 0f, float cloudIntensity = 0f, float lightningIntensity = 0f)
         {
-            float sunAngle = timeOfDay * MathF.PI * 2f;
+            float sunAngle = DayNightCycle.WarpTimeForSun(timeOfDay) * MathF.PI * 2f;
             var sunDir = new Vector3(0f, MathF.Sin(sunAngle), MathF.Cos(sunAngle));
             var moonDir = -sunDir;
 
             float sunY = sunDir.Y;
-            // Start daylight only when sun is above horizon; allow a thin twilight band.
-            float dayLight = Math.Clamp((sunY + 0.06f) / 0.36f, 0f, 1f);
+            float dayLight = Math.Clamp((sunY + 0.02f) / 0.32f, 0f, 1f);
             float sunIntensity = Math.Clamp((sunY - 0.02f) / 0.50f, 0f, 1f);
             float moonIntensity = Math.Clamp((moonDir.Y - 0.02f) / 0.42f, 0f, 1f);
             // Sunset: narrow band when sun is near the horizon.
@@ -104,6 +104,12 @@ namespace Autonocraft.Engine
                     skyZenithDay = new Vector3(0.14f, 0.38f, 0.78f);
                     ambDay = new Vector3(0.22f, 0.26f, 0.30f);
                     fogMultiplier = 0.85f;
+                    break;
+                case BiomeType.Jungle:
+                    skyHorizonDay = new Vector3(0.48f, 0.70f, 0.82f);
+                    skyZenithDay = new Vector3(0.10f, 0.34f, 0.70f);
+                    ambDay = new Vector3(0.18f, 0.24f, 0.22f);
+                    fogMultiplier = 0.92f;
                     break;
                 case BiomeType.Ocean:
                     skyHorizonDay = new Vector3(0.48f, 0.75f, 0.92f);

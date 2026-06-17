@@ -29,35 +29,59 @@ namespace Autonocraft.World
                     int highestSolid = -1;
                     int lowestMesh = -1;
                     int highestMesh = -1;
-                    for (int y = 0; y < Height; y++)
+
+                    for (int y = Height - 1; y >= 0; y--)
                     {
                         BlockType type = _blocks[GetIndex(lx, y, lz)];
-                        if (type.IsSolidForSpawn())
-                        {
-                            if (lowestSolid < 0)
-                            {
-                                lowestSolid = y;
-                            }
+                        bool solid = type.IsSolidForSpawn();
+                        bool meshBlock = solid || type.IsSlab() || type.IsAlphaCutout() || type.IsWater();
 
+                        if (highestSolid < 0 && solid)
+                        {
                             highestSolid = y;
                         }
 
-                        if (type.IsSolidForSpawn() || type.IsSlab() || type.IsAlphaCutout() || type.IsWater())
+                        if (highestMesh < 0 && meshBlock)
                         {
-                            if (lowestMesh < 0)
-                            {
-                                lowestMesh = y;
-                            }
-
                             highestMesh = y;
+                        }
+
+                        if (highestSolid >= 0 && highestMesh >= 0)
+                        {
+                            break;
                         }
                     }
 
-                    int idx = lz * Width + lx;
-                    _columnLowestSolid[idx] = (short)lowestSolid;
-                    _columnHighestSolid[idx] = (short)highestSolid;
-                    _columnLowestMesh[idx] = (short)lowestMesh;
-                    _columnHighestMesh[idx] = (short)highestMesh;
+                    if (highestMesh < 0)
+                    {
+                        int idx = lz * Width + lx;
+                        _columnLowestSolid[idx] = -1;
+                        _columnHighestSolid[idx] = -1;
+                        _columnLowestMesh[idx] = -1;
+                        _columnHighestMesh[idx] = -1;
+                        continue;
+                    }
+
+                    int scanTop = Math.Max(highestSolid, highestMesh);
+                    for (int y = 0; y <= scanTop; y++)
+                    {
+                        BlockType type = _blocks[GetIndex(lx, y, lz)];
+                        if (type.IsSolidForSpawn() && lowestSolid < 0)
+                        {
+                            lowestSolid = y;
+                        }
+
+                        if ((type.IsSolidForSpawn() || type.IsSlab() || type.IsAlphaCutout() || type.IsWater()) && lowestMesh < 0)
+                        {
+                            lowestMesh = y;
+                        }
+                    }
+
+                    int columnIdx = lz * Width + lx;
+                    _columnLowestSolid[columnIdx] = (short)lowestSolid;
+                    _columnHighestSolid[columnIdx] = (short)highestSolid;
+                    _columnLowestMesh[columnIdx] = (short)lowestMesh;
+                    _columnHighestMesh[columnIdx] = (short)highestMesh;
                 }
             }
 
@@ -123,13 +147,17 @@ namespace Autonocraft.World
         internal void FillTerrainColumn(int lx, int lz, TerrainColumn column)
         {
             int height = column.SurfaceHeight;
+            bool needsWaterFill = column.Biome.Primary == BiomeType.Ocean || column.IsRiver || column.IsLake;
+            int fillTop = needsWaterFill
+                ? Math.Max(height, WorldConstants.SeaLevel)
+                : height;
 
-            for (int y = 0; y < Height; y++)
+            for (int y = 0; y <= fillTop; y++)
             {
                 BlockType block;
                 if (y > height)
                 {
-                    if (y <= WorldConstants.SeaLevel && (column.Biome.Primary == BiomeType.Ocean || column.IsRiver || column.IsLake))
+                    if (y <= WorldConstants.SeaLevel && needsWaterFill)
                     {
                         bool freezeSurface = column.Biome.Primary == BiomeType.SnowyPeaks;
                         block = y == WorldConstants.SeaLevel && freezeSurface

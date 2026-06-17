@@ -17,6 +17,7 @@ namespace Autonocraft
             Console.WriteLine("  --test        Run headless integration tests and exit");
             Console.WriteLine("  --bench       Run performance benchmarks and exit (brief windowed GPU pass)");
             Console.WriteLine("  --skip-menu   Skip main menu and load a world immediately");
+            Console.WriteLine("  --structure-gallery  Skip menu and load the flat structure showcase world");
             Console.WriteLine("  --agent-port  Agent HTTP API port (default: 5001; macOS often blocks 5000)");
             Console.WriteLine($"  --render-distance  Override render distance for this session ({GameSettings.MinRenderDistance}-{GameSettings.MaxRenderDistance})");
             Console.WriteLine("  --debug-input Trace mouse/focus/streaming to input_debug.log");
@@ -29,6 +30,7 @@ namespace Autonocraft
             bool runTests = false;
             bool runBench = false;
             bool skipMenu = false;
+            bool structureGallery = false;
             bool debugInput = false;
             bool debugMetrics = false;
             int agentPort = 5001;
@@ -51,6 +53,11 @@ namespace Autonocraft
                 }
                 else if (arg == "--skip-menu")
                 {
+                    skipMenu = true;
+                }
+                else if (arg == "--structure-gallery")
+                {
+                    structureGallery = true;
                     skipMenu = true;
                 }
                 else if (arg == "--debug-input")
@@ -129,7 +136,7 @@ namespace Autonocraft
                 RuntimeMetrics.EnableFileLogging(fromCli: true);
             }
 
-            using (var game = new AutonocraftGame(skipMenu: skipMenu, agentPort: agentPort, debugMetrics: debugMetrics, renderDistanceOverride: renderDistanceOverride))
+            using (var game = new AutonocraftGame(skipMenu: skipMenu, structureGallery: structureGallery, agentPort: agentPort, debugMetrics: debugMetrics, renderDistanceOverride: renderDistanceOverride))
             {
                 game.Run();
             }

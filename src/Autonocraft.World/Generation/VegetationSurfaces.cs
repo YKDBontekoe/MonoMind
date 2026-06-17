@@ -75,6 +75,11 @@ namespace Autonocraft.World.Generation
                     && flora is BlockType.Heather or BlockType.Juniper;
             }
 
+            if (biome is BiomeType.SnowyPeaks && flora is BlockType.Heather or BlockType.Juniper)
+            {
+                return surface is BlockType.Stone or BlockType.Gravel or BlockType.Snow;
+            }
+
             return false;
         }
 

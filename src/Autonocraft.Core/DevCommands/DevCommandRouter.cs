@@ -59,7 +59,7 @@ namespace Autonocraft.Core.DevCommands
                 "  time              - show time of day",
                 "  time set <0-1>    - set cycle (0=midnight, 0.25=dawn, 0.5=noon, 0.75=dusk)",
                 "  time dawn|noon|dusk|midnight",
-                "  time scale <n>    - cycle speed (0=pause, 0.01=default)",
+                "  time scale <n>    - cycle speed (0=pause, 0.001=default)",
                 "  time pause|resume - pause/resume day cycle",
                 "  tp <x> <y> <z>    - teleport",
                 "  pos               - show position",

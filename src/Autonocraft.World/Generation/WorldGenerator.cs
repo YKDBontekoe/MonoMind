@@ -39,24 +39,43 @@ namespace Autonocraft.World
             var columns = new TerrainColumn[Chunk.Width, Chunk.Depth];
             var biomeCache = new BiomeSampleCache(_biomeMap);
 
-            TerrainPostProcessor.ProcessChunk(
-                chunk.ChunkX,
-                chunk.ChunkZ,
-                columns,
-                (wx, wz) => _terrainShaper.BuildBaseColumn(wx, wz, biomeCache),
-                _params.EnableRivers);
-
-            for (int lx = 0; lx < Chunk.Width; lx++)
+            if (StructureGallery.IsGalleryWorld(_params.WorldType))
             {
-                for (int lz = 0; lz < Chunk.Depth; lz++)
+                for (int lx = 0; lx < Chunk.Width; lx++)
                 {
-                    _terrainShaper.FillColumn(chunk, lx, lz, columns[lx, lz]);
+                    for (int lz = 0; lz < Chunk.Depth; lz++)
+                    {
+                        int wx = chunk.ChunkX * Chunk.Width + lx;
+                        int wz = chunk.ChunkZ * Chunk.Depth + lz;
+                        columns[lx, lz] = StructureGallery.CreateFlatColumn(wx, wz);
+                        _terrainShaper.FillColumn(chunk, lx, lz, columns[lx, lz]);
+                    }
+                }
+            }
+            else
+            {
+                TerrainPostProcessor.ProcessChunk(
+                    chunk.ChunkX,
+                    chunk.ChunkZ,
+                    columns,
+                    (wx, wz) => _terrainShaper.BuildBaseColumn(wx, wz, biomeCache),
+                    _params.EnableRivers);
+
+                for (int lx = 0; lx < Chunk.Width; lx++)
+                {
+                    for (int lz = 0; lz < Chunk.Depth; lz++)
+                    {
+                        _terrainShaper.FillColumn(chunk, lx, lz, columns[lx, lz]);
+                    }
                 }
             }
 
-            _caveCarver.CarveChunk(chunk, columns);
-            _caveDecorator.DecorateChunk(chunk, columns);
-            _orePlacer.PlaceOres(chunk, columns);
+            if (!StructureGallery.IsGalleryWorld(_params.WorldType))
+            {
+                _caveCarver.CarveChunk(chunk, columns);
+                _caveDecorator.DecorateChunk(chunk, columns);
+                _orePlacer.PlaceOres(chunk, columns);
+            }
 
             var previewCache = new Dictionary<(int cx, int cz), TerrainColumn[,]>
             {
@@ -75,8 +94,11 @@ namespace Autonocraft.World
                 return cachedColumns[lx, lz];
             }
 
-            _decorator.DecorateChunk(chunk, world, columns, PreviewColumnCached);
-            _structurePlacer.PlaceStructures(chunk, columns, PreviewColumnCached);
+            if (!StructureGallery.IsGalleryWorld(_params.WorldType))
+            {
+                _decorator.DecorateChunk(chunk, world, columns, PreviewColumnCached);
+            }
+            _structurePlacer.PlaceStructures(chunk, columns, PreviewColumnCached, world);
         }
 
         public TerrainColumn PreviewColumn(int wx, int wz)
@@ -90,6 +112,22 @@ namespace Autonocraft.World
         public TerrainColumn[,] PreviewChunkColumns(int chunkX, int chunkZ)
         {
             var columns = new TerrainColumn[Chunk.Width, Chunk.Depth];
+
+            if (StructureGallery.IsGalleryWorld(_params.WorldType))
+            {
+                for (int lz = 0; lz < Chunk.Depth; lz++)
+                {
+                    for (int lx = 0; lx < Chunk.Width; lx++)
+                    {
+                        int wx = chunkX * Chunk.Width + lx;
+                        int wz = chunkZ * Chunk.Depth + lz;
+                        columns[lx, lz] = StructureGallery.CreateFlatColumn(wx, wz);
+                    }
+                }
+
+                return columns;
+            }
+
             var biomeCache = new BiomeSampleCache(_biomeMap);
 
             TerrainPostProcessor.ProcessChunk(

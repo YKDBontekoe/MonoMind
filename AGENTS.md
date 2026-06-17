@@ -42,8 +42,8 @@ dotnet run --project src/Autonocraft
 # Skip menu — immediate world load (useful for agent sessions)
 dotnet run --project src/Autonocraft -- --skip-menu
 
-# Custom agent API port (default 5001)
-dotnet run --project src/Autonocraft -- --skip-menu --agent-port 5001
+# Structure gallery — flat world with every structure in a grid (agents / inspection)
+dotnet run --project src/Autonocraft -- --structure-gallery --agent-port 5001
 
 # Headless integration tests (no graphics window)
 dotnet run --project src/Autonocraft -- --test
@@ -95,6 +95,7 @@ Tests instantiate `AutonocraftGame(runTests: true)` without calling `Run()`, so 
 | Chunk Streaming Stability | Chunk load/unload around moving player |
 | World Generation Basics | Biomes, sea level, caves, ores, rivers |
 | Structure Generation | Procedural structures placed in world |
+| Structure Gallery | Flat showcase world places every registry structure on a grid |
 | Biome Tree Species | Willow/Palm trees in correct biomes |
 
 #### Physics & player
@@ -255,9 +256,34 @@ Returns JSON with player state, skills, hotbar (blocks/tools), nearby animals, t
   "animals": [{ "id": 1, "type": "Sheep", "health": 8, "maxHealth": 8, "x": 20, "y": 64, "z": 18 }],
   "targetBlock": { "x": 10, "y": 64, "z": 12, "type": "Stone", "breakProgress": 0.35, "isMining": true },
   "nearbyStation": "Crucible",
-  "unlockedRecipes": ["sigil:bench", "recipe:plank"]
+  "unlockedRecipes": ["sigil:bench", "recipe:plank"],
+  "worldType": "Default",
+  "structureGallery": false
 }
 ```
+
+`worldType` is the active `WorldGenParams` preset (`Default`, `StructureGallery`, etc.). `structureGallery` is `true` in the flat structure showcase world.
+
+### `GET /structures`
+
+Returns the structure gallery catalog and grid anchors (available even from the main menu before a world is loaded).
+
+```json
+{
+  "seed": 4242,
+  "worldType": "StructureGallery",
+  "cellSize": 64,
+  "columns": 6,
+  "surfaceY": 62,
+  "spawn": { "x": 0, "z": 96 },
+  "active": true,
+  "structures": [
+    { "id": "ForestShelter", "tier": "Small", "index": 0, "anchor": { "x": -160, "y": 62, "z": 64 }, "footprintRadius": 2 }
+  ]
+}
+```
+
+Use `POST /action?cmd=teleport&x=<anchor.x>&y=<anchor.y+4>&z=<anchor.z>` to visit a structure. Load the gallery with **Structure Gallery** on the main menu or `POST /action?cmd=load_structure_gallery` while playing.
 
 Hotbar `kind` values: `"empty"`, `"block"`, `"tool"`, `"food"`, `"fluid_container"`. `nearbyStation` is `"Bench"`, `"Forge"`, `"Crucible"`, or `null`.
 
@@ -278,13 +304,15 @@ Body JSON: `{ "message": "...", "target": "mayor" | "<villager_id>" }`
 
 ### `GET /screenshot`
 
-Captures the MonoGame back buffer as **PNG**.
+Captures the MonoGame back buffer as **PNG** after the next rendered frame (not mid-update).
 
 | Query param | Description |
 |-------------|-------------|
-| `path` (optional) | Server-side save path (default: `screenshot.png` in output directory) |
+| `path` (optional) | Also save server-side to this path; response body is always PNG bytes |
 
-Response: `image/png` bytes.
+Response: `image/png` bytes (typically 1280×720).
+
+`POST /action?cmd=screenshot&path=...` is an alternative that saves server-side and returns JSON (`success`, `message` with byte count). Use `GET /screenshot` when you want the image bytes directly.
 
 ### `POST /action?cmd=<command>&...`
 
@@ -305,6 +333,8 @@ Queues thread-safe actions on the game loop. Returns `{"success": true|false, "m
 | `set_time_scale` | `value` | Day-cycle speed (0 pauses) |
 | `open_crucible` | — | Open station UI for targeted crafting station (fails if none targeted) |
 | `dev` | `cmd_line=<text>` | Run a dev-console command (see §5) |
+| `load_structure_gallery` | — | Reload into the flat structure showcase world (creative mode, no autosave) |
+| `screenshot` | optional `path` | Capture PNG after the next rendered frame; saves server-side and returns byte count |
 | `shutdown` | — | Exit the game |
 
 ---

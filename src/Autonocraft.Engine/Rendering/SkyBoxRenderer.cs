@@ -8,9 +8,10 @@ namespace Autonocraft.Engine
     /// </summary>
     public sealed class SkyDomeRenderer : IDisposable
     {
-        private const int Slices = 24;
-        private const int Stacks = 12;
-        private const float Radius = 480f;
+        private const int Slices = 32;
+        private const int Stacks = 14;
+        private const int HorizonStacks = 4;
+        private const float Radius = 520f;
         private const float TimeOfDayCacheEpsilon = 1f / 240f;
 
         private readonly VertexPositionColor[] _vertices;
@@ -120,12 +121,13 @@ namespace Autonocraft.Engine
             out short[] indices,
             out int indexCount)
         {
-            int vertCount = (Slices + 1) * (Stacks + 1);
+            int totalStacks = Stacks + HorizonStacks;
+            int vertCount = (Slices + 1) * (totalStacks + 1);
             vertices = new VertexPosition[vertCount];
             var indexList = new List<short>();
 
             int vi = 0;
-            for (int stack = 0; stack <= Stacks; stack++)
+            for (int stack = -HorizonStacks; stack <= Stacks; stack++)
             {
                 float v = stack / (float)Stacks;
                 float phi = v * MathHelper.PiOver2;
@@ -142,7 +144,7 @@ namespace Autonocraft.Engine
                 }
             }
 
-            for (int stack = 0; stack < Stacks; stack++)
+            for (int stack = 0; stack < totalStacks; stack++)
             {
                 for (int slice = 0; slice < Slices; slice++)
                 {

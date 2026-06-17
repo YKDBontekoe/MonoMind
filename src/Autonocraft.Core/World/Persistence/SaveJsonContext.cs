@@ -11,6 +11,7 @@ namespace Autonocraft.World.Persistence
     [JsonSerializable(typeof(PlayerStatisticsSaveData))]
     [JsonSerializable(typeof(List<BlockModification>))]
     [JsonSerializable(typeof(List<FluidModification>))]
+    [JsonSerializable(typeof(List<ContainerModification>))]
     [JsonSerializable(typeof(List<VillageSaveData>))]
     [JsonSerializable(typeof(List<VillagerSaveData>))]
     [JsonSerializable(typeof(List<string>))]

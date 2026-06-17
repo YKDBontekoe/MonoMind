@@ -58,6 +58,7 @@ namespace Autonocraft.Core
         public PauseMenuScreen? PauseMenu { get; private set; }
         public DeathScreen? DeathScreen { get; private set; }
         public CrucibleScreen? CrucibleScreen { get; private set; }
+        public ChestScreen? ChestScreen { get; private set; }
         public InventoryScreen? InventoryScreen { get; private set; }
         public JournalScreen? JournalScreen { get; private set; }
         public VillageScreen? VillageScreen { get; private set; }
@@ -89,6 +90,7 @@ namespace Autonocraft.Core
             PauseMenu.ApplyGraphicsSettings(settings);
             DeathScreen = new DeathScreen(ui);
             CrucibleScreen = new CrucibleScreen(ui);
+            ChestScreen = new ChestScreen(ui);
             InventoryScreen = new InventoryScreen(ui);
             JournalScreen = new JournalScreen(ui);
             VillageScreen = new VillageScreen(ui, session.Villagers);
@@ -268,11 +270,13 @@ namespace Autonocraft.Core
             VoxelWorld grid,
             Texture2D? atlasTexture,
             Player player,
+            ChestSession chest,
             float timeOfDay)
         {
             if (atlasTexture != null)
             {
                 InventoryScreen?.Draw(graphicsDevice.Viewport, player, crafting, atlasTexture);
+                ChestScreen?.Draw(graphicsDevice.Viewport, chest, atlasTexture);
             }
             CrucibleScreen?.Draw(
                 graphicsDevice.Viewport,

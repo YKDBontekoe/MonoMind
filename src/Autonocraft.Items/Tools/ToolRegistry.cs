@@ -52,6 +52,10 @@ namespace Autonocraft.Items
                 (ToolType.Axe, ToolTier.Emerald) => ItemId.EmeraldAxe,
                 (ToolType.Shovel, ToolTier.Emerald) => ItemId.EmeraldShovel,
                 (ToolType.Sword, ToolTier.Emerald) => ItemId.EmeraldSword,
+                (ToolType.Pickaxe, ToolTier.Relic) => ItemId.RelicPickaxe,
+                (ToolType.Axe, ToolTier.Relic) => ItemId.RelicAxe,
+                (ToolType.Shovel, ToolTier.Relic) => ItemId.RelicShovel,
+                (ToolType.Sword, ToolTier.Relic) => ItemId.RelicSword,
                 _ => ItemId.None
             };
         }
@@ -71,6 +75,11 @@ namespace Autonocraft.Items
         public static ItemStack CreateStack(ToolType type, ToolTier tier)
         {
             return CreateStack(GetItemId(type, tier));
+        }
+
+        public static bool IsLootOnly(ItemId id)
+        {
+            return TryGet(id, out var def) && def.LootOnly;
         }
 
         private static Dictionary<ItemId, ToolDefinition> BuildAll()
@@ -108,7 +117,11 @@ namespace Autonocraft.Items
                 Def(ItemId.EmeraldPickaxe, ToolType.Pickaxe, ToolTier.Emerald, "Emerald Pickaxe", 2000, 6.0f, 7.0f),
                 Def(ItemId.EmeraldAxe, ToolType.Axe, ToolTier.Emerald, "Emerald Axe", 2000, 6.0f, 7.0f),
                 Def(ItemId.EmeraldShovel, ToolType.Shovel, ToolTier.Emerald, "Emerald Shovel", 2000, 6.0f, 7.0f),
-                Def(ItemId.EmeraldSword, ToolType.Sword, ToolTier.Emerald, "Emerald Sword", 2000, 1.0f, 8.0f)
+                Def(ItemId.EmeraldSword, ToolType.Sword, ToolTier.Emerald, "Emerald Sword", 2000, 1.0f, 8.0f),
+                Def(ItemId.RelicPickaxe, ToolType.Pickaxe, ToolTier.Relic, "Relic Pickaxe", 2800, 7.5f, 8.0f, lootOnly: true),
+                Def(ItemId.RelicAxe, ToolType.Axe, ToolTier.Relic, "Relic Axe", 2800, 7.5f, 8.0f, lootOnly: true),
+                Def(ItemId.RelicShovel, ToolType.Shovel, ToolTier.Relic, "Relic Shovel", 2800, 7.5f, 8.0f, lootOnly: true),
+                Def(ItemId.RelicSword, ToolType.Sword, ToolTier.Relic, "Relic Sword", 2800, 1.0f, 10.0f, lootOnly: true)
             };
 
             return defs.ToDictionary(d => d.ItemId);
@@ -121,7 +134,8 @@ namespace Autonocraft.Items
             string name,
             int durability,
             float miningSpeed,
-            float damage)
+            float damage,
+            bool lootOnly = false)
         {
             return new ToolDefinition
             {
@@ -131,7 +145,8 @@ namespace Autonocraft.Items
                 DisplayName = name,
                 MaxDurability = durability,
                 MiningSpeedMultiplier = miningSpeed,
-                MeleeDamage = damage
+                MeleeDamage = damage,
+                LootOnly = lootOnly
             };
         }
     }

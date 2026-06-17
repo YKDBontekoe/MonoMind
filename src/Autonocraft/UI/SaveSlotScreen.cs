@@ -35,7 +35,7 @@ namespace Autonocraft.UI
         private readonly UiRenderer _ui;
         private readonly MenuBackdrop _backdrop = new MenuBackdrop();
         private readonly UiTransition _panelTransition = new UiTransition();
-        private readonly float[] _buttonHoverT = new float[6];
+        private readonly float[] _buttonHoverT = new float[7];
         private readonly float[] _slotHoverT = new float[MaxVisibleSlots];
 
         private float _animTime;
@@ -61,6 +61,7 @@ namespace Autonocraft.UI
 
         public bool LoadRequested { get; private set; }
         public bool NewWorldRequested { get; private set; }
+        public bool StructureGalleryRequested { get; private set; }
         public bool SettingsRequested { get; private set; }
         public bool StatsRequested { get; private set; }
         public bool QuitRequested { get; private set; }
@@ -178,6 +179,7 @@ namespace Autonocraft.UI
 
             LoadRequested = false;
             NewWorldRequested = false;
+            StructureGalleryRequested = false;
             SettingsRequested = false;
             StatsRequested = false;
             QuitRequested = false;
@@ -246,6 +248,11 @@ namespace Autonocraft.UI
                 else if (_hoveredButton == 1)
                 {
                     NewWorldRequested = true;
+                    _confirmingDelete = false;
+                }
+                else if (_hoveredButton == 6)
+                {
+                    StructureGalleryRequested = true;
                     _confirmingDelete = false;
                 }
                 else if (_hoveredButton == 2 && _slots.Count > 0)
@@ -642,6 +649,7 @@ namespace Autonocraft.UI
 
             DrawStyledButton(metrics.ButtonRects[0], "Continue", 0, layout, alpha, offsetY, UiButtonStyle.Primary, !hasSlots);
             DrawStyledButton(metrics.ButtonRects[1], "New world", 1, layout, alpha, offsetY, UiButtonStyle.Secondary);
+            DrawStyledButton(metrics.ButtonRects[6], "Structure Gallery", 6, layout, alpha, offsetY, UiButtonStyle.Secondary);
             DrawStyledButton(metrics.ButtonRects[2], deleteLabel, 2, layout, alpha, offsetY, UiButtonStyle.Danger, !hasSlots);
             DrawStyledButton(metrics.ButtonRects[3], "Statistics", 3, layout, alpha, offsetY, UiButtonStyle.Ghost, !hasSlots);
             DrawStyledButton(metrics.ButtonRects[4], "Settings", 4, layout, alpha, offsetY, UiButtonStyle.Ghost);
@@ -688,16 +696,18 @@ namespace Autonocraft.UI
 
             float footerRowY = shellY + shellH - layout.S(CardBottomPad) - footerH;
             float deleteY = footerRowY - buttonGap - buttonH;
-            float newWorldY = deleteY - buttonGap - buttonH;
+            float sandboxY = deleteY - buttonGap - buttonH;
+            float newWorldY = sandboxY - buttonGap - buttonH;
             float continueY = newWorldY - buttonGap - buttonH;
 
-            var buttons = new Rectangle[6];
+            var buttons = new Rectangle[7];
             buttons[0] = new Rectangle((int)detailPadX, (int)continueY, (int)buttonW, (int)buttonH);
             buttons[1] = new Rectangle((int)detailPadX, (int)newWorldY, (int)buttonW, (int)buttonH);
             buttons[2] = new Rectangle((int)detailPadX, (int)deleteY, (int)buttonW, (int)buttonH);
             buttons[3] = new Rectangle((int)detailPadX, (int)footerRowY, (int)ghostW, (int)footerH);
             buttons[4] = new Rectangle((int)(detailPadX + ghostW + buttonGap), (int)footerRowY, (int)ghostW, (int)footerH);
             buttons[5] = new Rectangle((int)(detailPadX + (ghostW + buttonGap) * 2f), (int)footerRowY, (int)ghostW, (int)footerH);
+            buttons[6] = new Rectangle((int)detailPadX, (int)sandboxY, (int)buttonW, (int)buttonH);
 
             return new MenuMetrics
             {

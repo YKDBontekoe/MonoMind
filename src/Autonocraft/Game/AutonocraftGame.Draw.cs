@@ -54,6 +54,7 @@ namespace Autonocraft.Core
                         var renderContext = _session.PrepareRenderContext(_camera, _timeOfDay, _waterAnimTime, _settings.RenderDistance);
                         _blueprints.PopulateConstructionSitePreviews(renderContext, _session.Villages, _session.Player.Position);
                         renderContext.VillageUiOpen = _screens.VillageScreen?.IsOpen == true;
+                        renderContext.IsStructureGalleryWorld = _isStructureGalleryWorld;
                         _blueprints.ApplyToRenderContext(renderContext);
                         _renderer?.Draw(renderContext);
                         drawStopwatch.Stop();
@@ -66,12 +67,14 @@ namespace Autonocraft.Core
                         _session.Grid,
                         _atlasTexture,
                         _session.Player,
+                        _session.Chest,
                         _timeOfDay);
                     RecordFrameMetrics((float)gameTime.ElapsedGameTime.TotalSeconds);
                     break;
             }
 
             base.Draw(gameTime);
+            FlushPendingScreenshot();
         }
     }
 }

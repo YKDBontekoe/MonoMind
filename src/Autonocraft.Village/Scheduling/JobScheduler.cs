@@ -271,14 +271,15 @@ namespace Autonocraft.Village
                 return false;
             }
 
-            int[] offsets = { 3, 6, -3, -6, 9, -9 };
+            int[] offsets = { 3, 6, -3, -6, 9, -9, 12, -12 };
             foreach (int dx in offsets)
             {
                 foreach (int dz in offsets)
                 {
                     int ax = village.AnchorX + dx;
                     int az = village.AnchorZ + dz;
-                    if (assignment.TryQueueBlueprint(world, village, goal.BlueprintId, ax, az, village.Storage))
+                    int anchorY = Math.Abs(dx) <= 12 && Math.Abs(dz) <= 12 ? village.AnchorY : -1;
+                    if (assignment.TryQueueBlueprint(world, village, goal.BlueprintId, ax, az, village.Storage, anchorY))
                     {
                         goal.BuildQueued = true;
                         return true;

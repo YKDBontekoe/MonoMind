@@ -1,6 +1,6 @@
 {
   "gridCols": 8,
-  "gridRows": 22,
+  "gridRows": 23,
   "tileSize": 128,
   "tiles": {
     "grass_top": { "col": 0, "row": 0, "file": "grass_top.png" },
@@ -174,7 +174,12 @@
     "moss_carpet": { "col": 4, "row": 21, "file": "moss_carpet.png" },
     "lichen": { "col": 5, "row": 21, "file": "lichen.png" },
     "red_sand": { "col": 6, "row": 21, "file": "red_sand.png" },
-    "dripstone": { "col": 7, "row": 21, "file": "dripstone.png" }
+    "dripstone": { "col": 7, "row": 21, "file": "dripstone.png" },
+    "chest": { "col": 0, "row": 22, "file": "chest.png" },
+    "tool_relic_pickaxe": { "col": 4, "row": 22, "file": "tool_relic_pickaxe.png" },
+    "tool_relic_axe": { "col": 5, "row": 22, "file": "tool_relic_axe.png" },
+    "tool_relic_shovel": { "col": 6, "row": 22, "file": "tool_relic_shovel.png" },
+    "tool_relic_sword": { "col": 7, "row": 22, "file": "tool_relic_sword.png" }
   },
   "blockFaces": {
     "Grass": { "top": "grass_top", "bottom": "dirt", "side": "grass_side" },
@@ -290,6 +295,7 @@
     "Lichen": { "all": "lichen" },
     "RedSand": { "all": "red_sand" },
     "Dripstone": { "all": "dripstone" },
+    "Chest": { "all": "chest" },
     "SnowSide": { "all": "snow_side" }
   },
   "animals": {

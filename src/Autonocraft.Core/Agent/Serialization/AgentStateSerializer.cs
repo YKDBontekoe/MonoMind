@@ -105,7 +105,9 @@ internal static class AgentStateSerializer
             LlmClientFactory.IsAvailable(settings),
             villageDto,
             villagerDtos,
-            nearbyVillagerDto);
+            nearbyVillagerDto,
+            bridge.CurrentWorldType.ToString(),
+            bridge.IsStructureGalleryWorld);
     }
 
     public static AgentVillageDebugDto BuildVillageDebugDto(GameSession session, Autonocraft.Village.Village village)

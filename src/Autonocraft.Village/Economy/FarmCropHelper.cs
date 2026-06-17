@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Autonocraft.Domain.Core;
 using Autonocraft.Domain.Village;
 using Autonocraft.Domain.World;
 using Autonocraft.World;
@@ -243,7 +244,7 @@ namespace Autonocraft.Village
 
         public static float GetSeasonGrowthMultiplier(float timeOfDay)
         {
-            float t = Domain.Core.DayNightCycle.NormalizeTime(timeOfDay);
+            float t = DayNightCycle.WarpTimeForSun(timeOfDay);
             float angle = t * MathF.PI * 2f;
             return 0.7f + 0.3f * MathF.Max(0f, MathF.Sin(angle - MathF.PI * 0.5f));
         }

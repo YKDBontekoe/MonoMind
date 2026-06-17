@@ -1,4 +1,5 @@
 using System;
+using Autonocraft.World.Structures;
 
 namespace Autonocraft.World
 {
@@ -34,6 +35,23 @@ namespace Autonocraft.World
 
         internal (float height, TerrainColumn draft) BuildBaseColumn(int wx, int wz, BiomeSampleCache? biomeCache)
         {
+            if (StructureGallery.IsGalleryWorld(_params.WorldType))
+            {
+                BiomeSample centerSample = biomeCache != null ? biomeCache.Sample(wx, wz) : _biomeMap.Sample(wx, wz);
+                var centerProfile = _biomeMap.BlendProfiles(centerSample, centerSample, centerSample, centerSample, centerSample, centerSample, centerSample, centerSample, centerSample);
+                float h = WorldConstants.SeaLevel;
+                var draftColumn = new TerrainColumn
+                {
+                    SurfaceHeight = (int)h,
+                    Biome = centerSample,
+                    Profile = centerProfile,
+                    SurfaceBlock = BlockType.Grass,
+                    SubsurfaceBlock = BlockType.Dirt,
+                    FillerBlock = BlockType.Stone,
+                    SmoothedHeight = h
+                };
+                return (h, draftColumn);
+            }
             BiomeSample SampleAt(int x, int z) =>
                 biomeCache != null ? biomeCache.Sample(x, z) : _biomeMap.Sample(x, z);
 
@@ -53,13 +71,59 @@ namespace Autonocraft.World
             float detail = _terrainNoise.Fbm(wx * 0.012f, wz * 0.012f, 3);
             float ridge = _terrainNoise.Ridged(wx * 0.009f, wz * 0.009f, 4);
             float ruggedness = SmoothStep(0.1f, 0.55f, center.Erosion) * _params.MountainWeight;
+            bool isVolcanic = center.Primary == BiomeType.Volcanic;
             bool isMountain = center.Primary is BiomeType.Mountains or BiomeType.SnowyPeaks;
+            bool isElevatedTerrain = isMountain || isVolcanic;
 
-            float height = profile.BaseHeight
-                + broad * profile.HeightAmplitude * _params.HeightScale * 0.68f
-                + detail * profile.HeightAmplitude * _params.HeightScale * (isMountain ? 0.18f : 0.07f)
-                + ridge * profile.RidgeWeight * profile.HeightAmplitude * _params.HeightScale * (isMountain ? (0.35f + ruggedness * 0.3f) : 0f)
-                + _params.HeightOffset;
+            float amp = profile.HeightAmplitude * _params.HeightScale;
+            float height = profile.BaseHeight + _params.HeightOffset;
+
+            if (isMountain)
+            {
+                float massif = _terrainNoise.Fbm(wx * 0.0015f, wz * 0.0015f, 5);
+                float foothills = _terrainNoise.Fbm(wx * 0.0036f, wz * 0.0036f, 4);
+                float peakRidges = _terrainNoise.Ridged(wx * 0.0052f, wz * 0.0052f, 4);
+                float cliffBands = _terrainNoise.Ridged(wx * 0.013f, wz * 0.013f, 3);
+                float valleyNoise = _terrainNoise.Fbm(wx * 0.0062f, wz * 0.0062f, 3);
+
+                float massifLift = SmoothStep(-0.30f, 0.58f, massif);
+                float foothillLift = ((foothills + 1f) * 0.5f) * massifLift;
+
+                height += massifLift * amp * 0.78f;
+                height += foothillLift * amp * 0.32f;
+                height += peakRidges * massifLift * profile.RidgeWeight * amp * (0.20f + ruggedness * 0.16f);
+                height += detail * amp * 0.12f;
+
+                float erosionStrength = SmoothStep(-0.08f, 0.40f, center.Erosion);
+                float valleyCut = erosionStrength * (0.60f - ((valleyNoise + 1f) * 0.5f) * 0.40f) * amp * 0.28f;
+                height -= MathF.Max(0f, valleyCut);
+
+                float cliffStrength = cliffBands * massifLift * SmoothStep(0.18f, 0.72f, peakRidges);
+                height += cliffStrength * amp * 0.13f;
+
+                if (center.Primary == BiomeType.SnowyPeaks)
+                {
+                    float glacierNoise = _terrainNoise.Fbm(wx * 0.0068f, wz * 0.0068f, 3);
+                    float glacierMask = SmoothStep(0.22f, 0.58f, glacierNoise);
+                    float snowLine = WorldConstants.SeaLevel + WorldConstants.SnowLineOffset;
+                    float glacierBlend = SmoothStep(snowLine - 24f, snowLine + 6f, height);
+                    float targetPlateau = profile.BaseHeight + amp * (0.76f + glacierMask * 0.14f);
+                    height = Lerp(height, targetPlateau, glacierBlend * glacierMask * 0.58f);
+                }
+            }
+            else
+            {
+                height += broad * amp * 0.68f
+                    + detail * amp * (isElevatedTerrain ? (isVolcanic ? 0.14f : 0.18f) : 0.07f)
+                    + ridge * profile.RidgeWeight * amp * (isElevatedTerrain ? (isVolcanic ? 0.42f : (0.35f + ruggedness * 0.3f)) : 0f);
+            }
+
+            if (isVolcanic)
+            {
+                float cone = _terrainNoise.Ridged(wx * 0.018f, wz * 0.018f, 3);
+                float coneMask = SmoothStep(0.35f, 0.85f, cone);
+                height += coneMask * profile.HeightAmplitude * _params.HeightScale * 0.55f;
+            }
 
             if (center.Primary == BiomeType.Ocean)
             {
@@ -98,10 +162,31 @@ namespace Autonocraft.World
                 subsurface = BlockType.Sand;
             }
 
-            if (height > WorldConstants.SeaLevel + 55 && surface != BlockType.Snow)
+            if (height > WorldConstants.SeaLevel + WorldConstants.SnowLineOffset && surface != BlockType.Snow && !isVolcanic)
             {
                 surface = BlockType.Snow;
                 subsurface = BlockType.Stone;
+            }
+
+            if (isMountain && center.Primary == BiomeType.SnowyPeaks
+                && height > WorldConstants.SeaLevel + WorldConstants.SnowLineOffset - 4f)
+            {
+                float glacierNoise = _terrainNoise.Fbm(wx * 0.0068f, wz * 0.0068f, 3);
+                if (glacierNoise > 0.26f)
+                {
+                    surface = BlockType.Ice;
+                    subsurface = BlockType.Ice;
+                }
+            }
+            else if (isMountain && height > WorldConstants.SeaLevel + 14f
+                && height < WorldConstants.SeaLevel + WorldConstants.SnowLineOffset - 8f)
+            {
+                float scree = _terrainNoise.Ridged(wx * 0.013f, wz * 0.013f, 3);
+                if (scree > 0.58f)
+                {
+                    surface = BlockType.Gravel;
+                    subsurface = BlockType.Stone;
+                }
             }
 
             var draft = new TerrainColumn

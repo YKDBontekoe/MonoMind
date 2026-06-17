@@ -4,7 +4,9 @@ namespace Autonocraft.Domain.Core
     {
         public const int MinRenderDistance = 2;
         public const int MaxRenderDistance = 48;
-        public const int DefaultRenderDistance = 24;
+        public const int DefaultRenderDistance = 12;
+        /// <summary>Values above this are clamped on load — prevents runaway chunk counts on weak machines.</summary>
+        public const int StableRenderDistanceCap = 16;
 
         public const string DefaultLlamaCppBaseUrl = "http://127.0.0.1:8080";
 

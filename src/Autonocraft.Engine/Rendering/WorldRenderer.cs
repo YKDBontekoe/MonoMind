@@ -207,11 +207,10 @@ namespace Autonocraft.Engine
 
             var viewProjection = monoView * monoProj;
             ExtractFrustumPlanes(viewProjection, _frustumPlanes);
-            BuildVisibleChunkList(ctx.Grid, agentChunkX, agentChunkZ, renderDistance, _frustumPlanes);
+            BuildVisibleChunkList(ctx.Grid, agentChunkX, agentChunkZ, renderDistance, _frustumPlanes, ctx.RestrictLod);
 
             var swSky = System.Diagnostics.Stopwatch.StartNew();
             DrawSkyBox(monoView, monoProj, lighting, ctx.TimeOfDay, ctx.Grid.Seed);
-            _cloudLayerRenderer.Draw(_device, _skyEffect, monoView, monoProj, ctx.TimeOfDay, lighting);
             DrawSunAndMoon(ctx.Camera, sunDir, moonDir);
             swSky.Stop();
             PerfCounters.DrawSkyMs = (float)swSky.Elapsed.TotalMilliseconds;
@@ -346,18 +345,24 @@ namespace Autonocraft.Engine
             int agentChunkX,
             int agentChunkZ,
             int renderDistance,
-            Microsoft.Xna.Framework.Vector4[] frustumPlanes)
+            Microsoft.Xna.Framework.Vector4[] frustumPlanes,
+            bool restrictLod)
         {
             _visibleChunksScratch.Clear();
             foreach (var chunk in grid.ActiveChunks)
             {
+                int chunkDistance = ChunkLod.GetChunkDistance(chunk.ChunkX, chunk.ChunkZ, agentChunkX, agentChunkZ);
+                if (chunkDistance > renderDistance)
+                {
+                    continue;
+                }
+
                 if (!IsChunkVisible(chunk, frustumPlanes))
                 {
                     continue;
                 }
 
-                int chunkDistance = ChunkLod.GetChunkDistance(chunk.ChunkX, chunk.ChunkZ, agentChunkX, agentChunkZ);
-                var desiredDetail = ChunkLod.SelectRenderTarget(chunk, chunkDistance, renderDistance, restrictLod: false);
+                var desiredDetail = ChunkLod.SelectRenderTarget(chunk, chunkDistance, renderDistance, restrictLod);
                 if (!ChunkLod.TryGetRenderableDetail(chunk, desiredDetail, out var renderDetail))
                 {
                     continue;

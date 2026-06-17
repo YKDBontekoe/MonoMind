@@ -26,6 +26,7 @@ namespace Autonocraft.Engine
         public HudToast HudToast { get; set; } = null!;
         public string? VillageHudHint { get; set; }
         public string? NearbyClaimHint { get; set; }
+        public bool IsStructureGalleryWorld { get; set; }
         public string? HudPlacementHint { get; set; }
         public bool VillageUiOpen { get; set; }
         public BlueprintPlacementPreview? BlueprintPlacement { get; set; }
@@ -34,6 +35,8 @@ namespace Autonocraft.Engine
         public float TimeOfDay { get; set; }
         public float WaterAnimTime { get; set; }
         public int RenderDistance { get; set; }
+        /// <summary>When true, prefer cheaper LOD tiers while moving fast (creative / sprint).</summary>
+        public bool RestrictLod { get; set; }
         public WeatherSystem Weather { get; set; } = null!;
     }
 }

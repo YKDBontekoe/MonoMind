@@ -81,7 +81,7 @@ namespace Autonocraft.World.Generation.Trees
 
             TryPlaceTreeCluster(chunk, world, columns, previewColumn, wx, wz, column, treeNoise, treeThreshold);
 
-            if (column.Profile.Type == BiomeType.Forest)
+            if (column.Profile.Type is BiomeType.Forest or BiomeType.Jungle)
             {
                 int groveHash = GenerationBlocks.Hash(wx, wz, _seed, 31);
                 TryPlaceFallenLog(chunk, world, wx, wz, lx, lz, column, groveHash);
@@ -156,7 +156,7 @@ namespace Autonocraft.World.Generation.Trees
 
         private float ResolveTreeScale(TerrainColumn column, int wx, int wz, float treeNoise)
         {
-            if (column.Profile.Type is not (BiomeType.Forest or BiomeType.Swamp or BiomeType.Plains))
+            if (column.Profile.Type is not (BiomeType.Forest or BiomeType.Jungle or BiomeType.Swamp or BiomeType.Plains))
             {
                 return 1f;
             }
@@ -200,7 +200,7 @@ namespace Autonocraft.World.Generation.Trees
                     voxel.Type);
             }
 
-            if (column.Profile.Type is BiomeType.Forest or BiomeType.Swamp)
+            if (column.Profile.Type is BiomeType.Forest or BiomeType.Jungle or BiomeType.Swamp)
             {
                 ApplyVinesPostPass(chunk, world, wx, wz, lx, lz, surfaceHeight, species, voxels);
             }

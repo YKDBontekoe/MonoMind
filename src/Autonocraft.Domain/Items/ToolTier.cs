@@ -9,6 +9,7 @@ namespace Autonocraft.Domain.Items
         Copper = 4,
         Silver = 5,
         Diamond = 6,
-        Emerald = 7
+        Emerald = 7,
+        Relic = 8
     }
 }

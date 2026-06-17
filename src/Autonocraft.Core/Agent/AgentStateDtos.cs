@@ -56,7 +56,9 @@ public sealed record AgentStateDto(
     [property: JsonPropertyName("llmAvailable")] bool LlmAvailable,
     [property: JsonPropertyName("village")] AgentVillageSummaryDto? Village,
     [property: JsonPropertyName("villagers")] IReadOnlyList<AgentVillagerDto> Villagers,
-    [property: JsonPropertyName("nearbyVillagerForChat")] AgentNearbyVillagerDto? NearbyVillagerForChat);
+    [property: JsonPropertyName("nearbyVillagerForChat")] AgentNearbyVillagerDto? NearbyVillagerForChat,
+    [property: JsonPropertyName("worldType")] string WorldType,
+    [property: JsonPropertyName("structureGallery")] bool StructureGallery);
 
 public sealed record AgentVector3Dto(
     [property: JsonPropertyName("x")] float X,

@@ -81,10 +81,10 @@ namespace Autonocraft.UI.Village
                 Id = villager.Id,
                 Name = villager.Name,
                 Role = villager.Role.ToString(),
-                Activity = VillagerActivityText.Describe(villager),
-                Progress = VillagerActivityText.DescribeProgress(villager),
+                Activity = global::Autonocraft.Village.VillagerActivityText.Describe(villager),
+                Progress = global::Autonocraft.Village.VillagerActivityText.DescribeProgress(villager),
                 Happiness = villager.Happiness,
-                NeedsAttention = VillagerActivityText.NeedsAttention(villager)
+                NeedsAttention = global::Autonocraft.Village.VillagerActivityText.NeedsAttention(villager)
             };
     }
 

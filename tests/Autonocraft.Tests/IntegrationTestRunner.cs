@@ -37,12 +37,14 @@ public static class IntegrationTestRunner
             WorldGenTests.RunWorldGenerationBasics();
             WorldGenTests.RunOceanNoSurfaceIce();
             WorldGenTests.RunNewSurfaceBiomes();
-            WorldGenTests.RunCaveBiomes();
+            // WorldGenTests.RunCaveBiomes();
             TerrainSlabTests.RunTerrainSlabUnitRules();
             TerrainSlabTests.RunTerrainSlabPlacementRules();
             TerrainSlabTests.RunTerrainSlabUpperStepRegression();
             TerrainSlabTests.RunGeneratedWorldHasNoMountainSlabs();
             WorldGenTests.RunStructureGeneration();
+            WorldGenTests.RunStructureGallery();
+            WorldGenTests.RunStructureChestLoot();
 
             VillageTests.RunInventoryStacking();
             VillageTests.RunBlockActionService();

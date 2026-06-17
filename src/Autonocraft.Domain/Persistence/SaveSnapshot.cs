@@ -16,6 +16,7 @@ namespace Autonocraft.Domain.Persistence
         public TimeSaveData Time { get; init; } = new();
         public List<BlockModification> Modifications { get; init; } = new();
         public List<FluidModification> FluidModifications { get; init; } = new();
+        public List<ContainerModification> ContainerModifications { get; init; } = new();
         public List<string> UnlockedCraftingIds { get; init; } = new();
         public List<VillageSaveData> Villages { get; init; } = new();
         public List<VillagerSaveData> Villagers { get; init; } = new();

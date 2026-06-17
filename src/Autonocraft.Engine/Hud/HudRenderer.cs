@@ -374,6 +374,7 @@ namespace Autonocraft.Engine
                 CrosshairState.ValidPlace => new Color(0.35f, 1.0f, 0.45f),
                 CrosshairState.InvalidPlace => new Color(1.0f, 0.32f, 0.32f),
                 CrosshairState.InteractStation => new Color(0.45f, 0.85f, 1.0f),
+                CrosshairState.InteractChest => new Color(0.95f, 0.75f, 0.25f),
                 CrosshairState.Flash => Color.White,
                 _ => new Color(0.92f, 0.94f, 0.98f)
             };
@@ -409,9 +410,11 @@ namespace Autonocraft.Engine
 
 
 
-            if (interaction.Crosshair == CrosshairState.InteractStation)
+            if (interaction.Crosshair == CrosshairState.InteractStation || interaction.Crosshair == CrosshairState.InteractChest)
             {
-                string prompt = "RIGHT-CLICK TO OPEN";
+                string prompt = interaction.Crosshair == CrosshairState.InteractChest
+                    ? "RIGHT-CLICK TO LOOT"
+                    : "RIGHT-CLICK TO OPEN";
                 float promptSize = layout.S(0.95f);
                 float promptW = MeasureHudText(prompt, promptSize);
                 DrawHudText(
@@ -741,7 +744,9 @@ namespace Autonocraft.Engine
             }
             else if (!hasVillage)
             {
-                hintsText = "V - Start Settlement";
+                hintsText = ctx.IsStructureGalleryWorld
+                    ? "Fly around — every world-gen structure is on the grid"
+                    : "V - Start Settlement";
             }
             else
             {

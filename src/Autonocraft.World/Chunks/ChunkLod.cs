@@ -33,16 +33,27 @@ namespace Autonocraft.World
         /// Picks the next mesh tier to build during streaming. Starts with cheap Shell
         /// so new chunks pop in quickly, then upgrades toward the render target.
         /// </summary>
-        public static ChunkMeshDetail SelectBuildDetail(Chunk chunk, int chunkDistance, int renderDistance, bool restrictLod = false)
+        public static ChunkMeshDetail SelectBuildDetail(
+            Chunk chunk,
+            int chunkDistance,
+            int renderDistance,
+            bool restrictLod = false,
+            bool deferFullDetail = false)
         {
-            var target = SelectRenderTarget(chunk, chunkDistance, renderDistance, restrictLod);
+            var target = SelectRenderTarget(chunk, chunkDistance, renderDistance, restrictLod, deferFullDetail);
             return SelectBuildDetailToward(chunk, target);
         }
 
-        public static ChunkMeshDetail SelectRenderTarget(Chunk chunk, int chunkDistance, int renderDistance, bool restrictLod)
+        public static ChunkMeshDetail SelectRenderTarget(
+            Chunk chunk,
+            int chunkDistance,
+            int renderDistance,
+            bool restrictLod,
+            bool deferFullDetail = false)
         {
             var detail = SelectDetail(chunkDistance, renderDistance);
-            if (restrictLod && chunkDistance > 1 && detail == ChunkMeshDetail.Full)
+            if (detail == ChunkMeshDetail.Full &&
+                (deferFullDetail || (restrictLod && chunkDistance > 1)))
             {
                 detail = ChunkMeshDetail.Surface;
             }
@@ -95,14 +106,19 @@ namespace Autonocraft.World
             return ChunkMeshDetail.Full;
         }
 
-        public static bool NeedsHigherDetailBuild(Chunk chunk, int chunkDistance, int renderDistance, bool restrictLod = false)
+        public static bool NeedsHigherDetailBuild(
+            Chunk chunk,
+            int chunkDistance,
+            int renderDistance,
+            bool restrictLod = false,
+            bool deferFullDetail = false)
         {
             if (chunk.MeshStale)
             {
                 return true;
             }
 
-            var target = SelectRenderTarget(chunk, chunkDistance, renderDistance, restrictLod);
+            var target = SelectRenderTarget(chunk, chunkDistance, renderDistance, restrictLod, deferFullDetail);
             return !chunk.HasMesh(target);
         }
 
@@ -167,13 +183,13 @@ namespace Autonocraft.World
 
         public static float GetFogEnd(int renderDistance, float twilightFactor = 0f)
         {
-            float end = MathF.Max(48f, (renderDistance - 0.5f) * Chunk.Width * 0.94f);
-            return end * (1f - twilightFactor * 0.14f);
+            float end = MathF.Max(72f, (renderDistance + 0.5f) * Chunk.Width);
+            return end * (1f - twilightFactor * 0.12f);
         }
 
         public static float GetFogStart(int renderDistance, float twilightFactor = 0f)
         {
-            return GetFogEnd(renderDistance, twilightFactor) * 0.22f;
+            return GetFogEnd(renderDistance, twilightFactor) * 0.16f;
         }
 
         public static (float start, float end) GetFogRange(int renderDistance, ChunkMeshDetail detail, float twilightFactor = 0f)
@@ -183,8 +199,8 @@ namespace Autonocraft.World
 
             return detail switch
             {
-                ChunkMeshDetail.Surface => (start * 0.85f, end * 0.97f),
-                ChunkMeshDetail.Shell => (start * 0.65f, end * 0.90f),
+                ChunkMeshDetail.Surface => (start * 0.90f, end * 0.98f),
+                ChunkMeshDetail.Shell => (start * 0.80f, end * 0.96f),
                 _ => (start, end)
             };
         }

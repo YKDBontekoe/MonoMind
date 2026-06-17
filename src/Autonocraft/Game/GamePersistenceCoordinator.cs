@@ -2,8 +2,11 @@ using System;
 using System.Numerics;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
+using Autonocraft.Diagnostics;
+using Autonocraft.Domain.Core;
 using Autonocraft.Engine;
 using Autonocraft.World;
+using Autonocraft.World.Structures;
 
 namespace Autonocraft.Core
 {
@@ -17,11 +20,13 @@ namespace Autonocraft.Core
         private float _autosaveTimer;
         private bool _saveInProgress;
         private bool _exitSaveDone;
+        private bool _isStructureGalleryWorld;
         private int _worldSpawnX = GameConstants.DefaultSpawnX;
         private int _worldSpawnZ = GameConstants.DefaultSpawnZ;
 
         private void StartNewWorld(int seed, WorldType worldType)
         {
+            _isStructureGalleryWorld = false;
             string slotName = WorldSaveManager.GenerateDefaultSlotName();
             string slotId = WorldSaveManager.CreateSlotId(slotName);
 
@@ -38,8 +43,8 @@ namespace Autonocraft.Core
             _session.ResetPlayer();
             _session.ResetCrafting();
             SyncCameraFromPlayer();
-            SetTimeOfDay(0.3f);
-            _timeScale = 0.01f;
+            SetTimeOfDay(0.15f);
+            _timeScale = DayNightCycle.DefaultTimeScale;
             _timePaused = false;
             _hostContext.TimeScale = _timeScale;
             _hostContext.TimePaused = _timePaused;
@@ -48,10 +53,41 @@ namespace Autonocraft.Core
             StartWorldLoading();
         }
 
+        private void StartStructureGalleryWorld()
+        {
+            _isStructureGalleryWorld = true;
+            _activeSlotId = null;
+            _activeSlotName = "Structure Gallery";
+            (int spawnX, int spawnZ) = StructureGallery.GetPlayerSpawn();
+            _worldSpawnX = spawnX;
+            _worldSpawnZ = spawnZ;
+            _pendingSaveData = null;
+            _loadingFromSave = false;
+            _autosaveTimer = 0f;
+
+            var genParams = WorldGenParams.ForType(WorldType.StructureGallery);
+            ResetWorldState(StructureGallery.Seed, genParams);
+            _session.ResetPlayer();
+            _session.ResetCrafting();
+            _session.Player.CreativeMode = true;
+            SyncCameraFromPlayer();
+            SetTimeOfDay(0.35f);
+            _timeScale = DayNightCycle.DefaultTimeScale;
+            _timePaused = false;
+            _hostContext.TimeScale = _timeScale;
+            _hostContext.TimePaused = _timePaused;
+
+            _needsStarterSettlement = false;
+            _session.NearbyClaimHint = null;
+            _session.Player.Stats.EarlyGuideStage = 5;
+            StartWorldLoading();
+        }
+
         private bool TryStartLoadedWorld(string slotId)
         {
             try
             {
+                _isStructureGalleryWorld = false;
                 var save = WorldSaveManager.Load(slotId);
 
                 _activeSlotId = slotId;
@@ -138,7 +174,7 @@ namespace Autonocraft.Core
 
         private void SaveWorld(bool sync)
         {
-            if (string.IsNullOrEmpty(_activeSlotId) || _saveInProgress)
+            if (_isStructureGalleryWorld || string.IsNullOrEmpty(_activeSlotId) || _saveInProgress)
             {
                 return;
             }

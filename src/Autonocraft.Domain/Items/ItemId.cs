@@ -53,6 +53,11 @@ namespace Autonocraft.Domain.Items
 
         Berries = 53,
 
-        Stick = 60
+        Stick = 60,
+
+        RelicPickaxe = 90,
+        RelicAxe = 91,
+        RelicShovel = 92,
+        RelicSword = 93
     }
 }

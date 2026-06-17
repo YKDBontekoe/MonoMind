@@ -193,9 +193,9 @@ namespace Autonocraft.Village
             matched = null;
             int px = (int)MathF.Floor(playerPos.X);
             int pz = (int)MathF.Floor(playerPos.Z);
-            float effectiveRadius = quickScan ? Math.Min(radius, 16f) : radius;
+            float effectiveRadius = quickScan ? Math.Min(radius, 12f) : radius;
             int scanRadius = (int)MathF.Ceiling(effectiveRadius);
-            int step = quickScan ? 4 : 2;
+            int step = quickScan ? 6 : 2;
             float bestDist = float.MaxValue;
 
             for (int dx = -scanRadius; dx <= scanRadius; dx += step)
@@ -369,15 +369,20 @@ namespace Autonocraft.Village
             float bestRatio = 0f;
             StructureDefinition? best = null;
             int bestY = surfaceY - 1;
+            var candidates = ClaimableStructureMap.Definitions;
+            int maxBlocksToCheck = quickScan ? 48 : 0;
+            int yMin = quickScan ? surfaceY - 1 : surfaceY - 4;
+            int yMax = quickScan ? surfaceY - 1 : surfaceY + 1;
 
-            for (int y = surfaceY - 4; y <= surfaceY + 1; y++)
+            for (int y = yMin; y <= yMax; y++)
             {
-                if (!StructureFingerprint.TryMatchWorldStructure(world, anchorX, y, anchorZ, out var candidate, out float ratio))
+                if (!StructureFingerprint.TryMatchWorldStructure(
+                        world, anchorX, y, anchorZ, out var candidate, out float ratio, candidates, maxBlocksToCheck))
                 {
                     continue;
                 }
 
-                if (!ClaimableStructureMap.IsClaimable(candidate.Id) || ratio <= bestRatio)
+                if (ratio <= bestRatio)
                 {
                     continue;
                 }
