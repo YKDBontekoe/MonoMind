@@ -10,6 +10,7 @@
     <Project Path="src/Autonocraft.Ai/Autonocraft.Ai.csproj" />
     <Project Path="src/Autonocraft.Engine/Autonocraft.Engine.csproj" />
     <Project Path="src/Autonocraft.Core/Autonocraft.Core.csproj" />
+    <Project Path="src/Autonocraft.AtlasBuild/Autonocraft.AtlasBuild.csproj" />
     <Project Path="src/Autonocraft/Autonocraft.csproj" />
   </Folder>
   <Folder Name="/tests/">

@@ -160,7 +160,7 @@ Each level has its own vertex/index buffers on the GPU.
 ### Texture Atlas
 
 - Layout defined in `atlas_layout.json` (8×8 grid, 128px tiles).
-- Packed PNG at `src/Autonocraft/atlas.png`, built by `scripts/build_atlas.py` or runtime `ProceduralAtlasBuilder`.
+- Packed PNG at `src/Autonocraft/atlas.png`, built by `Autonocraft.AtlasBuild` or runtime `ProceduralAtlasBuilder`.
 - `BlockAtlas` maps `BlockType` + face direction → UV coordinates.
 - `BlockTextureBlend` provides per-vertex blend weights for smooth biome transitions on terrain faces.
 - `MeshBuildContext` carries blend data during chunk mesh construction.

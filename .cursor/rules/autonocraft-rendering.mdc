@@ -16,4 +16,4 @@ After rendering changes:
    python3 tests/interact.py screenshot render_check.png
    ```
 
-Regenerate atlas after texture changes: `python3 scripts/build_atlas.py`
+Regenerate atlas after texture changes: `dotnet run --project src/Autonocraft.AtlasBuild`
