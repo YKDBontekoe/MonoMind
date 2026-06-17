@@ -131,8 +131,7 @@ namespace Autonocraft.World
                 {
                     if (y <= WorldConstants.SeaLevel && (column.Biome.Primary == BiomeType.Ocean || column.IsRiver || column.IsLake))
                     {
-                        bool freezeSurface = column.Biome.Primary == BiomeType.SnowyPeaks
-                            || column.Biome.Temperature < -0.08f;
+                        bool freezeSurface = column.Biome.Primary == BiomeType.SnowyPeaks;
                         block = y == WorldConstants.SeaLevel && freezeSurface
                             ? BlockType.Ice
                             : BlockType.Water;

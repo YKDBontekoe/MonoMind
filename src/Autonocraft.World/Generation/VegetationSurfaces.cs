@@ -21,7 +21,7 @@ namespace Autonocraft.World.Generation
         {
             return surface switch
             {
-                BlockType.Grass or BlockType.Dirt or BlockType.Mud or BlockType.Sand => true,
+                BlockType.Grass or BlockType.Dirt or BlockType.Mud or BlockType.Sand or BlockType.RedSand => true,
                 BlockType.Snow when biome is BiomeType.SnowyPeaks => true,
                 _ => false
             };
@@ -31,7 +31,8 @@ namespace Autonocraft.World.Generation
         {
             if (flora == BlockType.DeadBush)
             {
-                return surface == BlockType.Sand && biome is BiomeType.Desert or BiomeType.Beach
+                return surface == BlockType.Sand && biome is BiomeType.Desert or BiomeType.Beach or BiomeType.Badlands
+                    || surface is BlockType.RedSand
                     || surface is BlockType.Grass or BlockType.Dirt;
             }
 
@@ -45,9 +46,14 @@ namespace Autonocraft.World.Generation
                 return surface is BlockType.Stone or BlockType.MossStone or BlockType.Cobblestone or BlockType.Gravel;
             }
 
-            if (surface is BlockType.Grass or BlockType.Dirt or BlockType.Mud)
+            if (surface is BlockType.Grass or BlockType.Dirt or BlockType.Mud or BlockType.MossStone)
             {
                 return true;
+            }
+
+            if (surface == BlockType.RedSand)
+            {
+                return biome is BiomeType.Badlands && flora is BlockType.Cactus or BlockType.DeadBush or BlockType.Lichen;
             }
 
             if (surface == BlockType.Sand)

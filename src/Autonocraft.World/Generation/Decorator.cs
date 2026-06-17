@@ -47,6 +47,20 @@ namespace Autonocraft.World
                         }
                     }
 
+                    if (column.Profile.Type == BiomeType.Volcanic && columnHash % 23 == 0)
+                    {
+                        int lavaY = column.SurfaceHeight - 1 - columnHash % 4;
+                        if (lavaY > 2 && chunk.GetBlockUnchecked(lx, lavaY, lz) == BlockType.Basalt)
+                        {
+                            GenerationBlocks.SetBlock(chunk, world, wx, wz, lx, lz, lavaY, BlockType.MagmaBlock);
+                        }
+                    }
+
+                    if (column.Profile.Type == BiomeType.Badlands && columnHash % 17 == 0)
+                    {
+                        GenerationBlocks.SetBlockIfAir(chunk, world, wx, wz, lx, lz, column.SurfaceHeight + 1, BlockType.Lichen);
+                    }
+
                     PlaceCaveGlowshrooms(chunk, world, wx, wz, lx, lz, column);
 
                     if (column.Biome.Primary == BiomeType.Mountains && columnHash % 103 == 0)

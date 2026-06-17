@@ -519,12 +519,15 @@ namespace Autonocraft.World
                 or BiomeType.Forest
                 or BiomeType.Mountains
                 or BiomeType.SnowyPeaks
-                or BiomeType.Swamp;
+                or BiomeType.Swamp
+                or BiomeType.BorealTaiga
+                or BiomeType.MushroomForest;
         }
 
         private static bool IsPlayableLand(TerrainColumn column)
         {
-            return column.Biome.Primary is BiomeType.Plains or BiomeType.Forest or BiomeType.Swamp or BiomeType.Desert;
+            return column.Biome.Primary is BiomeType.Plains or BiomeType.Forest or BiomeType.Swamp
+                or BiomeType.Desert or BiomeType.Badlands or BiomeType.BorealTaiga;
         }
 
         private static float GetInitialFlow(int wx, int wz, TerrainColumn column, float[,] heights, float[,] rawHeights, int x, int z)

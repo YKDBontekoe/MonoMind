@@ -1106,6 +1106,32 @@ namespace Autonocraft.Engine
                         return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
                             ProceduralTextureSynth.FloraSprite(half, $"lichen_v{variant}", palette, 12)));
                     }
+                case "red_sand":
+                    {
+                        var palette = new[]
+                        {
+                            ShiftColor(new Color(168, 88, 52), seedShift),
+                            ShiftColor(new Color(196, 108, 62), seedShift),
+                            ShiftColor(new Color(214, 128, 72), seedShift),
+                            ShiftColor(new Color(148, 72, 42), seedShift)
+                        };
+                        return FromSynth(ProceduralTextureSynth.Sand(_tileSize, name, palette));
+                    }
+                case "dripstone":
+                    {
+                        var palette = new[]
+                        {
+                            ShiftColor(new Color(148, 136, 118), seedShift),
+                            ShiftColor(new Color(168, 156, 136), seedShift),
+                            ShiftColor(new Color(128, 118, 102), seedShift),
+                            ShiftColor(new Color(178, 166, 148), seedShift)
+                        };
+                        return FromSynth(ProceduralTextureSynth.Stone(
+                            _tileSize,
+                            name,
+                            palette,
+                            ShiftColor(new Color(108, 98, 86), seedShift)));
+                    }
                 case "cow_body":
                     return FromSynth(ProceduralTextureSynth.CowBody(_tileSize, name));
                 case "cow_head":

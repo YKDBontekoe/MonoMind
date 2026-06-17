@@ -328,6 +328,46 @@ namespace Autonocraft.Entities
                     _ => AnimalType.Sheep
                 };
             }
+            else if (biome == BiomeType.Badlands)
+            {
+                type = typeRoll switch
+                {
+                    < 40 => AnimalType.Fox,
+                    < 70 => AnimalType.Pig,
+                    _ => AnimalType.Chicken
+                };
+            }
+            else if (biome == BiomeType.Mangrove)
+            {
+                type = typeRoll switch
+                {
+                    < 45 => AnimalType.Pig,
+                    < 75 => AnimalType.Chicken,
+                    _ => AnimalType.Bear
+                };
+            }
+            else if (biome == BiomeType.MushroomForest)
+            {
+                type = typeRoll switch
+                {
+                    < 35 => AnimalType.Fox,
+                    < 65 => AnimalType.Bear,
+                    _ => AnimalType.Deer
+                };
+            }
+            else if (biome == BiomeType.BorealTaiga)
+            {
+                type = typeRoll switch
+                {
+                    < 40 => AnimalType.Deer,
+                    < 70 => AnimalType.Fox,
+                    _ => AnimalType.Sheep
+                };
+            }
+            else if (biome == BiomeType.Volcanic)
+            {
+                type = AnimalType.Fox;
+            }
             else
             {
                 type = typeRoll switch

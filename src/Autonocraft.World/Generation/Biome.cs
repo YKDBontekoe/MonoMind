@@ -9,7 +9,12 @@ namespace Autonocraft.World
         Desert,
         Mountains,
         SnowyPeaks,
-        Swamp
+        Swamp,
+        Badlands,
+        Mangrove,
+        MushroomForest,
+        Volcanic,
+        BorealTaiga
     }
 
     public readonly struct BiomeProfile
@@ -125,6 +130,67 @@ namespace Autonocraft.World
                 FloraDensity = 0.75f,
                 AllowTallGrass = true,
                 AllowUnderstory = true
+            },
+            BiomeType.Badlands => new BiomeProfile
+            {
+                Type = type,
+                BaseHeight = WorldConstants.SeaLevel + 9,
+                HeightAmplitude = 14f,
+                RidgeWeight = 0.35f,
+                SurfaceBlock = BlockType.RedSand,
+                SubsurfaceBlock = BlockType.Sandstone,
+                FillerBlock = BlockType.Stone,
+                TreeDensity = 0.02f,
+                FloraDensity = 0.38f,
+                AllowCactus = true
+            },
+            BiomeType.Mangrove => new BiomeProfile
+            {
+                Type = type,
+                BaseHeight = WorldConstants.SeaLevel + 1,
+                HeightAmplitude = 3f,
+                SurfaceBlock = BlockType.Mud,
+                SubsurfaceBlock = BlockType.Clay,
+                FillerBlock = BlockType.Stone,
+                TreeDensity = 0.38f,
+                FloraDensity = 0.82f,
+                AllowUnderstory = true
+            },
+            BiomeType.MushroomForest => new BiomeProfile
+            {
+                Type = type,
+                BaseHeight = WorldConstants.SeaLevel + 10,
+                HeightAmplitude = 9f,
+                SurfaceBlock = BlockType.MossStone,
+                SubsurfaceBlock = BlockType.Dirt,
+                FillerBlock = BlockType.Stone,
+                TreeDensity = 0.14f,
+                FloraDensity = 0.90f,
+                AllowUnderstory = true
+            },
+            BiomeType.Volcanic => new BiomeProfile
+            {
+                Type = type,
+                BaseHeight = WorldConstants.SeaLevel + 14,
+                HeightAmplitude = 20f,
+                RidgeWeight = 0.45f,
+                SurfaceBlock = BlockType.Basalt,
+                SubsurfaceBlock = BlockType.Basalt,
+                FillerBlock = BlockType.Obsidian,
+                TreeDensity = 0f,
+                FloraDensity = 0.12f
+            },
+            BiomeType.BorealTaiga => new BiomeProfile
+            {
+                Type = type,
+                BaseHeight = WorldConstants.SeaLevel + 7,
+                HeightAmplitude = 11f,
+                SurfaceBlock = BlockType.Grass,
+                SubsurfaceBlock = BlockType.Dirt,
+                FillerBlock = BlockType.Stone,
+                TreeDensity = 0.48f,
+                FloraDensity = 0.68f,
+                AllowTallGrass = true
             },
             _ => BiomeProfile.For(BiomeType.Plains)
         };

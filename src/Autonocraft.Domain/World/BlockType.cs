@@ -121,7 +121,9 @@ namespace Autonocraft.Domain.World
         Tulip = 114,
         WildRose = 115,
         MossCarpet = 116,
-        Lichen = 117
+        Lichen = 117,
+        RedSand = 118,
+        Dripstone = 119
     }
 
     public static class BlockTypeExtensions
@@ -277,6 +279,7 @@ namespace Autonocraft.Domain.World
                 BlockType.Sunflower => 0.1f,
                 BlockType.Dirt => 0.4f,
                 BlockType.Sand => 0.35f,
+                BlockType.RedSand => 0.35f,
                 BlockType.Quicksand => 0.6f,
                 BlockType.Snow => 0.35f,
                 BlockType.Grass => 0.5f,
@@ -308,6 +311,7 @@ namespace Autonocraft.Domain.World
                 BlockType.Clay => 0.55f,
                 BlockType.Sandstone => 0.9f,
                 BlockType.Stone => 1.2f,
+                BlockType.Dripstone => 1.1f,
                 BlockType.Marble => 1.2f,
                 BlockType.Basalt => 1.2f,
                 BlockType.Slate => 1.2f,
