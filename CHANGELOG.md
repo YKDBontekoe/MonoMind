@@ -7,6 +7,17 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 Releases are created automatically when changes land on `main` (after CI passes).
 
+## [0.2.6] - 2026-06-17
+
+### Other
+- Improve world foliage and tree generation
+- Bump actions/checkout from 4 to 6
+- Bump actions/setup-dotnet from 4 to 5
+- Bump dorny/test-reporter from 1 to 3
+- Bump softprops/action-gh-release from 2.6.2 to 3.0.0
+- Bump actions/upload-artifact from 4 to 7
+- Bump actions/cache from 4 to 5
+
 ## [0.2.5] - 2026-06-17
 
 ### Other
