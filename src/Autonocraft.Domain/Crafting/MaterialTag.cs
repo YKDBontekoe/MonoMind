@@ -37,7 +37,10 @@ namespace Autonocraft.Domain.Crafting
                     or BlockType.MushroomRed or BlockType.MushroomBrown or BlockType.DeadBush
                     or BlockType.LilyPad or BlockType.Vine or BlockType.BerryBush
                     or BlockType.Seagrass or BlockType.Glowshroom or BlockType.Lavender
-                    or BlockType.Rope or BlockType.Kelp => MaterialTag.Organic,
+                    or BlockType.Rope or BlockType.Kelp or BlockType.Shrub or BlockType.Heather
+                    or BlockType.Juniper or BlockType.Moss or BlockType.Poppy or BlockType.Daisy
+                    or BlockType.BlueFlax or BlockType.Tulip or BlockType.WildRose
+                    or BlockType.MossCarpet or BlockType.Lichen => MaterialTag.Organic,
                 BlockType.CoalOre => MaterialTag.Fuel | MaterialTag.Ore,
                 BlockType.IronOre or BlockType.GoldOre or BlockType.IronBlock or BlockType.GoldBlock
                     or BlockType.CopperOre or BlockType.CopperBlock or BlockType.SilverOre or BlockType.SilverBlock

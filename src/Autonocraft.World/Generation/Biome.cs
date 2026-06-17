@@ -22,9 +22,11 @@ namespace Autonocraft.World
         public BlockType SubsurfaceBlock { get; init; }
         public BlockType FillerBlock { get; init; }
         public float TreeDensity { get; init; }
+        public float FloraDensity { get; init; }
         public bool AllowTallGrass { get; init; }
         public bool AllowFlowers { get; init; }
         public bool AllowCactus { get; init; }
+        public bool AllowUnderstory { get; init; }
 
         public static BiomeProfile For(BiomeType type) => type switch
         {
@@ -45,7 +47,8 @@ namespace Autonocraft.World
                 SurfaceBlock = BlockType.Sand,
                 SubsurfaceBlock = BlockType.Sand,
                 FillerBlock = BlockType.Stone,
-                TreeDensity = 0.05f
+                TreeDensity = 0.05f,
+                FloraDensity = 0.35f
             },
             BiomeType.Plains => new BiomeProfile
             {
@@ -56,6 +59,7 @@ namespace Autonocraft.World
                 SubsurfaceBlock = BlockType.Dirt,
                 FillerBlock = BlockType.Stone,
                 TreeDensity = 0.12f,
+                FloraDensity = 0.92f,
                 AllowTallGrass = true,
                 AllowFlowers = true
             },
@@ -68,7 +72,10 @@ namespace Autonocraft.World
                 SubsurfaceBlock = BlockType.Dirt,
                 FillerBlock = BlockType.Stone,
                 TreeDensity = 0.55f,
-                AllowTallGrass = true
+                FloraDensity = 0.95f,
+                AllowTallGrass = true,
+                AllowFlowers = true,
+                AllowUnderstory = true
             },
             BiomeType.Desert => new BiomeProfile
             {
@@ -78,6 +85,8 @@ namespace Autonocraft.World
                 SurfaceBlock = BlockType.Sand,
                 SubsurfaceBlock = BlockType.Sand,
                 FillerBlock = BlockType.Stone,
+                TreeDensity = 0.03f,
+                FloraDensity = 0.45f,
                 AllowCactus = true
             },
             BiomeType.Mountains => new BiomeProfile
@@ -89,7 +98,8 @@ namespace Autonocraft.World
                 SurfaceBlock = BlockType.Stone,
                 SubsurfaceBlock = BlockType.Stone,
                 FillerBlock = BlockType.Stone,
-                TreeDensity = 0.08f
+                TreeDensity = 0.08f,
+                FloraDensity = 0.20f
             },
             BiomeType.SnowyPeaks => new BiomeProfile
             {
@@ -100,7 +110,8 @@ namespace Autonocraft.World
                 SurfaceBlock = BlockType.Snow,
                 SubsurfaceBlock = BlockType.Stone,
                 FillerBlock = BlockType.Stone,
-                TreeDensity = 0.04f
+                TreeDensity = 0.04f,
+                FloraDensity = 0.22f
             },
             BiomeType.Swamp => new BiomeProfile
             {
@@ -111,7 +122,9 @@ namespace Autonocraft.World
                 SubsurfaceBlock = BlockType.Dirt,
                 FillerBlock = BlockType.Stone,
                 TreeDensity = 0.2f,
-                AllowTallGrass = true
+                FloraDensity = 0.75f,
+                AllowTallGrass = true,
+                AllowUnderstory = true
             },
             _ => BiomeProfile.For(BiomeType.Plains)
         };

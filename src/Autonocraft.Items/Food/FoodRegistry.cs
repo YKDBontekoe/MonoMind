@@ -11,6 +11,7 @@ namespace Autonocraft.Items
                 ItemId.RawMeat => new FoodDefinition("Raw Meat", GameDefaults.RawMeatRestore),
                 ItemId.CookedMeat => new FoodDefinition("Cooked Meat", GameDefaults.CookedMeatRestore),
                 ItemId.Bread => new FoodDefinition("Bread", GameDefaults.BreadRestore),
+                ItemId.Berries => new FoodDefinition("Berries", GameDefaults.BerryRestore),
                 _ => default
             };
 

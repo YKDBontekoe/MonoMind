@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Microsoft.Xna.Framework.Graphics;
 using Autonocraft.Crafting;
+using Autonocraft.Domain.Items;
 using Autonocraft.Engine;
 using Autonocraft.Engine.Animation;
 using Autonocraft.Engine.Audio;
@@ -416,7 +417,25 @@ namespace Autonocraft.Core
 
             Console.WriteLine($"[Mining] Mined block {blockType} at ({bx}, {by}, {bz}).");
             world.SetBlock(bx, by, bz, BlockType.Air, device);
-            if (OnSpawnItemDrop != null)
+            if (blockType == BlockType.BerryBush)
+            {
+                int dropHash = Math.Abs(bx * 92821 + bz * 68917 + by * 31);
+                if (dropHash % 10 != 0)
+                {
+                    int berryCount = 1 + dropHash % 2;
+                    if (OnSpawnItemDrop != null)
+                    {
+                        OnSpawnItemDrop(
+                            ItemStack.CreateFood(ItemId.Berries, berryCount),
+                            new Vector3(bx + 0.5f, by + 0.5f, bz + 0.5f));
+                    }
+                    else
+                    {
+                        player.AddItem(ItemStack.CreateFood(ItemId.Berries, berryCount));
+                    }
+                }
+            }
+            else if (OnSpawnItemDrop != null)
             {
                 OnSpawnItemDrop(ItemStack.CreateBlock(blockType, 1), new Vector3(bx + 0.5f, by + 0.5f, bz + 0.5f));
             }

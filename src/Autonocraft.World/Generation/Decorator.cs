@@ -1,23 +1,27 @@
 using System;
+using Autonocraft.World.Generation.Flora;
+using Autonocraft.World.Generation.Trees;
 
 namespace Autonocraft.World
 {
     public sealed class Decorator
     {
-        private readonly NoiseStack _treeNoise;
-        private readonly NoiseStack _floraNoise;
+        private readonly TreePlacer _treePlacer;
+        private readonly FloraPlacer _floraPlacer;
         private readonly int _seed;
-        private readonly WorldGenParams _params;
 
         public Decorator(int seed, WorldGenParams parameters)
         {
             _seed = seed;
-            _params = parameters;
-            _treeNoise = new NoiseStack(seed + 9999);
-            _floraNoise = new NoiseStack(seed + 8888);
+            _treePlacer = new TreePlacer(seed, parameters);
+            _floraPlacer = new FloraPlacer(seed, parameters);
         }
 
-        public void DecorateChunk(Chunk chunk, VoxelWorld? world, TerrainColumn[,] columns)
+        public void DecorateChunk(
+            Chunk chunk,
+            VoxelWorld? world,
+            TerrainColumn[,] columns,
+            Func<int, int, TerrainColumn>? previewColumn = null)
         {
             int chunkOffsetX = chunk.ChunkX * Chunk.Width;
             int chunkOffsetZ = chunk.ChunkZ * Chunk.Depth;
@@ -29,9 +33,8 @@ namespace Autonocraft.World
                     int wx = chunkOffsetX + lx;
                     int wz = chunkOffsetZ + lz;
                     var column = columns[lx, lz];
-                    int columnHash = Hash(wx, wz, 17);
+                    int columnHash = GenerationBlocks.Hash(wx, wz, _seed, 17);
 
-                    // Quicksand pockets in Desert biomes: replace surface sand with Quicksand
                     if (column.Profile.Type == BiomeType.Desert && columnHash % 19 == 0)
                     {
                         for (int dy = 0; dy < 3; dy++)
@@ -39,198 +42,52 @@ namespace Autonocraft.World
                             int qy = column.SurfaceHeight - dy;
                             if (qy > 0 && chunk.GetBlockUnchecked(lx, qy, lz) == BlockType.Sand)
                             {
-                                SetBlock(chunk, world, wx, wz, lx, lz, qy, BlockType.Quicksand);
+                                GenerationBlocks.SetBlock(chunk, world, wx, wz, lx, lz, qy, BlockType.Quicksand);
                             }
                         }
                     }
 
-                    // Cave decorations: Glowshrooms
-                    for (int y = 4; y < column.SurfaceHeight - 3; y++)
-                    {
-                        if (y < 40 && chunk.GetBlockUnchecked(lx, y, lz) == BlockType.Air)
-                        {
-                            var below = chunk.GetBlockUnchecked(lx, y - 1, lz);
-                            if (below == BlockType.Stone || below == BlockType.Gravel || below == BlockType.Dirt)
-                            {
-                                int caveHash = Hash(wx, y, wz);
-                                if (caveHash % 157 == 0)
-                                {
-                                    SetBlock(chunk, world, wx, wz, lx, lz, y, BlockType.Glowshroom);
-                                }
-                            }
-                        }
-                    }
+                    PlaceCaveGlowshrooms(chunk, world, wx, wz, lx, lz, column);
 
-                    // Hang ropes under mountain ledges
                     if (column.Biome.Primary == BiomeType.Mountains && columnHash % 103 == 0)
                     {
-                        for (int y = column.SurfaceHeight + 5; y < Chunk.Height - 5; y++)
-                        {
-                            if (chunk.GetBlockUnchecked(lx, y, lz).IsCollidable() && chunk.GetBlockUnchecked(lx, y - 1, lz) == BlockType.Air)
-                            {
-                                int ropeLength = 3 + columnHash % 4;
-                                for (int ry = 1; ry <= ropeLength; ry++)
-                                {
-                                    int ropeY = y - ry;
-                                    if (ropeY > 0 && chunk.GetBlockUnchecked(lx, ropeY, lz) == BlockType.Air)
-                                    {
-                                        SetBlock(chunk, world, wx, wz, lx, lz, ropeY, BlockType.Rope);
-                                    }
-                                }
-                                break;
-                            }
-                        }
+                        PlaceRope(chunk, world, wx, wz, lx, lz, column, columnHash);
                     }
 
                     if (column.Biome.Primary == BiomeType.Ocean || column.IsRiver || column.IsLake)
                     {
-                        TryPlaceWaterFlora(chunk, world, wx, wz, lx, lz, column);
+                        _floraPlacer.TryPlaceWaterFlora(chunk, world, wx, wz, lx, lz, column);
                         continue;
                     }
 
-                    TryPlaceTree(chunk, world, wx, wz, lx, lz, column);
-                    TryPlaceFlora(chunk, world, wx, wz, lx, lz, column, columnHash);
-                    TryPlaceBoulder(chunk, world, wx, wz, lx, lz, column, Hash(wx, wz, 41));
-                    TryPlaceAnimalFeature(chunk, world, wx, wz, lx, lz, column.SurfaceHeight);
+                    _treePlacer.TryPlaceTrees(chunk, world, columns, wx, wz, lx, lz, column, previewColumn);
+                    _floraPlacer.TryPlaceGroundFlora(chunk, world, wx, wz, lx, lz, column, columnHash);
+                    TryPlaceBoulder(chunk, world, wx, wz, lx, lz, column, GenerationBlocks.Hash(wx, wz, _seed, 41));
                 }
             }
         }
 
-        private void TryPlaceTree(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, TerrainColumn column)
+        private void PlaceCaveGlowshrooms(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, TerrainColumn column)
         {
-            if (column.Profile.TreeDensity <= 0f)
+            for (int y = 4; y < column.SurfaceHeight - 3; y++)
             {
-                return;
-            }
-
-            if ((wx * 17 + wz * 31) % 43 != 0)
-            {
-                return;
-            }
-
-            float treeDensity = _treeNoise.Fbm(wx * 0.1f, wz * 0.1f, 3);
-            float threshold = 0.45f - column.Profile.TreeDensity * 0.35f * _params.TreeDensityScale;
-            if (treeDensity <= threshold)
-            {
-                return;
-            }
-
-            int treeTypeRand = Math.Abs((wx * 73 + wz * 101) % 100);
-            BlockType logType = BlockType.OakLog;
-            BlockType leafType = BlockType.OakLeaves;
-
-            if (column.Biome.Primary == BiomeType.Swamp)
-            {
-                logType = BlockType.WillowLog;
-                leafType = BlockType.WillowLeaves;
-            }
-            else if (column.Biome.Primary is BiomeType.Desert or BiomeType.Beach)
-            {
-                logType = BlockType.PalmLog;
-                leafType = BlockType.PalmLeaves;
-            }
-            else if (column.Biome.Primary == BiomeType.SnowyPeaks || column.Biome.Temperature < -0.05f)
-            {
-                logType = BlockType.PineLog;
-                leafType = BlockType.PineLeaves;
-            }
-            else if (column.Biome.Primary == BiomeType.Plains && treeTypeRand < 15)
-            {
-                logType = BlockType.CherryLog;
-                leafType = BlockType.CherryLeaves;
-            }
-            else if (column.Biome.Primary == BiomeType.Forest)
-            {
-                if (treeTypeRand < 25)
+                if (y < 40 && chunk.GetBlockUnchecked(lx, y, lz) == BlockType.Air)
                 {
-                    logType = BlockType.MahoganyLog;
-                    leafType = BlockType.MahoganyLeaves;
-                }
-                else if (treeTypeRand < 50)
-                {
-                    logType = BlockType.MapleLog;
-                    leafType = BlockType.MapleLeaves;
-                }
-                else if (treeTypeRand < 75)
-                {
-                    logType = BlockType.BirchLog;
-                    leafType = BlockType.BirchLeaves;
-                }
-                else
-                {
-                    logType = BlockType.OakLog;
-                    leafType = BlockType.OakLeaves;
-                }
-            }
-            else if (treeTypeRand < 33)
-            {
-                logType = BlockType.BirchLog;
-                leafType = BlockType.BirchLeaves;
-            }
-            else if (treeTypeRand < 66)
-            {
-                logType = BlockType.PineLog;
-                leafType = BlockType.PineLeaves;
-            }
-
-            int surfaceHeight = column.SurfaceHeight;
-            int treeHeight = 4 + (int)((treeDensity - threshold) * 10f) % 4;
-
-            for (int ty = 1; ty <= treeHeight; ty++)
-            {
-                int y = surfaceHeight + ty;
-                if (y < Chunk.Height)
-                {
-                    SetBlock(chunk, world, wx, wz, lx, lz, y, logType);
-                }
-            }
-
-            int canopyBottom = surfaceHeight + treeHeight - 2;
-            int canopyTop = surfaceHeight + treeHeight + 1;
-            int canopyLayers = canopyTop - canopyBottom;
-
-            for (int y = canopyBottom; y <= canopyTop; y++)
-            {
-                int layerFromBottom = y - canopyBottom;
-                int radius = GetCanopyRadius(logType, layerFromBottom, canopyLayers);
-
-                for (int dx = -radius; dx <= radius; dx++)
-                {
-                    for (int dz = -radius; dz <= radius; dz++)
+                    var below = chunk.GetBlockUnchecked(lx, y - 1, lz);
+                    if (below is BlockType.Stone or BlockType.Gravel or BlockType.Dirt)
                     {
-                        if (dx * dx + dz * dz > radius * radius)
+                        int caveHash = GenerationBlocks.Hash(wx, y, wz, _seed);
+                        if (caveHash % 157 == 0)
                         {
-                            continue;
-                        }
-
-                        if (dx == 0 && dz == 0 && y <= surfaceHeight + treeHeight)
-                        {
-                            continue;
-                        }
-
-                        int leafWx = wx + dx;
-                        int leafWz = wz + dz;
-                        int leafLx = lx + dx;
-                        int leafLz = lz + dz;
-
-                        if (y <= 0 || y >= Chunk.Height)
-                        {
-                            continue;
-                        }
-
-                        if (SetBlockIfAir(chunk, world, leafWx, leafWz, leafLx, leafLz, y, leafType))
-                        {
-                            if ((column.Profile.Type == BiomeType.Forest || column.Profile.Type == BiomeType.Swamp) && (leafWx * 13 + leafWz * 37 + y * 7) % 15 == 0)
+                            GenerationBlocks.SetBlock(chunk, world, wx, wz, lx, lz, y, BlockType.Glowshroom);
+                            if (caveHash % 2 == 0)
                             {
-                                int vineLength = 1 + Math.Abs(leafWx * 7 + leafWz * 11) % 3;
-                                for (int vy = 1; vy <= vineLength; vy++)
-                                {
-                                    int vineY = y - vy;
-                                    if (vineY > surfaceHeight)
-                                    {
-                                        SetBlockIfAir(chunk, world, leafWx, leafWz, leafLx, leafLz, vineY, BlockType.Vine);
-                                    }
-                                }
+                                GenerationBlocks.SetBlockIfAir(chunk, world, wx, wz, lx, lz, y + 1, BlockType.Glowshroom);
+                            }
+
+                            if (caveHash % 3 == 0)
+                            {
+                                GenerationBlocks.SetBlockIfAir(chunk, world, wx + 1, wz, lx + 1, lz, y, BlockType.Glowshroom);
                             }
                         }
                     }
@@ -238,159 +95,28 @@ namespace Autonocraft.World
             }
         }
 
-        private void TryPlaceFlora(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, TerrainColumn column, int hash)
+        private static void PlaceRope(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, TerrainColumn column, int columnHash)
         {
-            int surfaceHeight = column.SurfaceHeight;
-            float floraSample = _floraNoise.Fbm(wx * 0.21f, wz * 0.21f, 3);
-
-            // Bamboo in Swamp / Beach
-            if ((column.Profile.Type == BiomeType.Swamp || column.Profile.Type == BiomeType.Beach) && floraSample > 0.85f && hash % 7 == 0)
+            for (int y = column.SurfaceHeight + 5; y < Chunk.Height - 5; y++)
             {
-                int bambooHeight = 2 + hash % 3;
-                for (int by = 1; by <= bambooHeight; by++)
+                if (chunk.GetBlockUnchecked(lx, y, lz).IsCollidable() && chunk.GetBlockUnchecked(lx, y - 1, lz) == BlockType.Air)
                 {
-                    SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + by, BlockType.Bamboo);
-                }
-                return;
-            }
-
-            // Lavender in Plains
-            if (column.Profile.Type == BiomeType.Plains && floraSample > 0.78f && hash % 11 == 0)
-            {
-                SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.Lavender);
-                return;
-            }
-
-            if (column.Profile.AllowCactus && floraSample > 0.88f && hash % 11 == 0)
-            {
-                SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.Cactus);
-                return;
-            }
-
-            if (column.Profile.AllowTallGrass)
-            {
-                float grassThreshold = column.Biome.Primary switch
-                {
-                    BiomeType.Forest => 0.78f,
-                    BiomeType.Plains => 0.72f,
-                    BiomeType.Swamp => 0.76f,
-                    _ => 0.75f
-                };
-                if (floraSample > grassThreshold)
-                {
-                    SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.TallGrass);
-                }
-            }
-
-            if (column.Profile.AllowFlowers)
-            {
-                float flowerThreshold = 0.82f;
-                float sunflowerThreshold = 0.91f;
-                if (floraSample > sunflowerThreshold && hash % 3 == 0)
-                {
-                    SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.Sunflower);
-                }
-                else if (floraSample > flowerThreshold)
-                {
-                    SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.Flower);
-                }
-            }
-
-            // New flora additions: Fern, Mushrooms, Dead Bush, Berry Bush
-            if (column.Profile.Type == BiomeType.Forest && floraSample > 0.76f && hash % 6 == 0)
-            {
-                SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.Fern);
-            }
-            else if ((column.Profile.Type == BiomeType.Forest || column.Profile.Type == BiomeType.Swamp) && floraSample > 0.65f)
-            {
-                if (hash % 41 == 0)
-                {
-                    SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.MushroomRed);
-                }
-                else if (hash % 47 == 0)
-                {
-                    SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.MushroomBrown);
-                }
-            }
-            else if ((column.Profile.Type == BiomeType.Desert || column.Profile.Type == BiomeType.Mountains) && floraSample > 0.70f && hash % 13 == 0)
-            {
-                SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.DeadBush);
-            }
-            else if ((column.Profile.Type == BiomeType.Plains || column.Profile.Type == BiomeType.Forest) && floraSample > 0.82f && hash % 17 == 0)
-            {
-                SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.BerryBush);
-            }
-
-            if (column.Biome.Primary == BiomeType.Swamp && floraSample > 0.70f && hash % 5 == 0)
-            {
-                SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, BlockType.Reed);
-            }
-        }
-
-        private void TryPlaceWaterFlora(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, TerrainColumn column)
-        {
-            int hash = Hash(wx, wz, 23);
-            int waterY = column.Biome.Primary == BiomeType.Ocean
-                ? WorldConstants.SeaLevel
-                : FindWaterSurfaceY(chunk, lx, lz);
-
-            if (waterY < 0)
-            {
-                return;
-            }
-
-            if (column.Biome.Primary == BiomeType.Ocean
-                && chunk.GetBlockUnchecked(lx, waterY, lz) != BlockType.Water)
-            {
-                waterY = FindWaterSurfaceY(chunk, lx, lz);
-                if (waterY < 0)
-                {
-                    return;
-                }
-            }
-
-            // 1. Place Lily Pads (Swamp water surface only)
-            if (column.Biome.Primary == BiomeType.Swamp && hash % 7 == 0)
-            {
-                int padY = waterY + 1;
-                if (padY < Chunk.Height && chunk.GetBlockUnchecked(lx, padY, lz) == BlockType.Air)
-                {
-                    SetBlockIfAir(chunk, world, wx, wz, lx, lz, padY, BlockType.LilyPad);
-                }
-            }
-
-            // 2. Place Seagrass (underwater floor)
-            int floorY = FindWaterFloorY(chunk, lx, lz, waterY);
-            if (floorY != -1)
-            {
-                BlockType floorType = chunk.GetBlockUnchecked(lx, floorY, lz);
-                if (floorType == BlockType.Sand || floorType == BlockType.Dirt || floorType == BlockType.Grass || floorType == BlockType.Mud || floorType == BlockType.Clay)
-                {
-                    int grassY = floorY + 1;
-                    if (grassY < Chunk.Height && chunk.GetBlockUnchecked(lx, grassY, lz) == BlockType.Water)
+                    int ropeLength = 3 + columnHash % 4;
+                    for (int ry = 1; ry <= ropeLength; ry++)
                     {
-                        if (hash % 6 == 0)
+                        int ropeY = y - ry;
+                        if (ropeY > 0 && chunk.GetBlockUnchecked(lx, ropeY, lz) == BlockType.Air)
                         {
-                            SetBlock(chunk, world, wx, wz, lx, lz, grassY, BlockType.Seagrass);
-                        }
-                        else if (column.Biome.Primary == BiomeType.Ocean && hash % 13 == 0)
-                        {
-                            int kelpHeight = 3 + hash % 6;
-                            for (int ky = 1; ky <= kelpHeight; ky++)
-                            {
-                                int kelpY = floorY + ky;
-                                if (kelpY < waterY && kelpY < Chunk.Height && chunk.GetBlockUnchecked(lx, kelpY, lz) == BlockType.Water)
-                                {
-                                    SetBlock(chunk, world, wx, wz, lx, lz, kelpY, BlockType.Kelp);
-                                }
-                            }
+                            GenerationBlocks.SetBlock(chunk, world, wx, wz, lx, lz, ropeY, BlockType.Rope);
                         }
                     }
+
+                    break;
                 }
             }
         }
 
-        private void TryPlaceBoulder(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, TerrainColumn column, int hash)
+        private static void TryPlaceBoulder(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, TerrainColumn column, int hash)
         {
             if (hash % 311 != 0 || column.Biome.Primary is BiomeType.Ocean or BiomeType.Beach)
             {
@@ -398,162 +124,10 @@ namespace Autonocraft.World
             }
 
             int y = column.SurfaceHeight + 1;
-            SetBlockIfAir(chunk, world, wx, wz, lx, lz, y, BlockType.Gravel);
+            GenerationBlocks.SetBlockIfAir(chunk, world, wx, wz, lx, lz, y, BlockType.Gravel);
             if (hash % 2 == 0)
             {
-                SetBlockIfAir(chunk, world, wx, wz, lx, lz, y + 1, BlockType.Stone);
-            }
-        }
-
-        private void TryPlaceAnimalFeature(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, int surfaceHeight)
-        {
-            int hash = Math.Abs((wx * 811 + wz * 977 + _seed) % 10000);
-            if (hash % 800 == 0)
-            {
-                PlaceHayBale(chunk, world, wx, wz, lx, lz, surfaceHeight);
-            }
-            else if (hash % 1200 == 17)
-            {
-                PlaceNest(chunk, world, wx, wz, lx, lz, surfaceHeight);
-            }
-            else if (hash % 1500 == 42)
-            {
-                PlaceSheepRock(chunk, world, wx, wz, lx, lz, surfaceHeight);
-            }
-        }
-
-        private static void PlaceHayBale(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, int surfaceHeight)
-        {
-            for (int dy = 1; dy <= 2; dy++)
-            {
-                int y = surfaceHeight + dy;
-                if (y >= Chunk.Height) return;
-                SetBlockIfAir(chunk, world, wx, wz, lx, lz, y, BlockType.HayBale);
-            }
-        }
-
-        private static void PlaceNest(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, int surfaceHeight)
-        {
-            for (int dx = -1; dx <= 1; dx++)
-            {
-                for (int dz = -1; dz <= 1; dz++)
-                {
-                    int y = surfaceHeight + 1;
-                    if (y >= Chunk.Height) continue;
-                    BlockType type = (dx == 0 && dz == 0) ? BlockType.Dirt : BlockType.Grass;
-                    SetBlockIfAir(chunk, world, wx + dx, wz + dz, lx + dx, lz + dz, y, type);
-                }
-            }
-        }
-
-        private static void PlaceSheepRock(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, int surfaceHeight)
-        {
-            int y = surfaceHeight + 1;
-            if (y >= Chunk.Height) return;
-            SetBlockIfAir(chunk, world, wx, wz, lx, lz, y, BlockType.Stone);
-        }
-
-        private static int GetCanopyRadius(BlockType logType, int layerFromBottom, int totalLayers)
-        {
-            if (logType == BlockType.PineLog)
-            {
-                return layerFromBottom <= 1 ? 2 : 1;
-            }
-
-            if (logType == BlockType.WillowLog)
-            {
-                if (layerFromBottom >= totalLayers - 1)
-                {
-                    return 3;
-                }
-
-                return layerFromBottom <= 1 ? 2 : 3;
-            }
-
-            if (logType == BlockType.PalmLog)
-            {
-                return layerFromBottom >= totalLayers - 1 ? 2 : 0;
-            }
-
-            int peakLayer = totalLayers / 2;
-            return Math.Max(1, 2 - Math.Abs(layerFromBottom - peakLayer));
-        }
-
-        private static int FindWaterSurfaceY(Chunk chunk, int lx, int lz)
-        {
-            for (int y = Chunk.Height - 1; y >= 0; y--)
-            {
-                if (chunk.GetBlockUnchecked(lx, y, lz) == BlockType.Water)
-                {
-                    return y;
-                }
-            }
-
-            return -1;
-        }
-
-        private static int FindWaterFloorY(Chunk chunk, int lx, int lz, int waterY)
-        {
-            for (int y = waterY - 1; y >= 0; y--)
-            {
-                if (chunk.GetBlockUnchecked(lx, y, lz) != BlockType.Water)
-                {
-                    return y;
-                }
-            }
-
-            return -1;
-        }
-
-        private static void SetBlock(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, int y, BlockType type)
-        {
-            if (world != null)
-            {
-                world.SetBlockDuringGeneration(wx, y, wz, type);
-                return;
-            }
-
-            if (lx >= 0 && lx < Chunk.Width && lz >= 0 && lz < Chunk.Depth)
-            {
-                chunk.SetBlockUnchecked(lx, y, lz, type);
-            }
-        }
-
-        private static bool SetBlockIfAir(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, int y, BlockType type)
-        {
-            if (y <= 0 || y >= Chunk.Height)
-            {
-                return false;
-            }
-
-            if (world != null)
-            {
-                if (world.GetBlock(wx, y, wz) == BlockType.Air)
-                {
-                    world.SetBlockDuringGeneration(wx, y, wz, type);
-                    return true;
-                }
-
-                return false;
-            }
-
-            if (lx >= 0 && lx < Chunk.Width && lz >= 0 && lz < Chunk.Depth)
-            {
-                if (chunk.GetBlockUnchecked(lx, y, lz) == BlockType.Air)
-                {
-                    chunk.SetBlockUnchecked(lx, y, lz, type);
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private int Hash(int wx, int wz, int salt)
-        {
-            unchecked
-            {
-                return Math.Abs((wx * 92821 + wz * 68917 + _seed + salt) % 100000);
+                GenerationBlocks.SetBlockIfAir(chunk, world, wx, wz, lx, lz, y + 1, BlockType.Stone);
             }
         }
     }

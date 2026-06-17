@@ -110,7 +110,18 @@ namespace Autonocraft.Domain.World
         StoneSlab = 103,
         SandSlab = 104,
         SnowSlab = 105,
-        SnowSide = 106
+        SnowSide = 106,
+        Shrub = 107,
+        Heather = 108,
+        Moss = 109,
+        Juniper = 110,
+        Poppy = 111,
+        Daisy = 112,
+        BlueFlax = 113,
+        Tulip = 114,
+        WildRose = 115,
+        MossCarpet = 116,
+        Lichen = 117
     }
 
     public static class BlockTypeExtensions
@@ -152,6 +163,16 @@ namespace Autonocraft.Domain.World
                 || type == BlockType.Lantern
                 || type == BlockType.Rope
                 || type == BlockType.Kelp
+                || type == BlockType.Shrub
+                || type == BlockType.Heather
+                || type == BlockType.Juniper
+                || type == BlockType.Poppy
+                || type == BlockType.Daisy
+                || type == BlockType.BlueFlax
+                || type == BlockType.Tulip
+                || type == BlockType.WildRose
+                || type == BlockType.MossCarpet
+                || type == BlockType.Lichen
                 || type == BlockType.DeadBush
                 || type == BlockType.LilyPad
                 || type == BlockType.Vine
@@ -199,7 +220,9 @@ namespace Autonocraft.Domain.World
                 or BlockType.MushroomRed or BlockType.MushroomBrown or BlockType.DeadBush
                 or BlockType.LilyPad or BlockType.Vine or BlockType.BerryBush
                 or BlockType.Seagrass or BlockType.Glowshroom or BlockType.Lavender
-                or BlockType.Rope or BlockType.Kelp;
+                or BlockType.Rope or BlockType.Kelp or BlockType.Shrub or BlockType.Heather
+                or BlockType.Juniper or BlockType.Poppy or BlockType.Daisy or BlockType.BlueFlax
+                or BlockType.Tulip or BlockType.WildRose or BlockType.MossCarpet or BlockType.Lichen;
         }
 
         public static bool IsAlphaCutout(this BlockType type)
@@ -236,7 +259,10 @@ namespace Autonocraft.Domain.World
                 BlockType.Fern or BlockType.MushroomRed or BlockType.MushroomBrown
                     or BlockType.DeadBush or BlockType.LilyPad or BlockType.Vine
                     or BlockType.BerryBush or BlockType.Seagrass or BlockType.Glowshroom
-                    or BlockType.Lavender or BlockType.Rope or BlockType.Kelp => 0.1f,
+                    or BlockType.Lavender or BlockType.Rope or BlockType.Kelp
+                    or BlockType.Shrub or BlockType.Heather or BlockType.Moss or BlockType.Juniper
+                    or BlockType.Poppy or BlockType.Daisy or BlockType.BlueFlax or BlockType.Tulip
+                    or BlockType.WildRose or BlockType.MossCarpet or BlockType.Lichen => 0.1f,
                 BlockType.WheatSprout or BlockType.CarrotSprout => 0.1f,
                 BlockType.Wheat or BlockType.Carrot => 0.15f,
                 BlockType.OakLeaves => 0.15f,

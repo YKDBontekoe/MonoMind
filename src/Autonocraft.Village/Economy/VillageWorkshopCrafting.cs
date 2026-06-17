@@ -120,7 +120,10 @@ namespace Autonocraft.Village
                    storage.TryConsumeBlock(BlockType.BirchLog, 1) ||
                    storage.TryConsumeBlock(BlockType.PineLog, 1) ||
                    storage.TryConsumeBlock(BlockType.WillowLog, 1) ||
-                   storage.TryConsumeBlock(BlockType.PalmLog, 1);
+                   storage.TryConsumeBlock(BlockType.PalmLog, 1) ||
+                   storage.TryConsumeBlock(BlockType.CherryLog, 1) ||
+                   storage.TryConsumeBlock(BlockType.MahoganyLog, 1) ||
+                   storage.TryConsumeBlock(BlockType.MapleLog, 1);
         }
 
         private static bool AddFallbackTool(VillageStorage storage, ItemId itemId, Action<string>? onCrafted)

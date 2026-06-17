@@ -57,10 +57,12 @@ namespace Autonocraft.World
             float amplitude = 0f;
             float ridgeWeight = 0f;
             float treeDensity = 0f;
+            float floraDensity = 0f;
             float totalWeight = 0f;
             bool allowTallGrass = false;
             bool allowFlowers = false;
             bool allowCactus = false;
+            bool allowUnderstory = false;
 
             void Add(BiomeProfile profile, float weight)
             {
@@ -68,10 +70,12 @@ namespace Autonocraft.World
                 amplitude += profile.HeightAmplitude * weight;
                 ridgeWeight += profile.RidgeWeight * weight;
                 treeDensity += profile.TreeDensity * weight;
+                floraDensity += profile.FloraDensity * weight;
                 totalWeight += weight;
                 allowTallGrass |= profile.AllowTallGrass;
                 allowFlowers |= profile.AllowFlowers;
                 allowCactus |= profile.AllowCactus;
+                allowUnderstory |= profile.AllowUnderstory;
             }
 
             Add(center.Profile, 2f);
@@ -95,9 +99,11 @@ namespace Autonocraft.World
                 SubsurfaceBlock = center.Profile.SubsurfaceBlock,
                 FillerBlock = center.Profile.FillerBlock,
                 TreeDensity = treeDensity * inv,
+                FloraDensity = floraDensity * inv,
                 AllowTallGrass = allowTallGrass,
                 AllowFlowers = allowFlowers,
-                AllowCactus = allowCactus
+                AllowCactus = allowCactus,
+                AllowUnderstory = allowUnderstory
             };
         }
 
