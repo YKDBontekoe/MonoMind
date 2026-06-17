@@ -107,7 +107,7 @@ jobs:
           --results-directory TestResults
 
       - name: Publish unit test report
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v3
         if: always()
         with:
           name: ${{ format('Unit tests ({0})', matrix.platform) }}
