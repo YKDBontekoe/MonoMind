@@ -27,6 +27,11 @@ namespace Autonocraft.World.Generation.Flora
                 BiomeType.SnowyPeaks => SnowyPeaksEntries,
                 BiomeType.Mountains => MountainsEntries,
                 BiomeType.Beach => BeachEntries,
+                BiomeType.Badlands => BadlandsEntries,
+                BiomeType.Mangrove => MangroveEntries,
+                BiomeType.MushroomForest => MushroomForestEntries,
+                BiomeType.Volcanic => VolcanicEntries,
+                BiomeType.BorealTaiga => BorealTaigaEntries,
                 _ => GenericEntries
             };
         }
@@ -104,6 +109,45 @@ namespace Autonocraft.World.Generation.Flora
         private static readonly FloraPlacementEntry[] GenericEntries =
         [
             new() { Block = BlockType.TallGrass, Weight = 50, SampleThreshold = 0.45f }
+        ];
+
+        private static readonly FloraPlacementEntry[] BadlandsEntries =
+        [
+            new() { Block = BlockType.DeadBush, Weight = 50, SampleThreshold = 0.40f, HashMod = 2 },
+            new() { Block = BlockType.Cactus, Weight = 25, SampleThreshold = 0.68f, HashMod = 7, RequiresCactus = true },
+            new() { Block = BlockType.Lichen, Weight = 15, SampleThreshold = 0.48f, HashMod = 5 }
+        ];
+
+        private static readonly FloraPlacementEntry[] MangroveEntries =
+        [
+            new() { Block = BlockType.Reed, Weight = 28, SampleThreshold = 0.48f, HashMod = 4 },
+            new() { Block = BlockType.LilyPad, Weight = 22, SampleThreshold = 0.46f, HashMod = 3 },
+            new() { Block = BlockType.MossCarpet, Weight = 20, SampleThreshold = 0.44f, HashMod = 3 },
+            new() { Block = BlockType.Vine, Weight = 12, SampleThreshold = 0.50f, HashMod = 7 },
+            new() { Block = BlockType.Fern, Weight = 14, SampleThreshold = 0.48f, HashMod = 4, UnderstoryOnly = true }
+        ];
+
+        private static readonly FloraPlacementEntry[] MushroomForestEntries =
+        [
+            new() { Block = BlockType.MushroomRed, Weight = 30, SampleThreshold = 0.44f, HashMod = 3 },
+            new() { Block = BlockType.MushroomBrown, Weight = 28, SampleThreshold = 0.44f, HashMod = 3 },
+            new() { Block = BlockType.Glowshroom, Weight = 12, SampleThreshold = 0.52f, HashMod = 9, UnderstoryOnly = true },
+            new() { Block = BlockType.MossCarpet, Weight = 18, SampleThreshold = 0.42f, HashMod = 2 },
+            new() { Block = BlockType.Fern, Weight = 12, SampleThreshold = 0.48f, HashMod = 4, UnderstoryOnly = true }
+        ];
+
+        private static readonly FloraPlacementEntry[] VolcanicEntries =
+        [
+            new() { Block = BlockType.DeadBush, Weight = 40, SampleThreshold = 0.55f, HashMod = 5 },
+            new() { Block = BlockType.Lichen, Weight = 35, SampleThreshold = 0.50f, HashMod = 4 }
+        ];
+
+        private static readonly FloraPlacementEntry[] BorealTaigaEntries =
+        [
+            new() { Block = BlockType.Fern, Weight = 20, SampleThreshold = 0.50f, HashMod = 4, UnderstoryOnly = true },
+            new() { Block = BlockType.BerryBush, Weight = 18, SampleThreshold = 0.52f, HashMod = 6 },
+            new() { Block = BlockType.Shrub, Weight = 22, SampleThreshold = 0.48f, HashMod = 5 },
+            new() { Block = BlockType.MossCarpet, Weight = 16, SampleThreshold = 0.46f, HashMod = 4 }
         ];
 
         public static bool TryPick(

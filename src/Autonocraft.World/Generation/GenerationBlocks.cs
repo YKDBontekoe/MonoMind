@@ -55,5 +55,17 @@ namespace Autonocraft.World
                 return Math.Abs((wx * 92821 + wz * 68917 + seed + salt) % 100000);
             }
         }
+
+        public static int Hash3D(int wx, int y, int wz, int seed)
+        {
+            unchecked
+            {
+                int h = wx * 734287 + y * 912271 + wz * 438289 + seed;
+                h ^= h >> 13;
+                h *= 1274126177;
+                h ^= h >> 16;
+                return h & int.MaxValue;
+            }
+        }
     }
 }

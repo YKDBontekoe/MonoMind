@@ -132,6 +132,34 @@ namespace Autonocraft.World.Structures
                     Tier = StructureTier.Medium,
                     AllowedBiomes = new[] { BiomeType.Plains, BiomeType.Forest },
                     Template = BuildVillageOutpost()
+                },
+                new StructureDefinition
+                {
+                    Id = "BadlandsSpire",
+                    Tier = StructureTier.Small,
+                    AllowedBiomes = new[] { BiomeType.Badlands },
+                    Template = BuildBadlandsSpire()
+                },
+                new StructureDefinition
+                {
+                    Id = "MushroomCircle",
+                    Tier = StructureTier.Small,
+                    AllowedBiomes = new[] { BiomeType.MushroomForest },
+                    Template = BuildMushroomCircle()
+                },
+                new StructureDefinition
+                {
+                    Id = "VolcanicVent",
+                    Tier = StructureTier.Small,
+                    AllowedBiomes = new[] { BiomeType.Volcanic },
+                    Template = BuildVolcanicVent()
+                },
+                new StructureDefinition
+                {
+                    Id = "MangroveDock",
+                    Tier = StructureTier.Small,
+                    AllowedBiomes = new[] { BiomeType.Mangrove },
+                    Template = BuildMangroveDock()
                 }
             };
         }
@@ -434,6 +462,70 @@ namespace Autonocraft.World.Structures
             blocks.Add(new StructureBlock(-2, 1, 0, BlockType.OakPlank));
             blocks.Add(new StructureBlock(2, 1, 0, BlockType.OakPlank));
             blocks.Add(new StructureBlock(0, 1, -2, BlockType.OakPlank));
+            return new StructureTemplate { FootprintRadius = 3, Blocks = blocks.ToArray() };
+        }
+
+        private static StructureTemplate BuildBadlandsSpire()
+        {
+            return new StructureTemplate
+            {
+                FootprintRadius = 1,
+                Blocks = new[]
+                {
+                    new StructureBlock(0, 1, 0, BlockType.RedSand),
+                    new StructureBlock(0, 2, 0, BlockType.Sandstone),
+                    new StructureBlock(0, 3, 0, BlockType.Sandstone),
+                    new StructureBlock(0, 4, 0, BlockType.RedSand)
+                }
+            };
+        }
+
+        private static StructureTemplate BuildMushroomCircle()
+        {
+            var blocks = new List<StructureBlock>();
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                for (int dz = -1; dz <= 1; dz++)
+                {
+                    if (dx == 0 && dz == 0)
+                    {
+                        blocks.Add(new StructureBlock(dx, 1, dz, BlockType.Glowshroom));
+                    }
+                    else
+                    {
+                        blocks.Add(new StructureBlock(dx, 1, dz, (dx + dz) % 2 == 0 ? BlockType.MushroomRed : BlockType.MushroomBrown));
+                    }
+                }
+            }
+
+            return new StructureTemplate { FootprintRadius = 2, Blocks = blocks.ToArray() };
+        }
+
+        private static StructureTemplate BuildVolcanicVent()
+        {
+            return new StructureTemplate
+            {
+                FootprintRadius = 1,
+                Blocks = new[]
+                {
+                    new StructureBlock(0, 0, 0, BlockType.Basalt),
+                    new StructureBlock(0, 1, 0, BlockType.Obsidian),
+                    new StructureBlock(0, 2, 0, BlockType.MagmaBlock)
+                }
+            };
+        }
+
+        private static StructureTemplate BuildMangroveDock()
+        {
+            var blocks = new List<StructureBlock>();
+            for (int dx = -2; dx <= 2; dx++)
+            {
+                blocks.Add(new StructureBlock(dx, 0, 0, BlockType.Mud));
+                blocks.Add(new StructureBlock(dx, 1, 0, BlockType.WillowLog));
+            }
+
+            blocks.Add(new StructureBlock(-2, 1, 1, BlockType.WillowLog));
+            blocks.Add(new StructureBlock(2, 1, 1, BlockType.WillowLog));
             return new StructureTemplate { FootprintRadius = 3, Blocks = blocks.ToArray() };
         }
     }

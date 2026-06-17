@@ -22,6 +22,7 @@ namespace Autonocraft.World
                 BlockType.Grass => new Vector3(0.86f, 0.94f, 0.82f),
                 BlockType.Dirt => new Vector3(1.02f, 0.96f, 0.88f),
                 BlockType.Sand => new Vector3(1.06f, 1.02f, 0.92f),
+                BlockType.RedSand => new Vector3(1.08f, 0.94f, 0.88f),
                 BlockType.Snow => new Vector3(1.05f, 1.05f, 1.08f),
                 BlockType.Stone => new Vector3(0.97f, 0.97f, 0.99f),
                 BlockType.Gravel => new Vector3(0.98f, 0.98f, 0.96f),
@@ -298,7 +299,7 @@ namespace Autonocraft.World
 
         private static bool IsEarthMaterial(BlockType type)
         {
-            return type is BlockType.Grass or BlockType.Dirt or BlockType.Sand or BlockType.Snow
+            return type is BlockType.Grass or BlockType.Dirt or BlockType.Sand or BlockType.RedSand or BlockType.Snow
                 or BlockType.Gravel or BlockType.Mud;
         }
 

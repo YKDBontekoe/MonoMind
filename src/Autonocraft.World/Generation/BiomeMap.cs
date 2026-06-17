@@ -119,6 +119,11 @@ namespace Autonocraft.World
                 return BiomeType.Beach;
             }
 
+            if (continentalness < 0f && continentalness > -0.18f && moisture > 0.22f && temperature > 0.05f)
+            {
+                return BiomeType.Mangrove;
+            }
+
             bool rugged = erosion > 0.5f * _params.MountainWeight && continentalness > 0.08f;
             if (temperature < -0.18f)
             {
@@ -130,9 +135,29 @@ namespace Autonocraft.World
                 return temperature < 0.1f ? BiomeType.SnowyPeaks : BiomeType.Mountains;
             }
 
+            if (temperature > 0.18f && moisture < -0.12f && erosion > 0.42f)
+            {
+                return BiomeType.Volcanic;
+            }
+
+            if (temperature > 0.15f && moisture < -0.05f && erosion > 0.38f)
+            {
+                return BiomeType.Badlands;
+            }
+
             if (temperature > 0.22f && moisture < -0.1f)
             {
                 return BiomeType.Desert;
+            }
+
+            if (moisture > 0.32f && temperature > -0.08f && temperature < 0.18f && erosion < 0.35f)
+            {
+                return BiomeType.MushroomForest;
+            }
+
+            if (temperature < -0.04f && temperature > -0.18f && moisture > 0.02f)
+            {
+                return BiomeType.BorealTaiga;
             }
 
             if (moisture > 0.18f && temperature > -0.08f && continentalness < 0.18f)

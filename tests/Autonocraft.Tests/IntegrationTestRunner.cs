@@ -35,6 +35,9 @@ public static class IntegrationTestRunner
             ChunkStreamingTests.RunEnsureChunksLoadedDoesNotUnloadPlayerRadius();
             WorldGenTests.RunChunkStreamingStability();
             WorldGenTests.RunWorldGenerationBasics();
+            WorldGenTests.RunOceanNoSurfaceIce();
+            WorldGenTests.RunNewSurfaceBiomes();
+            WorldGenTests.RunCaveBiomes();
             TerrainSlabTests.RunTerrainSlabUnitRules();
             TerrainSlabTests.RunTerrainSlabPlacementRules();
             TerrainSlabTests.RunTerrainSlabUpperStepRegression();

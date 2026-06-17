@@ -154,7 +154,7 @@ namespace Autonocraft.World
                 h ^= h >> 13;
                 h *= 1274126177;
                 h ^= h >> 16;
-                return Math.Abs(h);
+                return h & int.MaxValue;
             }
         }
     }

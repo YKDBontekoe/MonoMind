@@ -172,7 +172,9 @@
     "tulip": { "col": 2, "row": 21, "file": "tulip.png" },
     "wild_rose": { "col": 3, "row": 21, "file": "wild_rose.png" },
     "moss_carpet": { "col": 4, "row": 21, "file": "moss_carpet.png" },
-    "lichen": { "col": 5, "row": 21, "file": "lichen.png" }
+    "lichen": { "col": 5, "row": 21, "file": "lichen.png" },
+    "red_sand": { "col": 6, "row": 21, "file": "red_sand.png" },
+    "dripstone": { "col": 7, "row": 21, "file": "dripstone.png" }
   },
   "blockFaces": {
     "Grass": { "top": "grass_top", "bottom": "dirt", "side": "grass_side" },
@@ -286,6 +288,8 @@
     "WildRose": { "all": "wild_rose" },
     "MossCarpet": { "all": "moss_carpet" },
     "Lichen": { "all": "lichen" },
+    "RedSand": { "all": "red_sand" },
+    "Dripstone": { "all": "dripstone" },
     "SnowSide": { "all": "snow_side" }
   },
   "animals": {

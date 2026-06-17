@@ -8,19 +8,29 @@ namespace Autonocraft.World.Generation.Trees
         {
             int treeTypeRand = Math.Abs((wx * 73 + wz * 101 + seed) % 100);
 
-            if (biome.Primary == BiomeType.Swamp)
+            if (biome.Primary == BiomeType.Swamp || biome.Primary == BiomeType.Mangrove)
             {
                 return TreeSpecies.Willow();
             }
 
-            if (biome.Primary is BiomeType.Desert or BiomeType.Beach)
+            if (biome.Primary is BiomeType.Desert or BiomeType.Beach or BiomeType.Badlands)
             {
                 return TreeSpecies.Palm();
+            }
+
+            if (biome.Primary == BiomeType.BorealTaiga)
+            {
+                return treeTypeRand < 70 ? TreeSpecies.Pine() : TreeSpecies.Birch();
             }
 
             if (biome.Primary == BiomeType.SnowyPeaks || biome.Temperature < -0.05f)
             {
                 return TreeSpecies.Pine();
+            }
+
+            if (biome.Primary == BiomeType.MushroomForest)
+            {
+                return treeTypeRand < 40 ? TreeSpecies.Birch() : TreeSpecies.Oak();
             }
 
             if (biome.Primary == BiomeType.Plains && treeTypeRand < 15)

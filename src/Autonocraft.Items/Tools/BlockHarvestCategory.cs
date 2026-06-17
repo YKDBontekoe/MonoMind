@@ -25,7 +25,7 @@ namespace Autonocraft.Items
                     or BlockType.OakPlank or BlockType.BirchPlank or BlockType.PinePlank
                     or BlockType.CherryPlank or BlockType.MahoganyPlank or BlockType.MaplePlank
                     or BlockType.Bamboo or BlockType.BerryBush => BlockHarvestCategory.Wood,
-                BlockType.Dirt or BlockType.Grass or BlockType.Sand or BlockType.Snow
+                BlockType.Dirt or BlockType.Grass or BlockType.Sand or BlockType.RedSand or BlockType.Snow
                     or BlockType.Gravel or BlockType.Clay or BlockType.TallGrass
                     or BlockType.Flower or BlockType.Reed or BlockType.Sunflower
                     or BlockType.Mud or BlockType.HayBale or BlockType.Ice
@@ -37,7 +37,7 @@ namespace Autonocraft.Items
                     or BlockType.Shrub or BlockType.Heather or BlockType.Juniper
                     or BlockType.Glowshroom or BlockType.Lavender or BlockType.Rope
                     or BlockType.Kelp => BlockHarvestCategory.Earth,
-                BlockType.Cobblestone or BlockType.Brick or BlockType.MossStone
+                BlockType.Cobblestone or BlockType.Brick or BlockType.MossStone or BlockType.Dripstone
                     or BlockType.Marble or BlockType.Basalt or BlockType.Slate
                     or BlockType.Limestone or BlockType.Granite or BlockType.Obsidian
                     or BlockType.Amethyst or BlockType.MagmaBlock or BlockType.Quicksand

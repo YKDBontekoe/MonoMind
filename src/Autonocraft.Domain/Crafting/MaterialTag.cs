@@ -26,7 +26,7 @@ namespace Autonocraft.Domain.Crafting
                     or BlockType.OakPlank or BlockType.BirchPlank or BlockType.PinePlank
                     or BlockType.CherryPlank or BlockType.MahoganyPlank or BlockType.MaplePlank
                     or BlockType.Bamboo => MaterialTag.Wood,
-                BlockType.Dirt or BlockType.Grass or BlockType.Sand or BlockType.Snow or BlockType.Gravel
+                BlockType.Dirt or BlockType.Grass or BlockType.Sand or BlockType.RedSand or BlockType.Snow or BlockType.Gravel
                     or BlockType.Clay or BlockType.Mud or BlockType.HayBale or BlockType.Ice
                     or BlockType.Quicksand => MaterialTag.Earth,
                 BlockType.OakLeaves or BlockType.BirchLeaves or BlockType.PineLeaves
@@ -49,7 +49,7 @@ namespace Autonocraft.Domain.Crafting
                 BlockType.Stone or BlockType.Sandstone or BlockType.Cobblestone
                     or BlockType.Brick or BlockType.MossStone or BlockType.Marble or BlockType.Basalt or BlockType.Slate
                     or BlockType.Limestone or BlockType.Granite or BlockType.PolishedMarble or BlockType.PolishedGranite
-                    or BlockType.Obsidian or BlockType.Amethyst or BlockType.MagmaBlock
+                    or BlockType.Obsidian or BlockType.Amethyst or BlockType.MagmaBlock or BlockType.Dripstone
                     or BlockType.MarbleBrick or BlockType.BasaltBrick or BlockType.SlateBrick => MaterialTag.Stone,
                 _ => MaterialTag.None
             };

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Autonocraft.World.Generation.Caves;
 using Autonocraft.World.Structures;
 
 namespace Autonocraft.World
@@ -9,6 +10,7 @@ namespace Autonocraft.World
         private readonly BiomeMap _biomeMap;
         private readonly TerrainShaper _terrainShaper;
         private readonly CaveCarver _caveCarver;
+        private readonly CaveDecorator _caveDecorator;
         private readonly OrePlacer _orePlacer;
         private readonly Decorator _decorator;
         private readonly StructurePlacer _structurePlacer;
@@ -26,6 +28,7 @@ namespace Autonocraft.World
             _biomeMap = new BiomeMap(seed, _params);
             _terrainShaper = new TerrainShaper(seed, _biomeMap, _params);
             _caveCarver = new CaveCarver(seed, _params);
+            _caveDecorator = new CaveDecorator(seed);
             _orePlacer = new OrePlacer(seed, _params);
             _decorator = new Decorator(seed, _params);
             _structurePlacer = new StructurePlacer(seed, _params);
@@ -52,6 +55,7 @@ namespace Autonocraft.World
             }
 
             _caveCarver.CarveChunk(chunk, columns);
+            _caveDecorator.DecorateChunk(chunk, columns);
             _orePlacer.PlaceOres(chunk, columns);
 
             var previewCache = new Dictionary<(int cx, int cz), TerrainColumn[,]>

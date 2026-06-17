@@ -263,7 +263,9 @@ namespace Autonocraft.Entities
                 return false;
             }
 
-            if (world.GetBlock(wx, surfaceY, wz) != BlockType.Grass)
+            var surface = world.GetBlock(wx, surfaceY, wz);
+            var biome = world.SampleBiome(wx, wz).Primary;
+            if (!IsValidSpawnSurface(surface, biome))
             {
                 return false;
             }
@@ -275,8 +277,6 @@ namespace Autonocraft.Entities
                     return false;
                 }
             }
-
-            var biome = world.SampleBiome(wx, wz).Primary;
             int typeRoll = rng.Next(100);
 
             if (biome == BiomeType.Forest)
@@ -328,6 +328,46 @@ namespace Autonocraft.Entities
                     _ => AnimalType.Sheep
                 };
             }
+            else if (biome == BiomeType.Badlands)
+            {
+                type = typeRoll switch
+                {
+                    < 40 => AnimalType.Fox,
+                    < 70 => AnimalType.Pig,
+                    _ => AnimalType.Chicken
+                };
+            }
+            else if (biome == BiomeType.Mangrove)
+            {
+                type = typeRoll switch
+                {
+                    < 45 => AnimalType.Pig,
+                    < 75 => AnimalType.Chicken,
+                    _ => AnimalType.Bear
+                };
+            }
+            else if (biome == BiomeType.MushroomForest)
+            {
+                type = typeRoll switch
+                {
+                    < 35 => AnimalType.Fox,
+                    < 65 => AnimalType.Bear,
+                    _ => AnimalType.Deer
+                };
+            }
+            else if (biome == BiomeType.BorealTaiga)
+            {
+                type = typeRoll switch
+                {
+                    < 40 => AnimalType.Deer,
+                    < 70 => AnimalType.Fox,
+                    _ => AnimalType.Sheep
+                };
+            }
+            else if (biome == BiomeType.Volcanic)
+            {
+                type = AnimalType.Fox;
+            }
             else
             {
                 type = typeRoll switch
@@ -342,6 +382,17 @@ namespace Autonocraft.Entities
             position = new Vector3(wx + 0.5f, surfaceY + 1f, wz + 0.5f);
 
             return EntityCollision.IsSpaceClearAt(world, position, stats.Width, stats.Height);
+        }
+
+        private static bool IsValidSpawnSurface(BlockType surface, BiomeType biome)
+        {
+            return biome switch
+            {
+                BiomeType.Badlands => surface is BlockType.RedSand or BlockType.Sand,
+                BiomeType.Mangrove => surface is BlockType.Mud or BlockType.Grass,
+                BiomeType.Volcanic => surface is BlockType.Basalt or BlockType.Stone,
+                _ => surface == BlockType.Grass
+            };
         }
 
         private bool IsOccupied(Vector3 position, float minDistance)

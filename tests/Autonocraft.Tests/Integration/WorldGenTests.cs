@@ -606,6 +606,157 @@ public static class WorldGenTests
         Console.ResetColor();
     }
 
+    public static void RunOceanNoSurfaceIce()
+    {
+        Console.Write("Running Ocean No Surface Ice Test... ");
+
+        var generator = new WorldGenerator(1337, WorldGenParams.ForType(WorldType.Default));
+        var oceanCoord = FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Ocean, 512, 4);
+        if (oceanCoord == null)
+        {
+            throw new Exception("Expected ocean biome within preview range.");
+        }
+
+        int oceanWx = oceanCoord.Value.x;
+        int oceanWz = oceanCoord.Value.z;
+        VoxelWorld.GetChunkCoords(oceanWx, oceanWz, out int centerChunkX, out int centerChunkZ, out _, out _);
+
+        int validatedOceanChunks = 0;
+        for (int chunkZ = centerChunkZ - 4; chunkZ <= centerChunkZ + 4; chunkZ++)
+        {
+            for (int chunkX = centerChunkX - 4; chunkX <= centerChunkX + 4; chunkX++)
+            {
+                var columns = generator.PreviewChunkColumns(chunkX, chunkZ);
+                bool hasOcean = false;
+                for (int lx = 0; lx < Chunk.Width; lx++)
+                {
+                    for (int lz = 0; lz < Chunk.Depth; lz++)
+                    {
+                        if (columns[lx, lz].Biome.Primary == BiomeType.Ocean)
+                        {
+                            hasOcean = true;
+                            break;
+                        }
+                    }
+
+                    if (hasOcean)
+                    {
+                        break;
+                    }
+                }
+
+                if (!hasOcean)
+                {
+                    continue;
+                }
+
+                validatedOceanChunks++;
+                var chunk = new Chunk(chunkX, chunkZ);
+                generator.GenerateChunkTerrain(chunk, null);
+                if (ChunkContainsBlockAtSeaLevel(chunk, BlockType.Ice))
+                {
+                    throw new Exception("Expected no ice on ocean water surfaces.");
+                }
+            }
+        }
+
+        if (validatedOceanChunks == 0)
+        {
+            throw new Exception("Expected ocean chunks near discovered ocean coordinate.");
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
+
+    public static void RunNewSurfaceBiomes()
+    {
+        Console.Write("Running New Surface Biomes Test... ");
+
+        var generator = new WorldGenerator(1337, WorldGenParams.ForType(WorldType.Default));
+        BiomeType[] expected =
+        [
+            BiomeType.Badlands,
+            BiomeType.Mangrove,
+            BiomeType.MushroomForest,
+            BiomeType.Volcanic,
+            BiomeType.BorealTaiga
+        ];
+
+        foreach (var biome in expected)
+        {
+            var coord = FindPreviewCoord(generator, c => c.Biome.Primary == biome, 1024, 4);
+            if (coord == null)
+            {
+                throw new Exception($"Expected {biome} within preview range.");
+            }
+        }
+
+        var badlands = FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Badlands, 1024, 4);
+        if (badlands == null || badlands.Value.column.SurfaceBlock != BlockType.RedSand)
+        {
+            var surface = badlands?.column.SurfaceBlock.ToString() ?? "not found";
+            throw new Exception($"Expected Badlands surface RedSand, got {surface}.");
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
+
+    public static void RunCaveBiomes()
+    {
+        Console.Write("Running Cave Biomes Test... ");
+
+        var generator = new WorldGenerator(1337, WorldGenParams.ForType(WorldType.Default));
+        bool foundLush = false;
+        bool foundCrystal = false;
+        bool foundDripstone = false;
+
+        for (int chunkZ = -16; chunkZ <= 16; chunkZ++)
+        {
+            for (int chunkX = -16; chunkX <= 16; chunkX++)
+            {
+                var chunk = new Chunk(chunkX, chunkZ);
+                generator.GenerateChunkTerrain(chunk, null);
+                if (ChunkContainsBlock(chunk, BlockType.MossCarpet) || ChunkContainsBlock(chunk, BlockType.Moss))
+                {
+                    foundLush = true;
+                }
+
+                if (ChunkContainsBlock(chunk, BlockType.Amethyst))
+                {
+                    foundCrystal = true;
+                }
+
+                if (ChunkContainsBlock(chunk, BlockType.Dripstone))
+                {
+                    foundDripstone = true;
+                }
+            }
+        }
+
+        if (!foundLush)
+        {
+            throw new Exception("Expected lush cave decorations (moss/moss carpet).");
+        }
+
+        if (!foundCrystal)
+        {
+            throw new Exception("Expected crystal cave amethyst decorations.");
+        }
+
+        if (!foundDripstone)
+        {
+            throw new Exception("Expected dripstone cave formations.");
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
+
     public static void RunBiomeFloraPresence()
     {
         Console.Write("Running Biome Flora Presence Test... ");
@@ -888,6 +1039,7 @@ public static class WorldGenTests
     private static bool IsPlayableSlopeCell(TerrainColumn column)
     {
         return column.Biome.Primary is BiomeType.Plains or BiomeType.Forest or BiomeType.Swamp or BiomeType.Desert
+            or BiomeType.Badlands or BiomeType.BorealTaiga or BiomeType.MushroomForest
             && !column.IsRiver
             && !column.IsLake;
     }
@@ -1086,6 +1238,23 @@ public static class WorldGenTests
                     {
                         return true;
                     }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ChunkContainsBlockAtSeaLevel(Chunk chunk, BlockType blockType)
+    {
+        int y = WorldConstants.SeaLevel;
+        for (int lx = 0; lx < Chunk.Width; lx++)
+        {
+            for (int lz = 0; lz < Chunk.Depth; lz++)
+            {
+                if (chunk.GetBlock(lx, y, lz) == blockType)
+                {
+                    return true;
                 }
             }
         }
