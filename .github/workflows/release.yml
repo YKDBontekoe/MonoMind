@@ -101,7 +101,7 @@ jobs:
 
       - name: Upload release asset (with notes)
         if: matrix.rid == 'linux-x64'
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda
         with:
           tag_name: ${{ github.event_name == 'push' && github.ref_name || format('v{0}', steps.version.outputs.version) }}
           name: Autonocraft ${{ steps.version.outputs.version }}
@@ -111,7 +111,7 @@ jobs:
 
       - name: Upload release asset
         if: matrix.rid != 'linux-x64'
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda
         with:
           tag_name: ${{ github.event_name == 'push' && github.ref_name || format('v{0}', steps.version.outputs.version) }}
           name: Autonocraft ${{ steps.version.outputs.version }}
