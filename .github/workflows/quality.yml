@@ -37,16 +37,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
         with:
-          python-version: '3.12'
-
-      - name: Install dependencies
-        run: pip install -r scripts/requirements-atlas.txt
+          dotnet-version: '10.0.x'
 
       - name: Validate atlas layout and generation
-        run: python3 scripts/build_atlas.py --check
+        run: dotnet run --project src/Autonocraft.AtlasBuild -- --check
 
   coverage:
     name: Code coverage

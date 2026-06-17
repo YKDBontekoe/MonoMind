@@ -21,8 +21,8 @@ namespace Autonocraft.Engine
 
         public static Color[] GrassTop(int tileSize, string name, Color[] palette)
         {
-            var pixels = PixelCluster(tileSize, name, palette[1], palette, CellOrganic, 12);
-            var image = new TileImage(pixels, tileSize);
+            var grout = new Color(24, 68, 22);
+            var image = new TileImage(Voronoi(tileSize, name, palette, grout, 18, 2.4f), tileSize);
 
             // Scatter lush grass blade clumps
             for (int i = 0; i < 35; i++)
@@ -30,7 +30,6 @@ namespace Autonocraft.Engine
                 int cx = Noise(name, i, 3, 7) % tileSize;
                 int cy = Noise(name, i, 5, 9) % tileSize;
                 Color bladeColor = palette[Noise(name, i, 11, 13) % palette.Length];
-                // Y-shape tuft
                 SetPixelWrapped(image, cx, cy, Lighten(bladeColor, 12));
                 SetPixelWrapped(image, cx - 1, cy - 1, bladeColor);
                 SetPixelWrapped(image, cx + 1, cy - 1, bladeColor);
@@ -53,36 +52,28 @@ namespace Autonocraft.Engine
                 SetPixelWrapped(image, cx, cy + 1, petal);
             }
 
-            ApplyCellRims(image, CellOrganic, -10, 4);
             return image.Pixels;
         }
 
         public static Color[] GrassFringe(int tileSize, string name, Color[] palette)
         {
-            var pixels = new Color[tileSize * tileSize];
-            Array.Fill(pixels, Color.Transparent);
-            var image = new TileImage(pixels, tileSize);
-            int fringeRows = Math.Max(8, tileSize * 42 / 100);
-            int solidHeight = Math.Max(2, tileSize * 12 / 100);
+            var image = new TileImage(PixelCluster(tileSize, name, palette[0], palette, CellOrganic, 18), tileSize);
+            int fringeRows = Math.Max(8, tileSize * 55 / 100);
 
-            for (int y = 0; y < solidHeight; y++)
-            {
-                for (int x = 0; x < tileSize; x++)
-                {
-                    SetPixel(image, x, y, palette[Noise(name, x, y, 0) % palette.Length]);
-                }
-            }
-
-            for (int i = 0; i < 128; i++)
+            for (int i = 0; i < 64; i++)
             {
                 int x = Noise(name, i, 3, 5) % tileSize;
-                int len = solidHeight + Noise(name, i, 7, 9) % (fringeRows - solidHeight);
+                int len = 6 + Noise(name, i, 7, 9) % fringeRows;
                 Color blade = palette[Noise(name, i, 11, 13) % palette.Length];
-                for (int d = solidHeight; d < len; d++)
+                for (int d = 0; d < len; d++)
                 {
                     int y = d;
                     int sway = (Noise(name, i, 17, 19) % 3) - 1;
-                    SetPixel(image, x + sway, y, blade);
+                    int wx = x + sway;
+                    if (wx >= 0 && wx < tileSize && y >= 0 && y < tileSize)
+                    {
+                        image.Pixels[y * tileSize + wx] = d == 0 ? Lighten(blade, 8) : blade;
+                    }
                 }
             }
 
@@ -91,30 +82,23 @@ namespace Autonocraft.Engine
 
         public static Color[] SnowFringe(int tileSize, string name, Color[] palette)
         {
-            var pixels = new Color[tileSize * tileSize];
-            Array.Fill(pixels, Color.Transparent);
-            var image = new TileImage(pixels, tileSize);
-            int fringeRows = Math.Max(8, tileSize * 42 / 100);
-            int solidHeight = Math.Max(2, tileSize * 12 / 100);
+            var image = new TileImage(PixelCluster(tileSize, name, palette[0], palette, CellOrganic, 18), tileSize);
+            int fringeRows = Math.Max(8, tileSize * 55 / 100);
 
-            for (int y = 0; y < solidHeight; y++)
-            {
-                for (int x = 0; x < tileSize; x++)
-                {
-                    SetPixel(image, x, y, palette[Noise(name, x, y, 0) % palette.Length]);
-                }
-            }
-
-            for (int i = 0; i < 96; i++)
+            for (int i = 0; i < 64; i++)
             {
                 int x = Noise(name, i, 3, 5) % tileSize;
-                int len = solidHeight + Noise(name, i, 7, 9) % (fringeRows - solidHeight);
-                Color flake = palette[Noise(name, i, 11, 13) % palette.Length];
-                for (int d = solidHeight; d < len; d++)
+                int len = 6 + Noise(name, i, 7, 9) % fringeRows;
+                Color blade = palette[Noise(name, i, 11, 13) % palette.Length];
+                for (int d = 0; d < len; d++)
                 {
                     int y = d;
                     int sway = (Noise(name, i, 17, 19) % 3) - 1;
-                    SetPixel(image, x + sway, y, flake);
+                    int wx = x + sway;
+                    if (wx >= 0 && wx < tileSize && y >= 0 && y < tileSize)
+                    {
+                        image.Pixels[y * tileSize + wx] = d == 0 ? Lighten(blade, 8) : blade;
+                    }
                 }
             }
 
@@ -123,7 +107,8 @@ namespace Autonocraft.Engine
 
         public static Color[] Dirt(int tileSize, string name, Color[] palette)
         {
-            var image = new TileImage(PixelCluster(tileSize, name, palette[1], palette, CellEarth, 16), tileSize);
+            Color grout = Darken(palette[0], 20);
+            var image = new TileImage(Voronoi(tileSize, name, palette, grout, 18, 2.4f), tileSize);
 
             // Draw organic dirt clods
             for (int i = 0; i < 12; i++)
@@ -155,7 +140,6 @@ namespace Autonocraft.Engine
                 SetPixel(image, px + 1, py + 1, Darken(pebble, 16));
             }
 
-            ApplyCellRims(image, CellEarth, -10, 4);
             return image.Pixels;
         }
 
@@ -332,16 +316,18 @@ namespace Autonocraft.Engine
 
         public static Color[] Leaves(int tileSize, string name, Color[] palette)
         {
-            var image = new TileImage(PixelCluster(tileSize, name, Darken(palette[1], 10), palette, CellOrganic, 14), tileSize);
-            PaintBlobs(image, name, palette, 28, 6, 18);
-            PaintBlobs(image, name + "_hi", palette.Select(c => Lighten(c, 26)).ToArray(), 14, 4, 12);
-            PaintBlobs(image, name + "_dk", palette.Select(c => Darken(c, 24)).ToArray(), 10, 8, 20);
+            Color grout = Darken(palette[0], 24);
+            var image = new TileImage(Voronoi(tileSize, name, palette, grout, 18, 2.4f), tileSize);
+            ScatterRects(image, name, palette, 90, 5);
+            ScatterRects(image, name + "_hi", palette.Select(c => Lighten(c, 32)).ToArray(), 38, 3);
+            ScatterRects(image, name + "_dk", palette.Select(c => Darken(c, 28)).ToArray(), 22, 4);
             return image.Pixels;
         }
 
         public static Color[] Sand(int tileSize, string name, Color[] palette)
         {
-            var image = new TileImage(PixelCluster(tileSize, name, palette[1], palette, CellOrganic, 16), tileSize);
+            Color grout = Darken(palette[0], 14);
+            var image = new TileImage(Voronoi(tileSize, name, palette, grout, 22, 1.8f), tileSize);
             ScatterRects(image, name, palette, 30, 2);
             for (int i = 0; i < 18; i++)
             {
@@ -350,7 +336,6 @@ namespace Autonocraft.Engine
                 SetPixel(image, x, y, Lighten(palette[2], 20));
             }
 
-            ApplyCellRims(image, CellOrganic, -10, 6);
             return image.Pixels;
         }
 

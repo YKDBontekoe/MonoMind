@@ -233,7 +233,7 @@ Animal AI managers live in `src/Autonocraft.Entities/Animals/`; `NightThreatSpaw
 ### Add a block type
 
 1. Add enum value in `World/BlockType.cs` (+ extension methods: `IsSolid`, `IsTransparent`, etc.)
-2. Add texture tile in `scripts/build_atlas.py` and run `python3 scripts/build_atlas.py`
+2. Add texture tile in `ProceduralAtlasBuilder.Tiles.cs` (or `ProceduralTextureSynth`) and run `dotnet run --project src/Autonocraft.AtlasBuild`
 3. Update `atlas_layout.json` if needed
 4. Add harvest category in `Items/BlockHarvestCategory.cs` if mineable
 5. Update `BlockInteractionSystem.cs` if special behavior (station, passable, fluid)

@@ -24,11 +24,23 @@ namespace Autonocraft.World
         public static AtlasLayout Load()
         {
             string path = Path.Combine(AppContext.BaseDirectory, "atlas_layout.json");
-            using Stream stream = File.Exists(path)
-                ? File.OpenRead(path)
-                : TitleContainer.OpenStream("atlas_layout.json");
+            if (File.Exists(path))
+            {
+                return LoadFromFile(path);
+            }
+
+            using Stream stream = TitleContainer.OpenStream("atlas_layout.json");
             var layout = JsonSerializer.Deserialize<AtlasLayout>(stream, JsonOptions)
                 ?? throw new InvalidOperationException("Failed to parse atlas_layout.json");
+            layout.Validate();
+            return layout;
+        }
+
+        public static AtlasLayout LoadFromFile(string path)
+        {
+            using Stream stream = File.OpenRead(path);
+            var layout = JsonSerializer.Deserialize<AtlasLayout>(stream, JsonOptions)
+                ?? throw new InvalidOperationException($"Failed to parse atlas layout: {path}");
             layout.Validate();
             return layout;
         }
@@ -43,6 +55,32 @@ namespace Autonocraft.World
             if (GridCols <= 0 || GridRows <= 0 || TileSize <= 0)
             {
                 throw new InvalidOperationException("Invalid atlas grid dimensions.");
+            }
+
+            if (Tiles.Count == 0)
+            {
+                throw new InvalidOperationException("atlas_layout.json must define at least one tile.");
+            }
+
+            var seenSlots = new HashSet<(int Col, int Row)>();
+            foreach (var (tileId, slot) in Tiles)
+            {
+                if (string.IsNullOrWhiteSpace(slot.File))
+                {
+                    throw new InvalidOperationException($"Tile '{tileId}' is missing a file name.");
+                }
+
+                var coord = (slot.Col, slot.Row);
+                if (!seenSlots.Add(coord))
+                {
+                    throw new InvalidOperationException($"Duplicate atlas slot at ({slot.Col}, {slot.Row}).");
+                }
+
+                if (slot.Col >= GridCols || slot.Row >= GridRows)
+                {
+                    throw new InvalidOperationException(
+                        $"Tile '{tileId}' slot ({slot.Col}, {slot.Row}) is outside grid bounds.");
+                }
             }
         }
 

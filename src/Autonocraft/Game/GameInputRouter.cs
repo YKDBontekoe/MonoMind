@@ -185,16 +185,12 @@ namespace Autonocraft.Core
                 var k = (Microsoft.Xna.Framework.Input.Keys)((int)Microsoft.Xna.Framework.Input.Keys.D1 + i);
                 if (kbState.IsKeyDown(k) && !_input.PrevKeyboard.IsKeyDown(k))
                 {
-                    _session.Player.SelectedSlot = i;
-                    var stack = _session.Player.Hotbar[i];
-                    Console.WriteLine($"[Selection] Selected Hotbar Slot {i + 1}: {FormatHotbarStack(stack)}");
+                    SelectHotbarSlot(i);
                 }
                 var nk = (Microsoft.Xna.Framework.Input.Keys)((int)Microsoft.Xna.Framework.Input.Keys.NumPad1 + i);
                 if (kbState.IsKeyDown(nk) && !_input.PrevKeyboard.IsKeyDown(nk))
                 {
-                    _session.Player.SelectedSlot = i;
-                    var stack = _session.Player.Hotbar[i];
-                    Console.WriteLine($"[Selection] Selected Hotbar Slot {i + 1}: {FormatHotbarStack(stack)}");
+                    SelectHotbarSlot(i);
                 }
             }
 
@@ -256,8 +252,7 @@ namespace Autonocraft.Core
                     int newSlot = _session.Player.SelectedSlot + slotChange;
                     if (newSlot < 0) newSlot = 8;
                     if (newSlot > 8) newSlot = 0;
-                    _session.Player.SelectedSlot = newSlot;
-                    Console.WriteLine($"[Selection] Selected Hotbar Slot {newSlot + 1}: {FormatHotbarStack(_session.Player.Hotbar[newSlot])}");
+                    SelectHotbarSlot(newSlot);
                 }
             }
 
@@ -526,6 +521,12 @@ namespace Autonocraft.Core
 
             if (_runTests) action();
             else _pendingActions.Enqueue(action);
+        }
+
+        private void SelectHotbarSlot(int index)
+        {
+            _session.Player.SelectedSlot = index;
+            Console.WriteLine($"[Selection] Selected Hotbar Slot {index + 1}: {FormatHotbarStack(_session.Player.Hotbar[index])}");
         }
 
         private static string FormatHotbarStack(ItemStack stack)

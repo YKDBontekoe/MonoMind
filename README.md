@@ -11,7 +11,7 @@ A 3D voxel sandbox built with **MonoGame** (DesktopGL) on **.NET 10**. Explore p
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
 - **macOS (optional):** Homebrew OpenGL libs; `run.sh` and `start.command` set `DYLD_LIBRARY_PATH=/opt/homebrew/lib`
-- **Python 3** (optional) — for `tests/interact.py`, E2E scripts, and `scripts/build_atlas.py`
+- **Python 3** (optional) — for `tests/interact.py` and E2E scripts
 
 ## Quick Start
 
@@ -100,7 +100,7 @@ Each save slot contains `world.json` (version 4) with seed, player state (positi
 Block and entity textures are packed into `src/Autonocraft/atlas.png` using layout metadata in `atlas_layout.json`. Regenerate with:
 
 ```bash
-python3 scripts/build_atlas.py
+dotnet run --project src/Autonocraft.AtlasBuild
 ```
 
 The C# runtime also has `ProceduralAtlasBuilder` as a fallback when the PNG is missing.
@@ -141,7 +141,7 @@ dotnet run --project src/Autonocraft -c Release -- --test
 
 # Format and atlas checks
 dotnet format Autonocraft.slnx --verify-no-changes
-python3 scripts/build_atlas.py --check
+dotnet run --project src/Autonocraft.AtlasBuild --check
 ```
 
 ## OpenRouter (planned)

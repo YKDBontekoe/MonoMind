@@ -26,7 +26,7 @@ This document describes how AI agents and automation tools should build, test, a
 |-------|------------|
 | Runtime | .NET 10 (`net10.0`) |
 | Graphics | MonoGame 3.8 DesktopGL (OpenGL) |
-| Content | Procedural atlas (`atlas_layout.json`, `scripts/build_atlas.py`) |
+| Content | Procedural atlas (`atlas_layout.json`, `src/Autonocraft.AtlasBuild`) |
 | Agent API | `HttpListener` on port 5001 by default (`--agent-port`; macOS AirPlay uses 5000) |
 
 The game no longer uses Vulkan or GLFW. Tests run headlessly without opening a window (`game.Run()` is never called).
@@ -64,7 +64,7 @@ GitHub Actions validates every push and PR on **Ubuntu, Windows, and macOS**:
 |----------|------|
 | `.github/workflows/ci.yml` | `build` → `unit-tests` (xUnit unit filter) + `integration-tests` (`dotnet run -- --test`) |
 | `.github/workflows/version.yml` | After CI on `main`: semver bump, `CHANGELOG.md` update, git tag `v*.*.*` |
-| `.github/workflows/quality.yml` | `dotnet format --verify-no-changes`, `build_atlas.py --check`, coverlet coverage |
+| `.github/workflows/quality.yml` | `dotnet format --verify-no-changes`, `Autonocraft.AtlasBuild --check`, coverlet coverage |
 | `.github/workflows/codeql.yml` | C# CodeQL analysis |
 | `.github/workflows/release.yml` | Tag-triggered multi-RID `dotnet publish` + GitHub Release assets |
 
@@ -435,7 +435,7 @@ Performance baseline: `dotnet run --project src/Autonocraft -- --bench` (see `do
 | Block types | `Autonocraft.Domain/World/BlockType.cs` |
 | Saves | `World/WorldSaveManager.cs`, `Autonocraft.Domain/Persistence/`, `World/Persistence/SaveJsonContext.cs` |
 | Profiling | `Autonocraft.Diagnostics/PerfCounters.cs` |
-| Texture atlas | `Autonocraft.World/Atlas/`, `atlas_layout.json`, `scripts/build_atlas.py` |
+| Texture atlas | `Autonocraft.World/Atlas/`, `atlas_layout.json`, `Autonocraft.AtlasBuild` |
 | Rendering | `Autonocraft.Engine/Renderer.cs`, `WorldRenderer.cs`, `GameRenderContext.cs`, `HudRenderer.cs` |
 | Audio | `Autonocraft.Engine/Audio/` |
 | Tools & skills | `Autonocraft.Items/Tools/`, `Autonocraft.Items/` (skills) |
@@ -453,7 +453,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/CODEMAP.md](docs/CODE
 
 | Task | Start here | Test to run |
 |------|------------|-------------|
-| Add block type | `Autonocraft.Domain/World/BlockType.cs`, `build_atlas.py`, `BlockInteractionSystem.cs` | `TestMiningAndPlacing` |
+| Add block type | `Autonocraft.Domain/World/BlockType.cs`, `ProceduralAtlasBuilder` / `Autonocraft.AtlasBuild`, `BlockInteractionSystem.cs` | `TestMiningAndPlacing` |
 | Add craft recipe | `CraftRecipeRegistry.cs`, `CraftingSystem.cs` | `TestNewCraftRecipes` |
 | Change mining speed | `MiningCalculator.cs`, `ToolRegistry.cs` | `TestToolMiningSpeed` |
 | Fix swimming | `Player.cs`, `FluidSystem.cs` | `TestSwimThroughWater`, `TestDrowning` |
@@ -487,7 +487,7 @@ python3 tests/interact.py state
 ### Regenerate block textures
 
 ```bash
-python3 scripts/build_atlas.py
+dotnet run --project src/Autonocraft.AtlasBuild
 dotnet build src/Autonocraft
 ```
 

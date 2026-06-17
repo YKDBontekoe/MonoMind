@@ -231,23 +231,7 @@ namespace Autonocraft.Core
                 return;
             }
 
-            int bx = (int)hitBlockPos.Value.X;
-            int by = (int)hitBlockPos.Value.Y;
-            int bz = (int)hitBlockPos.Value.Z;
-
-            Console.WriteLine($"[Mining] Mined block {blockType} at ({bx}, {by}, {bz}).");
-            world.SetBlock(bx, by, bz, BlockType.Air, device);
-            if (OnSpawnItemDrop != null)
-            {
-                OnSpawnItemDrop(ItemStack.CreateBlock(blockType, 1), new Vector3(bx + 0.5f, by + 0.5f, bz + 0.5f));
-            }
-            else
-            {
-                player.AddToInventory(blockType);
-            }
-            player.Stats.RecordBlockBroken();
-            player.DamageSelectedTool(1);
-            GrantSkillXp(player, MiningCalculator.GetSkillForBlock(blockType), MiningCalculator.GetXpForBlock(blockType));
+            AwardBrokenBlock(world, player, hitBlockPos.Value, blockType, device);
             SpawnBreakEffects(particles, hitBlockPos.Value + new Vector3(0.5f, 0.5f, 0.5f), blockType, player.GetSelectedStack(), null);
             TriggerCrosshairFlash();
             ResetMining();
@@ -278,19 +262,7 @@ namespace Autonocraft.Core
                 return;
             }
 
-            if (!player.UseSelectedBlock())
-            {
-                Console.WriteLine("[Building] Out of blocks!");
-                ShowToast?.Invoke("Out of blocks!");
-                return;
-            }
-
-            Console.WriteLine($"[Building] Placed {toPlace} at ({px}, {py}, {pz}).");
-            world.SetBlock(px, py, pz, toPlace, device);
-            player.Stats.RecordBlockPlaced();
-            TriggerPlacePop(placePos, toPlace);
-            particles.SpawnBlockPlace(placePos + new Vector3(0.5f, 0.5f, 0.5f), toPlace);
-            TriggerCrosshairFlash();
+            PlaceBlockAt(world, player, px, py, pz, toPlace, placePos, particles, device, playGameplayFeedback: false);
         }
 
         private void CompleteBreak(VoxelWorld world, Player player, ParticleSystem particles, GraphicsDevice? device)
@@ -300,23 +272,7 @@ namespace Autonocraft.Core
                 return;
             }
 
-            int bx = (int)_miningBlockPos.Value.X;
-            int by = (int)_miningBlockPos.Value.Y;
-            int bz = (int)_miningBlockPos.Value.Z;
-
-            Console.WriteLine($"[Mining] Mined block {_miningBlockType} at ({bx}, {by}, {bz}).");
-            world.SetBlock(bx, by, bz, BlockType.Air, device);
-            if (OnSpawnItemDrop != null)
-            {
-                OnSpawnItemDrop(ItemStack.CreateBlock(_miningBlockType, 1), new Vector3(bx + 0.5f, by + 0.5f, bz + 0.5f));
-            }
-            else
-            {
-                player.AddToInventory(_miningBlockType);
-            }
-            player.Stats.RecordBlockBroken();
-            bool toolBroke = player.DamageSelectedTool(1);
-            GrantSkillXp(player, MiningCalculator.GetSkillForBlock(_miningBlockType), MiningCalculator.GetXpForBlock(_miningBlockType));
+            bool toolBroke = AwardBrokenBlock(world, player, _miningBlockPos.Value, _miningBlockType, device);
             SpawnBreakEffects(
                 particles,
                 _miningBlockPos.Value + new Vector3(0.5f, 0.5f, 0.5f),
@@ -410,21 +366,69 @@ namespace Autonocraft.Core
             int pz = (int)GhostBlockPos.Value.Z;
             BlockType toPlace = GhostBlockType;
 
+            PlaceBlockAt(world, player, px, py, pz, toPlace, GhostBlockPos.Value, particles, device, playGameplayFeedback: true);
+        }
+
+        private bool PlaceBlockAt(
+            VoxelWorld world,
+            Player player,
+            int px,
+            int py,
+            int pz,
+            BlockType toPlace,
+            Vector3 placePos,
+            ParticleSystem particles,
+            GraphicsDevice? device,
+            bool playGameplayFeedback)
+        {
             if (!player.UseSelectedBlock())
             {
                 Console.WriteLine("[Building] Out of blocks!");
                 ShowToast?.Invoke("Out of blocks!");
-                return;
+                return false;
             }
 
             Console.WriteLine($"[Building] Placed {toPlace} at ({px}, {py}, {pz}).");
             world.SetBlock(px, py, pz, toPlace, device);
             player.Stats.RecordBlockPlaced();
-            TriggerPlacePop(GhostBlockPos.Value, toPlace);
-            particles.SpawnBlockPlace(GhostBlockPos.Value + new Vector3(0.5f, 0.5f, 0.5f), toPlace);
-            PlaySfx?.Invoke(SfxKind.Place, toPlace);
-            _animator?.TriggerSwing(SwingKind.Place);
+            TriggerPlacePop(placePos, toPlace);
+            particles.SpawnBlockPlace(placePos + new Vector3(0.5f, 0.5f, 0.5f), toPlace);
+            if (playGameplayFeedback)
+            {
+                PlaySfx?.Invoke(SfxKind.Place, toPlace);
+                _animator?.TriggerSwing(SwingKind.Place);
+            }
+
             TriggerCrosshairFlash();
+            return true;
+        }
+
+        private bool AwardBrokenBlock(
+            VoxelWorld world,
+            Player player,
+            Vector3 blockPos,
+            BlockType blockType,
+            GraphicsDevice? device)
+        {
+            int bx = (int)blockPos.X;
+            int by = (int)blockPos.Y;
+            int bz = (int)blockPos.Z;
+
+            Console.WriteLine($"[Mining] Mined block {blockType} at ({bx}, {by}, {bz}).");
+            world.SetBlock(bx, by, bz, BlockType.Air, device);
+            if (OnSpawnItemDrop != null)
+            {
+                OnSpawnItemDrop(ItemStack.CreateBlock(blockType, 1), new Vector3(bx + 0.5f, by + 0.5f, bz + 0.5f));
+            }
+            else
+            {
+                player.AddToInventory(blockType);
+            }
+
+            player.Stats.RecordBlockBroken();
+            bool toolBroke = player.DamageSelectedTool(1);
+            GrantSkillXp(player, MiningCalculator.GetSkillForBlock(blockType), MiningCalculator.GetXpForBlock(blockType));
+            return toolBroke;
         }
 
         private void UpdateGhostPreview(VoxelWorld world, Player player, Vector3? hitBlockPos, Vector3? normal, BlockType hitBlockType)
