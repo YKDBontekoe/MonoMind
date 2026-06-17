@@ -53,7 +53,6 @@ namespace Autonocraft.World
 
             _caveCarver.CarveChunk(chunk, columns);
             _orePlacer.PlaceOres(chunk, columns);
-            _decorator.DecorateChunk(chunk, world, columns);
 
             var previewCache = new Dictionary<(int cx, int cz), TerrainColumn[,]>
             {
@@ -72,6 +71,7 @@ namespace Autonocraft.World
                 return cachedColumns[lx, lz];
             }
 
+            _decorator.DecorateChunk(chunk, world, columns, PreviewColumnCached);
             _structurePlacer.PlaceStructures(chunk, columns, PreviewColumnCached);
         }
 

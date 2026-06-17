@@ -9,5 +9,6 @@ namespace Autonocraft.Domain.Core
         public const int CookedMeatRestore = 6;
         public const int RawMeatRestore = 2;
         public const int BreadRestore = 5;
+        public const int BerryRestore = 3;
     }
 }

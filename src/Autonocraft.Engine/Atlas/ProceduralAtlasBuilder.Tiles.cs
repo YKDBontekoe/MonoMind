@@ -1000,6 +1000,112 @@ namespace Autonocraft.Engine
                         return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
                             ProceduralTextureSynth.VineSprite(half, $"kelp_v{variant}", palette)));
                     }
+                case "shrub":
+                    {
+                        var palette = new[]
+                        {
+                            ShiftColor(new Color(42, 98, 36), seedShift),
+                            ShiftColor(new Color(58, 118, 48), seedShift),
+                            ShiftColor(new Color(72, 138, 58), seedShift)
+                        };
+                        return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                            ProceduralTextureSynth.BerryBushSprite(half, $"shrub_v{variant}", palette)));
+                    }
+                case "heather":
+                    {
+                        var palette = new[]
+                        {
+                            ShiftColor(new Color(140, 110, 150), seedShift),
+                            ShiftColor(new Color(160, 130, 170), seedShift),
+                            ShiftColor(new Color(120, 95, 130), seedShift)
+                        };
+                        return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                            ProceduralTextureSynth.FloraSprite(half, $"heather_v{variant}", palette, 8)));
+                    }
+                case "moss":
+                    return FromSynth(ProceduralTextureSynth.Surface(
+                        _tileSize,
+                        name,
+                        new[]
+                        {
+                            ShiftColor(new Color(48, 92, 42), seedShift),
+                            ShiftColor(new Color(62, 112, 54), seedShift),
+                            ShiftColor(new Color(38, 78, 34), seedShift)
+                        },
+                        12));
+                case "juniper":
+                    {
+                        var palette = new[]
+                        {
+                            ShiftColor(new Color(34, 72, 38), seedShift),
+                            ShiftColor(new Color(48, 92, 48), seedShift),
+                            ShiftColor(new Color(58, 108, 56), seedShift)
+                        };
+                        return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                            ProceduralTextureSynth.FernSprite(half, $"juniper_v{variant}", palette)));
+                    }
+                case "poppy":
+                    return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                        ProceduralTextureSynth.FlowerStemSprite(
+                            half,
+                            $"poppy_v{variant}",
+                            ShiftColor(new Color(42, 98, 38), seedShift),
+                            [ShiftColor(new Color(210, 48, 42), seedShift), ShiftColor(new Color(230, 62, 52), seedShift)],
+                            ShiftColor(new Color(40, 30, 20), seedShift))));
+                case "daisy":
+                    return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                        ProceduralTextureSynth.FlowerStemSprite(
+                            half,
+                            $"daisy_v{variant}",
+                            ShiftColor(new Color(48, 102, 42), seedShift),
+                            [ShiftColor(new Color(245, 245, 238), seedShift), ShiftColor(new Color(252, 252, 246), seedShift)],
+                            ShiftColor(new Color(240, 200, 48), seedShift))));
+                case "blue_flax":
+                    return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                        ProceduralTextureSynth.FlowerStemSprite(
+                            half,
+                            $"blue_flax_v{variant}",
+                            ShiftColor(new Color(40, 92, 36), seedShift),
+                            [ShiftColor(new Color(72, 118, 220), seedShift), ShiftColor(new Color(98, 142, 238), seedShift)],
+                            ShiftColor(new Color(220, 220, 180), seedShift))));
+                case "tulip":
+                    return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                        ProceduralTextureSynth.FlowerStemSprite(
+                            half,
+                            $"tulip_v{variant}",
+                            ShiftColor(new Color(44, 100, 40), seedShift),
+                            [ShiftColor(new Color(228, 92, 48), seedShift), ShiftColor(new Color(248, 118, 62), seedShift)],
+                            ShiftColor(new Color(32, 28, 24), seedShift))));
+                case "wild_rose":
+                    return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                        ProceduralTextureSynth.FlowerStemSprite(
+                            half,
+                            $"wild_rose_v{variant}",
+                            ShiftColor(new Color(46, 96, 40), seedShift),
+                            [ShiftColor(new Color(220, 88, 128), seedShift), ShiftColor(new Color(240, 108, 148), seedShift)],
+                            ShiftColor(new Color(248, 210, 90), seedShift))));
+                case "moss_carpet":
+                    {
+                        var palette = new[]
+                        {
+                            ShiftColor(new Color(42, 88, 36), seedShift),
+                            ShiftColor(new Color(56, 108, 46), seedShift),
+                            ShiftColor(new Color(34, 74, 30), seedShift)
+                        };
+                        return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                            ProceduralTextureSynth.FloraSprite(half, $"moss_carpet_v{variant}", palette, 10)));
+                    }
+                case "lichen":
+                    {
+                        var palette = new[]
+                        {
+                            ShiftColor(new Color(118, 128, 108), seedShift),
+                            ShiftColor(new Color(138, 148, 126), seedShift),
+                            ShiftColor(new Color(98, 108, 92), seedShift)
+                        };
+                        return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                            ProceduralTextureSynth.FloraSprite(half, $"lichen_v{variant}", palette, 12)));
+                    }
                 case "cow_body":
                     return FromSynth(ProceduralTextureSynth.CowBody(_tileSize, name));
                 case "cow_head":

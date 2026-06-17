@@ -115,8 +115,17 @@ Each level has its own vertex/index buffers on the GPU.
 3. **TerrainPostProcessor** — river carving across chunk boundaries (when `EnableRivers` is true)
 4. **CaveCarver** — 3D Perlin noise tunnels
 5. **OrePlacer** — coal, iron, gold at depth bands
-6. **Decorator** — trees, tall grass, flowers, cactus per biome rules
+6. **Decorator** — orchestrates grove-based tree placement (`TreePlacer`), biome-weighted ground flora (`FloraPlacer`), cave glowshroom clusters, mountain ropes, boulders, and animal features
 7. **StructurePlacer** — procedural structures (ForestShelter, PlainsCottage, etc.) from `StructureRegistry`
+
+### Vegetation (`World/Generation/`)
+
+- **TreePlacer** — noise-cluster grove sampling (2–5 trees per grove, 3–7 block radius); species from `TreeSpeciesRegistry` (8 log/leaf pairs: Oak, Birch, Pine, Willow, Palm, Cherry, Mahogany, Maple)
+- **TreeShapeGenerator** — hybrid template scaffold + `BranchPlacer` L-system branch pass; per-species `MaxBlocks` cap (64 default, 96 for Oak/Mahogany); stumps (5%) and rare fallen logs in Forest
+- **FloraPlacer** — single weighted roll per column from `FloraPlacementRules`; `FloraDensity` + `FloraDensityScale` knobs; understory pass under leaf canopy
+- **Flora blocks** — TallGrass, flowers, Fern, mushrooms, Shrub, Heather, Juniper (billboards), Moss (cube on stone), kelp/seagrass clusters in water
+
+`BiomeProfile` exposes `TreeDensity`, `FloraDensity`, `AllowUnderstory`, `AllowFlowers`, and `AllowCactus` per biome; `BiomeMap.BlendProfiles` interpolates density at borders (e.g. desert palms via `TreeDensity = 0.03`).
 
 ### World types (`World/WorldType.cs`)
 

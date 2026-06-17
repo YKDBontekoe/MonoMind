@@ -8,6 +8,7 @@ namespace Autonocraft.World
         public float ContinentalnessBias { get; init; } = 0f;
         public float MountainWeight { get; init; } = 1f;
         public float TreeDensityScale { get; init; } = 1f;
+        public float FloraDensityScale { get; init; } = 1f;
         public bool EnableCaves { get; init; } = true;
         public bool EnableOres { get; init; } = true;
         public bool EnableRivers { get; init; } = true;

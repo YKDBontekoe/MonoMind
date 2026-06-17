@@ -1,6 +1,6 @@
 {
   "gridCols": 8,
-  "gridRows": 21,
+  "gridRows": 22,
   "tileSize": 128,
   "tiles": {
     "grass_top": { "col": 0, "row": 0, "file": "grass_top.png" },
@@ -161,7 +161,18 @@
     "tool_emerald_shovel": { "col": 7, "row": 19, "file": "tool_emerald_shovel.png" },
     "tool_emerald_sword": { "col": 0, "row": 20, "file": "tool_emerald_sword.png" },
     "wolf_body": { "col": 1, "row": 20, "file": "wolf_body.png" },
-    "wolf_head": { "col": 2, "row": 20, "file": "wolf_head.png" }
+    "wolf_head": { "col": 2, "row": 20, "file": "wolf_head.png" },
+    "shrub": { "col": 3, "row": 20, "file": "shrub.png" },
+    "heather": { "col": 4, "row": 20, "file": "heather.png" },
+    "moss": { "col": 5, "row": 20, "file": "moss.png" },
+    "juniper": { "col": 6, "row": 20, "file": "juniper.png" },
+    "poppy": { "col": 7, "row": 20, "file": "poppy.png" },
+    "daisy": { "col": 0, "row": 21, "file": "daisy.png" },
+    "blue_flax": { "col": 1, "row": 21, "file": "blue_flax.png" },
+    "tulip": { "col": 2, "row": 21, "file": "tulip.png" },
+    "wild_rose": { "col": 3, "row": 21, "file": "wild_rose.png" },
+    "moss_carpet": { "col": 4, "row": 21, "file": "moss_carpet.png" },
+    "lichen": { "col": 5, "row": 21, "file": "lichen.png" }
   },
   "blockFaces": {
     "Grass": { "top": "grass_top", "bottom": "dirt", "side": "grass_side" },
@@ -264,6 +275,17 @@
     "Quicksand": { "all": "quicksand" },
     "Rope": { "all": "rope" },
     "Kelp": { "all": "kelp" },
+    "Shrub": { "all": "shrub" },
+    "Heather": { "all": "heather" },
+    "Moss": { "all": "moss" },
+    "Juniper": { "all": "juniper" },
+    "Poppy": { "all": "poppy" },
+    "Daisy": { "all": "daisy" },
+    "BlueFlax": { "all": "blue_flax" },
+    "Tulip": { "all": "tulip" },
+    "WildRose": { "all": "wild_rose" },
+    "MossCarpet": { "all": "moss_carpet" },
+    "Lichen": { "all": "lichen" },
     "SnowSide": { "all": "snow_side" }
   },
   "animals": {

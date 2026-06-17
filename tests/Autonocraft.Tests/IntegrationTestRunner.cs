@@ -120,6 +120,12 @@ public static class IntegrationTestRunner
             }
 
             WorldGenTests.RunBiomeTreeSpecies();
+            WorldGenTests.RunFloraPlacement();
+            WorldGenTests.RunDesertPalmDensity();
+            WorldGenTests.RunTreeShapeDiversity();
+            WorldGenTests.RunTreeBlockBudget();
+            WorldGenTests.RunBiomeFloraPresence();
+            WorldGenTests.RunFloraMeshBuilderTileMapping();
 
             Console.WriteLine("\n==================================================================");
             Console.WriteLine("ALL TESTS PASSED SUCCESSFULLY! (EXIT CODE: 0)");

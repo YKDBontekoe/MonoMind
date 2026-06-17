@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using Autonocraft.Domain.Crafting;
+using Autonocraft.World.Generation.Trees;
 using System.IO;
 using System.Numerics;
 using Autonocraft.Core;
@@ -442,10 +445,216 @@ public static class WorldGenTests
             throw new Exception("Expected PalmLog in generated desert biome.");
         }
 
+        var forestCoord = FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Forest, 512, 8);
+        if (forestCoord == null)
+        {
+            throw new Exception("Expected forest biome within preview range.");
+        }
+
+        int forestSpecies = CountForestTreeSpecies(generator);
+        if (forestSpecies < 2)
+        {
+            throw new Exception($"Expected at least 2 forest tree species, found {forestSpecies}.");
+        }
+
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine("PASSED");
         Console.ResetColor();
     }
+
+    public static void RunFloraPlacement()
+    {
+        Console.Write("Running Flora Placement Test... ");
+
+        var generator = new WorldGenerator(1337, WorldGenParams.ForType(WorldType.Default));
+
+        if (!ScanGeneratedChunksForFlora(generator, BiomeType.Forest, BlockType.Fern))
+        {
+            throw new Exception("Expected Fern in generated forest biome.");
+        }
+
+        if (!ScanGeneratedChunksForFlora(generator, BiomeType.Desert, BlockType.DeadBush))
+        {
+            throw new Exception("Expected DeadBush in generated desert biome.");
+        }
+
+        if (!ScanGeneratedChunksForFlora(generator, BiomeType.Swamp, BlockType.LilyPad))
+        {
+            throw new Exception("Expected LilyPad in generated swamp biome.");
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
+
+    public static void RunDesertPalmDensity()
+    {
+        Console.Write("Running Desert Palm Density Test... ");
+
+        var generator = new WorldGenerator(1337, WorldGenParams.ForType(WorldType.Default));
+        var desertCoord = FindPreviewCoord(
+            generator,
+            c => c.Biome.Primary == BiomeType.Desert && c.Profile.TreeDensity >= 0.02f,
+            512,
+            4);
+
+        if (desertCoord == null)
+        {
+            throw new Exception("Expected pure desert columns within preview range.");
+        }
+
+        int palmCount = 0;
+        for (int chunkZ = -24; chunkZ <= 24; chunkZ++)
+        {
+            for (int chunkX = -24; chunkX <= 24; chunkX++)
+            {
+                var columns = generator.PreviewChunkColumns(chunkX, chunkZ);
+                bool hasDesert = false;
+                for (int lx = 0; lx < Chunk.Width; lx++)
+                {
+                    for (int lz = 0; lz < Chunk.Depth; lz++)
+                    {
+                        if (columns[lx, lz].Biome.Primary == BiomeType.Desert)
+                        {
+                            hasDesert = true;
+                            break;
+                        }
+                    }
+
+                    if (hasDesert)
+                    {
+                        break;
+                    }
+                }
+
+                if (!hasDesert)
+                {
+                    continue;
+                }
+
+                var chunk = new Chunk(chunkX, chunkZ);
+                generator.GenerateChunkTerrain(chunk, null);
+                palmCount += CountBlockInChunk(chunk, BlockType.PalmLog);
+            }
+        }
+
+        if (palmCount <= 0)
+        {
+            throw new Exception("Expected PalmLog in pure desert after TreeDensity fix.");
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
+
+    public static void RunTreeShapeDiversity()
+    {
+        Console.Write("Running Tree Shape Diversity Test... ");
+
+        var generator = new WorldGenerator(1337, WorldGenParams.ForType(WorldType.Default));
+
+        var pineSpan = MeasureLeafVerticalSpan(generator, BiomeType.SnowyPeaks, BlockType.PineLeaves);
+        var palmSpan = MeasureLeafVerticalSpan(generator, BiomeType.Desert, BlockType.PalmLeaves);
+        if (pineSpan <= palmSpan)
+        {
+            throw new Exception($"Expected Pine Y-span ({pineSpan}) > Palm Y-span ({palmSpan}).");
+        }
+
+        var willowWidth = MeasureGeneratedLeafHorizontalSpan(TreeSpecies.Willow());
+        var birchWidth = MeasureGeneratedLeafHorizontalSpan(TreeSpecies.Birch());
+        if (willowWidth <= birchWidth)
+        {
+            throw new Exception($"Expected Willow canopy width ({willowWidth}) > Birch width ({birchWidth}).");
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
+
+    public static void RunTreeBlockBudget()
+    {
+        Console.Write("Running Tree Block Budget Test... ");
+
+        TreeSpecies[] species =
+        [
+            TreeSpecies.Oak(), TreeSpecies.Birch(), TreeSpecies.Pine(),
+            TreeSpecies.Willow(), TreeSpecies.Palm(), TreeSpecies.Cherry(),
+            TreeSpecies.Mahogany(), TreeSpecies.Maple()
+        ];
+
+        foreach (var treeSpecies in species)
+        {
+            var voxels = TreeShapeGenerator.Generate(treeSpecies, 16, 16, 64, 1337, 0.9f, 0.3f);
+            var unique = new HashSet<(int dx, int dy, int dz)>();
+            foreach (var voxel in voxels)
+            {
+                unique.Add((voxel.Dx, voxel.Dy, voxel.Dz));
+            }
+
+            if (unique.Count > treeSpecies.MaxBlocks)
+            {
+                throw new Exception(
+                    $"Species {treeSpecies.Log} exceeded MaxBlocks ({treeSpecies.MaxBlocks}), got {unique.Count}.");
+            }
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
+
+    public static void RunBiomeFloraPresence()
+    {
+        Console.Write("Running Biome Flora Presence Test... ");
+
+        var generator = new WorldGenerator(1337, WorldGenParams.ForType(WorldType.Default));
+
+        if (!ScanGeneratedChunksForFlora(generator, BiomeType.Forest, BlockType.Shrub))
+        {
+            throw new Exception("Expected Shrub in generated forest biome.");
+        }
+
+        if (!ScanGeneratedChunksForFlora(generator, BiomeType.SnowyPeaks, BlockType.Heather))
+        {
+            throw new Exception("Expected Heather in generated snowy peaks biome.");
+        }
+
+        if (!ScanGeneratedChunksForFlora(generator, BiomeType.SnowyPeaks, BlockType.Juniper))
+        {
+            throw new Exception("Expected Juniper in generated snowy peaks biome.");
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
+
+    public static void RunFloraMeshBuilderTileMapping()
+    {
+        Console.Write("Running Flora Mesh Builder Tile Mapping Test... ");
+
+        foreach (BlockType type in Enum.GetValues<BlockType>())
+        {
+            if (!type.IsFloraModel())
+            {
+                continue;
+            }
+
+            string tileId = FloraMeshBuilder.GetTileId(type);
+            if (tileId == "tall_grass" && type != BlockType.TallGrass)
+            {
+                throw new Exception($"Flora block {type} maps to generic tall_grass tile.");
+            }
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
+
     public static void AssertLodDetail(int renderDistance, int chunkDistance, ChunkMeshDetail expected)
     {
         var detail = ChunkLod.SelectDetail(chunkDistance, renderDistance);
@@ -454,6 +663,7 @@ public static class WorldGenTests
             throw new Exception($"Expected LOD {expected} at distance {chunkDistance} with render distance {renderDistance}, got {detail}.");
         }
     }
+
     public static void AssertLocalSlopePlayable(WorldGenerator generator, int wx, int wz, int maxStep)
     {
         VoxelWorld.GetChunkCoords(wx, wz, out int cx, out int cz, out int lx, out int lz);
@@ -763,5 +973,426 @@ public static class WorldGenTests
         }
 
         return false;
+    }
+
+    private static int CountForestTreeSpecies(WorldGenerator generator)
+    {
+        var species = new HashSet<BlockType>();
+        BlockType[] forestLogs =
+        [
+            BlockType.OakLog, BlockType.BirchLog, BlockType.MahoganyLog, BlockType.MapleLog
+        ];
+
+        for (int chunkZ = -24; chunkZ <= 24; chunkZ++)
+        {
+            for (int chunkX = -24; chunkX <= 24; chunkX++)
+            {
+                var columns = generator.PreviewChunkColumns(chunkX, chunkZ);
+                bool hasForest = false;
+                for (int lx = 0; lx < Chunk.Width; lx++)
+                {
+                    for (int lz = 0; lz < Chunk.Depth; lz++)
+                    {
+                        if (columns[lx, lz].Biome.Primary == BiomeType.Forest)
+                        {
+                            hasForest = true;
+                            break;
+                        }
+                    }
+
+                    if (hasForest)
+                    {
+                        break;
+                    }
+                }
+
+                if (!hasForest)
+                {
+                    continue;
+                }
+
+                var chunk = new Chunk(chunkX, chunkZ);
+                generator.GenerateChunkTerrain(chunk, null);
+                foreach (var logType in forestLogs)
+                {
+                    if (ChunkContainsLog(chunk, logType))
+                    {
+                        species.Add(logType);
+                    }
+                }
+
+                if (species.Count >= 2)
+                {
+                    return species.Count;
+                }
+            }
+        }
+
+        return species.Count;
+    }
+
+    private static bool ScanGeneratedChunksForFlora(WorldGenerator generator, BiomeType biome, BlockType floraType)
+    {
+        for (int chunkZ = -24; chunkZ <= 24; chunkZ++)
+        {
+            for (int chunkX = -24; chunkX <= 24; chunkX++)
+            {
+                var columns = generator.PreviewChunkColumns(chunkX, chunkZ);
+                bool hasBiome = false;
+                for (int lx = 0; lx < Chunk.Width; lx++)
+                {
+                    for (int lz = 0; lz < Chunk.Depth; lz++)
+                    {
+                        var column = columns[lx, lz];
+                        if (column.Biome.Primary == biome && !column.IsRiver && !column.IsLake)
+                        {
+                            hasBiome = true;
+                            break;
+                        }
+                    }
+
+                    if (hasBiome)
+                    {
+                        break;
+                    }
+                }
+
+                if (!hasBiome)
+                {
+                    continue;
+                }
+
+                var chunk = new Chunk(chunkX, chunkZ);
+                generator.GenerateChunkTerrain(chunk, null);
+                if (ChunkContainsBlock(chunk, floraType))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ChunkContainsBlock(Chunk chunk, BlockType blockType)
+    {
+        for (int lx = 0; lx < Chunk.Width; lx++)
+        {
+            for (int lz = 0; lz < Chunk.Depth; lz++)
+            {
+                for (int y = 1; y < Chunk.Height; y++)
+                {
+                    if (chunk.GetBlock(lx, y, lz) == blockType)
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static int CountBlockInChunk(Chunk chunk, BlockType blockType)
+    {
+        int count = 0;
+        for (int lx = 0; lx < Chunk.Width; lx++)
+        {
+            for (int lz = 0; lz < Chunk.Depth; lz++)
+            {
+                for (int y = 1; y < Chunk.Height; y++)
+                {
+                    if (chunk.GetBlock(lx, y, lz) == blockType)
+                    {
+                        count++;
+                    }
+                }
+            }
+        }
+
+        return count;
+    }
+
+    private static int MeasureLeafVerticalSpan(WorldGenerator generator, BiomeType biome, BlockType leafType)
+    {
+        int bestSpan = 0;
+        for (int chunkZ = -16; chunkZ <= 16; chunkZ++)
+        {
+            for (int chunkX = -16; chunkX <= 16; chunkX++)
+            {
+                if (!ChunkHasBiome(generator, chunkX, chunkZ, biome))
+                {
+                    continue;
+                }
+
+                var chunk = new Chunk(chunkX, chunkZ);
+                generator.GenerateChunkTerrain(chunk, null);
+                foreach (var (minY, maxY) in FindLeafVerticalSpans(chunk, leafType))
+                {
+                    bestSpan = Math.Max(bestSpan, maxY - minY);
+                }
+            }
+        }
+
+        return bestSpan;
+    }
+
+    private static int MeasureLeafHorizontalSpan(WorldGenerator generator, BiomeType biome, BlockType leafType)
+    {
+        int bestWidth = 0;
+        for (int chunkZ = -16; chunkZ <= 16; chunkZ++)
+        {
+            for (int chunkX = -16; chunkX <= 16; chunkX++)
+            {
+                if (!ChunkHasBiome(generator, chunkX, chunkZ, biome))
+                {
+                    continue;
+                }
+
+                var chunk = new Chunk(chunkX, chunkZ);
+                generator.GenerateChunkTerrain(chunk, null);
+                foreach (var width in FindLeafHorizontalSpans(chunk, leafType))
+                {
+                    bestWidth = Math.Max(bestWidth, width);
+                }
+            }
+        }
+
+        return bestWidth;
+    }
+
+    private static int MeasureGeneratedLeafHorizontalSpan(TreeSpecies species)
+    {
+        var voxels = TreeShapeGenerator.Generate(species, 16, 16, 64, 1337, 0.9f, 0.3f);
+        int minX = int.MaxValue;
+        int maxX = int.MinValue;
+        int minZ = int.MaxValue;
+        int maxZ = int.MinValue;
+        bool found = false;
+
+        foreach (var voxel in voxels)
+        {
+            if (voxel.Type != species.Leaves)
+            {
+                continue;
+            }
+
+            found = true;
+            minX = Math.Min(minX, voxel.Dx);
+            maxX = Math.Max(maxX, voxel.Dx);
+            minZ = Math.Min(minZ, voxel.Dz);
+            maxZ = Math.Max(maxZ, voxel.Dz);
+        }
+
+        if (!found)
+        {
+            return 0;
+        }
+
+        return Math.Max(maxX - minX, maxZ - minZ);
+    }
+
+    private static int ScanMaxTreeComponentSize(WorldGenerator generator)
+    {
+        int maxSize = 0;
+        for (int chunkZ = -12; chunkZ <= 12; chunkZ++)
+        {
+            for (int chunkX = -12; chunkX <= 12; chunkX++)
+            {
+                var chunk = new Chunk(chunkX, chunkZ);
+                generator.GenerateChunkTerrain(chunk, null);
+                maxSize = Math.Max(maxSize, FindLargestTreeComponent(chunk));
+            }
+        }
+
+        return maxSize;
+    }
+
+    private static bool ChunkHasBiome(WorldGenerator generator, int chunkX, int chunkZ, BiomeType biome)
+    {
+        var columns = generator.PreviewChunkColumns(chunkX, chunkZ);
+        for (int lx = 0; lx < Chunk.Width; lx++)
+        {
+            for (int lz = 0; lz < Chunk.Depth; lz++)
+            {
+                if (columns[lx, lz].Biome.Primary == biome)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<(int minY, int maxY)> FindLeafVerticalSpans(Chunk chunk, BlockType leafType)
+    {
+        var visited = new bool[Chunk.Width, Chunk.Depth];
+        for (int lx = 0; lx < Chunk.Width; lx++)
+        {
+            for (int lz = 0; lz < Chunk.Depth; lz++)
+            {
+                if (visited[lx, lz])
+                {
+                    continue;
+                }
+
+                int minY = int.MaxValue;
+                int maxY = int.MinValue;
+                bool found = false;
+                for (int y = 1; y < Chunk.Height; y++)
+                {
+                    if (chunk.GetBlock(lx, y, lz) == leafType)
+                    {
+                        found = true;
+                        minY = Math.Min(minY, y);
+                        maxY = Math.Max(maxY, y);
+                    }
+                }
+
+                if (found)
+                {
+                    visited[lx, lz] = true;
+                    yield return (minY, maxY);
+                }
+            }
+        }
+    }
+
+    private static IEnumerable<int> FindLeafHorizontalSpans(Chunk chunk, BlockType leafType)
+    {
+        var visited = new bool[Chunk.Width, Chunk.Height, Chunk.Depth];
+        for (int lx = 0; lx < Chunk.Width; lx++)
+        {
+            for (int lz = 0; lz < Chunk.Depth; lz++)
+            {
+                for (int y = 1; y < Chunk.Height; y++)
+                {
+                    if (visited[lx, y, lz] || chunk.GetBlock(lx, y, lz) != leafType)
+                    {
+                        continue;
+                    }
+
+                    int minX = lx;
+                    int maxX = lx;
+                    int minZ = lz;
+                    int maxZ = lz;
+                    var queue = new Queue<(int x, int y, int z)>();
+                    queue.Enqueue((lx, y, lz));
+                    visited[lx, y, lz] = true;
+                    int count = 0;
+
+                    while (queue.Count > 0)
+                    {
+                        var (cx, cy, cz) = queue.Dequeue();
+                        count++;
+                        minX = Math.Min(minX, cx);
+                        maxX = Math.Max(maxX, cx);
+                        minZ = Math.Min(minZ, cz);
+                        maxZ = Math.Max(maxZ, cz);
+
+                        foreach (var (nx, ny, nz) in Neighbors(cx, cy, cz))
+                        {
+                            if (nx < 0 || nx >= Chunk.Width || nz < 0 || nz >= Chunk.Depth || ny <= 0 || ny >= Chunk.Height)
+                            {
+                                continue;
+                            }
+
+                            if (visited[nx, ny, nz] || chunk.GetBlock(nx, ny, nz) != leafType)
+                            {
+                                continue;
+                            }
+
+                            visited[nx, ny, nz] = true;
+                            queue.Enqueue((nx, ny, nz));
+                        }
+                    }
+
+                    if (count >= 4)
+                    {
+                        yield return Math.Max(maxX - minX, maxZ - minZ);
+                    }
+                }
+            }
+        }
+    }
+
+    private static int FindLargestTreeComponent(Chunk chunk)
+    {
+        var visited = new bool[Chunk.Width, Chunk.Height, Chunk.Depth];
+        int maxSize = 0;
+
+        for (int lx = 0; lx < Chunk.Width; lx++)
+        {
+            for (int lz = 0; lz < Chunk.Depth; lz++)
+            {
+                for (int y = 1; y < Chunk.Height; y++)
+                {
+                    var block = chunk.GetBlock(lx, y, lz);
+                    if (!block.IsAnyLog() && !block.IsAnyLeaves())
+                    {
+                        continue;
+                    }
+
+                    if (visited[lx, y, lz])
+                    {
+                        continue;
+                    }
+
+                    int size = FloodFillTreeSize(chunk, visited, lx, y, lz);
+                    maxSize = Math.Max(maxSize, size);
+                }
+            }
+        }
+
+        return maxSize;
+    }
+
+    private static int FloodFillTreeSize(Chunk chunk, bool[,,] visited, int startX, int startY, int startZ)
+    {
+        var queue = new Queue<(int x, int y, int z)>();
+        queue.Enqueue((startX, startY, startZ));
+        visited[startX, startY, startZ] = true;
+        int size = 0;
+
+        while (queue.Count > 0)
+        {
+            var (x, y, z) = queue.Dequeue();
+            size++;
+
+            foreach (var (nx, ny, nz) in Neighbors(x, y, z))
+            {
+                if (nx < 0 || nx >= Chunk.Width || nz < 0 || nz >= Chunk.Depth || ny <= 0 || ny >= Chunk.Height)
+                {
+                    continue;
+                }
+
+                if (visited[nx, ny, nz])
+                {
+                    continue;
+                }
+
+                var block = chunk.GetBlock(nx, ny, nz);
+                if (!block.IsAnyLog() && !block.IsAnyLeaves())
+                {
+                    continue;
+                }
+
+                visited[nx, ny, nz] = true;
+                queue.Enqueue((nx, ny, nz));
+            }
+        }
+
+        return size;
+    }
+
+    private static IEnumerable<(int x, int y, int z)> Neighbors(int x, int y, int z)
+    {
+        yield return (x + 1, y, z);
+        yield return (x - 1, y, z);
+        yield return (x, y + 1, z);
+        yield return (x, y - 1, z);
+        yield return (x, y, z + 1);
+        yield return (x, y, z - 1);
     }
 }

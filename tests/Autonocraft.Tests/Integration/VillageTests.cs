@@ -1292,22 +1292,32 @@ public static class VillageTests
         var session = game.Session;
         int ax = (int)session.Player.Position.X + 8;
         int az = (int)session.Player.Position.Z + 8;
-        session.Villages.TryFoundVillage(session.Grid, "Save Test", ax, az, out var village);
-        if (village != null)
+        int ay = StructureFingerprint.FindSurfaceAnchorY(session.Grid, ax, az);
+        if (PlayerStructureRegistry.TryGet("town_heart", out var heart))
         {
-            village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 8));
-            village.Storage.AddItem(ItemStack.CreateBlock(BlockType.Dirt, 32));
-            village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 8));
-            session.Villages.TryRecruit(village, session.Grid);
-            if (!session.Villages.TryQueueBlueprint(session.Grid, village, "farm_plot", ax + 4, az, village.Storage))
+            foreach (var block in heart.Template.Blocks)
             {
-                throw new Exception("Failed to queue farm_plot for save test.");
+                session.Grid.SetBlock(ax + block.Dx, ay + block.Dy, az + block.Dz, BlockType.Air);
             }
         }
 
-        int expectedSites = village?.BuildingSites.Count ?? 0;
+        if (!session.Villages.TryFoundVillage(session.Grid, "Save Test", ax, az, out var village) || village == null)
+        {
+            throw new Exception("Could not found Save Test village.");
+        }
 
-        if (village != null && village.VillagerIds.Count > 0 &&
+        village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 8));
+        village.Storage.AddItem(ItemStack.CreateBlock(BlockType.Dirt, 32));
+        village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 8));
+        session.Villages.TryRecruit(village, session.Grid);
+        if (!session.Villages.TryQueueBlueprint(session.Grid, village, "farm_plot", ax + 4, az, village.Storage))
+        {
+            throw new Exception("Failed to queue farm_plot for save test.");
+        }
+
+        int expectedSites = village.BuildingSites.Count;
+
+        if (village.VillagerIds.Count > 0 &&
             session.Villagers.TryGet(village.VillagerIds[0], out var seedVillager))
         {
             seedVillager.Skills.AddXp(Autonocraft.Items.VillagerSkill.Mining, 55f);

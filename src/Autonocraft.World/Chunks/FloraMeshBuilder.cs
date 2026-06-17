@@ -60,22 +60,7 @@ namespace Autonocraft.World
             float baseY = wy;
             float windPhase = (hash % 997) / 997f;
 
-            string tileId = type switch
-            {
-                BlockType.Sunflower => "sunflower",
-                BlockType.Flower => "flower",
-                BlockType.Reed => "reed",
-                BlockType.Cactus => "cactus",
-                BlockType.Fern => "fern",
-                BlockType.MushroomRed => "mushroom_red",
-                BlockType.MushroomBrown => "mushroom_brown",
-                BlockType.DeadBush => "dead_bush",
-                BlockType.LilyPad => "lily_pad",
-                BlockType.Vine => "vine",
-                BlockType.BerryBush => "berry_bush",
-                BlockType.Seagrass => "seagrass",
-                _ => "tall_grass"
-            };
+            string tileId = GetTileId(type);
             var tileUv = BlockAtlas.GetTileUVs(tileId);
             var uv = GetVariantUVs(tileUv, variant);
 
@@ -90,7 +75,14 @@ namespace Autonocraft.World
                 BlockType.DeadBush => 0.38f,
                 BlockType.Vine => 0.40f,
                 BlockType.BerryBush => 0.42f,
-                BlockType.Seagrass => 0.30f,
+                BlockType.Shrub => 0.40f,
+                BlockType.Heather => 0.32f,
+                BlockType.Juniper => 0.38f,
+                BlockType.Poppy or BlockType.Tulip or BlockType.WildRose => 0.34f,
+                BlockType.Daisy or BlockType.BlueFlax => 0.32f,
+                BlockType.MossCarpet => 0.22f,
+                BlockType.Lichen => 0.28f,
+                BlockType.Lavender => 0.40f,
                 _ => 0.38f
             };
             float height = type switch
@@ -104,6 +96,14 @@ namespace Autonocraft.World
                 BlockType.DeadBush => 0.75f,
                 BlockType.Vine => 1.0f,
                 BlockType.BerryBush => 0.70f,
+                BlockType.Shrub => 0.65f,
+                BlockType.Heather => 0.45f,
+                BlockType.Juniper => 0.72f,
+                BlockType.Poppy or BlockType.Tulip or BlockType.WildRose => 0.58f,
+                BlockType.Daisy or BlockType.BlueFlax or BlockType.Flower => 0.52f,
+                BlockType.MossCarpet => 0.12f,
+                BlockType.Lichen => 0.16f,
+                BlockType.Lavender => 0.55f,
                 BlockType.Seagrass => 0.85f,
                 BlockType.TallGrass when biome.Primary == BiomeType.Forest => 0.62f,
                 BlockType.TallGrass when biome.Primary == BiomeType.Swamp => 0.72f,
@@ -123,6 +123,10 @@ namespace Autonocraft.World
                 BlockType.TallGrass => 2,
                 BlockType.Fern => 3,
                 BlockType.BerryBush => 3,
+                BlockType.Shrub or BlockType.Juniper => 3,
+                BlockType.MossCarpet or BlockType.Lichen => 2,
+                BlockType.Poppy or BlockType.Daisy or BlockType.BlueFlax
+                    or BlockType.Tulip or BlockType.WildRose or BlockType.Lavender => 2,
                 _ => 2
             };
 
@@ -184,6 +188,41 @@ namespace Autonocraft.World
                     windPhase);
             }
         }
+
+        internal static string GetTileId(BlockType type) => type switch
+        {
+            BlockType.Sunflower => "sunflower",
+            BlockType.Flower => "flower",
+            BlockType.Reed => "reed",
+            BlockType.Cactus => "cactus",
+            BlockType.Fern => "fern",
+            BlockType.MushroomRed => "mushroom_red",
+            BlockType.MushroomBrown => "mushroom_brown",
+            BlockType.DeadBush => "dead_bush",
+            BlockType.LilyPad => "lily_pad",
+            BlockType.Vine => "vine",
+            BlockType.BerryBush => "berry_bush",
+            BlockType.Seagrass => "seagrass",
+            BlockType.Lavender => "lavender",
+            BlockType.Glowshroom => "glowshroom",
+            BlockType.Kelp => "kelp",
+            BlockType.Rope => "rope",
+            BlockType.Shrub => "shrub",
+            BlockType.Heather => "heather",
+            BlockType.Juniper => "juniper",
+            BlockType.Poppy => "poppy",
+            BlockType.Daisy => "daisy",
+            BlockType.BlueFlax => "blue_flax",
+            BlockType.Tulip => "tulip",
+            BlockType.WildRose => "wild_rose",
+            BlockType.MossCarpet => "moss_carpet",
+            BlockType.Lichen => "lichen",
+            BlockType.WheatSprout => "wheat_sprout",
+            BlockType.Wheat => "wheat_crop",
+            BlockType.CarrotSprout => "carrot_sprout",
+            BlockType.Carrot => "carrot_crop",
+            _ => "tall_grass"
+        };
 
         private static (float uMin, float vMin, float uMax, float vMax) GetVariantUVs(
             (float uMin, float vMin, float uMax, float vMax) tileUv,
