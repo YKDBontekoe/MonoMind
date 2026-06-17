@@ -7,6 +7,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 Releases are created automatically when changes land on `main` (after CI passes).
 
+## [0.2.4] - 2026-06-17
+
+### Other
+- Refactor large types, add C# atlas build, and sync Voronoi terrain textures.
+
 ## [0.2.3] - 2026-06-17
 
 ### Other
