@@ -7,6 +7,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 Releases are created automatically when changes land on `main` (after CI passes).
 
+## [0.2.5] - 2026-06-17
+
+### Other
+- Bump MonoGame.Framework.DesktopGL from 3.8.2.1105 to 3.8.4.1
+
 ## [0.2.4] - 2026-06-17
 
 ### Other
