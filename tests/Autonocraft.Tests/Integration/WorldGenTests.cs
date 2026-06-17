@@ -617,9 +617,14 @@ public static class WorldGenTests
             throw new Exception("Expected ocean biome within preview range.");
         }
 
-        for (int chunkZ = -8; chunkZ <= 8; chunkZ++)
+        int oceanWx = oceanCoord.Value.x;
+        int oceanWz = oceanCoord.Value.z;
+        VoxelWorld.GetChunkCoords(oceanWx, oceanWz, out int centerChunkX, out int centerChunkZ, out _, out _);
+
+        int validatedOceanChunks = 0;
+        for (int chunkZ = centerChunkZ - 4; chunkZ <= centerChunkZ + 4; chunkZ++)
         {
-            for (int chunkX = -8; chunkX <= 8; chunkX++)
+            for (int chunkX = centerChunkX - 4; chunkX <= centerChunkX + 4; chunkX++)
             {
                 var columns = generator.PreviewChunkColumns(chunkX, chunkZ);
                 bool hasOcean = false;
@@ -645,6 +650,7 @@ public static class WorldGenTests
                     continue;
                 }
 
+                validatedOceanChunks++;
                 var chunk = new Chunk(chunkX, chunkZ);
                 generator.GenerateChunkTerrain(chunk, null);
                 if (ChunkContainsBlockAtSeaLevel(chunk, BlockType.Ice))
@@ -652,6 +658,11 @@ public static class WorldGenTests
                     throw new Exception("Expected no ice on ocean water surfaces.");
                 }
             }
+        }
+
+        if (validatedOceanChunks == 0)
+        {
+            throw new Exception("Expected ocean chunks near discovered ocean coordinate.");
         }
 
         Console.ForegroundColor = ConsoleColor.Green;

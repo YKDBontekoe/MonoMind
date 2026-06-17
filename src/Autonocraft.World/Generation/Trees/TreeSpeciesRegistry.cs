@@ -18,14 +18,14 @@ namespace Autonocraft.World.Generation.Trees
                 return TreeSpecies.Palm();
             }
 
-            if (biome.Primary == BiomeType.SnowyPeaks || biome.Temperature < -0.05f)
-            {
-                return TreeSpecies.Pine();
-            }
-
             if (biome.Primary == BiomeType.BorealTaiga)
             {
                 return treeTypeRand < 70 ? TreeSpecies.Pine() : TreeSpecies.Birch();
+            }
+
+            if (biome.Primary == BiomeType.SnowyPeaks || biome.Temperature < -0.05f)
+            {
+                return TreeSpecies.Pine();
             }
 
             if (biome.Primary == BiomeType.MushroomForest)

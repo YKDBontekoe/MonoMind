@@ -68,7 +68,7 @@ namespace Autonocraft.World.Generation.Caves
             {
                 TryReplaceAdjacentStone(chunk, lx, lz, y, BlockType.Amethyst);
             }
-            else if (profile.Type != CaveBiomeType.Dripstone && hash % 9 == 0)
+            else if (hash % 9 == 0)
             {
                 TryReplaceAdjacentStone(chunk, lx, lz, y, profile.WallBlock);
             }

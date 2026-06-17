@@ -49,7 +49,7 @@ namespace Autonocraft.Domain.Crafting
                 BlockType.Stone or BlockType.Sandstone or BlockType.Cobblestone
                     or BlockType.Brick or BlockType.MossStone or BlockType.Marble or BlockType.Basalt or BlockType.Slate
                     or BlockType.Limestone or BlockType.Granite or BlockType.PolishedMarble or BlockType.PolishedGranite
-                    or BlockType.Obsidian or BlockType.Amethyst or BlockType.MagmaBlock
+                    or BlockType.Obsidian or BlockType.Amethyst or BlockType.MagmaBlock or BlockType.Dripstone
                     or BlockType.MarbleBrick or BlockType.BasaltBrick or BlockType.SlateBrick => MaterialTag.Stone,
                 _ => MaterialTag.None
             };
