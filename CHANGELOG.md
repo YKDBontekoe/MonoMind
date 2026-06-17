@@ -7,6 +7,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 Releases are created automatically when changes land on `main` (after CI passes).
 
+## [0.2.7] - 2026-06-17
+
+### Other
+- Fix biome review findings for crafting tags, cave decor, flora, spawns, and tests.
+- Expand terrain variety with surface and cave biomes, ocean ice tied to snowy peaks, and matching blocks, structures, and animal spawns.
+
 ## [0.2.6] - 2026-06-17
 
 ### Other
