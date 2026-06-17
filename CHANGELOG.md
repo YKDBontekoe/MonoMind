@@ -7,6 +7,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 Releases are created automatically when changes land on `main` (after CI passes).
 
+## [0.2.3] - 2026-06-17
+
+### Other
+- Reorganize source files into logical package subdirectories.
+
 ## [0.2.2] - 2026-06-17
 
 ### Other
