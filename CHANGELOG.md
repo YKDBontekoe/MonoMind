@@ -7,6 +7,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 Releases are created automatically when changes land on `main` (after CI passes).
 
+## [0.2.2] - 2026-06-17
+
+### Other
+- Fix CI matrix job names to show platform labels.
+- Wire multi-assembly solution and fix CI build.
+- Extract multi-assembly layout with Core, Engine, and domain libraries.
+
 ## [0.2.1] - 2026-06-16
 
 ### Other
