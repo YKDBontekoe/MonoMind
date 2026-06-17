@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Autonocraft.Core;
 using Autonocraft.World;
 using Autonocraft.World.Structures;
 
@@ -121,7 +120,7 @@ namespace Autonocraft.Village
                 return false;
             }
 
-            if (!BlockActionService.TryPlaceBlock(
+            if (!BlockPlacement.TryPlaceBlock(
                     world,
                     wx,
                     wy,
@@ -130,8 +129,7 @@ namespace Autonocraft.Village
                     checkBuilderCollision ? entityWidth : 0f,
                     checkBuilderCollision ? entityHeight : 0f,
                     builderPos,
-                    inventory: null,
-                    consumeFromInventory: false))
+                    checkEntityCollision: checkBuilderCollision))
             {
                 if (!creative)
                 {

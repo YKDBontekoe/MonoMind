@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Numerics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Autonocraft.Core;
 using Autonocraft.Domain.Village;
 using Autonocraft.Entities;
 using Autonocraft.World;
@@ -1076,20 +1075,20 @@ namespace Autonocraft.Engine
                 {
                     pass.Apply();
                     _device.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, count / 3);
-                    Autonocraft.Core.PerfCounters.TerrainDrawCalls++;
+                    PerfCounters.TerrainDrawCalls++;
                     switch (passKind)
                     {
                         case TerrainPassKind.Water:
-                            Autonocraft.Core.PerfCounters.TerrainWaterDrawCalls++;
-                            Autonocraft.Core.PerfCounters.TerrainWaterIndexCount += count;
+                            PerfCounters.TerrainWaterDrawCalls++;
+                            PerfCounters.TerrainWaterIndexCount += count;
                             break;
                         case TerrainPassKind.Cutout:
-                            Autonocraft.Core.PerfCounters.TerrainCutoutDrawCalls++;
-                            Autonocraft.Core.PerfCounters.TerrainCutoutIndexCount += count;
+                            PerfCounters.TerrainCutoutDrawCalls++;
+                            PerfCounters.TerrainCutoutIndexCount += count;
                             break;
                         default:
-                            Autonocraft.Core.PerfCounters.TerrainOpaqueDrawCalls++;
-                            Autonocraft.Core.PerfCounters.TerrainOpaqueIndexCount += count;
+                            PerfCounters.TerrainOpaqueDrawCalls++;
+                            PerfCounters.TerrainOpaqueIndexCount += count;
                             break;
                     }
                 }

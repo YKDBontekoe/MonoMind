@@ -4,36 +4,54 @@ Technical reference for the Autonocraft voxel engine and game systems. For agent
 
 ## Overview
 
-```
-Program.cs
-    └── AutonocraftGame (MonoGame Game subclass — thin shell)
-            ├── GameSession         — player, world, animals, gameplay systems
-            ├── VoxelWorld          — chunk storage, async gen/mesh, modifications, fluids
-            ├── Player              — physics, inventory, skills, camera sync
-            ├── AnimalManager       — spawn, AI, combat targets
-            ├── Renderer            — orchestrates WorldRenderer + HudRenderer
-            ├── BlockInteractionSystem — raycast mine/place, sigils, stations
-            ├── CombatSystem        — melee damage to animals
-            ├── CraftingSystem      — sigils, crucible, discovery journal
-            ├── AgentHttpServer     — localhost:5000 automation API
-            └── UI screens          — menu, pause, loading, crucible, journal, death, dev console
-```
-
-Namespaces: `Autonocraft.Core`, `Autonocraft.Engine`, `Autonocraft.World`, `Autonocraft.World.Structures`, `Autonocraft.Entities`, `Autonocraft.Crafting`, `Autonocraft.Items`, `Autonocraft.UI`, `Autonocraft.Domain` (shared types).
-
-### Dependency rules
+Multi-assembly layout. Gameplay libraries live under `src/Autonocraft.*`; the executable (`src/Autonocraft/`) holds `Program.cs`, `AutonocraftGame`, UI screens, and content assets. Rendering lives in **`Autonocraft.Engine`** (`src/Autonocraft.Engine/`).
 
 ```
-Program → Core (AutonocraftGame)
-Core → Engine, World, Entities, UI, Crafting, Items, Domain
-Engine → World, Entities, Items (via GameRenderContext, not AutonocraftGame)
-World → Domain (BlockType, constants)
-Crafting → Domain, Items, Core (Player)
-Items → Domain
-UI → Engine, Core, Crafting
+Autonocraft.sln
+├── Autonocraft.Domain          — shared types, save DTOs, narrow interfaces, render read-models
+├── Autonocraft.Diagnostics     — PerfCounters, WorldDebugTrace
+├── Autonocraft.Items           — inventory, tools, food, ICraftingPlayer, HUD render views
+├── Autonocraft.Crafting        — recipes, grids, station crafting
+├── Autonocraft.Ai              — LLM clients (OpenRouter, llama.cpp, Mock)
+├── Autonocraft.World           — chunks, generation, fluids, atlas, VoxelWorld
+├── Autonocraft.Entities        — animals, collision, pathfinding
+├── Autonocraft.Village         — villages, villagers, jobs, economy
+├── Autonocraft.Engine          — MonoGame rendering, audio, GameRenderContext
+├── Autonocraft.Core            — game systems, agent HTTP, saves
+├── Autonocraft (exe)           — AutonocraftGame shell, UI, Program.cs
+└── Autonocraft.Tests
 ```
 
-Engine and World must not depend on `AutonocraftGame` directly — use `GameSession`, `GameRenderContext`, or `SaveSnapshot` at boundaries.
+```
+Program.cs → GameServiceProvider (M.E.DI) → AutonocraftGame (partial, exe)
+    ├── GameStateMachine      — menu / loading / playing transitions
+    ├── GameInputRouter       — keyboard, mouse, agent keys, sprint
+    ├── GameOverlayRouter     — pause, death, inventory, village, crucible, journal
+    ├── GamePersistenceCoordinator — save / load / autosave
+    └── AutonocraftGame.Draw  — render pass
+    └── GameSession (Core)    — player, world, animals, gameplay systems
+    └── VoxelWorld (World)    — chunk streaming, terrain, fluids
+    └── AgentHttpServer (Core) — localhost agent API
+        └── Agent/Handlers/* + Agent/Serialization/AgentStateSerializer
+```
+
+Namespaces unchanged: `Autonocraft.Core`, `Autonocraft.Engine`, `Autonocraft.World`, etc.
+
+### Dependency rules (enforced by unit test)
+
+```
+Domain ← Diagnostics, Items, Ai
+Domain, Items ← Crafting
+Domain, World ← Entities
+Domain, Diagnostics, Items, World, Entities ← Village
+Domain, Diagnostics, Items, World, Entities, Village ← Engine
+Domain, Diagnostics, Items, World, Entities, Village, Crafting, Ai, Engine ← Core
+Core, Engine ← Exe (Autonocraft)
+```
+
+`World` uses `BlockRaycast` and `BlockPlacement` instead of `Core` types. `GameSettings`, `GameState`, and `SurvivalConstants` live in `Autonocraft.Domain.Core`. Engine renderers consume **read-model interfaces** (`IBlockInteractionOverlay`, `IPlayerHudView`, `IPlayerMotionView`, `ICraftingHudHint`, etc.) implemented by Core types — no `Autonocraft.Core` reference from Engine.
+
+See `docs/CORE_CROSS_REFERENCES.md` for the pre-split Core cross-reference inventory.
 
 ---
 
@@ -300,6 +318,10 @@ Villages are the default gameplay loop — not an optional side system.
 | `VillageSimulation` | Per-frame tick, sleep cycle, building finalization |
 | `VillagePersistence` | Save v7 export/load |
 | `Village/Jobs/*` | Per-job AI handlers (`IVillagerJob`, `JobRegistry`) |
+| `Village/Economy/*` | Food stock, storage, haul/farm/workshop simulation |
+| `Village/Founding/*` | Starter settlement, structure claim, blueprint placement |
+| `Village/Persistence/*` | Save v7 export/load |
+| `Village/AI/*` | Goal parsing, next-best-action HUD hints |
 | `VillageEvents` / `VillageGuidance` | Player feedback toasts and next-best-action hints |
 | `Village` | Storage, food/happiness sim, tier progression, building sites |
 | `Villager` / `VillagerManager` | Entity state + registry; AI delegated to job handlers |
@@ -336,6 +358,15 @@ Skip with `-p:SkipMonoGameContent=true` for faster C#-only iteration.
 - `GraphicsDevice` may be null; chunk mesh building uses null-safe paths.
 - Saves/settings redirected to temp directories, cleaned up in `finally`.
 - Tests exercise simulation via `GameSession` APIs: physics ticks, block ops, save round-trip.
+
+---
+
+## External libraries (deferred)
+
+| Library | Status | Notes |
+|---------|--------|-------|
+| **FastNoiseLite** | Skipped | No maintained NuGet for the official [Auburn/FastNoiseLite](https://github.com/Auburn/FastNoiseLite) C# port; upstream ships a single vendored `FastNoiseLite.cs`. Terrain keeps `PerlinNoiseProvider` behind `INoiseProvider` until a vetted package or vendored copy is added. |
+| **Refit** | Skipped | `OpenRouterClient` uses hand-built `HttpClient` + `JsonSerializer`; Refit would add API surface and test doubles without simplifying the existing `IOpenRouterClient` / `MockOpenRouterClient` pattern. |
 
 ---
 

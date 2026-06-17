@@ -8,7 +8,6 @@ namespace Autonocraft.Core
     public static class GameSettingsManager
     {
         private const string SettingsFileName = "settings.json";
-        private static string? _overrideSettingsDirectory;
 
         private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
         {
@@ -17,21 +16,10 @@ namespace Autonocraft.Core
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
 
-        public static void SetSettingsDirectoryForTests(string? directory)
-        {
-            _overrideSettingsDirectory = directory;
-        }
+        public static void SetSettingsDirectoryForTests(string? directory) =>
+            GamePaths.SetSettingsDirectoryForTests(directory);
 
-        public static string GetSettingsDirectory()
-        {
-            if (_overrideSettingsDirectory != null)
-            {
-                return _overrideSettingsDirectory;
-            }
-
-            string root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            return Path.Combine(root, "Autonocraft");
-        }
+        public static string GetSettingsDirectory() => GamePaths.GetSettingsDirectory();
 
         public static string GetSettingsFilePath()
         {

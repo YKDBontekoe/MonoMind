@@ -128,6 +128,9 @@ namespace Autonocraft.Core
                 _meshBuildMs = meshBuildMs;
                 _spawnWarmupRemaining = spawnWarmupRemaining;
 
+                float avgFrameMs = _frameHistoryCount > 0 ? _ringSum / _frameHistoryCount : 0f;
+                PerfCounters.RollingFps = avgFrameMs > 0f ? 1000f / avgFrameMs : 0f;
+
                 double nowSeconds = Uptime.Elapsed.TotalSeconds;
                 double elapsed = nowSeconds - _lastCpuSampleSeconds;
                 if (elapsed >= 0.25)

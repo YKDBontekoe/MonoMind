@@ -571,7 +571,7 @@ namespace Autonocraft.Village
                 var buffer = new List<InventorySlotSaveData>();
                 for (int i = 0; i < chest.Buffer.SlotCount; i++)
                 {
-                    buffer.Add(WorldSaveManager.SerializeItemStack(chest.Buffer.GetSlot(i)));
+                    buffer.Add(ItemStackSaveCodec.Serialize(chest.Buffer.GetSlot(i)));
                 }
 
                 result.Add(new OutputChestSaveData
@@ -607,7 +607,7 @@ namespace Autonocraft.Village
                     entry.Id);
                 for (int i = 0; i < entry.Buffer.Count && i < chest.Buffer.SlotCount; i++)
                 {
-                    chest.Buffer.SetSlot(i, WorldSaveManager.DeserializeItemStack(entry.Buffer[i]));
+                    chest.Buffer.SetSlot(i, ItemStackSaveCodec.Deserialize(entry.Buffer[i]));
                 }
 
                 _outputChests.Add(chest);

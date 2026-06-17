@@ -1,5 +1,3 @@
-using Autonocraft.Core;
-using Autonocraft.Engine.Animation;
 using Autonocraft.Items;
 using Autonocraft.World;
 using Microsoft.Xna.Framework.Graphics;
@@ -50,10 +48,9 @@ namespace Autonocraft.Crafting
             }
         }
 
-        public bool DepositFromHotbar(Player player, int targetIndex = -1)
+        public bool DepositFromHotbar(ICraftingPlayer player, int targetIndex = -1)
         {
-            ref var hotbarSlot = ref player.Hotbar[player.SelectedSlot];
-            if (hotbarSlot.IsEmpty || (!hotbarSlot.IsBlock() && !hotbarSlot.IsMaterial()))
+            if (!player.TryTakeOneFromHotbar(player.SelectedSlot, out var taken))
             {
                 return false;
             }
@@ -62,10 +59,11 @@ namespace Autonocraft.Crafting
             {
                 if (targetIndex >= ActiveSlotCount || !InputSlots[targetIndex].IsEmpty)
                 {
+                    player.AddItem(taken);
                     return false;
                 }
 
-                InputSlots[targetIndex] = TakeOne(ref hotbarSlot);
+                InputSlots[targetIndex] = taken;
                 return true;
             }
 
@@ -73,15 +71,16 @@ namespace Autonocraft.Crafting
             {
                 if (InputSlots[i].IsEmpty)
                 {
-                    InputSlots[i] = TakeOne(ref hotbarSlot);
+                    InputSlots[i] = taken;
                     return true;
                 }
             }
 
+            player.AddItem(taken);
             return false;
         }
 
-        public bool WithdrawToHotbar(Player player, int inputIndex)
+        public bool WithdrawToHotbar(ICraftingPlayer player, int inputIndex)
         {
             if (inputIndex < 0 || inputIndex >= ActiveSlotCount)
             {
@@ -152,7 +151,7 @@ namespace Autonocraft.Crafting
         }
     }
 
-    public sealed class CraftingSystem
+    public sealed class CraftingSystem : ICraftingHudHint
     {
         public DiscoveryJournal Journal { get; } = new();
         public CrucibleSession Crucible { get; } = new();
@@ -161,7 +160,7 @@ namespace Autonocraft.Crafting
         public bool InventoryOpen { get; private set; }
         public bool JournalOpen { get; private set; }
         public bool RecipeBookOpen { get; private set; }
-        public UiTransition JournalTransition { get; } = new();
+        public JournalTransition JournalTransition { get; } = new();
         public bool ShowCraftingHint { get; set; } = true;
         public Action<string>? OnDiscoveryUnlocked { get; set; }
 
@@ -255,7 +254,7 @@ namespace Autonocraft.Crafting
             ShowCraftingHint = false;
         }
 
-        public CraftAttemptResult TryTransmute(VoxelWorld world, Player player, float timeOfDay)
+        public CraftAttemptResult TryTransmute(VoxelWorld world, ICraftingPlayer player, float timeOfDay)
         {
             if (!Crucible.IsOpen)
             {
@@ -280,7 +279,7 @@ namespace Autonocraft.Crafting
                 player.AddItem(ItemStack.CreateFood(recipe.OutputItem, recipe.OutputCount));
                 Journal.Unlock(recipe.Id);
                 RecipeDiscovery.UnlockRelated(Journal, recipe.Id);
-                player.Stats.RecordItemCrafted();
+                player.RecordItemCrafted();
                 OnDiscoveryUnlocked?.Invoke($"Unlocked {recipe.DisplayName}");
                 return CraftAttemptResult.Success(recipe);
             }
@@ -316,7 +315,7 @@ namespace Autonocraft.Crafting
             Journal.Unlock(matched.Id);
             UnlockRecipesForCraft(matched.Id);
             RecipeDiscovery.UnlockRelated(Journal, matched.Id);
-            player.Stats.RecordItemCrafted();
+            player.RecordItemCrafted();
             OnDiscoveryUnlocked?.Invoke($"Unlocked {matched.DisplayName}");
             return CraftAttemptResult.Success(matched);
         }
@@ -383,29 +382,8 @@ namespace Autonocraft.Crafting
             }
         }
 
-        private static bool TryConsumeFoodFromPlayer(Player player, ItemId foodId, int count)
-        {
-            int remaining = count;
-            for (int i = 0; i < player.Hotbar.Length && remaining > 0; i++)
-            {
-                ref var slot = ref player.Hotbar[i];
-                if (!slot.IsFood() || slot.FoodId != foodId)
-                {
-                    continue;
-                }
-
-                int take = Math.Min(slot.Count, remaining);
-                slot.Count -= take;
-                if (slot.Count <= 0)
-                {
-                    slot = ItemStack.Empty;
-                }
-
-                remaining -= take;
-            }
-
-            return remaining <= 0;
-        }
+        private static bool TryConsumeFoodFromPlayer(ICraftingPlayer player, ItemId foodId, int count) =>
+            player.TryConsumeFood(foodId, count);
 
         public CraftEnvironment GetCurrentEnvironment(VoxelWorld world, float timeOfDay)
         {
@@ -422,7 +400,7 @@ namespace Autonocraft.Crafting
 
         public void CloseRecipeBook() => RecipeBookOpen = false;
 
-        public bool TryApplyRecipeBookSelection(CraftRecipe recipe, Player player)
+        public bool TryApplyRecipeBookSelection(CraftRecipe recipe, ICraftingPlayer player)
         {
             var inventory = new PlayerInventoryAdapter(player);
             if (InventoryOpen)
@@ -487,7 +465,7 @@ namespace Autonocraft.Crafting
         public CraftPreview GetPlayerCraftPreview() =>
             GridCrafting.Preview(PlayerCraftGrid, BlockType.StationBench, Journal);
 
-        public CraftAttemptResult TryPlayerCraft(Player player)
+        public CraftAttemptResult TryPlayerCraft(ICraftingPlayer player)
         {
             var result = GridCrafting.TryCraft(
                 PlayerCraftGrid,
@@ -498,7 +476,7 @@ namespace Autonocraft.Crafting
 
             if (result.Succeeded)
             {
-                player.Stats.RecordItemCrafted();
+                player.RecordItemCrafted();
                 OnDiscoveryUnlocked?.Invoke($"Crafted {result.Recipe!.DisplayName}");
             }
 

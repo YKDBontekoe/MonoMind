@@ -161,15 +161,6 @@ namespace Autonocraft.World
             };
         }
 
-        [Obsolete("Use BuildFromSnapshot")]
-        public static WorldSaveData BuildFromGame(string slotId, string slotName, AutonocraftGame game, VoxelWorld world)
-        {
-            var snapshot = game.Session.BuildSaveSnapshot(
-                slotId, slotName, game.TimeOfDay, game.TimeScale, game.TimePaused,
-                GameConstants.DefaultSpawnX, GameConstants.DefaultSpawnZ);
-            return BuildFromSnapshot(snapshot);
-        }
-
         public static void Save(WorldSaveData data)
         {
             string slotDir = GetSlotDirectory(data.SlotId);
@@ -515,98 +506,9 @@ namespace Autonocraft.World
             return hotbar;
         }
 
-        private static InventorySlotSaveData SerializeHotbarSlot(ItemStack stack)
-        {
-            if (stack.IsEmpty)
-            {
-                return new InventorySlotSaveData();
-            }
+        private static InventorySlotSaveData SerializeHotbarSlot(ItemStack stack) => ItemStackSaveCodec.Serialize(stack);
 
-            if (stack.IsTool())
-            {
-                return new InventorySlotSaveData
-                {
-                    Kind = (byte)ItemKind.Tool,
-                    ToolId = (ushort)stack.ToolId,
-                    Count = stack.Count,
-                    Durability = stack.Durability,
-                    MaxDurability = stack.MaxDurability
-                };
-            }
-
-            if (stack.IsFluidContainer())
-            {
-                return new InventorySlotSaveData
-                {
-                    Kind = (byte)ItemKind.FluidContainer,
-                    ToolId = (ushort)stack.ToolId,
-                    Count = 1
-                };
-            }
-
-            if (stack.IsFood())
-            {
-                return new InventorySlotSaveData
-                {
-                    Kind = (byte)ItemKind.Food,
-                    ToolId = (ushort)stack.FoodId,
-                    Count = stack.Count
-                };
-            }
-
-            return new InventorySlotSaveData
-            {
-                Kind = (byte)ItemKind.Block,
-                Block = (byte)stack.BlockType,
-                Count = stack.Count
-            };
-        }
-
-        private static ItemStack DeserializeHotbarSlot(InventorySlotSaveData data)
-        {
-            var kind = (ItemKind)data.Kind;
-            if (kind == ItemKind.FluidContainer && data.ToolId != 0)
-            {
-                return ItemStack.CreateFluidContainer((ItemId)data.ToolId);
-            }
-
-            if (kind == ItemKind.Food && data.ToolId != 0)
-            {
-                if (!FoodRegistry.TryGet((ItemId)data.ToolId, out _))
-                {
-                    return ItemStack.Empty;
-                }
-
-                return ItemStack.CreateFood((ItemId)data.ToolId, Math.Max(1, data.Count));
-            }
-
-            if (kind == ItemKind.Tool && data.ToolId != 0)
-            {
-                var toolId = (ItemId)data.ToolId;
-                if (!ToolRegistry.TryGet(toolId, out _))
-                {
-                    return ItemStack.Empty;
-                }
-
-                int maxDurability = data.MaxDurability > 0 ? data.MaxDurability : ToolRegistry.Get(toolId).MaxDurability;
-                int durability = data.Durability > 0 ? data.Durability : maxDurability;
-                return new ItemStack
-                {
-                    Kind = ItemKind.Tool,
-                    ToolId = toolId,
-                    Count = Math.Max(1, data.Count),
-                    Durability = durability,
-                    MaxDurability = maxDurability
-                };
-            }
-
-            if (data.Count <= 0 || data.Block == (byte)BlockType.Air || !Enum.IsDefined(typeof(BlockType), data.Block))
-            {
-                return ItemStack.Empty;
-            }
-
-            return ItemStack.CreateBlock((BlockType)data.Block, data.Count);
-        }
+        private static ItemStack DeserializeHotbarSlot(InventorySlotSaveData data) => ItemStackSaveCodec.Deserialize(data);
 
         private static void MigrateSaveData(WorldSaveData data)
         {
@@ -662,9 +564,9 @@ namespace Autonocraft.World
             }
         }
 
-        public static InventorySlotSaveData SerializeItemStack(ItemStack stack) => SerializeHotbarSlot(stack);
+        public static InventorySlotSaveData SerializeItemStack(ItemStack stack) => ItemStackSaveCodec.Serialize(stack);
 
-        public static ItemStack DeserializeItemStack(InventorySlotSaveData data) => DeserializeHotbarSlot(data);
+        public static ItemStack DeserializeItemStack(InventorySlotSaveData data) => ItemStackSaveCodec.Deserialize(data);
 
         private static PlayerSaveData CreateDefaultPlayerSaveData(int spawnX, int spawnZ)
         {

@@ -23,6 +23,15 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Autonocraft.Domain\Autonocraft.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Autonocraft.Diagnostics\Autonocraft.Diagnostics.csproj" />
+    <ProjectReference Include="..\..\src\Autonocraft.Items\Autonocraft.Items.csproj" />
+    <ProjectReference Include="..\..\src\Autonocraft.World\Autonocraft.World.csproj" />
+    <ProjectReference Include="..\..\src\Autonocraft.Entities\Autonocraft.Entities.csproj" />
+    <ProjectReference Include="..\..\src\Autonocraft.Crafting\Autonocraft.Crafting.csproj" />
+    <ProjectReference Include="..\..\src\Autonocraft.Village\Autonocraft.Village.csproj" />
+    <ProjectReference Include="..\..\src\Autonocraft.Ai\Autonocraft.Ai.csproj" />
+    <ProjectReference Include="..\..\src\Autonocraft.Engine\Autonocraft.Engine.csproj" />
+    <ProjectReference Include="..\..\src\Autonocraft.Core\Autonocraft.Core.csproj" />
     <ProjectReference Include="..\..\src\Autonocraft\Autonocraft.csproj" />
   </ItemGroup>
 

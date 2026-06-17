@@ -65,8 +65,16 @@ namespace Autonocraft.Core
                 }
             }
 
-            world.SetBlock(x, y, z, blockType);
-            return true;
+            return BlockPlacement.TryPlaceBlock(
+                world,
+                x,
+                y,
+                z,
+                blockType,
+                entityWidth,
+                entityHeight,
+                entityPosition,
+                checkEntityCollision: entityWidth > 0f && entityHeight > 0f);
         }
 
         public static bool EntityIntersectsBlock(
@@ -75,19 +83,8 @@ namespace Autonocraft.Core
             Vector3 position,
             int x,
             int y,
-            int z)
-        {
-            float minX = position.X - width / 2f;
-            float maxX = position.X + width / 2f;
-            float minY = position.Y;
-            float maxY = position.Y + height;
-            float minZ = position.Z - width / 2f;
-            float maxZ = position.Z + width / 2f;
-
-            return minX < x + 1 && maxX > x &&
-                   minY < y + 1 && maxY > y &&
-                   minZ < z + 1 && maxZ > z;
-        }
+            int z) =>
+            BlockPlacement.EntityIntersectsBlock(width, height, position, x, y, z);
 
         public static bool TryBreakAtLook(
             VoxelWorld world,

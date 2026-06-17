@@ -1,4 +1,4 @@
-using Autonocraft.Core;
+using Autonocraft.Domain.Core;
 
 namespace Autonocraft.Items
 {
@@ -8,9 +8,9 @@ namespace Autonocraft.Items
         {
             definition = id switch
             {
-                ItemId.RawMeat => new FoodDefinition("Raw Meat", SurvivalConstants.RawMeatRestore),
-                ItemId.CookedMeat => new FoodDefinition("Cooked Meat", SurvivalConstants.CookedMeatRestore),
-                ItemId.Bread => new FoodDefinition("Bread", SurvivalConstants.BreadRestore),
+                ItemId.RawMeat => new FoodDefinition("Raw Meat", GameDefaults.RawMeatRestore),
+                ItemId.CookedMeat => new FoodDefinition("Cooked Meat", GameDefaults.CookedMeatRestore),
+                ItemId.Bread => new FoodDefinition("Bread", GameDefaults.BreadRestore),
                 _ => default
             };
 

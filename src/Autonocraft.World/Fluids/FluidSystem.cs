@@ -4,15 +4,6 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace Autonocraft.World
 {
-    public sealed class FluidModification
-    {
-        public int X { get; set; }
-        public int Y { get; set; }
-        public int Z { get; set; }
-        public byte Level { get; set; }
-        public bool IsSource { get; set; }
-    }
-
     public sealed class FluidSystem
     {
         public const byte MaxLevel = 7;

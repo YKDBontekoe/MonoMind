@@ -7,6 +7,7 @@ using Autonocraft.Engine.Animation;
 using Autonocraft.Engine.Audio;
 using Autonocraft.Entities;
 using Autonocraft.Items;
+using Autonocraft.Items.Rendering;
 using Autonocraft.Village;
 using Autonocraft.World;
 using Microsoft.Xna.Framework.Graphics;
@@ -31,7 +32,8 @@ namespace Autonocraft.Core
         private AudioManager? _audio;
         private float _footstepTimer;
 
-        private readonly List<ItemEntity> _itemEntities = new List<ItemEntity>();
+        private readonly List<ItemEntity> _itemEntities = new();
+        private readonly ItemEntityViewList _itemEntityViews;
         private int _nextItemEntityId = 1;
 
         public Player Player { get; private set; }
@@ -56,6 +58,7 @@ namespace Autonocraft.Core
 
         public GameSession(int seed, WorldGenParams? parameters = null)
         {
+            _itemEntityViews = new ItemEntityViewList(_itemEntities);
             Player = CreateDefaultPlayer();
             Grid = new VoxelWorld(seed, parameters);
             Animals = new AnimalManager(seed);
@@ -486,7 +489,7 @@ namespace Autonocraft.Core
             _renderContext.Player = Player;
             _renderContext.Grid = Grid;
             _renderContext.Animals = Animals;
-            _renderContext.ItemEntities = ItemEntities;
+            _renderContext.ItemEntities = _itemEntityViews;
             _renderContext.Villagers = Villagers;
             _renderContext.Villages = Villages;
             _renderContext.BlockInteraction = BlockInteraction;
@@ -529,6 +532,27 @@ namespace Autonocraft.Core
                 ClaimedAnchors = Villages.ExportClaimedAnchors(),
                 Player = WorldSaveManager.BuildPlayerSaveData(Player)
             };
+        }
+
+        private sealed class ItemEntityViewList : IReadOnlyList<IItemEntityRenderView>
+        {
+            private readonly List<ItemEntity> _source;
+
+            public ItemEntityViewList(List<ItemEntity> source) => _source = source;
+
+            public int Count => _source.Count;
+
+            public IItemEntityRenderView this[int index] => _source[index];
+
+            public IEnumerator<IItemEntityRenderView> GetEnumerator()
+            {
+                foreach (var item in _source)
+                {
+                    yield return item;
+                }
+            }
+
+            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
         }
     }
 }

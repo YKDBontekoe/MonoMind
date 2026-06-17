@@ -2,7 +2,7 @@ using System;
 using System.Numerics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Autonocraft.Core;
+using Autonocraft.Domain.Rendering;
 using Autonocraft.Engine.Animation;
 using Autonocraft.Village;
 using Autonocraft.World;
@@ -36,7 +36,7 @@ namespace Autonocraft.Engine
         }
 
         public void Draw(
-            BlockInteractionSystem interaction,
+            IBlockInteractionOverlay interaction,
             ParticleSystem particles,
             Matrix view,
             Matrix projection,

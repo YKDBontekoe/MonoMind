@@ -34,7 +34,8 @@ namespace Autonocraft.Core.DevCommands.Commands
                 }
             }
 
-            int spawned = session.Animals.SpawnInFrontOfPlayer(session.Player, session.Grid, type, count);
+            int spawned = session.Animals.SpawnInFrontOfPlayer(
+                session.Player.Position, session.Player.Yaw, session.Grid, type, count);
             return spawned == 0
                 ? $"Failed to spawn {type}"
                 : $"Spawned {spawned}x {type}";

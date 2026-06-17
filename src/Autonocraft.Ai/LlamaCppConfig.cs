@@ -1,5 +1,3 @@
-using Autonocraft.Core;
-
 namespace Autonocraft.Ai
 {
     public sealed class LlamaCppConfig

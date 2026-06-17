@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text;
+using Autonocraft.Diagnostics;
 using Autonocraft.World;
 
 namespace Autonocraft.Core
@@ -40,6 +41,7 @@ namespace Autonocraft.Core
             }
 
             _enabled = true;
+            WorldDebugTrace.LogChunkEvent = LogChunkEvent;
             string path = GetLogPath();
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             _writer = new StreamWriter(path, append: false, Encoding.UTF8) { AutoFlush = true };
@@ -54,6 +56,7 @@ namespace Autonocraft.Core
             }
 
             Log("TRACE SHUTDOWN");
+            WorldDebugTrace.LogChunkEvent = null;
             _writer?.Dispose();
             _writer = null;
             _enabled = false;

@@ -1,5 +1,5 @@
 using System;
-using Autonocraft.Core;
+using Autonocraft.Domain.Core;
 
 namespace Autonocraft.Engine.Animation
 {

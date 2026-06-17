@@ -2,7 +2,6 @@ using System;
 using System.Numerics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Autonocraft.Core;
 using Autonocraft.Domain.Village;
 using Autonocraft.Entities;
 using Autonocraft.World;
@@ -61,8 +60,8 @@ namespace Autonocraft.Engine
                 }
 
                 string line1 = villager.Name.ToUpperInvariant();
-                string line2 = UI.Village.VillagerActivityText.Describe(villager).ToUpperInvariant();
-                string line3 = UI.Village.VillagerActivityText.DescribeProgress(villager);
+                string line2 = Autonocraft.Village.VillagerActivityText.Describe(villager).ToUpperInvariant();
+                string line3 = Autonocraft.Village.VillagerActivityText.DescribeProgress(villager);
                 if (!string.IsNullOrEmpty(line3))
                 {
                     line2 += $" · {line3.ToUpperInvariant()}";

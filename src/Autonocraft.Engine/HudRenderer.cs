@@ -3,7 +3,6 @@ using System.Numerics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Autonocraft.Domain.Core;
-using Autonocraft.Core;
 using Autonocraft.Engine.Animation;
 using Autonocraft.Items;
 using Autonocraft.World;
@@ -136,7 +135,7 @@ namespace Autonocraft.Engine
 
             for (int i = 0; i < 9; i++)
             {
-                var slotItem = player.Hotbar[i];
+                var slotItem = player.GetHotbarSlot(i);
                 if (slotItem.IsBlock())
                 {
                     float slotXMin = hotbarXMin + i * (slotSize + slotSpacing);
@@ -214,7 +213,7 @@ namespace Autonocraft.Engine
                 string keyLabel = (i + 1).ToString();
                 DrawHudText(_spriteBatch, _whiteTexture, keyLabel, slotXMin + layout.S(3f), hotbarYMin + layout.S(2f), keyLabelSize, UiTheme.HudTextSecondary, 0.85f);
 
-                var slotItem = player.Hotbar[i];
+                var slotItem = player.GetHotbarSlot(i);
                 if (slotItem.IsEmpty)
                 {
                     continue;
@@ -265,7 +264,7 @@ namespace Autonocraft.Engine
             _spriteBatch.Dispose();
         }
 
-        private void DrawHeldToolItem(UiLayout layout, float sw, float sh, Player player, InteractionAnimator animator)
+        private void DrawHeldToolItem(UiLayout layout, float sw, float sh, IPlayerHudView player, InteractionAnimator animator)
         {
             var stack = player.GetSelectedStack();
             if (stack.IsEmpty || !stack.IsTool())
@@ -290,7 +289,7 @@ namespace Autonocraft.Engine
             DrawRotatedSprite(source, pivotX, pivotY + offsetY, itemSize, rad, cos, sin, half);
         }
 
-        private void DrawHeldBlockItem(UiLayout layout, float sw, float sh, Player player, InteractionAnimator animator)
+        private void DrawHeldBlockItem(UiLayout layout, float sw, float sh, IPlayerHudView player, InteractionAnimator animator)
         {
             var stack = player.GetSelectedStack();
             if (stack.IsEmpty || !stack.IsBlock())
@@ -363,7 +362,7 @@ namespace Autonocraft.Engine
             }
         }
 
-        private void DrawHudCrosshair(UiLayout layout, float cx, float cy, BlockInteractionSystem interaction, InteractionAnimator animator)
+        private void DrawHudCrosshair(UiLayout layout, float cx, float cy, IBlockInteractionOverlay interaction, InteractionAnimator animator)
         {
             cx += animator.InvalidShakePhase * layout.S(6f);
             cy += animator.InvalidShakePhase * layout.S(3f);
@@ -484,7 +483,7 @@ namespace Autonocraft.Engine
             DrawHudText(_spriteBatch, _whiteTexture, timeLabel, badgeX + layout.S(34f), badgeY + layout.S(10f), textSize, UiTheme.HudTextPrimary, 0.95f);
         }
 
-        private void DrawHudStatusCard(UiLayout layout, Player player, int activeChunksCount)
+        private void DrawHudStatusCard(UiLayout layout, IPlayerHudView player, int activeChunksCount)
         {
             float cardW = layout.S(168f);
             float cardH = layout.S(124f);
@@ -533,7 +532,7 @@ namespace Autonocraft.Engine
 
             if (player.HeadUnderwater)
             {
-                float o2Ratio = Math.Clamp(player.Oxygen / Player.MaxOxygen, 0f, 1f);
+                float o2Ratio = Math.Clamp(player.Oxygen / PlayerConstants.MaxOxygen, 0f, 1f);
                 float o2Y = barY + barH + layout.S(8f);
                 _spriteBatch.Draw(_whiteTexture, new Rectangle((int)(barX - 1), (int)(o2Y - 1), (int)(barW + 2), (int)(barH + 2)), UiTheme.HudGlassBorder * 0.55f);
                 _spriteBatch.Draw(_whiteTexture, new Rectangle((int)barX, (int)o2Y, (int)barW, (int)barH), UiTheme.HudBarTrack * 0.95f);
@@ -553,7 +552,7 @@ namespace Autonocraft.Engine
             DrawSkillBar(layout, "CMB", player.Skills.Combat, cardX + layout.S(14f), skillY + skillLineH * 2f, cardW - layout.S(28f), skillLineH);
         }
 
-        private void DrawHudStatusCardText(UiLayout layout, Player player, int activeChunksCount)
+        private void DrawHudStatusCardText(UiLayout layout, IPlayerHudView player, int activeChunksCount)
         {
             float cardW = layout.S(168f);
             float cardH = layout.S(124f);
@@ -586,7 +585,7 @@ namespace Autonocraft.Engine
             DrawHudText(_spriteBatch, _whiteTexture, chunkText, cardX + cardW - layout.S(14f) - chunkW, metaY, metaSize, UiTheme.HudTextSecondary, 0.9f);
         }
 
-        private void DrawHudModeBadge(UiLayout layout, Player player)
+        private void DrawHudModeBadge(UiLayout layout, IPlayerHudView player)
         {
             float badgeW = layout.S(118f);
             float badgeH = layout.S(34f);
@@ -596,7 +595,7 @@ namespace Autonocraft.Engine
             DrawHudGlassPanel(_spriteBatch, badgeX, badgeY, badgeW, badgeH, accent, 0.82f);
         }
 
-        private void DrawHudModeBadgeText(UiLayout layout, Player player)
+        private void DrawHudModeBadgeText(UiLayout layout, IPlayerHudView player)
         {
             float badgeW = layout.S(118f);
             float badgeH = layout.S(34f);
@@ -868,7 +867,7 @@ namespace Autonocraft.Engine
             lineY += layout.S(16f);
 
             // FPS & System info
-            float fps = RuntimeMetrics.RollingFps;
+            float fps = PerfCounters.RollingFps;
             float frameTime = PerfCounters.LastUpdateMs + PerfCounters.LastDrawMs;
             DrawPerfLine("FPS (Rolling)", $"{fps:F1}", x, lineY, w, layout, UiTheme.Title);
             lineY += layout.S(13f);

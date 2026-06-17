@@ -2,7 +2,7 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace Autonocraft.Engine
+namespace Autonocraft.World
 {
     [StructLayout(LayoutKind.Sequential)]
     public struct FloraVertex : IVertexType

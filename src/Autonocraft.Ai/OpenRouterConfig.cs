@@ -1,5 +1,3 @@
-using Autonocraft.Core;
-
 namespace Autonocraft.Ai
 {
     public sealed class OpenRouterConfig
@@ -43,7 +41,7 @@ namespace Autonocraft.Ai
 
             if (!config.IsConfigured)
             {
-                TryLoadKeyFile(Path.Combine(GameSettingsManager.GetSettingsDirectory(), "openrouter_key.txt"), config);
+                TryLoadKeyFile(Path.Combine(GamePaths.GetSettingsDirectory(), "openrouter_key.txt"), config);
             }
 
             if (!config.IsConfigured)

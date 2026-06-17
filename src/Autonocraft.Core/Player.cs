@@ -1,13 +1,16 @@
 using System;
 using System.Numerics;
+using Autonocraft.Domain.Entities;
+using Autonocraft.Domain.Rendering;
 using Autonocraft.Engine.Animation;
+using Autonocraft.Items.Rendering;
 using Autonocraft.Entities;
 using Autonocraft.Items;
 using Autonocraft.World;
 
 namespace Autonocraft.Core
 {
-    public class Player
+    public class Player : ICraftingPlayer, INightThreatPlayer, IPlayerHudView, IPlayerMotionView, IPlayerAmbientView
     {
         public Vector3 Position;
         public Vector3 Velocity;
@@ -23,16 +26,16 @@ namespace Autonocraft.Core
 
         public const float Width = 0.6f;
         public const float Height = 1.8f;
-        public const float EyeHeight = 1.6f;
+        public const float EyeHeight = PlayerConstants.EyeHeight;
 
         public const float Gravity = -38f;
-        public const float WalkSpeed = 5.0f;
+        public const float WalkSpeed = PlayerConstants.WalkSpeed;
         public const float FlySpeed = 15.0f;
         public const float JumpForce = 9.8f;
         public const float Damping = 0.15f;
 
         public const float SwimSpeed = 4.5f;
-        public const float MaxOxygen = 15f;
+        public const float MaxOxygen = PlayerConstants.MaxOxygen;
         public const float OxygenDamagePerSecond = 2f;
 
         public bool IsGrounded { get; private set; }
@@ -746,5 +749,162 @@ namespace Autonocraft.Core
 
             return sb.ToString();
         }
+
+        int IItemContainer.SlotCount => StorageSlotCount + Hotbar.Length;
+
+        ItemStack IItemContainer.GetSlot(int index)
+        {
+            if (index < Hotbar.Length)
+            {
+                return Hotbar[index];
+            }
+
+            return Storage.GetSlot(index - Hotbar.Length);
+        }
+
+        void IItemContainer.SetSlot(int index, ItemStack stack)
+        {
+            if (index < Hotbar.Length)
+            {
+                Hotbar[index] = stack;
+                return;
+            }
+
+            Storage.SetSlot(index - Hotbar.Length, stack);
+        }
+
+        bool IItemContainer.TryConsumeBlock(BlockType blockType, int count)
+        {
+            if (CreativeMode)
+            {
+                return true;
+            }
+
+            int available = ((IItemContainer)this).CountBlock(blockType);
+            if (available < count)
+            {
+                return false;
+            }
+
+            int remaining = count;
+            for (int i = 0; i < ((IItemContainer)this).SlotCount && remaining > 0; i++)
+            {
+                var slot = ((IItemContainer)this).GetSlot(i);
+                if (!slot.IsBlock() || slot.BlockType != blockType)
+                {
+                    continue;
+                }
+
+                int take = Math.Min(slot.Count, remaining);
+                slot.Count -= take;
+                remaining -= take;
+                if (slot.Count <= 0)
+                {
+                    slot = ItemStack.Empty;
+                }
+
+                ((IItemContainer)this).SetSlot(i, slot);
+            }
+
+            return remaining == 0;
+        }
+
+        int IItemContainer.CountBlock(BlockType blockType)
+        {
+            if (CreativeMode)
+            {
+                return int.MaxValue / 2;
+            }
+
+            int total = 0;
+            for (int i = 0; i < ((IItemContainer)this).SlotCount; i++)
+            {
+                var slot = ((IItemContainer)this).GetSlot(i);
+                if (slot.IsBlock() && slot.BlockType == blockType)
+                {
+                    total += slot.Count;
+                }
+            }
+
+            return total;
+        }
+
+        bool IItemContainer.AddItem(ItemStack item) => AddItem(item);
+
+        bool IItemContainer.HasSpaceFor(ItemStack item) => HasSpaceFor(item);
+
+        void ICraftingPlayer.RecordItemCrafted() => Stats.RecordItemCrafted();
+
+        bool ICraftingPlayer.TryConsumeFood(ItemId foodId, int count)
+        {
+            int remaining = count;
+            for (int i = 0; i < Hotbar.Length && remaining > 0; i++)
+            {
+                ref var slot = ref Hotbar[i];
+                if (!slot.IsFood() || slot.FoodId != foodId)
+                {
+                    continue;
+                }
+
+                int take = Math.Min(slot.Count, remaining);
+                slot.Count -= take;
+                if (slot.Count <= 0)
+                {
+                    slot = ItemStack.Empty;
+                }
+
+                remaining -= take;
+            }
+
+            return remaining <= 0;
+        }
+
+        bool ICraftingPlayer.TryTakeOneFromHotbar(int hotbarIndex, out ItemStack taken)
+        {
+            taken = ItemStack.Empty;
+            if (hotbarIndex < 0 || hotbarIndex >= Hotbar.Length)
+            {
+                return false;
+            }
+
+            ref var slot = ref Hotbar[hotbarIndex];
+            if (slot.IsEmpty || (!slot.IsBlock() && !slot.IsMaterial()))
+            {
+                return false;
+            }
+
+            if (slot.IsBlock())
+            {
+                taken = ItemStack.CreateBlock(slot.BlockType, 1);
+                slot.Count--;
+                if (slot.Count <= 0)
+                {
+                    slot = ItemStack.Empty;
+                }
+
+                return true;
+            }
+
+            taken = ItemStack.CreateMaterial(slot.MaterialId, 1);
+            slot.Count--;
+            if (slot.Count <= 0)
+            {
+                slot = ItemStack.Empty;
+            }
+
+            return true;
+        }
+
+        Vector3 INightThreatPlayer.Position => Position;
+
+        Action<string>? INightThreatPlayer.ShowToast => ShowToast;
+
+        Vector3 IPlayerHudView.Position => Position;
+
+        Vector3 IPlayerMotionView.Velocity => Velocity;
+
+        Vector3 IPlayerAmbientView.Position => Position;
+
+        public ItemStack GetHotbarSlot(int index) => Hotbar[index];
     }
 }

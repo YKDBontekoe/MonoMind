@@ -1,8 +1,7 @@
 using System;
 using System.Collections.Generic;
-using Autonocraft.Core;
-using Autonocraft.Domain.World;
 using Autonocraft.Domain.Core;
+using Autonocraft.Domain.Entities;
 using Autonocraft.World;
 using Microsoft.Xna.Framework.Audio;
 
@@ -201,7 +200,7 @@ namespace Autonocraft.Engine.Audio
             _ducked = ducked;
         }
 
-        public void Update(float deltaTime, GameState gameState, VoxelWorld? world, Player? player, float timeOfDay = 0.5f)
+        public void Update(float deltaTime, GameState gameState, VoxelWorld? world, IPlayerAmbientView? player, float timeOfDay = 0.5f)
         {
             if (!_enabled)
             {
@@ -259,7 +258,7 @@ namespace Autonocraft.Engine.Audio
             }
         }
 
-        private void UpdateAmbient(GameState gameState, VoxelWorld? world, Player? player, float deltaTime, float timeOfDay)
+        private void UpdateAmbient(GameState gameState, VoxelWorld? world, IPlayerAmbientView? player, float deltaTime, float timeOfDay)
         {
             float duck = _ducked ? DuckMultiplier : 1f;
             bool playing = gameState == GameState.Playing && world != null && player != null;
@@ -403,7 +402,7 @@ namespace Autonocraft.Engine.Audio
         private static bool IsOutdoors(VoxelWorld world, System.Numerics.Vector3 position)
         {
             int x = (int)MathF.Floor(position.X);
-            int y = (int)MathF.Floor(position.Y + Core.Player.EyeHeight);
+            int y = (int)MathF.Floor(position.Y + PlayerConstants.EyeHeight);
             int z = (int)MathF.Floor(position.Z);
 
             int airCount = 0;

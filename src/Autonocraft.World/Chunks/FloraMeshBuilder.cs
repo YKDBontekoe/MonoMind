@@ -4,7 +4,7 @@ using Autonocraft.World;
 using Vector3 = System.Numerics.Vector3;
 using Vector2 = System.Numerics.Vector2;
 
-namespace Autonocraft.Engine
+namespace Autonocraft.World
 {
     internal static class FloraMeshBuilder
     {

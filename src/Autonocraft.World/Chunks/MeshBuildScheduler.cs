@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using Autonocraft.Core;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace Autonocraft.World
@@ -93,7 +92,7 @@ namespace Autonocraft.World
                 {
                     clearBuildInFlight(pending.Chunk, pending.Data.Detail);
                     requeueScratch.Add((pending.Chunk.ChunkX, pending.Chunk.ChunkZ));
-                    InputDebugTrace.LogChunkEvent($"mesh upload failed ({pending.Chunk.ChunkX},{pending.Chunk.ChunkZ}): {ex.Message}");
+                    WorldDebugTrace.LogChunkEvent?.Invoke($"mesh upload failed ({pending.Chunk.ChunkX},{pending.Chunk.ChunkZ}): {ex.Message}");
                 }
                 finally
                 {
@@ -159,7 +158,7 @@ namespace Autonocraft.World
                 catch (Exception ex)
                 {
                     clearBuildInFlight(capturedChunk, capturedDetail);
-                    InputDebugTrace.LogChunkEvent($"async mesh build failed ({capturedChunk.ChunkX},{capturedChunk.ChunkZ}): {ex.Message}");
+                    WorldDebugTrace.LogChunkEvent?.Invoke($"async mesh build failed ({capturedChunk.ChunkX},{capturedChunk.ChunkZ}): {ex.Message}");
                     _failedMeshRequeues.Enqueue((capturedChunk.ChunkX, capturedChunk.ChunkZ));
                 }
                 finally

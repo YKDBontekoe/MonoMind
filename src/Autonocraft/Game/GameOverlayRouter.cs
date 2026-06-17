@@ -1,0 +1,602 @@
+using System;
+using Microsoft.Xna.Framework.Input;
+using Autonocraft.Ai;
+using Autonocraft.Crafting;
+using Autonocraft.Items;
+using Autonocraft.Village;
+using Autonocraft.World;
+using Vector3 = System.Numerics.Vector3;
+
+namespace Autonocraft.Core
+{
+    public partial class AutonocraftGame
+    {
+        private string? _deathCauseText;
+        private string? _deathPenaltyText;
+
+        private void OpenPauseMenu()
+        {
+            _input.MouseLockedBeforePause = _input.IsMouseLocked;
+            _screens.OpenPauseMenu(PrepareMouseForUi, title => Window.Title = title);
+        }
+
+        private void ClosePauseMenu()
+        {
+            _input.IsMouseLocked = _input.MouseLockedBeforePause;
+            _screens.ClosePauseMenu(RestoreMouseLockAfterOverlay);
+        }
+
+        private void OpenDeathScreen()
+        {
+            var player = _session.Player;
+            if (!player.DeathConsequencesApplied)
+            {
+                DeathConsequences.ApplyOnDeath(player);
+                player.DeathConsequencesApplied = true;
+            }
+
+            _deathCauseText = FormatDeathCause(player.LastDeathCause);
+            _deathPenaltyText = "You dropped some supplies.";
+            player.Stats.RecordDeath();
+            _input.MouseLockedBeforeDeath = _input.IsMouseLocked;
+            _screens.OpenDeathScreen(_deathCauseText, _deathPenaltyText, () =>
+            {
+                _input.IsMouseLocked = false;
+                ReleaseMouseCapture();
+                IsMouseVisible = true;
+            });
+            Window.Title = "Autonocraft | You Died";
+        }
+
+        private void CloseDeathScreen()
+        {
+            _input.IsMouseLocked = _input.MouseLockedBeforeDeath;
+            _screens.CloseDeathScreen(RestoreMouseLockAfterOverlay);
+        }
+
+        private void QuitFromPauseMenu()
+        {
+            SaveWorld(sync: true);
+            Exit();
+        }
+
+        private bool UpdateBlockingGameplayOverlays(
+            float deltaTime,
+            KeyboardState kbState,
+            MouseState mouseState)
+        {
+            if (_screens.DevConsole!.IsOpen)
+            {
+                EnsureUiPointerMode();
+                _screens.DevConsole.Update(GraphicsDevice.Viewport, kbState, _input.PrevKeyboard, _hostContext);
+                return true;
+            }
+
+            if (_screens.DeathScreen!.IsOpen)
+            {
+                EnsureUiPointerMode();
+                _screens.DeathScreen.Update(GraphicsDevice.Viewport, kbState, mouseState, _input.PrevKeyboard, _input.PrevMouse, deltaTime);
+
+                if (_screens.DeathScreen.RespawnRequested)
+                {
+                    CombatSystem.RespawnPlayer(_session.Grid, _session.Player, _worldSpawnX, _worldSpawnZ);
+                    _deathCauseText = null;
+                    _deathPenaltyText = null;
+                    CloseDeathScreen();
+                }
+                else if (_screens.DeathScreen.MainMenuRequested)
+                {
+                    ReturnToMainMenu();
+                }
+
+                return true;
+            }
+
+            if (_screens.PauseMenu!.IsOpen)
+            {
+                EnsureUiPointerMode();
+                _screens.PauseMenu.Update(GraphicsDevice.Viewport, kbState, mouseState, _input.PrevKeyboard, _input.PrevMouse, deltaTime);
+
+                if (_screens.PauseMenu.ResumeRequested)
+                {
+                    ClosePauseMenu();
+                }
+                else if (_screens.PauseMenu.SaveNowRequested)
+                {
+                    SaveWorld(sync: true);
+                    _session.HudToast.Show("World saved");
+                }
+                else if (_screens.PauseMenu.MainMenuRequested)
+                {
+                    ReturnToMainMenu();
+                }
+                else if (_screens.PauseMenu.QuitRequested)
+                {
+                    QuitFromPauseMenu();
+                }
+
+                return true;
+            }
+
+            if (_screens.VillageChatScreen!.IsOpen)
+            {
+                EnsureUiPointerMode();
+                _screens.VillageChatScreen.Update(GraphicsDevice.Viewport, _session, kbState, _input.PrevKeyboard, mouseState, _input.PrevMouse, deltaTime);
+                return true;
+            }
+
+            if (_screens.VillageScreen!.IsOpen)
+            {
+                EnsureUiPointerMode();
+                if ((kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape))
+                    || (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.V) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.V)))
+                {
+                    CloseVillageUi();
+                    return true;
+                }
+
+                _screens.VillageScreen.SetPlayerPosition(_session.Player.Position);
+                _screens.VillageScreen.Update(GraphicsDevice.Viewport, kbState, mouseState, _input.PrevKeyboard, _input.PrevMouse);
+                if (_screens.VillageScreen.CloseRequested)
+                {
+                    CloseVillageUi();
+                }
+                else
+                {
+                    HandleVillageScreenActions();
+                }
+
+                return true;
+            }
+
+            if (_session.Crafting.InventoryOpen)
+            {
+                UpdateInventoryOverlay(kbState, mouseState);
+                return true;
+            }
+
+            if (_session.Crafting.Crucible.IsOpen)
+            {
+                UpdateCrucibleOverlay(deltaTime, kbState, mouseState);
+                return true;
+            }
+
+            if (_session.Crafting.IsJournalUiBlocking)
+            {
+                EnsureUiPointerMode();
+                _session.Crafting.UpdateJournal(deltaTime);
+
+                bool closeJournal = (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.J) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.J))
+                    || (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape));
+
+                if (closeJournal && (_session.Crafting.JournalOpen || _session.Crafting.JournalTransition.Alpha > 0.01f))
+                {
+                    _session.Crafting.CloseJournal();
+                    _input.IsMouseLocked = _input.MouseLockedBeforeCrafting;
+                    RestoreMouseLockAfterOverlay();
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
+        private void HandleVillageScreenActions()
+        {
+            if (_screens.VillageScreen!.IsFoundingMode)
+            {
+                if (_screens.VillageScreen.PlaceTownHeartRequested)
+                {
+                    _blueprints.StartFoundingTownHeartPlacement(CloseVillageUi);
+                    EnsureMouseLockedForGameplay();
+                }
+                else if (_screens.VillageScreen.ClaimRequested)
+                {
+                    if (_session.Villages.TryFindClaimableStructure(
+                            _session.Grid,
+                            _session.Player.Position,
+                            24f,
+                            out int ax,
+                            out int az,
+                            out _))
+                    {
+                        if (_session.Villages.TryClaimStructure(_session.Grid, ax, az, out _))
+                        {
+                            CloseVillageUi();
+                            OpenVillageUi();
+                        }
+                    }
+                }
+
+                return;
+            }
+
+            var village = _session.Villages.GetActiveVillage(_session.Player.Position);
+            if (village == null)
+            {
+                return;
+            }
+
+            if (_screens.VillageScreen!.SummonSettlersRequested)
+            {
+                _session.Villages.RepairVillageCitizens(village, _session.Grid);
+            }
+            else if (_screens.VillageScreen.RecruitRequested)
+            {
+                _session.Villages.TryRecruit(village, _session.Grid);
+            }
+            else if (_screens.VillageScreen.ClaimRequested)
+            {
+                if (_session.Villages.TryFindClaimableStructure(
+                        _session.Grid,
+                        _session.Player.Position,
+                        24f,
+                        out int ax,
+                        out int az,
+                        out _))
+                {
+                    _session.Villages.TryClaimStructure(_session.Grid, ax, az, out _);
+                }
+            }
+            else if (_screens.VillageScreen.RequestedBlueprintId != null && _screens.VillageScreen.RequestBlueprintPlacement)
+            {
+                _blueprints.StartBlueprintPlacement(village, _screens.VillageScreen.RequestedBlueprintId, CloseVillageUi);
+                EnsureMouseLockedForGameplay();
+            }
+            else if (_screens.VillageScreen.RequestWorkZonePlacement)
+            {
+                _blueprints.StartWorkZonePlacement(CloseVillageUi);
+                EnsureMouseLockedForGameplay();
+            }
+            else if (_screens.VillageScreen.RequestedChatVillagerId >= 0 &&
+                     _session.Villagers.TryGet(_screens.VillageScreen.RequestedChatVillagerId, out var chatVillager))
+            {
+                CloseVillageUi();
+                OpenVillageChatWithVillager(village, chatVillager.Id, chatVillager.Name);
+            }
+            else if (_screens.VillageScreen.RequestedAssignVillagerId >= 0 &&
+                     _session.Villagers.TryGet(_screens.VillageScreen.RequestedAssignVillagerId, out var villager))
+            {
+                _session.Villages.TryAssignJob(village, villager, _screens.VillageScreen.RequestedAssignJob);
+            }
+        }
+
+        private void OpenVillageChatWithVillager(Village.Village village, int villagerId, string villagerName)
+        {
+            PrepareMouseForUi();
+            _screens.VillageChatScreen!.OpenWithVillager(village, villagerId, villagerName);
+        }
+
+        public void OpenCrucibleAt(int x, int y, int z, BlockType stationType)
+        {
+            _input.MouseLockedBeforeCrafting = _input.IsMouseLocked;
+            PrepareMouseForUi();
+            _session.Crafting.OpenCrucible(x, y, z, stationType);
+        }
+
+        private void CloseCrucibleUi()
+        {
+            _session.Crafting.CloseCrucible();
+            _session.Crafting.CloseRecipeBook();
+            _input.IsMouseLocked = _input.MouseLockedBeforeCrafting;
+            RestoreMouseLockAfterOverlay();
+        }
+
+        private void CloseInventoryUi()
+        {
+            if (!_session.Crafting.CraftCursor.IsEmpty)
+            {
+                _session.Player.AddItem(_session.Crafting.CraftCursor);
+                _session.Crafting.CraftCursor = ItemStack.Empty;
+            }
+
+            _session.Crafting.CloseInventory();
+            _session.Crafting.CloseRecipeBook();
+            _input.IsMouseLocked = _input.MouseLockedBeforeCrafting;
+            RestoreMouseLockAfterOverlay();
+        }
+
+        private void UpdateInventoryOverlay(KeyboardState kbState, MouseState mouseState)
+        {
+            EnsureUiPointerMode();
+            _screens.InventoryScreen!.Update(
+                GraphicsDevice.Viewport,
+                _session.Player,
+                _session.Crafting,
+                kbState,
+                mouseState,
+                _input.PrevKeyboard,
+                _input.PrevMouse);
+
+            _screens.InventoryScreen.HandleClicks(_session.Player, _session.Crafting);
+            _screens.InventoryScreen.HandleRecipeBookClick(_session.Crafting, _session.Player);
+
+            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.B) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.B))
+            {
+                _session.Crafting.ToggleRecipeBook();
+            }
+
+            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape))
+            {
+                CloseInventoryUi();
+            }
+        }
+
+        /// <summary>
+        /// Toggle inventory on I edge. Frame guard prevents fixed-timestep double Update from open+close on one press.
+        /// </summary>
+        private bool HandleInventoryKey(KeyboardState kbState)
+        {
+            if (!_session.Player.IsAlive)
+            {
+                return false;
+            }
+
+            if (_screens.PauseMenu?.IsOpen == true
+                || _screens.DeathScreen?.IsOpen == true
+                || _screens.VillageScreen?.IsOpen == true
+                || _session.Crafting.Crucible.IsOpen
+                || _session.Crafting.IsJournalUiBlocking)
+            {
+                return false;
+            }
+
+            if (!kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.I) || _input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.I))
+            {
+                return false;
+            }
+
+            if (_input.LastInventoryKeyFrame == _input.GameFrameCount)
+            {
+                return false;
+            }
+
+            _input.LastInventoryKeyFrame = _input.GameFrameCount;
+
+            if (_session.Crafting.InventoryOpen)
+            {
+                CloseInventoryUi();
+            }
+            else
+            {
+                _input.MouseLockedBeforeCrafting = _input.IsMouseLocked;
+                PrepareMouseForUi();
+                _session.Crafting.OpenInventory();
+            }
+
+            return true;
+        }
+
+        private void OpenVillageUi()
+        {
+            var village = _session.Villages.GetActiveVillage(_session.Player.Position);
+            if (village == null)
+            {
+                _input.MouseLockedBeforeVillageUi = _input.IsMouseLocked;
+                PrepareMouseForUi();
+                TryActivateWindow();
+                _screens.VillageScreen!.OpenFounding(
+                    _session.Villages,
+                    _session.Grid,
+                    _session.Player.Position,
+                    new PlayerHotbarAdapter(_session.Player),
+                    _session.Player.CreativeMode,
+                    _settings.PlayWithAi && _settings.AiProvider != AiProviderKind.Disabled);
+                return;
+            }
+
+            if (_session.Villages.RepairVillageCitizens(village, _session.Grid))
+            {
+                village.ReconcileVillagerRegistry(_session.Villagers.All);
+            }
+
+            _session.Villages.SyncCitizensForVillage(village);
+
+            string? openingNote = null;
+            int citizens = VillageSettlementHealth.GetLivePopulation(village, _session.Villagers);
+            if (citizens == 0)
+            {
+                openingNote = "Settlers are being summoned to your Town Heart. Check the PEOPLE tab in a moment.";
+            }
+            else if (citizens < 2 && village.Name.Contains("Founder", StringComparison.OrdinalIgnoreCase))
+            {
+                openingNote = $"{citizens} settler(s) on site — open PEOPLE tab to assign LUMBER or BUILD.";
+            }
+
+            _input.MouseLockedBeforeVillageUi = _input.IsMouseLocked;
+            PrepareMouseForUi();
+            TryActivateWindow();
+            _screens.VillageScreen!.Open(
+                village,
+                _session.Villages,
+                _session.Grid,
+                _session.Player.Position,
+                new PlayerHotbarAdapter(_session.Player),
+                _session.Player.CreativeMode,
+                openingNote,
+                _settings.PlayWithAi && _settings.AiProvider != AiProviderKind.Disabled,
+                earlyGuideStage: _session.Player.Stats.EarlyGuideStage);
+        }
+
+        private void OpenVillageUiToPeopleTab()
+        {
+            OpenVillageUi();
+            _screens.VillageScreen?.OpenPeopleTab();
+        }
+
+        private static string FormatDeathCause(DeathCause cause) => cause switch
+        {
+            DeathCause.Fall => "You fell from a great height.",
+            DeathCause.Drown => "You drowned.",
+            DeathCause.Starvation => "You starved.",
+            DeathCause.Wolf => "A wolf killed you.",
+            DeathCause.Animal => "An animal killed you.",
+            DeathCause.Lava => "You tried to swim in lava.",
+            DeathCause.Suffocate => "You suffocated.",
+            _ => "YOUR ADVENTURE ISN'T OVER"
+        };
+
+        private IItemContainer WrapPlayerHotbar() => new PlayerHotbarAdapter(_session.Player);
+
+        private void CloseVillageUi()
+        {
+            _screens.VillageScreen!.Close();
+            _input.IsMouseLocked = _input.MouseLockedBeforeVillageUi;
+            RestoreMouseLockAfterOverlay();
+        }
+
+        private void OpenVillageChatUi()
+        {
+            if (!_settings.PlayWithAi || _settings.AiProvider == AiProviderKind.Disabled)
+            {
+                _session.HudToast.Show("Village AI is off. Enable it in main menu Settings.");
+                return;
+            }
+
+            var village = _session.Villages.GetActiveVillage(_session.Player.Position);
+            if (village == null)
+            {
+                _session.HudToast.Show("No village nearby. Press V to place a Town Heart.");
+                return;
+            }
+
+            var nearest = _session.Villagers.GetNearest(_session.Player.Position, 8f);
+            string target = nearest != null ? nearest.Id.ToString() : "mayor";
+            _input.MouseLockedBeforeVillageUi = _input.IsMouseLocked;
+            PrepareMouseForUi();
+            _screens.VillageChatScreen!.Open(village, target, nearest == null);
+        }
+
+        private sealed class PlayerHotbarAdapter : IItemContainer
+        {
+            private readonly Player _player;
+            public PlayerHotbarAdapter(Player player) => _player = player;
+            public int SlotCount => _player.Hotbar.Length;
+            public ItemStack GetSlot(int index) => _player.Hotbar[index];
+            public void SetSlot(int index, ItemStack stack) => _player.Hotbar[index] = stack;
+            public bool AddItem(ItemStack item) => _player.AddItem(item);
+            public bool TryConsumeBlock(BlockType blockType, int count)
+            {
+                if (_player.CreativeMode)
+                {
+                    return true;
+                }
+
+                int have = CountBlock(blockType);
+                if (have < count) return false;
+                int remaining = count;
+                for (int i = 0; i < _player.Hotbar.Length && remaining > 0; i++)
+                {
+                    if (!_player.Hotbar[i].IsBlock() || _player.Hotbar[i].BlockType != blockType) continue;
+                    int take = Math.Min(_player.Hotbar[i].Count, remaining);
+                    _player.Hotbar[i].Count -= take;
+                    remaining -= take;
+                    if (_player.Hotbar[i].Count <= 0) _player.Hotbar[i] = ItemStack.Empty;
+                }
+                return remaining == 0;
+            }
+            public int CountBlock(BlockType blockType)
+            {
+                if (_player.CreativeMode)
+                {
+                    return int.MaxValue / 2;
+                }
+
+                int total = 0;
+                for (int i = 0; i < _player.Hotbar.Length; i++)
+                {
+                    if (_player.Hotbar[i].IsBlock() && _player.Hotbar[i].BlockType == blockType)
+                        total += _player.Hotbar[i].Count;
+                }
+                return total;
+            }
+            public bool HasSpaceFor(ItemStack item) => true;
+        }
+
+        private void UpdateCrucibleOverlay(float deltaTime, KeyboardState kbState, MouseState mouseState)
+        {
+            var env = _session.Crafting.GetCurrentEnvironment(_session.Grid, _timeOfDay);
+            _screens.CrucibleScreen!.Update(
+                GraphicsDevice.Viewport,
+                _session.Crafting.Crucible,
+                env,
+                _session.Crafting.Journal,
+                _session.Crafting,
+                _session.Player,
+                kbState,
+                mouseState,
+                _input.PrevKeyboard,
+                _input.PrevMouse,
+                deltaTime);
+
+            _screens.CrucibleScreen.HandleRecipeBookClick(_session.Crafting, _session.Player);
+
+            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.B) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.B))
+            {
+                _session.Crafting.ToggleRecipeBook();
+            }
+
+            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape))
+            {
+                CloseCrucibleUi();
+                return;
+            }
+
+            if (_screens.CrucibleScreen.ClickedSlotIndex >= 0)
+            {
+                if (_screens.CrucibleScreen.RightClickedSlot)
+                {
+                    if (_session.Crafting.Crucible.WithdrawToHotbar(_session.Player, _screens.CrucibleScreen.ClickedSlotIndex))
+                    {
+                        _screens.CrucibleScreen.TriggerSlotPulse(_screens.CrucibleScreen.ClickedSlotIndex);
+                    }
+                }
+                else
+                {
+                    if (_session.Crafting.Crucible.DepositFromHotbar(_session.Player, _screens.CrucibleScreen.ClickedSlotIndex))
+                    {
+                        _screens.CrucibleScreen.TriggerSlotPulse(_screens.CrucibleScreen.ClickedSlotIndex);
+                    }
+                    else
+                    {
+                        var slot = _session.Player.GetSelectedStack();
+                        if (!slot.IsBlock() && !slot.IsMaterial())
+                        {
+                            _screens.CrucibleScreen.SetStatus("SELECT BLOCKS OR STICKS");
+                        }
+                        else
+                        {
+                            _screens.CrucibleScreen.SetStatus("SLOT FULL");
+                        }
+                    }
+                }
+            }
+
+            if (_screens.CrucibleScreen.TransmuteRequested)
+            {
+                _screens.CrucibleScreen.BeginTransmuteAnimation();
+            }
+
+            if (_screens.CrucibleScreen.TransmuteReady)
+            {
+                var result = _session.Crafting.TryTransmute(_session.Grid, _session.Player, _timeOfDay);
+                if (result.Succeeded)
+                {
+                    string created = result.Recipe!.IsToolOutput
+                        ? result.Recipe.DisplayName.ToUpperInvariant()
+                        : result.Recipe.IsMaterialOutput
+                            ? $"{result.Recipe.DisplayName.ToUpperInvariant()} x{result.Recipe.OutputCount}"
+                            : result.Recipe.Output.ToString().ToUpperInvariant();
+                    _screens.CrucibleScreen.SetStatus($"CREATED {created}");
+                    _session.BlockInteraction.TriggerCrosshairFlash();
+                    _session.Particles.SpawnHint(_session.Player.Position + new Vector3(0f, Player.EyeHeight, 0f));
+                }
+                else
+                {
+                    _screens.CrucibleScreen.SetStatus(result.Message.ToUpperInvariant());
+                }
+            }
+        }
+    }
+}

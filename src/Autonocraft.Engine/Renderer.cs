@@ -1,5 +1,4 @@
 using Microsoft.Xna.Framework.Graphics;
-using Autonocraft.Core;
 using Autonocraft.World;
 
 namespace Autonocraft.Engine

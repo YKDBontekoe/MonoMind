@@ -1,6 +1,6 @@
 using System;
 using System.Numerics;
-using Autonocraft.Core;
+using Autonocraft.Domain.Rendering;
 
 namespace Autonocraft.Engine.Animation
 {
@@ -111,7 +111,7 @@ namespace Autonocraft.Engine.Animation
             HotbarWiggleScale = 1.12f;
         }
 
-        public void Update(float deltaTime, Player player)
+        public void Update(float deltaTime, IPlayerMotionView player)
         {
             _animTime += deltaTime;
             SwingPeakCrossed = false;
@@ -180,7 +180,7 @@ namespace Autonocraft.Engine.Animation
             if (player.IsGrounded && !player.CreativeMode && horizontalSpeed > 0.5f)
             {
                 _walkBobPhase += deltaTime * 4f * MathF.PI * 2f;
-                WalkBobOffsetY = MathF.Sin(_walkBobPhase) * 0.03f * Math.Clamp(horizontalSpeed / Player.WalkSpeed, 0f, 1f);
+                WalkBobOffsetY = MathF.Sin(_walkBobPhase) * 0.03f * Math.Clamp(horizontalSpeed / PlayerConstants.WalkSpeed, 0f, 1f);
             }
             else
             {

@@ -1,14 +1,15 @@
 using System;
+using Autonocraft.World.Generation;
 
 namespace Autonocraft.World
 {
     public sealed class NoiseStack
     {
-        private readonly PerlinNoise2D _noise;
+        private readonly INoiseProvider _noise;
 
         public NoiseStack(int seed)
         {
-            _noise = new PerlinNoise2D(seed);
+            _noise = new PerlinNoiseProvider(seed);
         }
 
         public float Fbm(float x, float y, int octaves = 5, float lacunarity = 2f, float persistence = 0.5f)
@@ -20,7 +21,7 @@ namespace Autonocraft.World
 
             for (int i = 0; i < octaves; i++)
             {
-                total += _noise.Noise(x * frequency, y * frequency) * amplitude;
+                total += _noise.Sample2D(x * frequency, y * frequency) * amplitude;
                 maxValue += amplitude;
                 amplitude *= persistence;
                 frequency *= lacunarity;
@@ -38,7 +39,7 @@ namespace Autonocraft.World
 
             for (int i = 0; i < octaves; i++)
             {
-                float n = 1f - MathF.Abs(_noise.Noise(x * frequency, y * frequency));
+                float n = 1f - MathF.Abs(_noise.Sample2D(x * frequency, y * frequency));
                 n *= n;
                 total += n * amplitude;
                 maxValue += amplitude;
@@ -56,6 +57,6 @@ namespace Autonocraft.World
             return (x + warpX, y + warpZ);
         }
 
-        public float Raw(float x, float y) => _noise.Noise(x, y);
+        public float Raw(float x, float y) => _noise.Sample2D(x, y);
     }
 }

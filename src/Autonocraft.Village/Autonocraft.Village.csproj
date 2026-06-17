@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Autonocraft.Core" />
+    <InternalsVisibleTo Include="Autonocraft" />
+    <InternalsVisibleTo Include="Autonocraft.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Autonocraft.Domain\Autonocraft.Domain.csproj" />
+    <ProjectReference Include="..\Autonocraft.Items\Autonocraft.Items.csproj" />
+    <ProjectReference Include="..\Autonocraft.World\Autonocraft.World.csproj" />
+    <ProjectReference Include="..\Autonocraft.Entities\Autonocraft.Entities.csproj" />
+    <ProjectReference Include="..\Autonocraft.Crafting\Autonocraft.Crafting.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -29,7 +29,10 @@ namespace Autonocraft.World
             _terrainNoise = new NoiseStack(seed + 505);
         }
 
-        internal (float height, TerrainColumn draft) BuildBaseColumn(int wx, int wz, BiomeSampleCache? biomeCache = null)
+        public (float height, TerrainColumn draft) BuildBaseColumn(int wx, int wz) =>
+            BuildBaseColumn(wx, wz, biomeCache: null);
+
+        internal (float height, TerrainColumn draft) BuildBaseColumn(int wx, int wz, BiomeSampleCache? biomeCache)
         {
             BiomeSample SampleAt(int x, int z) =>
                 biomeCache != null ? biomeCache.Sample(x, z) : _biomeMap.Sample(x, z);

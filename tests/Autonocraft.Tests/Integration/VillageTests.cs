@@ -400,7 +400,7 @@ public static class VillageTests
             }
 
             PostAction(http, "set_creative", ("creative", "true"));
-            bridge.Step(0.01f);
+            StepUntil(bridge, 20, () => session.Player.CreativeMode);
             if (!session.Player.CreativeMode)
             {
                 throw new Exception("set_creative did not update player through bridge queue.");

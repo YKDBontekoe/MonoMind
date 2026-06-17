@@ -203,7 +203,7 @@ ALL TESTS PASSED SUCCESSFULLY! (EXIT CODE: 0)
 
 ## 4. Agent HTTP Server
 
-**Source:** `src/Autonocraft/Core/AgentHttpServer.cs`
+**Source:** `src/Autonocraft.Core/AgentHttpServer.cs` (routing) with handlers under `src/Autonocraft.Core/Agent/Handlers/`
 
 The server starts when the game enters **Playing** state (after world load completes). It is **not** available from the main menu. Use `--skip-menu` to reach gameplay faster.
 
@@ -394,35 +394,58 @@ For multi-step flows, JSON scenarios, and a reusable Python client, see `.cursor
 
 ## 7. Codebase Map (where to edit what)
 
+### Projects (`Autonocraft.sln`)
+
+| Project | Path |
+|---------|------|
+| Domain | `src/Autonocraft.Domain/` |
+| Diagnostics | `src/Autonocraft.Diagnostics/` |
+| Items | `src/Autonocraft.Items/` |
+| Crafting | `src/Autonocraft.Crafting/` |
+| Ai | `src/Autonocraft.Ai/` |
+| World | `src/Autonocraft.World/` |
+| Entities | `src/Autonocraft.Entities/` |
+| Village | `src/Autonocraft.Village/` |
+| Engine | `src/Autonocraft.Engine/` |
+| Core | `src/Autonocraft.Core/` |
+| Executable | `src/Autonocraft/` (AutonocraftGame, UI, Program.cs) |
+| Tests | `tests/Autonocraft.Tests/` |
+
+Build all: `dotnet build Autonocraft.sln`  
+Performance baseline: `dotnet run --project src/Autonocraft -- --bench` (see `docs/BENCHMARK_BASELINE.md`)
+
 | Concern | Primary files |
 |---------|---------------|
-| Game loop & state machine | `Core/AutonocraftGame.cs`, `Core/GameSession.cs`, `Core/GameState.cs` |
+| Game loop & state machine | `AutonocraftGame.cs`, `Game/GameStateMachine.cs`, `Game/GameInputRouter.cs`, `Game/GameOverlayRouter.cs`, `Game/GamePersistenceCoordinator.cs`, `Game/AutonocraftGame.Draw.cs`, `GameSession.cs`, `GameState.cs` |
+| DI composition root | `Core/GameServiceProvider.cs`, `Program.cs` |
 | Player physics & inventory | `Core/Player.cs`, `Core/PlayerStatistics.cs` |
 | Block mine/place | `Core/BlockInteractionSystem.cs` |
 | Combat | `Core/CombatSystem.cs` |
-| Survival / hunger | `Core/SurvivalConstants.cs`, `Core/FoodConsumption` in `AnimalLoot.cs`, `Items/FoodRegistry.cs` |
+| Survival / hunger | `Core/SurvivalConstants.cs`, `Core/FoodConsumption` in `AnimalLoot.cs`, `Autonocraft.Items/Food/FoodRegistry.cs` |
 | Early-game guide | `Core/EarlyGameGuide.cs` |
 | Inventory crafting grid | `Crafting/CraftingGrid.cs`, `Crafting/GridCrafting.cs`, `Crafting/CraftPatternMatcher.cs` |
-| Night threats | `Entities/NightThreatSpawner.cs` |
+| Night threats | `Entities/Animals/NightThreatSpawner.cs` |
 | Death penalty | `Core/DeathConsequences.cs` |
-| HTTP agent API | `Core/AgentHttpServer.cs` |
+| HTTP agent API | `Core/AgentHttpServer.cs`, `Core/Agent/Handlers/`, `Core/Agent/Serialization/AgentStateSerializer.cs` |
 | Integration tests | `tests/Autonocraft.Tests/`, `Core/GameIntegrationTests.cs` |
-| World & chunks | `World/VoxelWorld.cs`, `World/Chunk.cs`, `World/ChunkLod.cs` |
-| Terrain generation | `World/WorldGenerator.cs`, `World/BiomeMap.cs`, `World/TerrainShaper.cs`, `World/CaveCarver.cs`, `World/OrePlacer.cs`, `World/Decorator.cs`, `World/TerrainPostProcessor.cs` |
-| Structures | `World/Structures/StructurePlacer.cs`, `World/Structures/StructureRegistry.cs` |
-| Fluids | `World/FluidSystem.cs`, `World/WaterQuery.cs` |
-| Block types | `World/BlockType.cs` |
-| Saves | `World/WorldSaveManager.cs`, `World/WorldSaveData.cs`, `Core/SaveSnapshot.cs` |
-| Texture atlas | `World/BlockAtlas.cs`, `World/AtlasLayout.cs`, `atlas_layout.json`, `scripts/build_atlas.py` |
-| Rendering | `Engine/Renderer.cs`, `Engine/WorldRenderer.cs`, `Engine/HudRenderer.cs`, `Engine/SceneLighting.cs`, `Engine/BlockTerrainEffect.cs` |
-| Audio | `Engine/Audio/AudioManager.cs`, `Engine/Audio/ProceduralSfx.cs`, `Engine/Audio/ProceduralAmbient.cs`, `Engine/Audio/ProceduralMusic.cs` |
-| Tools & skills | `Items/ToolRegistry.cs`, `Items/MiningCalculator.cs`, `Items/PlayerSkills.cs` |
+| World & chunks | `Autonocraft.World/VoxelWorld.cs`, `Autonocraft.World/Chunks/` |
+| Terrain generation | `Autonocraft.World/Generation/` |
+| Structures | `Autonocraft.World/Structures/` |
+| Fluids | `Autonocraft.World/Fluids/` |
+| Block types | `Autonocraft.Domain/World/BlockType.cs` |
+| Saves | `World/WorldSaveManager.cs`, `Autonocraft.Domain/Persistence/`, `World/Persistence/SaveJsonContext.cs` |
+| Profiling | `Autonocraft.Diagnostics/PerfCounters.cs` |
+| Texture atlas | `Autonocraft.World/Atlas/`, `atlas_layout.json`, `scripts/build_atlas.py` |
+| Rendering | `Autonocraft.Engine/Renderer.cs`, `WorldRenderer.cs`, `GameRenderContext.cs`, `HudRenderer.cs` |
+| Audio | `Autonocraft.Engine/Audio/` |
+| Tools & skills | `Autonocraft.Items/Tools/`, `Autonocraft.Items/` (skills) |
 | Crafting sigils | `Crafting/SigilRegistry.cs`, `Crafting/SigilPattern.cs` |
 | Station recipes | `Crafting/CraftRecipeRegistry.cs`, `Crafting/CraftingSystem.cs` |
 | Crafting UI | `UI/CrucibleScreen.cs`, `UI/InventoryScreen.cs`, `UI/JournalScreen.cs` |
-| Animals | `Entities/AnimalManager.cs`, `Entities/Animal.cs`, `Entities/EntityCollision.cs` |
+| Animals | `Entities/Animals/AnimalManager.cs`, `Autonocraft.Entities/Animals/` |
 | UI screens | `UI/*.cs` |
 | Player stats dashboard | `Core/PlayerStatistics.cs`, `UI/PlayerDashboardScreen.cs`, `UI/SaveSlotScreen.cs` |
+| Assembly dependency rules | `tests/Autonocraft.Tests/Unit/AssemblyDependencyRulesTests.cs` |
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/CODEMAP.md](docs/CODEMAP.md) for deeper navigation.
 
@@ -430,14 +453,14 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/CODEMAP.md](docs/CODE
 
 | Task | Start here | Test to run |
 |------|------------|-------------|
-| Add block type | `BlockType.cs`, `build_atlas.py`, `BlockInteractionSystem.cs` | `TestMiningAndPlacing` |
+| Add block type | `Autonocraft.Domain/World/BlockType.cs`, `build_atlas.py`, `BlockInteractionSystem.cs` | `TestMiningAndPlacing` |
 | Add craft recipe | `CraftRecipeRegistry.cs`, `CraftingSystem.cs` | `TestNewCraftRecipes` |
 | Change mining speed | `MiningCalculator.cs`, `ToolRegistry.cs` | `TestToolMiningSpeed` |
 | Fix swimming | `Player.cs`, `FluidSystem.cs` | `TestSwimThroughWater`, `TestDrowning` |
 | Survival / hunger | `SurvivalConstants.cs`, `FoodRegistry.cs`, `Player.cs` | `SurvivalTests`, hunger save round-trip |
 | Night threats | `NightThreatSpawner.cs`, `AnimalType.cs` | `RunNightSpawn` |
 | Add structure | `StructureRegistry.cs`, `StructurePlacer.cs` | `TestStructureGeneration` |
-| Rendering change | `Engine/WorldRenderer.cs`, `Engine/SceneLighting.cs`, `Engine/BlockTerrainEffect.cs` | `--test` + screenshot |
+| Rendering change | `Autonocraft.Engine/WorldRenderer.cs`, `SceneLighting.cs`, `BlockTerrainEffect.cs` | `--test` + screenshot |
 
 ---
 

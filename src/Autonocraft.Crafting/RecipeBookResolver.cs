@@ -15,7 +15,7 @@ namespace Autonocraft.Crafting
                 .OrderBy(r => r.DisplayName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-        public static bool CanCraftWithInventory(CraftRecipe recipe, CraftGridSize gridSize, PlayerInventoryAdapter inventory)
+        public static bool CanCraftWithInventory(CraftRecipe recipe, CraftGridSize gridSize, IItemContainer inventory)
         {
             if (recipe.GridSize > gridSize)
             {
@@ -38,7 +38,7 @@ namespace Autonocraft.Crafting
             return true;
         }
 
-        public static bool TryFillGrid(CraftRecipe recipe, CraftingGrid grid, PlayerInventoryAdapter inventory)
+        public static bool TryFillGrid(CraftRecipe recipe, CraftingGrid grid, IItemContainer inventory)
         {
             grid.Clear();
             if (!CanCraftWithInventory(recipe, grid.Size, inventory))
@@ -77,7 +77,7 @@ namespace Autonocraft.Crafting
             return true;
         }
 
-        public static bool TryFillBenchSlots(CraftRecipe recipe, ItemStack[] benchSlots, int activeSlots, PlayerInventoryAdapter inventory)
+        public static bool TryFillBenchSlots(CraftRecipe recipe, ItemStack[] benchSlots, int activeSlots, IItemContainer inventory)
         {
             for (int i = 0; i < benchSlots.Length; i++)
             {
@@ -99,7 +99,7 @@ namespace Autonocraft.Crafting
             return true;
         }
 
-        private static bool TryFillShapeless(CraftRecipe recipe, CraftingGrid grid, PlayerInventoryAdapter inventory)
+        private static bool TryFillShapeless(CraftRecipe recipe, CraftingGrid grid, IItemContainer inventory)
         {
             int slot = 0;
             foreach (var input in recipe.Inputs)
@@ -119,7 +119,7 @@ namespace Autonocraft.Crafting
             return true;
         }
 
-        private static bool CanFillShapedPattern(IReadOnlyList<string> patternRows, int gridDim, PlayerInventoryAdapter inventory)
+        private static bool CanFillShapedPattern(IReadOnlyList<string> patternRows, int gridDim, IItemContainer inventory)
         {
             var needs = new Dictionary<char, int>();
             foreach (string row in patternRows)
@@ -147,7 +147,7 @@ namespace Autonocraft.Crafting
             return true;
         }
 
-        private static int CountSymbol(char symbol, PlayerInventoryAdapter inventory) => symbol switch
+        private static int CountSymbol(char symbol, IItemContainer inventory) => symbol switch
         {
             'P' => CountPlanks(inventory),
             'T' => CountMaterial(inventory, ItemId.Stick),
@@ -159,7 +159,7 @@ namespace Autonocraft.Crafting
             _ => 0
         };
 
-        private static bool TryTakeSymbol(char symbol, PlayerInventoryAdapter inventory, out ItemStack stack)
+        private static bool TryTakeSymbol(char symbol, IItemContainer inventory, out ItemStack stack)
         {
             stack = ItemStack.Empty;
             return symbol switch
@@ -175,7 +175,7 @@ namespace Autonocraft.Crafting
             };
         }
 
-        private static bool TryTakeBlock(PlayerInventoryAdapter inventory, BlockType blockType, out ItemStack stack)
+        private static bool TryTakeBlock(IItemContainer inventory, BlockType blockType, out ItemStack stack)
         {
             stack = ItemStack.Empty;
             for (int i = 0; i < inventory.SlotCount; i++)
@@ -200,7 +200,7 @@ namespace Autonocraft.Crafting
             return false;
         }
 
-        private static bool TryTakeMaterial(PlayerInventoryAdapter inventory, ItemId materialId, out ItemStack stack)
+        private static bool TryTakeMaterial(IItemContainer inventory, ItemId materialId, out ItemStack stack)
         {
             stack = ItemStack.Empty;
             for (int i = 0; i < inventory.SlotCount; i++)
@@ -225,7 +225,7 @@ namespace Autonocraft.Crafting
             return false;
         }
 
-        private static bool TryTakeBlock(CraftInput input, PlayerInventoryAdapter inventory, out ItemStack stack)
+        private static bool TryTakeBlock(CraftInput input, IItemContainer inventory, out ItemStack stack)
         {
             stack = ItemStack.Empty;
             if (!input.ExactBlock.HasValue)
@@ -236,12 +236,12 @@ namespace Autonocraft.Crafting
             return TryTakeBlock(inventory, input.ExactBlock.Value, out stack);
         }
 
-        private static int CountPlanks(PlayerInventoryAdapter inventory) =>
+        private static int CountPlanks(IItemContainer inventory) =>
             inventory.CountBlock(BlockType.OakPlank)
             + inventory.CountBlock(BlockType.BirchPlank)
             + inventory.CountBlock(BlockType.PinePlank);
 
-        private static int CountLogs(PlayerInventoryAdapter inventory)
+        private static int CountLogs(IItemContainer inventory)
         {
             int total = 0;
             foreach (BlockType log in new[]
@@ -256,7 +256,7 @@ namespace Autonocraft.Crafting
             return total;
         }
 
-        private static int CountMaterial(PlayerInventoryAdapter inventory, ItemId materialId)
+        private static int CountMaterial(IItemContainer inventory, ItemId materialId)
         {
             int total = 0;
             for (int i = 0; i < inventory.SlotCount; i++)
@@ -271,7 +271,7 @@ namespace Autonocraft.Crafting
             return total;
         }
 
-        private static bool TryTakePlank(PlayerInventoryAdapter inventory, out ItemStack stack)
+        private static bool TryTakePlank(IItemContainer inventory, out ItemStack stack)
         {
             foreach (BlockType plank in new[] { BlockType.OakPlank, BlockType.BirchPlank, BlockType.PinePlank })
             {
@@ -285,7 +285,7 @@ namespace Autonocraft.Crafting
             return false;
         }
 
-        private static bool TryTakeLog(PlayerInventoryAdapter inventory, out ItemStack stack)
+        private static bool TryTakeLog(IItemContainer inventory, out ItemStack stack)
         {
             foreach (BlockType log in new[]
                      {
