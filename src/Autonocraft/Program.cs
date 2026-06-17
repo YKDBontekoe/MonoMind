@@ -1,5 +1,7 @@
 using System;
 using Autonocraft.Core;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Autonocraft
 {
@@ -89,6 +91,10 @@ namespace Autonocraft
                     return;
                 }
             }
+
+            using var services = GameServiceProvider.Build(enableConsoleLogging: debugMetrics);
+            services.GetService<ILoggerFactory>()?.CreateLogger("Autonocraft")
+                ?.LogInformation("Autonocraft starting (tests={RunTests}, bench={RunBench})", runTests, runBench);
 
             if (runTests)
             {

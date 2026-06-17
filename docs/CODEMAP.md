@@ -4,112 +4,152 @@ Agent-oriented navigation index. Pair with [AGENTS.md](../AGENTS.md) for build/t
 
 **Repo name:** MonoMind. **Game/project name:** Autonocraft.
 
+**Folder budget:** aim for ≤15 `.cs` files per directory; split when exceeded.
+
 ---
 
-## Folder Index
+## Assembly map
 
-### `Core/` — game loop, player, systems
+| Project | Path | Depends on |
+|---------|------|------------|
+| `Autonocraft.Domain` | `src/Autonocraft.Domain/` | — (leaf: enums, constants, save DTOs, contracts) |
+| `Autonocraft.Diagnostics` | `src/Autonocraft.Diagnostics/` | Domain |
+| `Autonocraft.Items` | `src/Autonocraft.Items/` | Domain |
+| `Autonocraft.World` | `src/Autonocraft.World/` | Domain, Diagnostics, Items |
+| `Autonocraft.Crafting` | `src/Autonocraft.Crafting/` | Domain, Items, World |
+| `Autonocraft.Ai` | `src/Autonocraft.Ai/` | Domain |
+| `Autonocraft.Village` | `src/Autonocraft.Village/` | Domain, Items, World, Entities, Crafting |
+| `Autonocraft.Engine` | `src/Autonocraft.Engine/` | Domain, Diagnostics, Items, World, Entities, Village |
+| `Autonocraft.Core` | `src/Autonocraft.Core/` | Domain, Diagnostics, Items, World, Entities, Village, Crafting, Ai, Engine |
+| `Autonocraft` (exe) | `src/Autonocraft/` | Core, Engine |
+| `Autonocraft.Tests` | `tests/Autonocraft.Tests/` | Exe + libs |
+
+**Still in the executable:** `AutonocraftGame`, `ScreenManager`, `UI/`, content assets (`atlas.png`, fonts).
+
+Dependency rules are enforced by `tests/Autonocraft.Tests/Unit/AssemblyDependencyRulesTests.cs`.
+
+---
+
+## `Autonocraft.Domain/`
+
+| Subfolder | Contents |
+|-----------|----------|
+| `Core/` | `GameDefaults`, `DayNightCycle`, `PlayerConstants` |
+| `World/` | `BlockType`, `WorldConstants`, `IBlockReader`, `IBlockWriter` |
+| `Items/` | `ItemId`, `ItemKind`, `ToolType`, `IPlayerInventory` |
+| `Crafting/` | `MaterialTag`, `ICraftingFx`, `ICraftingHudHint` |
+| `Rendering/` | `IBlockInteractionOverlay`, `IPlayerMotionView`, `CrosshairState`, `PlacePopEffect` |
+| `Entities/` | `IPlayerAmbientView` |
+| `Village/` | `VillagerRole`, `JobType`, `BuildingKind`, … |
+| `Persistence/` | `WorldSaveData`, `SaveSnapshot`, all save DTOs |
+
+## `Autonocraft.Diagnostics/`
 
 | File | Description |
 |------|-------------|
-| `AutonocraftGame.cs` | MonoGame shell: state machine, input routing, UI overlays, lifecycle |
+| `PerfCounters.cs` | Frame/update/draw profiling counters |
+| `WorldDebugTrace.cs` | Optional chunk/mesh debug hook (wired from Core) |
+
+## `Autonocraft.Items/`
+
+| Subfolder | Contents |
+|-----------|----------|
+| `Inventory/` | `Inventory`, `ItemStack`, `IItemContainer`, slot interaction |
+| `Tools/` | `ToolRegistry`, `MiningCalculator`, `BlockHarvestCategory` |
+| `Food/` | `FoodRegistry` |
+| `Rendering/` | `IPlayerHudView`, `IItemEntityRenderView` |
+| (root) | `MaterialRegistry`, `PlayerSkills`, villager skill types |
+
+## `Autonocraft.World/`
+
+| Subfolder | Contents |
+|-----------|----------|
+| `Chunks/` | `Chunk` (partial), `ChunkStorage`, `ChunkMeshBuilder`, `ChunkGpuResources`, `ChunkLod`, mesh schedulers, `Vertex`, `FloraVertex`, `FloraMeshBuilder` |
+| `Streaming/` | `ChunkStreamCoordinator`, `ChunkWorkQueue` (partial facets of `VoxelWorld`) |
+| `Generation/` | `WorldGenerator`, biomes, terrain, caves, ores, noise (`INoiseProvider`) |
+| `Fluids/` | `FluidSystem`, `WaterQuery`, `LavaQuery` |
+| `Atlas/` | `BlockAtlas`, `AtlasLayout`, texture blend |
+| `Structures/` | procedural structure placement |
+| (root) | `VoxelWorld` (core: block get/set, modifications, public API) |
+
+**Large-type decomposition (partial classes, same assembly):**
+
+| Logical component | File | Responsibility |
+|-------------------|------|------------------|
+| `VoxelWorld` core | `VoxelWorld.cs` | Block get/set, modifications dict, chunk registration, save/export |
+| `ChunkStreamCoordinator` | `Streaming/ChunkStreamCoordinator.cs` | `UpdateChunksAround`, load/unload, `BeginInitialLoad` / `AdvanceInitialLoad` |
+| `ChunkWorkQueue` | `Streaming/ChunkWorkQueue.cs` | `ProcessPendingWork`, mesh candidate selection, `TerrainGenScheduler` / `MeshBuildScheduler` wiring |
+| `ChunkStorage` | `Chunks/ChunkStorage.cs` | Block array, column height cache |
+| `ChunkMeshBuilder` | `Chunks/ChunkMeshBuilder.cs` | CPU mesh Full/Surface/Shell + flora |
+| `ChunkGpuResources` | `Chunks/ChunkGpuResources.cs` | Vertex/index buffers, upload, invalidation |
+
+## `Autonocraft.Entities/`
+
+| Subfolder | Contents |
+|-----------|----------|
+| `Animals/` | `Animal`, `AnimalType` |
+| `Collision/` | `EntityCollision`, `EntityRaycast` |
+| `Navigation/` | `VoxelPathfinder` |
+
+Animal AI managers live in `src/Autonocraft.Entities/Animals/`; `NightThreatSpawner` is in Core.
+
+---
+
+## `Autonocraft.Core/` — game loop, player, systems
+
+| File | Description |
+|------|-------------|
 | `GameSession.cs` | Owns player/world/systems; core gameplay simulation tick |
-| `GameRenderContext.cs` | Read-only snapshot for rendering (decouples Engine from game) |
 | `GameConstants.cs` | Spawn coords, autosave interval |
-| `SaveSnapshot.cs` | DTO for save serialization |
-| `Player.cs` | Physics, inventory, hunger, skills, swimming, stats tracking |
+| `Player.cs` | Physics, inventory, hunger, skills; implements render read-model interfaces |
 | `PlayerStatistics.cs` | Lifetime counters (distance, kills, play time, early guide stage) |
-| `SurvivalConstants.cs` | Hunger/survival tuning constants |
 | `EarlyGameGuide.cs` | Unified early-game survival + village tutorial |
 | `DeathConsequences.cs` | Death hotbar drop and respawn hunger restore |
 | `AnimalLoot.cs` | Animal kill loot + `FoodConsumption` helpers |
-| `BlockInteractionSystem.cs` | Raycast, mining, placing, eating, sigils, station interaction |
+| `BlockInteractionSystem.cs` | Raycast, mining, placing; implements `IBlockInteractionOverlay` |
 | `CombatSystem.cs` | Melee combat, fall effects, respawn |
-| `AgentHttpServer.cs` | HTTP API on port 5000 |
+| `AgentHttpServer.cs` | HTTP listener + route dispatch (port 5001 default) |
+| `Agent/Handlers/` | `StateHandler`, `ActionHandler`, `VillageChatHandler`, `ScreenshotHandler` |
+| `Agent/Serialization/AgentStateSerializer.cs` | `/state` and village-debug DTO assembly |
 | `DevCommands.cs` | F3/`~` dev console commands |
-| `GameState.cs` | MainMenu / NewWorldSetup / WorldLoading / Playing |
-| `GameSettings.cs` | Render distance settings |
 | `GameSettingsManager.cs` | settings.json persistence |
-| `GameIntegrationTests.cs` | Thin wrapper delegating to test project |
-| `Input.cs` | Key enum helpers |
+| `World/WorldSaveManager.cs` | Save/load world.json |
+| `World/Persistence/SaveJsonContext.cs` | STJ source-generated save serializers |
+| `ItemEntity.cs` | Dropped item entities; implements `IItemEntityRenderView` |
 
-### `World/` — voxel world and generation
-
-| File | Description |
-|------|-------------|
-| `VoxelWorld.cs` | Chunk dict, async gen/mesh, modifications |
-| `Chunk.cs` | Mesh building, GPU buffers, LOD meshes |
-| `ChunkLod.cs` | Distance bands for Full/Surface/Shell |
-| `WorldGenerator.cs` | Per-chunk terrain pipeline orchestrator |
-| `BiomeMap.cs` | Temperature/moisture → biome |
-| `TerrainShaper.cs` | Biome-driven height and block layers |
-| `TerrainPostProcessor.cs` | River carving |
-| `CaveCarver.cs` | 3D noise tunnels |
-| `OrePlacer.cs` | Coal/iron/gold placement |
-| `Decorator.cs` | Trees, grass, flowers per biome |
-| `BlockType.cs` | 43 block types + extension methods |
-| `FluidSystem.cs` | Water flow simulation |
-| `WaterQuery.cs` | Swimming/drowning/underwater helpers |
-| `WorldSaveManager.cs` | Save/load world.json |
-| `WorldSaveData.cs` | Save format v4 schema |
-| `BlockAtlas.cs` | BlockType → UV mapping |
-| `AtlasLayout.cs` | atlas_layout.json loader |
-| `WorldGenParams.cs` | Generation presets per world type |
-| `WorldConstants.cs` | Sea level, default seed |
-| `MeshBuildContext.cs` | Per-vertex blend during mesh build |
-| `BlockTextureBlend.cs` | Biome transition weights |
-
-### `World/Structures/` — procedural buildings
+## `Autonocraft.Engine/` — rendering and effects
 
 | File | Description |
 |------|-------------|
-| `StructureRegistry.cs` | 12 structure type definitions |
-| `StructurePlacer.cs` | Places structures during world gen |
-| `StructureTemplate.cs` | Multi-block layout templates |
-| `StructureDefinition.cs` | Biome/tier placement rules |
-| `StructureBlock.cs` | Single block in a template |
-| `StructureTier.cs` | Structure size tiers |
-| `StructurePlacementMode.cs` | Placement strategy enum |
-
-### `Engine/` — rendering and effects
-
-| File | Description |
-|------|-------------|
+| `GameRenderContext.cs` | Read-only snapshot for rendering (Domain/Items interfaces only) |
 | `Renderer.cs` | Thin draw orchestrator |
 | `WorldRenderer.cs` | Sky, terrain, water, flora, animals, overlay |
 | `HudRenderer.cs` | HUD: crosshair, hotbar, health, skills |
-| `PixelFont.cs` | Bitmap glyph data |
 | `Camera.cs` | View/projection matrices |
 | `BlockTerrainEffect.cs` | Terrain `BasicEffect` wrapper (fog + sun/moon lights) |
 | `BlockOverlayRenderer.cs` | Block highlight outline |
-| `SkyEffect.cs` | Sky/cloud `BasicEffect` wrapper |
-| `SkyBoxRenderer.cs` | Cached hemisphere skydome (`SkyDomeRenderer`) |
-| `CloudLayerRenderer.cs` | Three scrolling cloud layers |
-| `SkyColor.cs` | CPU sky gradient + procedural stars |
-| `FloraRenderer.cs` | Tall grass/flower billboards |
-| `ParticleSystem.cs` | Block break and water splash particles |
 | `SceneLighting.cs` | Time-of-day sun/moon/ambient |
-| `ProceduralAtlasBuilder.cs` | Runtime atlas fallback |
-| `ProceduralTextureSynth.cs` | Procedural tile generation |
-| `FloraMeshBuilder.cs` | Flora geometry |
-| `Vertex.cs` | Chunk vertex format |
-| `UiRenderer.cs` | Menu screen rendering |
-| `Animation/InteractionAnimator.cs` | Mining recoil, tool swing |
-| `Animation/UiTransition.cs` | Screen fade transitions |
-| `Animation/Tween.cs` | Easing helpers |
+| `Textures/` | Procedural tiles: `TerrainTiles`, `FloraTiles`, `EntityTiles`, `StationTiles` |
+| `Animation/` | `InteractionAnimator`, `UiTransition`, `Tween` |
+| `Audio/` | `AudioManager`, procedural SFX/ambient/music |
 
-### `Engine/Audio/` — procedural sound
+---
+
+## Executable (`src/Autonocraft/`) — folder index
+
+### Game shell (references Core + Engine libs)
 
 | File | Description |
 |------|-------------|
-| `AudioManager.cs` | SFX pool, ambient/music loops, volume, state crossfade |
-| `SfxKind.cs` | One-shot effect identifiers |
-| `MusicState.cs` | Menu vs gameplay music |
-| `WavEncoder.cs` | Float samples → WAV `MemoryStream` |
-| `WaveSynth.cs` | Oscillators, noise, ADSR, filters |
-| `ProceduralSfx.cs` | Mine, place, combat, UI, movement presets |
-| `ProceduralAmbient.cs` | Water and wind loops |
-| `ProceduralMusic.cs` | Menu pad and gameplay arpeggio loops |
+| `AutonocraftGame.cs` | MonoGame shell: lifecycle, simulation tick, agent bridge (`partial`) |
+| `Game/GameStateMachine.cs` | MainMenu → NewWorldSetup → WorldLoading → Playing transitions |
+| `Game/GameInputRouter.cs` | Keyboard/mouse, agent simulated keys, hotbar, sprint, combat input |
+| `Game/GameOverlayRouter.cs` | Pause, death, inventory, village UI, crucible, journal stack |
+| `Game/GamePersistenceCoordinator.cs` | Autosave, new world, load save |
+| `Game/AutonocraftGame.Draw.cs` | `Draw` / `DrawFrame` partial |
+| `GameServiceProvider.cs` | M.E.DI composition root |
+| `ScreenManager.cs` | Screen stack, fades |
+| `GameIntegrationTests.cs` | Thin wrapper delegating to test project |
 
 ### `Items/` — tools, skills, mining
 
@@ -153,21 +193,21 @@ Agent-oriented navigation index. Pair with [AGENTS.md](../AGENTS.md) for build/t
 | `EntityCollision.cs` | Animal-world collision |
 | `EntityRaycast.cs` | Raycast against animals |
 
-### `Village/` — settlements, jobs, economy
+### `Autonocraft.Village/` — settlements, jobs, economy
+
+| Subfolder | Contents |
+|-----------|----------|
+| `Economy/` | `VillageEconomy`, `VillageStorage`, haul/farm/workshop, `GatherWorkQueue`, `BuildingEffects` |
+| `Founding/` | `VillageFoundingService`, spawn/claim helpers, blueprint placement previews |
+| `Persistence/` | `VillagePersistence` (save v7 export/load) |
+| `AI/` | `VillageGoalParser`, `VillageGuidance` (HUD hints) |
+| `Jobs/` | Per-job AI (`IVillagerJob`, `JobRegistry`, `*Job.cs`) |
+| (root) | `Village`, `VillageManager`, `VillageSimulation`, `JobDispatcher`, `Villager*`, buildings |
+
+### `Village/` (exe UI)
 
 | File | Description |
 |------|-------------|
-| `VillageManager.cs` | Facade: founding, recruit, assign, update, save |
-| `VillageFoundingService.cs` | Starter settlement, claim structures |
-| `JobDispatcher.cs` | Job assignment, blueprint queue |
-| `HaulCoordinator.cs` | Hauler pickup/delivery dispatch |
-| `VillageSimulation.cs` | Per-frame village tick |
-| `VillagePersistence.cs` | Save v7 export/load |
-| `Village/Jobs/*.cs` | Per-job AI (`IVillagerJob`, `JobRegistry`) |
-| `VillageEvents.cs` | Toast feedback for recruit/build/tier |
-| `VillageGuidance.cs` | Next-best-action HUD hints |
-| `VillageEconomy.cs` | Supply/demand ledger, tier thresholds |
-| `Entities/Villager.cs` | Villager entity state |
 | `UI/VillageScreen.cs` | Town board (V key) |
 | `UI/Village/VillageViewModel.cs` | UI snapshot with plain-language activity |
 
@@ -229,10 +269,10 @@ Agent-oriented navigation index. Pair with [AGENTS.md](../AGENTS.md) for build/t
 
 ### Change rendering
 
-1. World geometry: `Engine/WorldRenderer.cs`, `Engine/BlockTerrainEffect.cs`
-2. Sky/time-of-day: `Engine/SceneLighting.cs`, `Engine/SkyColor.cs`, `Engine/SkyBoxRenderer.cs` (`SkyDomeRenderer`), `Engine/CloudLayerRenderer.cs`
+1. World geometry: `Autonocraft.Engine/WorldRenderer.cs`, `BlockTerrainEffect.cs`
+2. Sky/time-of-day: `Autonocraft.Engine/SceneLighting.cs`, `SkyColor.cs`, `SkyBoxRenderer.cs` (`SkyDomeRenderer`), `CloudLayerRenderer.cs`
 3. Shared day/night phases: `Autonocraft.Domain/Core/DayNightCycle.cs`
-4. HUD: `Engine/HudRenderer.cs`
+4. HUD: `Autonocraft.Engine/HudRenderer.cs`
 5. Run `--test` then visual check:
    ```bash
    dotnet run --project src/Autonocraft -- --skip-menu
@@ -241,7 +281,7 @@ Agent-oriented navigation index. Pair with [AGENTS.md](../AGENTS.md) for build/t
 
 ### Add or change a sound
 
-1. Add a `SfxKind` value in `Engine/Audio/SfxKind.cs` (or extend `ProceduralAmbient` / `ProceduralMusic`)
+1. Add a `SfxKind` value in `Autonocraft.Engine/Audio/SfxKind.cs` (or extend `ProceduralAmbient` / `ProceduralMusic`)
 2. Implement the preset in `ProceduralSfx.cs` (or ambient/music builder)
 3. Cache it in `AudioManager.Initialize()` if adding a new category
 4. Fire from the gameplay system via `PlaySfx` callback or `GameSession.BindAudio()`
@@ -259,7 +299,7 @@ Agent-oriented navigation index. Pair with [AGENTS.md](../AGENTS.md) for build/t
 
 | Original | Extracted to | Status |
 |----------|--------------|--------|
-| `AutonocraftGame.cs` (~1290 LOC) | `GameSession.cs` (simulation), `GameConstants.cs` | Refactored |
+| `AutonocraftGame.cs` (~635 LOC) | `Game/Game*.cs` partials, `GameSession.cs` | Refactored |
 | `Renderer.cs` (~1385 LOC) | `WorldRenderer.cs`, `HudRenderer.cs`, `PixelFont.cs` | Refactored |
 | `GameIntegrationTests.cs` (~1842 LOC) | `tests/Autonocraft.Tests/Integration/*.cs` (incl. `SurvivalTests.cs`) | Refactored |
 

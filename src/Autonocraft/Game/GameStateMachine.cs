@@ -1,0 +1,508 @@
+using System;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Input;
+using Autonocraft.Ai;
+using Autonocraft.Diagnostics;
+using Autonocraft.Engine;
+using Autonocraft.Engine.Animation;
+using Autonocraft.Engine.Audio;
+using Autonocraft.World;
+using Vector3 = System.Numerics.Vector3;
+
+namespace Autonocraft.Core
+{
+    public partial class AutonocraftGame
+    {
+        private bool _skipMenu;
+        private bool _agentServerStarted;
+        private int _agentPort = 5001;
+        private float _spawnWarmupRemaining;
+        private bool _pendingAutoOpenPeopleTab;
+        private bool _fastLoadingGraphicsApplied;
+        private float _claimHintTimer = 10f;
+        private const float SpawnWarmupSeconds = 15f;
+
+        private float SpawnWarmupProgress =>
+            Math.Clamp(1f - (_spawnWarmupRemaining / SpawnWarmupSeconds), 0f, 1f);
+
+        private static bool IsCiEnvironment() =>
+            string.Equals(Environment.GetEnvironmentVariable("CI"), "true", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"), "true", StringComparison.OrdinalIgnoreCase);
+
+        private void ConfigureAgentSessionGraphics()
+        {
+            if (!_skipMenu || _graphics == null)
+            {
+                return;
+            }
+
+            _settings.VSync = false;
+            if (IsCiEnvironment())
+            {
+                _graphics.PreferredBackBufferWidth = 800;
+                _graphics.PreferredBackBufferHeight = 600;
+                _graphics.HardwareModeSwitch = false;
+            }
+
+            ApplyFastLoadingGraphics();
+        }
+
+        private void ApplyFastLoadingGraphics()
+        {
+            if (_graphics == null || _fastLoadingGraphicsApplied)
+            {
+                return;
+            }
+
+            _graphics.SynchronizeWithVerticalRetrace = false;
+            _graphics.ApplyChanges();
+            InactiveSleepTime = TimeSpan.Zero;
+            _fastLoadingGraphicsApplied = true;
+        }
+
+        private void RestoreGameplayGraphics()
+        {
+            if (_graphics == null || !_fastLoadingGraphicsApplied)
+            {
+                return;
+            }
+
+            _graphics.SynchronizeWithVerticalRetrace = _settings.VSync;
+            _graphics.ApplyChanges();
+            _fastLoadingGraphicsApplied = false;
+        }
+
+        private void PrepareNewWorldSettlement()
+        {
+            _session.Villages.EnsureStarterSettlement(_session.Grid, _worldSpawnX, _worldSpawnZ);
+            _session.PlacePlayerOnSurface(_worldSpawnX, _worldSpawnZ);
+            SyncCameraFromPlayer();
+            _session.VillageHudHint = "V — Town board · PEOPLE tab assigns jobs";
+            _session.Crafting.ShowCraftingHint = false;
+        }
+
+        private void EnterPlaying()
+        {
+            _screens.State = GameState.Playing;
+            CloseAllGameplayOverlays();
+
+            bool fromSave = _loadingFromSave;
+            if (_needsStarterSettlement)
+            {
+                _needsStarterSettlement = false;
+                PrepareNewWorldSettlement();
+            }
+            else if (!fromSave)
+            {
+                PlacePlayerOnSurface();
+            }
+            else
+            {
+                _session.Villages.RepairAllVillages(_session.Grid);
+            }
+
+            if (!fromSave)
+            {
+                _session.VillageHudHint = "V — Town board · Recruit villagers and queue buildings";
+                _session.Crafting.ShowCraftingHint = false;
+            }
+            else
+            {
+                SyncCameraFromPlayer();
+            }
+
+            SyncCameraFromPlayer();
+
+            _session.Player.Stats.RecordSessionStart();
+
+            _loadingFromSave = false;
+            _spawnWarmupRemaining = SpawnWarmupSeconds;
+
+            _session.BlockInteraction.BindAnimator(_session.InteractionAnimator);
+
+            if (!fromSave)
+            {
+                _session.HudToast.Show(
+                    "Founder's Hamlet is ready. Press V → PEOPLE tab to assign jobs to your 2 settlers.",
+                    durationSeconds: 8f);
+                _pendingAutoOpenPeopleTab = true;
+            }
+
+            _input.IsMouseLocked = true;
+            _input.ResetInactiveTimer();
+            ApplyMouseCapture();
+            TryActivateWindow();
+            Window.Title = "Autonocraft | Playing";
+            RestoreGameplayGraphics();
+            TryStartAgentServer();
+
+            Console.WriteLine("[Game] World ready — WASD move, mouse look, V village, Esc pause.");
+            InputDebugTrace.Log($"ENTER_PLAYING warmup={SpawnWarmupSeconds}s active={IsActive} mouseLocked={_input.IsMouseLocked}");
+        }
+
+        private void PlacePlayerOnSurface()
+        {
+            _session.PlacePlayerOnSurface(_worldSpawnX, _worldSpawnZ);
+            SyncCameraFromPlayer();
+            Console.WriteLine($"[Spawn] Placed player on surface at ({_session.Player.Position.X:F1}, {_session.Player.Position.Y:F1}, {_session.Player.Position.Z:F1})");
+        }
+
+        private void OpenNewWorldSetup()
+        {
+            _screens.NewWorldSetupScreen!.Reset();
+            _screens.State = GameState.NewWorldSetup;
+            Window.Title = "Autonocraft | New World";
+        }
+
+        private void StartWorldLoading()
+        {
+            ApplyFastLoadingGraphics();
+            Vector3 loadCenter = _loadingFromSave
+                ? _camera.Position
+                : new Vector3(_worldSpawnX + 0.5f, 64f, _worldSpawnZ + 0.5f);
+            _screens.LoadingScreen!.Begin(loadCenter, _settings.RenderDistance, _pendingSaveData, _activeSlotName);
+            _screens.State = GameState.WorldLoading;
+            Window.Title = "Autonocraft | Loading World...";
+        }
+
+        private void ReturnToMainMenu()
+        {
+            CloseAllGameplayOverlays();
+            SaveWorld(sync: true);
+            _screens.SnapOverlaysVisible();
+            _screens.SaveSlotScreen!.RefreshSlots();
+            ReleaseMouseCapture();
+            IsMouseVisible = true;
+            _input.IsMouseLocked = false;
+            _screens.State = GameState.MainMenu;
+            Window.Title = "Autonocraft | Main Menu";
+        }
+
+        private void UpdateFrame(GameTime gameTime)
+        {
+            float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+            _screens.HandleStateTransition(
+                () => _input.ReleaseMouseOnLeavePlaying(),
+                UpdateMusicForState);
+
+            _audio?.Update(deltaTime, _screens.State, _session.Grid, _session.Player, _timeOfDay);
+            _audio?.SetDucked(_screens.ShouldDuckAudio(_session.Crafting, _screens.State));
+
+            _screens.UpdateFades(deltaTime);
+
+            var kbState = Keyboard.GetState();
+            var mouseState = GetUiMouseState();
+            _input.BeginFrame();
+            _input.UpdateFocusAndInactiveTimer(IsActive, deltaTime, _screens.State, InputBlockers);
+
+            switch (_screens.State)
+            {
+                case GameState.MainMenu:
+                    EnsureCursorFreeOutsideGameplay();
+                    UpdateMainMenu(kbState, mouseState, deltaTime);
+                    break;
+                case GameState.NewWorldSetup:
+                    EnsureCursorFreeOutsideGameplay();
+                    UpdateNewWorldSetup(kbState, mouseState, deltaTime);
+                    break;
+                case GameState.WorldLoading:
+                    EnsureCursorFreeOutsideGameplay();
+                    UpdateWorldLoading(deltaTime, kbState, mouseState);
+                    break;
+                case GameState.Playing:
+                    UpdateGameplay(deltaTime, kbState, mouseState);
+                    break;
+            }
+
+            _input.EndFrame(kbState, mouseState);
+
+            base.Update(gameTime);
+        }
+
+        private void UpdateMainMenu(KeyboardState kbState, MouseState mouseState, float deltaTime)
+        {
+            if (_screens.PlayerDashboardOpen)
+            {
+                _screens.PlayerDashboardScreen!.Update(
+                    GraphicsDevice.Viewport,
+                    kbState,
+                    _input.PrevKeyboard,
+                    mouseState,
+                    _input.PrevMouse,
+                    deltaTime);
+
+                if (_screens.PlayerDashboardScreen.CloseRequested)
+                {
+                    _screens.PlayerDashboardScreen.Close();
+                    _screens.PlayerDashboardOpen = false;
+                }
+
+                Window.Title = "Autonocraft | Player Stats";
+                return;
+            }
+
+            if (_screens.MainMenuSettingsOpen)
+            {
+                _screens.MainMenuSettingsScreen!.Update(
+                    GraphicsDevice.Viewport,
+                    kbState,
+                    _input.PrevKeyboard,
+                    mouseState,
+                    _input.PrevMouse,
+                    deltaTime);
+
+                if (_screens.MainMenuSettingsScreen.SaveRequested)
+                {
+                    ApplyGameSettings(_screens.MainMenuSettingsScreen.GetWorkingCopy());
+                    _screens.MainMenuSettingsScreen.Close();
+                    _screens.MainMenuSettingsOpen = false;
+                }
+                else if (_screens.MainMenuSettingsScreen.CancelRequested)
+                {
+                    _screens.MainMenuSettingsScreen.Close();
+                    _screens.MainMenuSettingsOpen = false;
+                }
+
+                Window.Title = "Autonocraft | Settings";
+                return;
+            }
+
+            _screens.SaveSlotScreen!.Update(GraphicsDevice.Viewport, kbState, mouseState, _input.PrevKeyboard, _input.PrevMouse, deltaTime);
+
+            if (_screens.SaveSlotScreen.NewWorldRequested)
+            {
+                OpenNewWorldSetup();
+            }
+            else if (_screens.SaveSlotScreen.LoadRequested && _screens.SaveSlotScreen.SelectedSlotId != null)
+            {
+                TryStartLoadedWorld(_screens.SaveSlotScreen.SelectedSlotId);
+            }
+            else if (_screens.SaveSlotScreen.SettingsRequested)
+            {
+                _screens.MainMenuSettingsScreen!.Open(_settings);
+                _screens.MainMenuSettingsOpen = true;
+            }
+            else if (_screens.SaveSlotScreen.StatsRequested)
+            {
+                OpenPlayerDashboard();
+            }
+            else if (_screens.SaveSlotScreen.QuitRequested)
+            {
+                Exit();
+            }
+
+            Window.Title = "Autonocraft | Main Menu";
+        }
+
+        private void OpenPlayerDashboard()
+        {
+            _screens.PlayerDashboardScreen!.Open(
+                _screens.SaveSlotScreen!.GetSelectedSlotId(),
+                _screens.SaveSlotScreen.GetSelectedSlotName());
+            _screens.PlayerDashboardOpen = true;
+        }
+
+        private void ApplyGameSettings(GameSettings settings)
+        {
+            int previousRenderDistance = _settings.RenderDistance;
+            _settings.RenderDistance = settings.RenderDistance;
+            _settings.PlayWithAi = settings.PlayWithAi;
+            _settings.AiProvider = settings.AiProvider;
+            _settings.OpenRouterModel = settings.OpenRouterModel;
+            _settings.OpenRouterApiKey = settings.OpenRouterApiKey;
+            _settings.LlamaCppBaseUrl = settings.LlamaCppBaseUrl;
+            _settings.LlamaCppModel = settings.LlamaCppModel;
+            _settings.MasterVolume = settings.MasterVolume;
+            _settings.SfxVolume = settings.SfxVolume;
+            _settings.AmbientVolume = settings.AmbientVolume;
+            _settings.MusicVolume = settings.MusicVolume;
+            _settings.MuteAudio = settings.MuteAudio;
+            _settings.VSync = settings.VSync;
+            _settings.HighQualityLighting = settings.HighQualityLighting;
+            _settings.Clamp();
+            GameSettingsManager.Save(_settings);
+            _audio?.ApplySettings(_settings);
+            ApplyGraphicsSettings();
+
+            if (_settings.RenderDistance != previousRenderDistance)
+            {
+                SetRenderDistance(_settings.RenderDistance);
+            }
+            else
+            {
+                _screens.PauseMenu?.SetRenderDistance(_settings.RenderDistance);
+            }
+
+            _screens.PauseMenu?.ApplyGraphicsSettings(_settings);
+            RecreateVillageAi();
+        }
+
+        private void UpdateMusicForState(GameState state)
+        {
+            if (_audio == null)
+            {
+                return;
+            }
+
+            switch (state)
+            {
+                case GameState.MainMenu:
+                case GameState.NewWorldSetup:
+                    _audio.SetMusicState(MusicState.Menu);
+                    break;
+                case GameState.WorldLoading:
+                case GameState.Playing:
+                    _audio.SetMusicState(MusicState.Gameplay);
+                    break;
+            }
+        }
+
+        private void PlayUiClick() => _audio?.PlaySfx(SfxKind.UiClick);
+
+        private void RecreateVillageAi()
+        {
+            if (_runTests || _ui == null)
+            {
+                return;
+            }
+
+            _session.RefreshVillageAi(_settings);
+            _villageAiOrchestrator = _session.VillageAi;
+            _screens.RecreateVillageChatScreen(_ui, _session.VillageAi);
+        }
+
+        private void UpdateNewWorldSetup(KeyboardState kbState, MouseState mouseState, float deltaTime)
+        {
+            _screens.NewWorldSetupScreen!.Update(GraphicsDevice.Viewport, kbState, mouseState, _input.PrevKeyboard, _input.PrevMouse, deltaTime);
+
+            if (_screens.NewWorldSetupScreen.CreateRequested)
+            {
+                StartNewWorld(_screens.NewWorldSetupScreen.SelectedSeed, _screens.NewWorldSetupScreen.SelectedWorldType);
+            }
+            else if (_screens.NewWorldSetupScreen.BackRequested)
+            {
+                _screens.State = GameState.MainMenu;
+                Window.Title = "Autonocraft | Main Menu";
+            }
+        }
+
+        private void UpdateWorldLoading(float deltaTime, KeyboardState kbState, MouseState mouseState)
+        {
+            _screens.LoadingScreen!.Update(deltaTime);
+
+            if (_screens.LoadingScreen.HasTimedOut)
+            {
+                Console.WriteLine($"[Load] World loading timed out: {_screens.LoadingScreen.TimeoutReason}");
+                _screens.SaveSlotScreen?.SetLoadError(_screens.LoadingScreen.TimeoutReason ?? "World failed to load.");
+                ReturnToMainMenu();
+                return;
+            }
+
+            if (_screens.LoadingScreen.IsComplete)
+            {
+                EnterPlaying();
+            }
+            else
+            {
+                Window.Title = $"Autonocraft | Loading World... {(_screens.LoadingScreen.Progress * 100f):F0}%";
+            }
+        }
+
+        private void TryStartAgentServer()
+        {
+            if (_agentServerStarted)
+            {
+                return;
+            }
+
+            int[] ports = [_agentPort, 5001, 8765, 5010];
+            foreach (int port in ports)
+            {
+                if (_agentServerStarted)
+                {
+                    break;
+                }
+
+                try
+                {
+                    AgentHttpServer.Start(this, port);
+                    _agentPort = port;
+                    _agentServerStarted = true;
+                    if (!RuntimeMetrics.FileLoggingEnabled)
+                    {
+                        RuntimeMetrics.EnableFileLogging(fromCli: false);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Agent] HTTP server failed on port {port}: {ex.Message}");
+                }
+            }
+
+            if (!_agentServerStarted)
+            {
+                Console.WriteLine("[Agent] HTTP server unavailable — in-game controls still work.");
+            }
+        }
+
+        private void TickSpawnWarmupAndVillageSystems(float deltaTime)
+        {
+            bool inSpawnWarmup = _spawnWarmupRemaining > 0f;
+            if (inSpawnWarmup)
+            {
+                _spawnWarmupRemaining -= deltaTime;
+            }
+
+            float warmup = SpawnWarmupProgress;
+            int targetTerrainPerFrame = VoxelWorld.GetRuntimeTerrainChunksPerFrame(_settings.RenderDistance);
+            int targetMeshPerFrame = VoxelWorld.GetRuntimeMeshChunksPerFrame(_settings.RenderDistance);
+            int terrainPerFrame = inSpawnWarmup
+                ? Math.Max(1, (int)MathF.Round(1f + (targetTerrainPerFrame - 1f) * warmup))
+                : targetTerrainPerFrame;
+            int meshPerFrame = inSpawnWarmup
+                ? Math.Max(1, (int)MathF.Round(1f + (targetMeshPerFrame - 1f) * warmup))
+                : targetMeshPerFrame;
+
+            _session.DeferAmbientSpawns = inSpawnWarmup && warmup < 0.7f;
+
+            var swChunks = System.Diagnostics.Stopwatch.StartNew();
+            _session.UpdateChunks(GraphicsDevice, _camera.Position, _settings.RenderDistance, terrainPerFrame, meshPerFrame);
+            swChunks.Stop();
+            PerfCounters.UpdateChunksMs = (float)swChunks.Elapsed.TotalMilliseconds;
+
+            var swAnimals = System.Diagnostics.Stopwatch.StartNew();
+            if (!inSpawnWarmup || warmup >= 0.75f)
+            {
+                _session.UpdateAnimals(deltaTime);
+            }
+            _session.UpdateItemDrops(deltaTime);
+            swAnimals.Stop();
+            PerfCounters.UpdateAnimalsMs = (float)swAnimals.Elapsed.TotalMilliseconds;
+
+            var swVillages = System.Diagnostics.Stopwatch.StartNew();
+            if (!inSpawnWarmup || warmup >= 0.6f)
+            {
+                _session.UpdateVillages(deltaTime, _timeOfDay);
+                _session.UpdateSurvival(deltaTime, _timeOfDay, inSpawnWarmup);
+                _session.UpdateEarlyGuide(deltaTime, _timeOfDay, _screens.VillageScreen?.IsOpen == true);
+                _claimHintTimer += deltaTime;
+                if (_claimHintTimer >= 10f)
+                {
+                    _claimHintTimer = 0f;
+                    _session.UpdateNearbyClaimHint();
+                }
+
+                _session.UpdateVillageHudHint(_session.Player.CreativeMode);
+            }
+            swVillages.Stop();
+            PerfCounters.UpdateVillagesMs = (float)swVillages.Elapsed.TotalMilliseconds;
+
+            if (_pendingAutoOpenPeopleTab && !inSpawnWarmup && _session.Player.Stats.EarlyGuideStage <= 1)
+            {
+                _pendingAutoOpenPeopleTab = false;
+                OpenVillageUiToPeopleTab();
+            }
+        }
+    }
+}

@@ -19,12 +19,18 @@ permissions:
 
 jobs:
   build:
-    name: Build (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            platform: Linux
+          - os: windows-latest
+            platform: Windows
+          - os: macos-latest
+            platform: macOS
+    name: ${{ format('Build ({0})', matrix.platform) }}
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -56,13 +62,19 @@ jobs:
           if-no-files-found: error
 
   unit-tests:
-    name: Unit tests (${{ matrix.os }})
     needs: build
-    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            platform: Linux
+          - os: windows-latest
+            platform: Windows
+          - os: macos-latest
+            platform: macOS
+    name: ${{ format('Unit tests ({0})', matrix.platform) }}
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -98,7 +110,7 @@ jobs:
         uses: dorny/test-reporter@v1
         if: always()
         with:
-          name: Unit Tests (${{ matrix.os }})
+          name: ${{ format('Unit tests ({0})', matrix.platform) }}
           path: TestResults/**/*.trx
           reporter: dotnet-trx
           fail-on-error: true
@@ -111,14 +123,20 @@ jobs:
           path: TestResults/
 
   integration-tests:
-    name: Integration tests (${{ matrix.os }})
     needs: build
-    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            platform: Linux
+          - os: windows-latest
+            platform: Windows
+          - os: macos-latest
+            platform: macOS
+    name: ${{ format('Integration tests ({0})', matrix.platform) }}
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 

@@ -1,6 +1,15 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Autonocraft.Domain/Autonocraft.Domain.csproj" />
+    <Project Path="src/Autonocraft.Diagnostics/Autonocraft.Diagnostics.csproj" />
+    <Project Path="src/Autonocraft.Items/Autonocraft.Items.csproj" />
+    <Project Path="src/Autonocraft.World/Autonocraft.World.csproj" />
+    <Project Path="src/Autonocraft.Entities/Autonocraft.Entities.csproj" />
+    <Project Path="src/Autonocraft.Crafting/Autonocraft.Crafting.csproj" />
+    <Project Path="src/Autonocraft.Village/Autonocraft.Village.csproj" />
+    <Project Path="src/Autonocraft.Ai/Autonocraft.Ai.csproj" />
+    <Project Path="src/Autonocraft.Engine/Autonocraft.Engine.csproj" />
+    <Project Path="src/Autonocraft.Core/Autonocraft.Core.csproj" />
     <Project Path="src/Autonocraft/Autonocraft.csproj" />
   </Folder>
   <Folder Name="/tests/">
