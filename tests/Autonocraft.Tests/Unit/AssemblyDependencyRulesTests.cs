@@ -16,7 +16,7 @@ public sealed class AssemblyDependencyRulesTests
         ["Autonocraft.World"] = ["Autonocraft.Domain", "Autonocraft.Diagnostics", "Autonocraft.Items"],
         ["Autonocraft.Crafting"] = ["Autonocraft.Domain", "Autonocraft.Items", "Autonocraft.World"],
         ["Autonocraft.Entities"] = ["Autonocraft.Domain", "Autonocraft.World"],
-        ["Autonocraft.Village"] = ["Autonocraft.Domain", "Autonocraft.Items", "Autonocraft.World", "Autonocraft.Entities"],
+        ["Autonocraft.Village"] = ["Autonocraft.Domain", "Autonocraft.Items", "Autonocraft.World", "Autonocraft.Entities", "Autonocraft.Crafting"],
         ["Autonocraft.Ai"] = ["Autonocraft.Domain"],
         ["Autonocraft.Engine"] = ["Autonocraft.Domain", "Autonocraft.Diagnostics", "Autonocraft.Items", "Autonocraft.World", "Autonocraft.Entities", "Autonocraft.Village"],
         ["Autonocraft.Core"] = ["Autonocraft.Domain", "Autonocraft.Diagnostics", "Autonocraft.Items", "Autonocraft.World", "Autonocraft.Entities", "Autonocraft.Village", "Autonocraft.Crafting", "Autonocraft.Ai", "Autonocraft.Engine"],
