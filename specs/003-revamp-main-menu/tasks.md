@@ -149,6 +149,7 @@ paths, and navigation. The final gate includes
 
 - [X] T047 Run focused menu test filter and fix failures in `tests/Autonocraft.Tests/Integration/MenuTests.cs`
 - [X] T048 Run required integration suite `dotnet run --project src/Autonocraft -- --test` and record exit code 0
+- [ ] T048b Run unit test gate `dotnet test tests/Autonocraft.Tests -c Release --filter "FullyQualifiedName~Unit"` and record exit code 0
 - [X] T049 [P] Verify `--skip-menu` bypass unchanged in `src/Autonocraft/Game/GameStateMachine.cs`
 - [X] T050 [P] Verify `--structure-gallery` bypass unchanged in `src/Autonocraft/Program.cs`
 - [X] T051 Execute manual validation checklist in `specs/003-revamp-main-menu/quickstart.md`

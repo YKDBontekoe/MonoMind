@@ -232,6 +232,28 @@ public static partial class VillageTests
         return JsonDocument.Parse(body);
     }
 
+    private static void WaitForAgentReady(HttpClient http, int maxAttempts = 50)
+    {
+        for (int attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            try
+            {
+                using var health = GetJson(http, "/health");
+                if (health.RootElement.GetProperty("ready").GetBoolean())
+                {
+                    return;
+                }
+            }
+            catch
+            {
+            }
+
+            Thread.Sleep(10 + attempt * 2);
+        }
+
+        throw new Exception("Agent HTTP server did not become ready in time.");
+    }
+
     private static JsonDocument PostAction(HttpClient http, string command, params (string key, string value)[] parameters)
     {
         var query = new List<string> { "cmd=" + Uri.EscapeDataString(command) };
@@ -320,6 +342,7 @@ public static partial class VillageTests
     private sealed class TestAgentBridge : IGameAgentBridge, IDisposable
     {
         private readonly Thread _pumpThread;
+        private readonly object _actionLock = new();
         private bool _running = true;
 
         public TestAgentBridge(GameSession session)
@@ -436,14 +459,17 @@ public static partial class VillageTests
 
         private bool DrainActions()
         {
-            bool drained = false;
-            while (PendingActions.TryDequeue(out var action))
+            lock (_actionLock)
             {
-                action();
-                drained = true;
-            }
+                bool drained = false;
+                while (PendingActions.TryDequeue(out var action))
+                {
+                    action();
+                    drained = true;
+                }
 
-            return drained;
+                return drained;
+            }
         }
     }
 

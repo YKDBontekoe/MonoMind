@@ -83,7 +83,7 @@ dotnet run --project src/Autonocraft -c Release -- --test
 
 Tests instantiate `AutonocraftGame(runTests: true)` without calling `Run()`, so no MonoGame window is created. Graphics device may be `null` for chunk updates in test mode.
 
-### Covered areas (48 tests)
+### Covered areas (integration test suite)
 
 #### Settings & world generation
 

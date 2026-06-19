@@ -95,9 +95,13 @@ namespace Autonocraft.Ai
 
             int? buildingSiteId = TryGetInt(root, "building_site_id", out int siteId) ? siteId : null;
 
-            if (!villageManager.TryAssignJob(village, villager, job, target, buildingSiteId).Success)
+            var assignResult = villageManager.TryAssignJob(village, villager, job, target, buildingSiteId);
+            if (!assignResult.Success)
             {
-                return (false, $"Could not assign {job} to {villager.Name}.");
+                string message = string.IsNullOrEmpty(assignResult.Remediation)
+                    ? assignResult.PlayerMessage
+                    : $"{assignResult.PlayerMessage} {assignResult.Remediation}";
+                return (false, message);
             }
 
             return (true, $"Assigned {villager.Name} to {job}.");

@@ -30,9 +30,10 @@ food stock, housing, and settlement metadata must continue round-tripping throug
 existing `world.json` save paths.
 
 **Testing**: `dotnet run --project src/Autonocraft -- --test`; extend
-`tests/Autonocraft.Tests/Integration/VillageTests.cs` for guidance, layout,
-blocked-action messaging, and activity text; optional manual validation via
-`--skip-menu` + `tests/interact.py`
+`tests/Autonocraft.Tests/Integration/VillageTests.*.cs` partials (e.g.
+`VillageTests.Ui.cs`, `VillageTests.Jobs.cs`, `VillageTests.Agent.cs`) for
+guidance, layout, blocked-action messaging, and activity text; optional manual
+validation via `--skip-menu` + `tests/interact.py`
 
 **Target Platform**: Desktop game on macOS, Windows, and Linux through MonoGame
 DesktopGL

@@ -177,10 +177,13 @@ namespace Autonocraft.Core
             Window.Title = "Autonocraft | Loading World...";
         }
 
-        private void ReturnToMainMenu()
+        private void ReturnToMainMenu(bool save = true)
         {
             CloseAllGameplayOverlays();
-            SaveWorld(sync: true);
+            if (save)
+            {
+                SaveWorld(sync: true);
+            }
             _isStructureGalleryWorld = false;
             _screens.SnapOverlaysVisible();
             _screens.SaveSlotScreen!.RefreshSlots();
@@ -488,7 +491,7 @@ namespace Autonocraft.Core
                 Console.WriteLine($"[Load] World loading timed out: {_screens.LoadingScreen.TimeoutReason}");
                 _screens.SaveSlotScreen?.SetLoadError(_screens.LoadingScreen.TimeoutReason ?? "World failed to load.");
                 _screens.MenuNav.ReturnToSaveBrowserFromGameplay();
-                ReturnToMainMenu();
+                ReturnToMainMenu(save: false);
                 return;
             }
 

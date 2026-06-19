@@ -169,6 +169,12 @@ namespace Autonocraft.Village
                 return 0;
             }
 
+            var populationByVillageId = new Dictionary<int, int>();
+            foreach (var otherVillage in allVillages)
+            {
+                populationByVillageId[otherVillage.Id] = GetLivePopulation(otherVillage, villagers);
+            }
+
             int linked = 0;
             foreach (var villager in villagers.All)
             {
@@ -185,10 +191,10 @@ namespace Autonocraft.Village
                 var assigned = FindVillage(allVillages, villager.VillageId);
                 if (assigned != null && assigned.Id != village.Id)
                 {
-                    int assignedPop = GetLivePopulation(assigned, villagers);
+                    populationByVillageId.TryGetValue(assigned.Id, out int assignedPop);
                     float assignedDist = HorizontalDistanceSquared(villager.Position, assigned);
                     float hereDist = HorizontalDistanceSquared(villager.Position, village);
-                    if (assignedPop > 0 && assignedDist < hereDist)
+                    if (assignedPop > 0 && assignedDist <= hereDist)
                     {
                         continue;
                     }

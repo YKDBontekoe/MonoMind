@@ -43,7 +43,7 @@ Terminal 1:
 dotnet run --project src/Autonocraft -- --skip-menu
 ```
 
-In game:
+In-game:
 
 1. Wait for starter settlement to load.
 2. Press **V** to open Town Board.

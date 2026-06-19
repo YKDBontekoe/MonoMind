@@ -32,7 +32,6 @@ namespace Autonocraft.UI
             RequestedStewardChat = false;
             RequestBlueprintPlacement = false;
             RequestWorkZonePlacement = false;
-            ClearActionFeedback();
         }
 
         private void RefreshVillageState()

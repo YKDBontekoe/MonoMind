@@ -267,7 +267,7 @@ namespace Autonocraft.Core
                 InventoryOpen = crafting.InventoryOpen
             };
 
-        public void DrawMainMenu(GraphicsDevice graphicsDevice)
+        public void DrawMainMenu(GraphicsDevice graphicsDevice, float deltaTime)
         {
             float alpha = _screenFade.Alpha;
             float offsetY = _screenFade.OffsetY;
@@ -275,7 +275,7 @@ namespace Autonocraft.Core
 
             if (_menuNav.BaseLayer == MenuLayer.RootHub)
             {
-                MainMenuScreen!.Draw(graphicsDevice.Viewport, 0f, alpha, offsetY);
+                MainMenuScreen!.Draw(graphicsDevice.Viewport, deltaTime, alpha, offsetY);
             }
             else
             {

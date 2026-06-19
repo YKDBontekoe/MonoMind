@@ -21,6 +21,50 @@ namespace Autonocraft.UI.VillagePanels
 
         public bool IsVisible(VillagePanelContext context) => true;
 
+        public static bool TryGetNextActionCtaY(
+            VillageViewModel? viewModel,
+            UiLayout layout,
+            float panelY,
+            float contentTop,
+            out float ctaY)
+        {
+            ctaY = 0f;
+            if (viewModel == null ||
+                viewModel.NextActionKind == SettlementActionKind.None ||
+                !viewModel.SuggestedTab.HasValue)
+            {
+                return false;
+            }
+
+            float y = panelY + contentTop;
+            y += layout.S(4f);
+            y += layout.S(20f);
+
+            if (!string.IsNullOrEmpty(viewModel.HudContextNote))
+            {
+                y += layout.S(28f) + layout.S(8f);
+            }
+
+            if (viewModel.FoodRiskLevel is FoodRiskLevel.Low or FoodRiskLevel.Critical ||
+                viewModel.IdleWorkerCount > 0)
+            {
+                y = GetWellBeingBannerBottomY(y, layout, viewModel) + layout.S(6f);
+            }
+
+            if (viewModel.IdleWorkerCount > 0 || viewModel.FoodRiskLevel != FoodRiskLevel.Ok)
+            {
+                y += layout.S(28f);
+            }
+
+            if (!string.IsNullOrEmpty(viewModel.ActiveWorkSummary))
+            {
+                y += layout.S(18f);
+            }
+
+            ctaY = y;
+            return true;
+        }
+
         public void Draw(VillagePanelContext context)
         {
             var ui = context.Ui;
@@ -187,6 +231,18 @@ namespace Autonocraft.UI.VillagePanels
             float colH = height - (y - (context.PanelY + context.ContentTop)) - layout.S(8f);
             DrawStoragePanel(context, left, y, colW, colH, alpha, accent);
             DrawActivityPanel(context, left + colW + layout.S(12f), y, colW, colH, alpha, accent);
+        }
+
+        private static float GetWellBeingBannerBottomY(float y, UiLayout layout, VillageViewModel viewModel)
+        {
+            if (viewModel.FoodRiskLevel == FoodRiskLevel.Critical ||
+                viewModel.FoodRiskLevel == FoodRiskLevel.Low ||
+                viewModel.IdleWorkerCount >= 2)
+            {
+                return y + layout.S(36f);
+            }
+
+            return y;
         }
 
         private static float DrawWellBeingBanner(

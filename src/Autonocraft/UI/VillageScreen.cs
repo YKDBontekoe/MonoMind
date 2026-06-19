@@ -77,6 +77,7 @@ namespace Autonocraft.UI
 
         private int _strandedCitizenCount;
         private bool _summonLinksNearby;
+        private int _actionFeedbackFrames;
         private readonly FoundingPanel _foundingPanel = new();
 
         public bool IsOpen { get; private set; }
@@ -96,6 +97,7 @@ namespace Autonocraft.UI
         public string? AssignFeedback { get; private set; }
         public bool AssignSuccess { get; private set; }
         public string? RecruitFeedback { get; private set; }
+        public bool RecruitSuccess { get; private set; }
 
         public void SetAssignFeedback(JobAssignmentResult result)
         {
@@ -111,15 +113,19 @@ namespace Autonocraft.UI
                     : $"{result.PlayerMessage} {result.Remediation}";
                 AssignSuccess = false;
             }
+
+            _actionFeedbackFrames = 180;
         }
 
         public void SetRecruitFeedback(RecruitResult result)
         {
+            RecruitSuccess = result.Success;
             RecruitFeedback = result.Success
                 ? result.PlayerMessage
                 : string.IsNullOrEmpty(result.Remediation)
                     ? result.PlayerMessage
                     : $"{result.PlayerMessage} {result.Remediation}";
+            _actionFeedbackFrames = 180;
         }
 
         public void RefreshAfterVillageAction()
@@ -132,6 +138,9 @@ namespace Autonocraft.UI
         {
             AssignFeedback = null;
             RecruitFeedback = null;
+            AssignSuccess = false;
+            RecruitSuccess = false;
+            _actionFeedbackFrames = 0;
         }
 
         public VillageScreen(UiRenderer ui, VillagerManager villagers)
@@ -268,6 +277,15 @@ namespace Autonocraft.UI
         {
             ResetRequests();
 
+            if (_actionFeedbackFrames > 0)
+            {
+                _actionFeedbackFrames--;
+                if (_actionFeedbackFrames == 0)
+                {
+                    ClearActionFeedback();
+                }
+            }
+
             if (!IsOpen)
             {
                 return;
@@ -392,9 +410,9 @@ namespace Autonocraft.UI
 
             if (_selectedTab == 0)
             {
-                if (_viewModel?.SuggestedTab != null && _viewModel.NextActionKind != SettlementActionKind.None)
+                if (_viewModel?.SuggestedTab != null && _viewModel.NextActionKind != SettlementActionKind.None &&
+                    OverviewPanel.TryGetNextActionCtaY(_viewModel, layout.Ui, panelY, layout.S(ContentTop), out float ctaY))
                 {
-                    float ctaY = panelY + layout.S(ContentTop) + layout.S(44f);
                     HitRect(left, ctaY, layout.S(140f), layout.S(28f), 15, mouse);
                 }
 
@@ -592,8 +610,9 @@ namespace Autonocraft.UI
 
             if (!string.IsNullOrEmpty(RecruitFeedback))
             {
+                Color feedbackColor = RecruitSuccess ? UiTheme.Success : UiTheme.Danger;
                 _ui.DrawCenteredText(RecruitFeedback, panelY + panelH - layout.S(28f), layout.S(UiTheme.FontSmall),
-                    UiTheme.Danger, 0.95f * alpha);
+                    feedbackColor, 0.95f * alpha);
             }
         }
 

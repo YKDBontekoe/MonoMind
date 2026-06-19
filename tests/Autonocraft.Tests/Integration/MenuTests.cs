@@ -109,7 +109,10 @@ public static class MenuTests
         var working = GameSettingsManager.Load();
         working.RenderDistance = 11;
         working.MasterVolume = 0.1f;
-        _ = working;
+        if (working.RenderDistance != 11 || Math.Abs(working.MasterVolume - 0.1f) > 0.001f)
+        {
+            throw new Exception("In-memory settings edits were not applied to working copy.");
+        }
 
         var reloaded = GameSettingsManager.Load();
         if (reloaded.RenderDistance != 6 || Math.Abs(reloaded.MasterVolume - 0.5f) > 0.001f)

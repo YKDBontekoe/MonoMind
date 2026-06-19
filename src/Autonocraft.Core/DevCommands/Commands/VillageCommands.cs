@@ -43,9 +43,7 @@ namespace Autonocraft.Core.DevCommands.Commands
             }
 
             var recruitResult = session.Villages.TryRecruit(village!, session.Grid);
-            return recruitResult.Success
-                ? "Recruited villager."
-                : recruitResult.PlayerMessage;
+            return recruitResult.PlayerMessage;
         }
     }
 

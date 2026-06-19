@@ -104,6 +104,7 @@ namespace Autonocraft.UI
                     int randomSeed = _random.Next(1, int.MaxValue);
                     _seedText = randomSeed.ToString();
                     SelectedSeed = randomSeed;
+                    _seedErrorMessage = null;
                 }
                 else
                 {

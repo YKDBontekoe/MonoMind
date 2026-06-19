@@ -761,6 +761,7 @@ public static partial class VillageTests
         try
         {
             AgentHttpServer.Start(bridge, port);
+            WaitForAgentReady(http);
             var state = GetJson(http, "/state");
             string guidanceHint = state.RootElement.GetProperty("guidanceHint").GetString() ?? "";
             string nextAction = state.RootElement.GetProperty("village").GetProperty("nextAction").GetString() ?? "";

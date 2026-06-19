@@ -93,7 +93,7 @@ As a player, I want villagers to feel like distinct members of my settlement —
 - **FR-002**: System MUST display a prioritized, plain-language "next best action" recommendation that updates based on settlement state (for example, assign idle workers, address low food, queue housing, recruit).
 - **FR-003**: System MUST allow players to view a list of all settlement citizens with name, role, current job, activity summary, and well-being indicators where applicable.
 - **FR-004**: System MUST allow players to assign and change villager jobs from the citizen detail view with immediate visual confirmation of success or failure.
-- **FR-005**: System MUST explain blocked actions with specific reasons and suggested follow-up steps (missing materials, no housing cap, no work zone, no marked resources).
+- **FR-005**: System MUST explain blocked actions with specific reasons and suggested follow-up steps (missing materials, at housing cap, no work zone, no marked resources).
 - **FR-006**: System MUST show per-villager activity in human-readable form that reflects what the villager is doing in the world, not only enum labels.
 - **FR-007**: System MUST expose recruit requirements and outcomes before recruitment is committed, including housing cap and material costs.
 - **FR-008**: System MUST keep founding, starter settlement, and established settlement flows visually and linguistically consistent so players learn one mental model.

@@ -96,7 +96,7 @@ namespace Autonocraft.UI.Village
                         ? $"Recruit costs {VillageEntity.RecruitFoodCost} oak planks"
                         : livePopulation >= village.PopulationCap
                             ? "Build a Peasant House to raise housing cap"
-                            : "Need 4 oak planks in village storage",
+                            : $"Need {VillageEntity.RecruitFoodCost} oak planks in village storage",
                 RecruitPreview = BuildRecruitPreview(village, villagers, playerCreative, livePopulation),
                 HudContextNote = hudContextNote
             };
