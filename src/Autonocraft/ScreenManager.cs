@@ -102,12 +102,34 @@ namespace Autonocraft.Core
                     FoodConsumption.TryTakeRations(player, village);
                 }
             });
+            VillageScreen.SetDepositActions(
+                player =>
+                {
+                    var village = session.Villages.GetActiveVillage(player.Position);
+                    if (village != null)
+                    {
+                        VillageDeposits.TryDepositSelectedHotbar(player, village);
+                    }
+                },
+                player =>
+                {
+                    var village = session.Villages.GetActiveVillage(player.Position);
+                    if (village != null)
+                    {
+                        VillageDeposits.TryDepositAllBlocks(player, village);
+                    }
+                });
             VillageChatScreen = new VillageChatScreen(ui, session.VillageAi);
         }
 
         public void RecreateVillageChatScreen(UiRenderer ui, VillageAiOrchestrator villageAi)
         {
             VillageChatScreen = new VillageChatScreen(ui, villageAi);
+        }
+
+        public void RebindSessionVillagers(GameSession session)
+        {
+            VillageScreen?.BindVillagers(session.Villagers);
         }
 
         public void RecreateLoadingScreen(GraphicsDevice graphicsDevice, UiRenderer ui, VoxelWorld grid)

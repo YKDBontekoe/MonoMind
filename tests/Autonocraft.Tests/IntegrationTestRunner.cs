@@ -72,8 +72,19 @@ public static class IntegrationTestRunner
             RunTimed(nameof(VillageTests.RunRepairMissingCitizens), VillageTests.RunRepairMissingCitizens);
             RunTimed(nameof(VillageTests.RunVillagerLumberChopping), VillageTests.RunVillagerLumberChopping);
             RunTimed(nameof(VillageTests.RunAdoptOrphanedCitizens), VillageTests.RunAdoptOrphanedCitizens);
+            RunTimed(nameof(VillageTests.RunRelinkStrandedCitizens), VillageTests.RunRelinkStrandedCitizens);
+            RunTimed(nameof(VillageTests.RunVillageUiVillagerManagerRebind), VillageTests.RunVillageUiVillagerManagerRebind);
             RunTimed(nameof(VillageTests.RunVillageRegistryDesyncLiveChop), VillageTests.RunVillageRegistryDesyncLiveChop);
             RunTimed(nameof(VillageTests.RunVillageGuidanceHints), VillageTests.RunVillageGuidanceHints);
+            RunTimed(nameof(VillageTests.RunSettlementGuidancePriority), VillageTests.RunSettlementGuidancePriority);
+            RunTimed(nameof(VillageTests.RunSettlementDashboardFields), VillageTests.RunSettlementDashboardFields);
+            RunTimed(nameof(VillageTests.RunJobAssignmentBlockedReasons), VillageTests.RunJobAssignmentBlockedReasons);
+            RunTimed(nameof(VillageTests.RunVillagerActivityTextContext), VillageTests.RunVillagerActivityTextContext);
+            RunTimed(nameof(VillageTests.RunRecruitPreviewBlockedReason), VillageTests.RunRecruitPreviewBlockedReason);
+            RunTimed(nameof(VillageTests.RunSettlementWellBeingWarnings), VillageTests.RunSettlementWellBeingWarnings);
+            RunTimed(nameof(VillageTests.RunPeopleTabCitizenDifferentiation), VillageTests.RunPeopleTabCitizenDifferentiation);
+            RunTimed(nameof(VillageTests.RunPeopleTabJobButtonIds), VillageTests.RunPeopleTabJobButtonIds);
+            RunTimed(nameof(VillageTests.RunAgentStateGuidanceParity), VillageTests.RunAgentStateGuidanceParity);
             RunTimed(nameof(VillageTests.RunVillageEventsNotifier), VillageTests.RunVillageEventsNotifier);
             RunTimed(nameof(VillageTests.RunStarvationConsequences), VillageTests.RunStarvationConsequences);
             RunTimed(nameof(VillageTests.RunVillageRename), VillageTests.RunVillageRename);
@@ -134,6 +145,7 @@ public static class IntegrationTestRunner
                 RunTimed(nameof(CraftingTests.RunStorageInventory), () => CraftingTests.RunStorageInventory(player));
                 RunTimed(nameof(VillageTests.RunStarterSettlementOnNewWorld), () => VillageTests.RunStarterSettlementOnNewWorld(game));
                 RunTimed(nameof(SurvivalTests.RunVillageRations), () => SurvivalTests.RunVillageRations(player, game.Session.Villages.GetPrimaryVillage()!));
+                RunTimed(nameof(SurvivalTests.RunVillageDeposits), () => SurvivalTests.RunVillageDeposits(player, game.Session.Villages.GetPrimaryVillage()!));
                 RunTimed(nameof(VillageTests.RunVillageFoundAndRecruit), () => VillageTests.RunVillageFoundAndRecruit(game));
                 RunTimed(nameof(VillageTests.RunVillageSaveRoundTripV6), () => VillageTests.RunVillageSaveRoundTripV6(game));
                 RunTimed(nameof(VillageTests.RunVillageSaveRoundTripV7), () => VillageTests.RunVillageSaveRoundTripV7(game));

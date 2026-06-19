@@ -156,7 +156,27 @@ namespace Autonocraft.Core
                 return "Press I — craft sticks/planks, then tools at Bench";
             }
 
-            return VillageGuidance.GetNextBestAction(village, villagers, player.Position);
+            return SettlementGuidance.Compute(village, villagers, player.Position).Headline;
+        }
+
+        /// <summary>
+        /// When HUD guidance differs from settlement priority, returns a Town Board note that keeps both in sync.
+        /// </summary>
+        public static string? GetTownBoardHudContextNote(Player player, Village.Village village, VillagerManager villagers)
+        {
+            if (player.CreativeMode || player.Stats.EarlyGuideStage >= 5)
+            {
+                return null;
+            }
+
+            string hudHint = GetGuidanceHint(player, village, villagers);
+            string settlementHeadline = SettlementGuidance.Compute(village, villagers, player.Position).Headline;
+            if (string.Equals(hudHint, settlementHeadline, StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            return $"HUD tip: {hudHint}";
         }
 
         private static bool AnyVillagerWorking(Village.Village village, VillagerManager villagers)

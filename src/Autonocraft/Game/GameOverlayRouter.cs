@@ -235,11 +235,41 @@ namespace Autonocraft.Core
 
             if (_screens.VillageScreen!.SummonSettlersRequested)
             {
-                _session.Villages.RepairVillageCitizens(village, _session.Grid);
+                int before = VillageSettlementHealth.GetLivePopulation(village, _session.Villagers);
+                if (!_session.Villages.RepairVillageCitizens(village, _session.Grid))
+                {
+                    _session.Villages.SyncCitizensForVillage(village);
+                    int after = VillageSettlementHealth.GetLivePopulation(village, _session.Villagers);
+                    int stranded = VillageSettlementHealth.CountStrandedCitizens(village, _session.Villagers);
+                    if (after == 0 && stranded > 0)
+                    {
+                        _screens.VillageScreen.SetRecruitFeedback(
+                            RecruitResult.Failed(
+                                RecruitReasonCodes.NoCitizens,
+                                $"{stranded} settler(s) are nearby but not linked yet.",
+                                "Walk closer to the Town Heart, then click Link nearby settlers again."));
+                    }
+                    else if (after == 0)
+                    {
+                        _screens.VillageScreen.SetRecruitFeedback(
+                            RecruitResult.Failed(
+                                RecruitReasonCodes.NoCitizens,
+                                "No settlers could be summoned.",
+                                "Stand on the Town Heart block inside your settlement and try again."));
+                    }
+                }
+                else if (VillageSettlementHealth.GetLivePopulation(village, _session.Villagers) > before)
+                {
+                    _screens.VillageScreen.SetRecruitFeedback(
+                        RecruitResult.Succeeded("Settlers linked"));
+                }
+
+                _screens.VillageScreen.RefreshAfterVillageAction();
             }
             else if (_screens.VillageScreen.RecruitRequested)
             {
-                _session.Villages.TryRecruit(village, _session.Grid);
+                var recruitResult = _session.Villages.TryRecruit(village, _session.Grid);
+                _screens.VillageScreen.SetRecruitFeedback(recruitResult);
             }
             else if (_screens.VillageScreen.ClaimRequested)
             {
@@ -264,6 +294,11 @@ namespace Autonocraft.Core
                 _blueprints.StartWorkZonePlacement(CloseVillageUi);
                 EnsureMouseLockedForGameplay();
             }
+            else if (_screens.VillageScreen.RequestedStewardChat)
+            {
+                CloseVillageUi();
+                OpenVillageChatUi();
+            }
             else if (_screens.VillageScreen.RequestedChatVillagerId >= 0 &&
                      _session.Villagers.TryGet(_screens.VillageScreen.RequestedChatVillagerId, out var chatVillager))
             {
@@ -273,7 +308,13 @@ namespace Autonocraft.Core
             else if (_screens.VillageScreen.RequestedAssignVillagerId >= 0 &&
                      _session.Villagers.TryGet(_screens.VillageScreen.RequestedAssignVillagerId, out var villager))
             {
-                _session.Villages.TryAssignJob(village, villager, _screens.VillageScreen.RequestedAssignJob);
+                var result = _session.Villages.TryAssignJob(village, villager, _screens.VillageScreen.RequestedAssignJob);
+                _screens.VillageScreen.SetAssignFeedback(result);
+                _screens.VillageScreen.RefreshAfterVillageAction();
+                if (!result.Success)
+                {
+                    _session.VillageEvents.OnAssignFailure(result.PlayerMessage);
+                }
             }
         }
 
@@ -494,6 +535,7 @@ namespace Autonocraft.Core
                     new PlayerHotbarAdapter(_session.Player),
                     _session.Player.CreativeMode,
                     _settings.PlayWithAi && _settings.AiProvider != AiProviderKind.Disabled);
+                _session.VillageEvents.TownBoardOpen = true;
                 return;
             }
 
@@ -527,13 +569,19 @@ namespace Autonocraft.Core
                 _session.Player.CreativeMode,
                 openingNote,
                 _settings.PlayWithAi && _settings.AiProvider != AiProviderKind.Disabled,
-                earlyGuideStage: _session.Player.Stats.EarlyGuideStage);
+                earlyGuideStage: _session.Player.Stats.EarlyGuideStage,
+                guidePlayer: _session.Player);
+            _session.VillageEvents.TownBoardOpen = true;
+            if (_session.NearbyManageVillagerId.HasValue)
+            {
+                _screens.VillageScreen.OpenPeopleTab(_session.NearbyManageVillagerId);
+            }
         }
 
-        private void OpenVillageUiToPeopleTab()
+        private void OpenVillageUiToPeopleTab(int? villagerId = null)
         {
             OpenVillageUi();
-            _screens.VillageScreen?.OpenPeopleTab();
+            _screens.VillageScreen?.OpenPeopleTab(villagerId ?? _session.NearbyManageVillagerId);
         }
 
         private static string FormatDeathCause(DeathCause cause) => cause switch
@@ -552,6 +600,7 @@ namespace Autonocraft.Core
 
         private void CloseVillageUi()
         {
+            _session.VillageEvents.TownBoardOpen = false;
             _screens.VillageScreen!.Close();
             _input.IsMouseLocked = _input.MouseLockedBeforeVillageUi;
             RestoreMouseLockAfterOverlay();

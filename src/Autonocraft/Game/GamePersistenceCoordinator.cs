@@ -145,6 +145,7 @@ namespace Autonocraft.Core
             RegenerateAtlasTexture(seed);
             BlockAtlas.UseCpuBlockVariation = true;
             _session.WireWorldEvents();
+            _screens.RebindSessionVillagers(_session);
             if (_ui != null)
             {
                 _screens.RecreateLoadingScreen(GraphicsDevice, _ui, _session.Grid);

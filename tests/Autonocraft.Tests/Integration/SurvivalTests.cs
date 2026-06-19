@@ -123,6 +123,43 @@ public static class SurvivalTests
         Console.WriteLine("PASSED");
     }
 
+    public static void RunVillageDeposits(Player player, Village.Village village)
+    {
+        Console.Write("Running Village Deposits Test... ");
+        player.Hotbar[0] = ItemStack.CreateBlock(BlockType.OakPlank, 24);
+        player.Hotbar[1] = ItemStack.Empty;
+        player.SelectedSlot = 0;
+        int before = village.Storage.CountBlock(BlockType.OakPlank);
+
+        if (!VillageDeposits.TryDepositSelectedHotbar(player, village))
+        {
+            throw new Exception("Failed to deposit selected hotbar stack.");
+        }
+
+        if (village.Storage.CountBlock(BlockType.OakPlank) != before + 24)
+        {
+            throw new Exception("Village storage should gain donated oak planks.");
+        }
+
+        if (!player.Hotbar[0].IsEmpty)
+        {
+            throw new Exception("Player hotbar slot should be empty after donation.");
+        }
+
+        player.Storage.SetSlot(0, ItemStack.CreateBlock(BlockType.Cobblestone, 8));
+        if (!VillageDeposits.TryDepositAllBlocks(player, village))
+        {
+            throw new Exception("Failed to bulk-deposit blocks.");
+        }
+
+        if (village.Storage.CountBlock(BlockType.Cobblestone) < 8)
+        {
+            throw new Exception("Village storage should include bulk-donated cobblestone.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
     public static void RunNightSpawn(VoxelWorld world, Player player, AnimalManager animals)
     {
         Console.Write("Running Night Spawn Test... ");

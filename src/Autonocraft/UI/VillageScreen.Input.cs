@@ -47,27 +47,40 @@ namespace Autonocraft.UI
             float rowH = layout.S(42f);
             foreach (var villager in EnumerateCitizens())
             {
-                HitRect(layout.Left + layout.S(8f), rowY, listW - layout.S(16f), rowH, 30 + villager.Id, mouse);
+                HitRect(layout.Left + layout.S(8f), rowY, listW - layout.S(16f), rowH,
+                    PeopleVillagerButtonBase + villager.Id, mouse);
                 rowY += rowH + layout.S(4f);
             }
 
-            if (_selectedVillagerId >= 0)
+            if (_selectedVillagerId >= 0 &&
+                _villagers.TryGet(_selectedVillagerId, out var selected) &&
+                _village != null)
             {
                 float detailX = layout.Left + listW + layout.S(14f);
-                float detailW = layout.S(PanelWidth) - layout.S(40f) - listW - layout.S(14f);
                 float pad = layout.S(16f);
-                float detailY = y + pad + layout.S(28f) + layout.S(24f) + layout.S(28f) + layout.S(28f) + layout.S(52f);
-                HitRect(detailX + pad, detailY, layout.S(96f), layout.S(ButtonHeight), 50, mouse);
+                var detailLayout = PeopleDetailLayout.Compute(
+                    layout.Ui,
+                    selected,
+                    _village,
+                    AssignFeedback);
 
-                float jobY = detailY + layout.S(48f) + layout.S(24f);
+                HitRect(detailX + pad, y + detailLayout.TalkButtonY, layout.S(96f), layout.S(ButtonHeight),
+                    PeopleTalkButton, mouse);
+
                 float jobW = layout.S(96f);
                 float jobH = layout.S(ButtonHeight);
                 float jobGap = layout.S(10f);
-                for (int i = 0; i < AssignableJobs.Length; i++)
+                for (int i = 0; i < PeopleJobButtonCount; i++)
                 {
                     int row = i / 3;
                     int col = i % 3;
-                    HitRect(detailX + pad + col * (jobW + jobGap), jobY + row * (jobH + jobGap), jobW, jobH, 40 + i, mouse);
+                    HitRect(
+                        detailX + pad + col * (jobW + jobGap),
+                        y + detailLayout.JobSectionY + row * (jobH + jobGap),
+                        jobW,
+                        jobH,
+                        PeopleJobButtonBase + i,
+                        mouse);
                 }
             }
         }
@@ -77,6 +90,17 @@ namespace Autonocraft.UI
             if (_hoveredButton >= 0 && _hoveredButton < TabLabels.Length)
             {
                 _selectedTab = _hoveredButton;
+                return;
+            }
+
+            if (_hoveredButton == 15 && _viewModel?.SuggestedTab is SettlementTab tab)
+            {
+                _selectedTab = tab switch
+                {
+                    SettlementTab.People => 2,
+                    SettlementTab.Build => 1,
+                    _ => 0
+                };
                 return;
             }
 
@@ -90,6 +114,10 @@ namespace Autonocraft.UI
                 {
                     SummonSettlersRequested = true;
                 }
+                else if (CountDisplayedCitizens() > 0)
+                {
+                    RecruitRequested = true;
+                }
 
                 return;
             }
@@ -97,6 +125,12 @@ namespace Autonocraft.UI
             if (_hoveredButton == 11)
             {
                 CloseRequested = true;
+                return;
+            }
+
+            if (_hoveredButton == 17 && _playWithAi)
+            {
+                RequestedStewardChat = true;
                 return;
             }
 
@@ -115,6 +149,48 @@ namespace Autonocraft.UI
             if (_hoveredButton == 16 && _takeRationsAction != null && _playerPayer is Core.Player player)
             {
                 _takeRationsAction(player);
+                RefreshVillageState();
+                return;
+            }
+
+            if (_hoveredButton == DonateSlotButton && _depositSlotAction != null && _playerPayer is Core.Player depositPlayer)
+            {
+                _depositSlotAction(depositPlayer);
+                RefreshVillageState();
+                return;
+            }
+
+            if (_hoveredButton == DonateBlocksButton && _depositBlocksAction != null && _playerPayer is Core.Player bulkPlayer)
+            {
+                _depositBlocksAction(bulkPlayer);
+                RefreshVillageState();
+                return;
+            }
+
+            if (_hoveredButton >= PeopleJobButtonBase &&
+                _hoveredButton < PeopleJobButtonBase + PeopleJobButtonCount &&
+                _selectedVillagerId >= 0)
+            {
+                RequestedAssignVillagerId = _selectedVillagerId;
+                RequestedAssignJob = AssignableJobs[_hoveredButton - PeopleJobButtonBase].Job;
+                return;
+            }
+
+            if (_hoveredButton == PeopleTalkButton && _selectedVillagerId >= 0 && _playWithAi)
+            {
+                RequestedChatVillagerId = _selectedVillagerId;
+                return;
+            }
+
+            if (_hoveredButton >= PeopleVillagerButtonBase && _hoveredButton < PeopleJobButtonBase)
+            {
+                int newVillagerId = _hoveredButton - PeopleVillagerButtonBase;
+                if (newVillagerId != _selectedVillagerId)
+                {
+                    ClearActionFeedback();
+                }
+
+                _selectedVillagerId = newVillagerId;
                 return;
             }
 
@@ -137,24 +213,6 @@ namespace Autonocraft.UI
 
                     buildIndex++;
                 }
-            }
-
-            if (_hoveredButton >= 30 && _hoveredButton < 200)
-            {
-                _selectedVillagerId = _hoveredButton - 30;
-                return;
-            }
-
-            if (_hoveredButton >= 40 && _hoveredButton < 40 + AssignableJobs.Length && _selectedVillagerId >= 0)
-            {
-                RequestedAssignVillagerId = _selectedVillagerId;
-                RequestedAssignJob = AssignableJobs[_hoveredButton - 40].Job;
-                return;
-            }
-
-            if (_hoveredButton == 50 && _selectedVillagerId >= 0)
-            {
-                RequestedChatVillagerId = _selectedVillagerId;
             }
 
             if (!_playWithAi)
