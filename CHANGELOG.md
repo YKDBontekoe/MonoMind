@@ -7,6 +7,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 Releases are created automatically when changes land on `main` (after CI passes).
 
+## [0.2.8] - 2026-06-19
+
+### Other
+- Delete test_output/playthrough directory
+- Fix CI failures: assembly rules, fluid spread test, and atlas sync.
+- Address PR #44 review feedback on determinism, lifecycle, and safety.
+- Fix gameplay lag spikes and expand procedural structures.
+
 ## [0.2.7] - 2026-06-17
 
 ### Other
