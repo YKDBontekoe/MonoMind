@@ -7,6 +7,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 Releases are created automatically when changes land on `main` (after CI passes).
 
+## [0.2.10] - 2026-06-19
+
+### Other
+- Address review findings for villager feedback, menu polish, and test reliability.
+- Revamp the pre-game main menu with a root hub, shared navigation chrome, and integration tests so players can reach play, saves, and settings consistently.
+
 ## [0.2.9] - 2026-06-19
 
 ### Other
