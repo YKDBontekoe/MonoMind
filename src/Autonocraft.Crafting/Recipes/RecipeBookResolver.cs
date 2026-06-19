@@ -10,8 +10,7 @@ namespace Autonocraft.Crafting
             CraftGridSize gridSize,
             DiscoveryJournal journal) =>
             CraftRecipeRegistry.ForStation(stationType)
-                .Where(r => !r.IsFoodInput && r.GridSize <= gridSize)
-                .Where(r => !r.RequiresUnlock || journal.IsUnlocked(r.Id))
+                .Where(r => !r.IsFoodInput)
                 .OrderBy(r => r.DisplayName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 

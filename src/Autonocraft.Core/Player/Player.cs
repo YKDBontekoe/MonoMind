@@ -94,17 +94,51 @@ namespace Autonocraft.Core
         {
             Position = spawnPosition;
             Velocity = Vector3.Zero;
+            ClearInventorySlots();
+        }
 
-            Hotbar[0] = ItemStack.CreateBlock(BlockType.Grass, 24);
-            Hotbar[1] = ItemStack.CreateBlock(BlockType.OakLog, 16);
-            Hotbar[2] = ItemStack.CreateBlock(BlockType.Dirt, 24);
-            Hotbar[3] = ToolRegistry.CreateStack(ToolType.Pickaxe, ToolTier.Wood);
-            Hotbar[4] = ToolRegistry.CreateStack(ToolType.Axe, ToolTier.Wood);
+        public void InitializeSurvivalLoadout()
+        {
+            if (CreativeMode)
+            {
+                return;
+            }
 
-            for (int i = 5; i < 9; i++)
+            ClearInventorySlots();
+        }
+
+        private void ClearInventorySlots()
+        {
+            for (int i = 0; i < Hotbar.Length; i++)
             {
                 Hotbar[i] = ItemStack.Empty;
             }
+
+            for (int i = 0; i < StorageSlotCount; i++)
+            {
+                Storage.SetSlot(i, ItemStack.Empty);
+            }
+        }
+
+        public bool HasAnyInventoryItems()
+        {
+            foreach (var slot in Hotbar)
+            {
+                if (!slot.IsEmpty)
+                {
+                    return true;
+                }
+            }
+
+            for (int i = 0; i < StorageSlotCount; i++)
+            {
+                if (!Storage.GetSlot(i).IsEmpty)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public void RestoreHunger(float amount)

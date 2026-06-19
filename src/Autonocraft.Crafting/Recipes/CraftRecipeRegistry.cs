@@ -13,10 +13,13 @@ namespace Autonocraft.Crafting
             return All.Where(r => r.StationType == stationType).ToList();
         }
 
-        public static IEnumerable<CraftRecipe> AvailableForStation(BlockType stationType, DiscoveryJournal journal)
-        {
-            return ForStation(stationType).Where(r => !r.RequiresUnlock || journal.IsUnlocked(r.Id));
-        }
+        /// <summary>
+        /// Legacy journal-filtered list. Recipe matching and the recipe book use <see cref="ForStation"/>
+        /// so all station recipes remain visible and craftable when materials allow.
+        /// Journal unlocks are recorded for achievements and discovery toasts only.
+        /// </summary>
+        public static IEnumerable<CraftRecipe> AvailableForStation(BlockType stationType, DiscoveryJournal journal) =>
+            ForStation(stationType);
 
         private static IReadOnlyList<CraftRecipe> BuildAll()
         {

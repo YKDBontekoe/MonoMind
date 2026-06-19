@@ -381,4 +381,96 @@ public static class CraftingTests
         Console.WriteLine("PASSED");
         Console.ResetColor();
     }
+
+    public static void RunRecipeBookShowsAllBenchRecipes()
+    {
+        Console.Write("Running Recipe Book Shows All Bench Recipes Test... ");
+
+        int expected = CraftRecipeRegistry.ForStation(BlockType.StationBench)
+            .Count(r => !r.IsFoodInput);
+        var visible = RecipeBookResolver.GetVisibleRecipes(
+            BlockType.StationBench,
+            CraftGridSize.ThreeByThree,
+            new DiscoveryJournal());
+
+        if (visible.Count != expected)
+        {
+            throw new Exception($"Expected {expected} visible bench recipes, got {visible.Count}.");
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
+
+    public static void RunRecipeBookNoHiddenNames(Player player)
+    {
+        Console.Write("Running Recipe Book No Hidden Names Test... ");
+
+        var inventory = new PlayerInventoryAdapter(player);
+        var entries = RecipeBookFormatter.BuildEntries(
+            BlockType.StationBench,
+            CraftGridSize.ThreeByThree,
+            inventory);
+
+        if (entries.Any(e => e.DisplayName == "???" || string.IsNullOrWhiteSpace(e.DisplayName)))
+        {
+            throw new Exception("Recipe book entries must show real display names.");
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
+
+    public static void RunRecipeBookCraftabilityRefresh(Player player)
+    {
+        Console.Write("Running Recipe Book Craftability Refresh Test... ");
+
+        for (int i = 0; i < player.Hotbar.Length; i++)
+        {
+            player.Hotbar[i] = ItemStack.Empty;
+        }
+
+        var inventory = new PlayerInventoryAdapter(player);
+        var recipe = CraftRecipeRegistry.All.Single(r => r.Id == "recipe:plank");
+        var before = RecipeBookFormatter.BuildEntry(recipe, CraftGridSize.ThreeByThree, inventory);
+        if (before.IsCraftable)
+        {
+            throw new Exception("Plank recipe should not be craftable with empty inventory.");
+        }
+
+        player.Hotbar[0] = ItemStack.CreateBlock(BlockType.OakLog, 1);
+        inventory = new PlayerInventoryAdapter(player);
+        var after = RecipeBookFormatter.BuildEntry(recipe, CraftGridSize.ThreeByThree, inventory);
+        if (!after.IsCraftable)
+        {
+            throw new Exception("Plank recipe should become craftable after adding a log.");
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
+
+    public static void RunRecipeBookIngredientSummary(Player player)
+    {
+        Console.Write("Running Recipe Book Ingredient Summary Test... ");
+
+        var inventory = new PlayerInventoryAdapter(player);
+        var entries = RecipeBookFormatter.BuildEntries(
+            BlockType.StationBench,
+            CraftGridSize.ThreeByThree,
+            inventory);
+
+        var plank = entries.FirstOrDefault(e => e.Recipe.Id == "recipe:plank");
+        if (plank == null || string.IsNullOrWhiteSpace(plank.IngredientSummary))
+        {
+            throw new Exception("Plank recipe should include ingredient summary text.");
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
 }

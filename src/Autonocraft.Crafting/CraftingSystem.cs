@@ -163,26 +163,16 @@ namespace Autonocraft.Crafting
         public JournalTransition JournalTransition { get; } = new();
         public bool ShowCraftingHint { get; set; } = true;
         public Action<string>? OnDiscoveryUnlocked { get; set; }
+        public Action<ICraftingPlayer, CraftRecipe>? OnRecipeCrafted { get; set; }
 
         public CraftingSystem()
         {
             JournalTransition.SnapHidden();
-            UnlockDefaultToolRecipes();
         }
 
         public void LoadJournal(IEnumerable<string>? ids)
         {
             Journal.Load(ids);
-            UnlockDefaultToolRecipes();
-        }
-
-        private void UnlockDefaultToolRecipes()
-        {
-            Journal.Unlock("recipe:plank");
-            Journal.Unlock("recipe:wood_pickaxe");
-            Journal.Unlock("recipe:wood_axe");
-            Journal.Unlock("recipe:wood_shovel");
-            Journal.Unlock("recipe:wood_sword");
         }
 
         private static void UnlockStoneToolRecipes(DiscoveryJournal journal)
@@ -317,6 +307,7 @@ namespace Autonocraft.Crafting
             RecipeDiscovery.UnlockRelated(Journal, matched.Id);
             player.RecordItemCrafted();
             OnDiscoveryUnlocked?.Invoke($"Unlocked {matched.DisplayName}");
+            OnRecipeCrafted?.Invoke(player, matched);
             return CraftAttemptResult.Success(matched);
         }
 
@@ -478,6 +469,7 @@ namespace Autonocraft.Crafting
             {
                 player.RecordItemCrafted();
                 OnDiscoveryUnlocked?.Invoke($"Crafted {result.Recipe!.DisplayName}");
+                OnRecipeCrafted?.Invoke(player, result.Recipe!);
             }
 
             return result;

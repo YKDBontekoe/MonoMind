@@ -458,7 +458,11 @@ namespace Autonocraft.World
                 TimesDrowned = stats.TimesDrowned,
                 ItemsCrafted = stats.ItemsCrafted,
                 VillageTutorialStage = stats.VillageTutorialStage,
-                EarlyGuideStage = stats.EarlyGuideStage
+                EarlyGuideStage = stats.EarlyGuideStage,
+                HasGatheredResource = stats.HasGatheredResource,
+                HasCraftedPlank = stats.HasCraftedPlank,
+                HasCraftedTool = stats.HasCraftedTool,
+                HasSecuredFood = stats.HasSecuredFood
             };
         }
 
@@ -495,6 +499,10 @@ namespace Autonocraft.World
             stats.ItemsCrafted = data.ItemsCrafted;
             stats.VillageTutorialStage = data.VillageTutorialStage;
             stats.EarlyGuideStage = data.EarlyGuideStage > 0 ? data.EarlyGuideStage : data.VillageTutorialStage;
+            stats.HasGatheredResource = data.HasGatheredResource;
+            stats.HasCraftedPlank = data.HasCraftedPlank;
+            stats.HasCraftedTool = data.HasCraftedTool;
+            stats.HasSecuredFood = data.HasSecuredFood;
         }
 
         private static List<InventorySlotSaveData> SerializeHotbar(Player player)

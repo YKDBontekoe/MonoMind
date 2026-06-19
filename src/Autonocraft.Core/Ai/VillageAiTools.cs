@@ -95,7 +95,7 @@ namespace Autonocraft.Ai
 
             int? buildingSiteId = TryGetInt(root, "building_site_id", out int siteId) ? siteId : null;
 
-            if (!villageManager.TryAssignJob(village, villager, job, target, buildingSiteId))
+            if (!villageManager.TryAssignJob(village, villager, job, target, buildingSiteId).Success)
             {
                 return (false, $"Could not assign {job} to {villager.Name}.");
             }
@@ -108,14 +108,13 @@ namespace Autonocraft.Ai
             VillageEntity village,
             VoxelWorld world)
         {
-            if (!villageManager.TryRecruit(village, world))
+            var recruitResult = villageManager.TryRecruit(village, world);
+            if (!recruitResult.Success)
             {
-                return (false, village.Population == 0
-                    ? "Cannot recruit yet — found or claim a settlement to welcome your first settler."
-                    : "Cannot recruit: at population cap or need 4 oak planks in storage.");
+                return (false, recruitResult.PlayerMessage);
             }
 
-            return (true, "A new villager joined the village.");
+            return (true, recruitResult.PlayerMessage);
         }
 
         private static (bool success, string message) QueueBuild(

@@ -44,6 +44,7 @@ namespace Autonocraft.Core
         public VillageManager Villages { get; private set; }
         public HudToast HudToast => _hudToast;
         public string? VillageHudHint { get; set; }
+        public int? NearbyManageVillagerId { get; set; }
         public string? NearbyClaimHint { get; set; }
         private Vector3 _lastClaimHintScanPos = new(float.MinValue, 0f, float.MinValue);
         public BlockInteractionSystem BlockInteraction => _blockInteraction;
@@ -84,7 +85,11 @@ namespace Autonocraft.Core
         private void WireNotifications()
         {
             Player.ShowToast = msg => _hudToast.Show(msg);
-            Player.OnItemAdded = stack => RecipeDiscovery.OnItemAcquired(Crafting.Journal, stack);
+            Player.OnItemAdded = stack =>
+            {
+                RecipeDiscovery.OnItemAcquired(Crafting.Journal, stack);
+                EarlySurvivalMilestones.NotifyItemAcquired(Player, stack, msg => _hudToast.Show(msg));
+            };
             _blockInteraction.ShowToast = msg => _hudToast.Show(msg);
             _combatSystem.ShowToast = msg => _hudToast.Show(msg);
             _combatSystem.OnSpawnItemDrop = (stack, pos) => SpawnItemDrop(stack, pos);
@@ -95,6 +100,13 @@ namespace Autonocraft.Core
             {
                 _hudToast.Show(msg, new Microsoft.Xna.Framework.Color(0.45f, 0.95f, 0.72f));
                 _audio?.PlaySfx(SfxKind.Discovery);
+            };
+            _craftingSystem.OnRecipeCrafted = (craftPlayer, recipe) =>
+            {
+                if (craftPlayer is Player player)
+                {
+                    EarlySurvivalMilestones.NotifyCrafted(player, recipe, msg => _hudToast.Show(msg));
+                }
             };
             _blockInteraction.TryClaimStructureAt = (world, x, y, z) => Villages.TryClaimAtBlock(world, x, y, z);
             _blockInteraction.OnSpawnItemDrop = (stack, pos) => SpawnItemDrop(stack, pos);
@@ -117,6 +129,7 @@ namespace Autonocraft.Core
             var player = new Player(new Vector3(GameConstants.DefaultSpawnX + 0.5f, 64f, GameConstants.DefaultSpawnZ + 0.5f));
             player.Yaw = -90f;
             player.Pitch = 0f;
+            player.InitializeSurvivalLoadout();
             return player;
         }
 
@@ -179,6 +192,7 @@ namespace Autonocraft.Core
 
         public void UpdateVillageHudHint(bool playerCreative)
         {
+            NearbyManageVillagerId = null;
             if (NearbyClaimHint != null)
             {
                 VillageHudHint = null;
@@ -192,19 +206,29 @@ namespace Autonocraft.Core
                 return;
             }
 
+            var nearbyVillager = Villagers.GetNearest(Player.Position, 4f);
+            if (nearbyVillager != null && nearbyVillager.VillageId == village.Id)
+            {
+                NearbyManageVillagerId = nearbyVillager.Id;
+                VillageHudHint = $"V — Manage {nearbyVillager.Name}";
+                return;
+            }
+
             if (Villages.GetVillageAt(Player.Position) == null
                 && !VillageSettlementHealth.IsPlayerNearTownHeart(village, Player.Position))
             {
                 float dx = Player.Position.X - village.Center.X;
                 float dz = Player.Position.Z - village.Center.Z;
                 int dist = (int)MathF.Round(MathF.Sqrt(dx * dx + dz * dz));
+                var guidance = SettlementGuidance.Compute(village, Villagers, Player.Position, playerCreative);
                 VillageHudHint = dist > 8
                     ? $"V — Return to {village.Name} (~{dist} blocks away)"
-                    : "V — " + VillageGuidance.GetNextBestAction(village, Villagers, Player.Position);
+                    : "V — " + guidance.Headline;
                 return;
             }
 
-            VillageHudHint = "V — " + VillageGuidance.GetNextBestAction(village, Villagers, Player.Position);
+            var activeGuidance = SettlementGuidance.Compute(village, Villagers, Player.Position, playerCreative);
+            VillageHudHint = "V — " + activeGuidance.Headline;
         }
 
         public void UpdateNearbyClaimHint()

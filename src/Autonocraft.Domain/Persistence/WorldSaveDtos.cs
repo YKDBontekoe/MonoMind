@@ -106,6 +106,10 @@ namespace Autonocraft.Domain.Persistence
         public int ItemsCrafted { get; set; }
         public int VillageTutorialStage { get; set; }
         public int EarlyGuideStage { get; set; }
+        public bool HasGatheredResource { get; set; }
+        public bool HasCraftedPlank { get; set; }
+        public bool HasCraftedTool { get; set; }
+        public bool HasSecuredFood { get; set; }
     }
 
     public sealed class InventorySlotSaveData

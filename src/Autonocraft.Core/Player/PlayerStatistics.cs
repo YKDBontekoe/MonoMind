@@ -43,6 +43,11 @@ namespace Autonocraft.Core
 
         private int _earlyGuideStage;
 
+        public bool HasGatheredResource { get; set; }
+        public bool HasCraftedPlank { get; set; }
+        public bool HasCraftedTool { get; set; }
+        public bool HasSecuredFood { get; set; }
+
         public void RecordPlayTime(float deltaTime)
         {
             if (deltaTime > 0f)
@@ -170,7 +175,11 @@ namespace Autonocraft.Core
                 TimesDrowned = TimesDrowned,
                 ItemsCrafted = ItemsCrafted,
                 VillageTutorialStage = VillageTutorialStage,
-                EarlyGuideStage = EarlyGuideStage
+                EarlyGuideStage = EarlyGuideStage,
+                HasGatheredResource = HasGatheredResource,
+                HasCraftedPlank = HasCraftedPlank,
+                HasCraftedTool = HasCraftedTool,
+                HasSecuredFood = HasSecuredFood
             };
         }
 

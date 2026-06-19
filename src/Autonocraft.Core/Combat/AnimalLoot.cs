@@ -64,6 +64,7 @@ namespace Autonocraft.Core
             }
 
             player.ShowToast?.Invoke($"Ate {name} (+{restore} hunger)");
+            EarlySurvivalMilestones.NotifyFood(player, msg => player.ShowToast?.Invoke(msg));
             return true;
         }
 

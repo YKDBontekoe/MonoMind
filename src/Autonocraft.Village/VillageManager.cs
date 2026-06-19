@@ -67,17 +67,35 @@ namespace Autonocraft.Village
 
         public Village? GetActiveVillage(Vector3 playerPos)
         {
-            var atPlayer = GetVillageAt(playerPos);
-            if (atPlayer != null)
+            Village? bestInRange = null;
+            int bestPopulation = -1;
+            float bestDist = float.MaxValue;
+            foreach (var village in _villages)
             {
-                VillageSettlementHealth.AdoptNearbyOrphanedCitizens(atPlayer, _villagers, _villages);
-                VillageSettlementHealth.SyncPopulationRegistry(atPlayer, _villagers);
-                return atPlayer;
+                if (!village.Contains(playerPos))
+                {
+                    continue;
+                }
+
+                SyncCitizensForVillage(village);
+                int population = VillageSettlementHealth.GetLivePopulation(village, _villagers);
+                float dist = HorizontalDistanceSquared(playerPos, village);
+                if (population > bestPopulation || (population == bestPopulation && dist < bestDist))
+                {
+                    bestPopulation = population;
+                    bestDist = dist;
+                    bestInRange = village;
+                }
+            }
+
+            if (bestInRange != null)
+            {
+                return bestInRange;
             }
 
             Village? best = null;
-            int bestPopulation = -1;
-            float bestDist = float.MaxValue;
+            bestPopulation = -1;
+            bestDist = float.MaxValue;
             foreach (var village in _villages)
             {
                 if (!VillageSettlementHealth.HasEstablishedSettlement(village))
@@ -139,6 +157,7 @@ namespace Autonocraft.Village
         public void SyncCitizensForVillage(Village village)
         {
             VillageSettlementHealth.AdoptNearbyOrphanedCitizens(village, _villagers, _villages);
+            VillageSettlementHealth.RelinkStrandedCitizens(village, _villagers, _villages);
             VillageSettlementHealth.SyncPopulationRegistry(village, _villagers);
         }
 
@@ -199,25 +218,35 @@ namespace Autonocraft.Village
 
         public bool RepairVillageCitizens(Village village, VoxelWorld world)
         {
-            VillageSettlementHealth.SyncPopulationRegistry(village, _villagers);
+            int before = VillageSettlementHealth.GetLivePopulation(village, _villagers);
+            SyncCitizensForVillage(village);
+            int after = VillageSettlementHealth.GetLivePopulation(village, _villagers);
+            if (after > before)
+            {
+                int linked = after - before;
+                ShowToast?.Invoke(linked == 1
+                    ? $"Linked 1 settler to {village.Name}. Open the People tab to assign jobs."
+                    : $"Linked {linked} settlers to {village.Name}. Open the People tab to assign jobs.");
+                return true;
+            }
+
+            if (after > 0)
+            {
+                return false;
+            }
+
             if (!VillageSettlementHealth.NeedsCitizenRepair(village, _villagers))
             {
                 return false;
             }
 
-            int before = VillageSettlementHealth.GetLivePopulation(village, _villagers);
-            if (before > 0)
-            {
-                return false;
-            }
-
             VillageSettlementHealth.EnsureVillageChunksLoaded(world, village);
-            int after = _founding.SpawnStarterCitizens(village, world, _dispatcher);
+            int spawned = _founding.SpawnStarterCitizens(village, world, _dispatcher);
             VillageSettlementHealth.SyncPopulationRegistry(village, _villagers);
-            after = VillageSettlementHealth.GetLivePopulation(village, _villagers);
-            if (after > before)
+            spawned = VillageSettlementHealth.GetLivePopulation(village, _villagers);
+            if (spawned > 0)
             {
-                ShowToast?.Invoke($"{after} settler(s) arrived at {village.Name}. Open PEOPLE tab to assign jobs.");
+                ShowToast?.Invoke($"{spawned} settler(s) arrived at {village.Name}. Open the People tab to assign jobs.");
                 return true;
             }
 
@@ -409,37 +438,44 @@ namespace Autonocraft.Village
             return village.Contains(center);
         }
 
-        public bool TryRecruit(Village village, VoxelWorld world)
+        public RecruitResult TryRecruit(Village village, VoxelWorld world)
         {
             VillageSettlementHealth.SyncPopulationRegistry(village, _villagers);
             if (VillageSettlementHealth.GetLivePopulation(village, _villagers) == 0)
             {
                 if (RepairVillageCitizens(village, world))
                 {
-                    return true;
+                    return RecruitResult.Succeeded("Settler");
                 }
 
-                ShowToast?.Invoke("Stand at the Town Heart and click SUMMON SETTLERS, or found a new settlement.");
-                return false;
+                return RecruitResult.Failed(
+                    RecruitReasonCodes.NoCitizens,
+                    "Stand at the Town Heart and click Summon Settlers, or found a new settlement.",
+                    "Walk to the Town Heart and use Summon Settlers on the Town Board.");
             }
 
             if (!village.CanRecruit(CreativeMode))
             {
                 if (village.Population >= village.PopulationCap)
                 {
-                    ShowToast?.Invoke("Cannot recruit: at housing cap. Queue peasant house in BUILDINGS tab.");
-                }
-                else
-                {
-                    ShowToast?.Invoke($"Cannot recruit: need {Village.RecruitFoodCost} oak planks in village storage.");
+                    return RecruitResult.Failed(
+                        RecruitReasonCodes.HousingCap,
+                        "Cannot recruit: at housing cap.",
+                        "Queue a Peasant House on the Build tab, then recruit again.");
                 }
 
-                return false;
+                return RecruitResult.Failed(
+                    RecruitReasonCodes.MissingMaterials,
+                    $"Cannot recruit: need {Village.RecruitFoodCost} oak planks in village storage.",
+                    $"Deposit {Village.RecruitFoodCost} oak planks into village storage, then recruit.");
             }
 
             if (!village.TryRecruitCost(CreativeMode))
             {
-                return false;
+                return RecruitResult.Failed(
+                    RecruitReasonCodes.CostFailed,
+                    "Recruit cost could not be paid.",
+                    $"Ensure {Village.RecruitFoodCost} oak planks are in village storage.");
             }
 
             var spawn = VillageSpawnHelper.FindSpawnPosition(world, village, _worldSeed ^ village.Population);
@@ -447,11 +483,11 @@ namespace Autonocraft.Village
             villager.IsGrounded = true;
             village.RegisterVillager(villager.Id);
             _events?.OnRecruit(villager);
-            ShowToast?.Invoke($"{villager.Name} joined! Assign a job on the Villagers tab.");
-            return true;
+            ShowToast?.Invoke($"{villager.Name} joined! Assign a job on the People tab.");
+            return RecruitResult.Succeeded(villager.Name);
         }
 
-        public bool TryAssignJob(
+        public JobAssignmentResult TryAssignJob(
             Village village,
             Villager villager,
             JobType job,
@@ -486,6 +522,10 @@ namespace Autonocraft.Village
             _persistence.LoadFromSave(_villages, _finalizedSites, villageData, villagerData);
             _founding.LoadClaimedAnchors(claimedAnchors);
             RebuildIndex();
+            foreach (var village in _villages)
+            {
+                SyncCitizensForVillage(village);
+            }
         }
 
         public List<VillageSaveData> ExportVillages() => _persistence.ExportVillages(_villages);

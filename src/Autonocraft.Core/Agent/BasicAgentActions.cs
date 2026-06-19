@@ -3,6 +3,7 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Autonocraft.Domain.Village;
+using Autonocraft.Village;
 using Autonocraft.World;
 
 namespace Autonocraft.Core.Agent;
@@ -346,15 +347,22 @@ internal sealed class RecruitVillagerAction : AgentActionBase
 
     public override AgentActionResponseDto Execute(IGameAgentBridge bridge, HttpListenerRequest request)
     {
-        var recruitTcs = new TaskCompletionSource<bool>();
+        var recruitTcs = new TaskCompletionSource<RecruitResult>();
         bridge.EnqueueAction(() =>
         {
             var v = bridge.Host.Session.Villages.GetActiveVillage(bridge.Host.Session.Player.Position);
-            recruitTcs.SetResult(v != null && bridge.Host.Session.Villages.TryRecruit(v, bridge.Host.Session.Grid));
+            recruitTcs.SetResult(v != null
+                ? bridge.Host.Session.Villages.TryRecruit(v, bridge.Host.Session.Grid)
+                : RecruitResult.Failed(RecruitReasonCodes.NoCitizens, "No active settlement.", "Found or claim a settlement first."));
         }, runImmediatelyInTests: false);
 
-        bool success = recruitTcs.Task.Wait(AgentActionTimeouts.QueuedActionWaitMs) && recruitTcs.Task.Result;
-        return success ? Ok("Recruited villager") : Fail("Recruit failed");
+        if (!recruitTcs.Task.Wait(AgentActionTimeouts.QueuedActionWaitMs))
+        {
+            return Fail("Recruit timed out");
+        }
+
+        var recruitResult = recruitTcs.Task.Result;
+        return recruitResult.Success ? Ok(recruitResult.PlayerMessage) : Fail(recruitResult.PlayerMessage);
     }
 }
 
@@ -377,22 +385,38 @@ internal sealed class AssignJobAction : AgentActionBase
             ? new System.Numerics.Vector3(tgx.Value, tgy.Value, tgz.Value)
             : null;
 
-        var assignTcs = new TaskCompletionSource<bool>();
+        var assignTcs = new TaskCompletionSource<JobAssignmentResult>();
         bridge.EnqueueAction(() =>
         {
             var session = bridge.Host.Session;
             var village = session.Villages.GetActiveVillage(session.Player.Position);
             if (village == null || !session.Villagers.TryGet(vid, out var villager))
             {
-                assignTcs.SetResult(false);
+                assignTcs.SetResult(JobAssignmentResult.Failed(
+                    JobAssignmentReasonCodes.WrongVillage,
+                    "Village or villager not found.",
+                    "Move near your settlement and select a valid villager id."));
                 return;
             }
 
             assignTcs.SetResult(session.Villages.TryAssignJob(village, villager, jobType, target));
         }, runImmediatelyInTests: false);
 
-        bool success = assignTcs.Task.Wait(AgentActionTimeouts.QueuedActionWaitMs) && assignTcs.Task.Result;
-        return success ? Ok($"Assigned {jobType}") : Fail("Assign failed");
+        if (!assignTcs.Task.Wait(AgentActionTimeouts.QueuedActionWaitMs))
+        {
+            return Fail("Assign timed out");
+        }
+
+        var assignResult = assignTcs.Task.Result;
+        if (assignResult.Success)
+        {
+            return Ok($"Assigned {jobType}");
+        }
+
+        string message = string.IsNullOrEmpty(assignResult.Remediation)
+            ? assignResult.PlayerMessage
+            : $"{assignResult.PlayerMessage} {assignResult.Remediation}";
+        return Fail(message);
     }
 }
 

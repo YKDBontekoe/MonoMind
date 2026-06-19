@@ -178,6 +178,13 @@ Tests instantiate `AutonocraftGame(runTests: true)` without calling `Run()`, so 
 | Village Save Round-Trip V6 | Buildings, sites, caps, villager jobs persist (save v6) |
 | Village Save Round-Trip V7 | Extended villager haul/tool state, output chests, village radius (save v7) |
 | Village Guidance Hints | Next-best-action HUD hint selection |
+| Settlement Guidance Priority | Food crisis guidance beats idle-worker hints |
+| Settlement Dashboard Fields | Overview read-model: idle count, food risk, pending builds |
+| Job Assignment Blocked Reasons | `JobAssignmentResult` reason codes (quarry, farm, build) |
+| Villager Activity Text Context | Coordinates and site names in activity copy |
+| Recruit Preview Blocked Reason | Housing cap and missing-plank recruit remediation |
+| Settlement Well-Being Warnings | Crisis vs idle guidance ordering |
+| People Tab Citizen Differentiation | Distinct rows, attention flags, activity summaries |
 | Village Events Notifier | Recruit/build/tier toast events |
 | Village AI Tools | Mock LLM tool `get_village_summary` |
 
@@ -287,7 +294,9 @@ Use `POST /action?cmd=teleport&x=<anchor.x>&y=<anchor.y+4>&z=<anchor.z>` to visi
 
 Hotbar `kind` values: `"empty"`, `"block"`, `"tool"`, `"food"`, `"fluid_container"`. `nearbyStation` is `"Bench"`, `"Forge"`, `"Crucible"`, or `null`.
 
-`village` and `villagers[]` appear when a settlement exists. `playWithAi`, `aiProvider`, and `llmAvailable` reflect main-menu AI settings (`Mock`, `OpenRouter`, `LlamaCpp`, or off).
+`village` and `villagers[]` appear when a settlement exists. When present, `village` may also include `nextAction`, `idleWorkers`, and `foodRisk` (`ok`/`low`/`critical`). Each `villagers[]` entry may include `activity`, `progress`, and `needsAttention`. `playWithAi`, `aiProvider`, and `llmAvailable` reflect main-menu AI settings (`Mock`, `OpenRouter`, `LlamaCpp`, or off).
+
+**Town Board workflow:** Press **V** for Overview dashboard (next action, food risk, idle workers). **People** tab shows per-citizen activity and inline assign/recruit feedback. Near a villager, HUD shows `V — Manage <name>` and opens People with that citizen selected.
 
 ### `POST /village/chat`
 
@@ -458,6 +467,7 @@ Performance baseline: `dotnet run --project src/Autonocraft -- --bench` (see `do
 | Death penalty | `Core/DeathConsequences.cs` |
 | HTTP agent API | `Core/AgentHttpServer.cs`, `Core/Agent/Handlers/`, `Core/Agent/Serialization/AgentStateSerializer.cs` |
 | Integration tests | `tests/Autonocraft.Tests/`, `Core/GameIntegrationTests.cs` |
+| Village integration partials | `tests/Autonocraft.Tests/Integration/VillageTests.cs` (shared helpers), `VillageTests.Founding.cs`, `VillageTests.Lifecycle.cs`, `VillageTests.Agent.cs`, `VillageTests.SimulationHelpers.cs`, `VillageTests.Jobs.cs`, `VillageTests.Ui.cs` |
 | World & chunks | `Autonocraft.World/VoxelWorld.cs`, `Autonocraft.World/Chunks/` |
 | Terrain generation | `Autonocraft.World/Generation/` |
 | Structures | `Autonocraft.World/Structures/` |
@@ -591,5 +601,5 @@ See `openrouter_key.example.txt` for OpenRouter key file layout.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/001-improve-buildings/plan.md
+at specs/003-premium-survival-start/plan.md
 <!-- SPECKIT END -->

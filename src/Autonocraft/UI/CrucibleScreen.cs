@@ -166,26 +166,30 @@ namespace Autonocraft.UI
             if (crafting.RecipeBookOpen)
             {
                 var bookRect = RecipeBookPanel.BuildPanelRect(layout, panelX, panelX + panelW, panelY, panelH);
-                var recipes = RecipeBookResolver.GetVisibleRecipes(
+                var inventory = new PlayerInventoryAdapter(player);
+                var entries = RecipeBookFormatter.BuildEntries(
                     session.StationType,
                     session.GridSize,
-                    journal);
-                _recipeBook.Update(bookRect, recipes, player, session.GridSize, mouse, prevMouse);
+                    inventory,
+                    env);
+                _recipeBook.Update(bookRect, entries, mouse, prevMouse);
             }
         }
 
         public void HandleRecipeBookClick(CraftingSystem crafting, Player player)
         {
-            var recipe = _recipeBook.ConsumeClickedRecipe();
-            if (recipe == null)
+            var entry = _recipeBook.ConsumeClickedEntry();
+            if (entry == null)
             {
                 return;
             }
 
-            if (!crafting.TryApplyRecipeBookSelection(recipe, player))
+            if (entry.IsCraftable && crafting.TryApplyRecipeBookSelection(entry.Recipe, player))
             {
-                player.ShowToast?.Invoke("Missing ingredients for recipe");
+                return;
             }
+
+            player.ShowToast?.Invoke(entry.MissingHint ?? "Missing ingredients for recipe");
         }
 
         public void Draw(
@@ -275,11 +279,13 @@ namespace Autonocraft.UI
             if (crafting.RecipeBookOpen)
             {
                 var bookRect = RecipeBookPanel.BuildPanelRect(layout, panelX, panelX + panelW, panelY, panelH);
-                var recipes = RecipeBookResolver.GetVisibleRecipes(
+                var inventory = new PlayerInventoryAdapter(player);
+                var entries = RecipeBookFormatter.BuildEntries(
                     session.StationType,
                     session.GridSize,
-                    journal);
-                _recipeBook.Draw(layout, bookRect, recipes, journal, player, session.GridSize);
+                    inventory,
+                    env);
+                _recipeBook.Draw(layout, bookRect, entries);
             }
         }
 

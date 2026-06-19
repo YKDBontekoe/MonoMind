@@ -57,6 +57,7 @@ namespace Autonocraft.UI.VillagePanels
                 int villagerId = villager.Id;
                 bool isSelected = villagerId == context.SelectedVillagerId;
                 bool hovered = context.HoveredButton == 30 + villagerId;
+                bool needsAttention = VillagerActivityText.NeedsAttention(villager, village);
                 if (rowY + rowH >= y + layout.S(28f) && rowY <= y + height - layout.S(6f))
                 {
                     if (isSelected || hovered)
@@ -67,15 +68,18 @@ namespace Autonocraft.UI.VillagePanels
 
                     var roleColor = VillagerVisuals.GetRoleColor(villager.Role);
                     ui.DrawRoundedRect(left + layout.S(14f), rowY + layout.S(12f), layout.S(10f), layout.S(10f), layout.S(3f), roleColor * alpha);
-                    ui.DrawString(villager.Name, left + layout.S(30f), rowY + layout.S(8f),
-                        layout.S(UiTheme.FontBody), isSelected ? UiTheme.Title : UiTheme.StatValue, alpha, semiBold: isSelected);
-                    string statusText = $"{villager.Role} · {villager.CurrentJob}";
-                    Color textCol = roleColor;
-                    if (village.ConsecutiveDaysWithoutFood >= 2)
+                    if (needsAttention)
                     {
-                        statusText = "Starving · " + statusText;
-                        textCol = UiTheme.Danger;
+                        ui.DrawRoundedRect(left + layout.S(8f), rowY + layout.S(8f), layout.S(4f), rowH - layout.S(16f),
+                            layout.S(2f), UiTheme.Danger * alpha);
                     }
+
+                    ui.DrawString(villager.Name, left + layout.S(30f), rowY + layout.S(6f),
+                        layout.S(UiTheme.FontBody), isSelected ? UiTheme.Title : UiTheme.StatValue, alpha, semiBold: isSelected);
+                    string activity = VillagerActivityText.Describe(villager, village, null);
+                    string progress = VillagerActivityText.DescribeProgress(villager, village);
+                    string statusText = string.IsNullOrEmpty(progress) ? activity : $"{activity} · {progress}";
+                    Color textCol = needsAttention ? UiTheme.Danger : roleColor;
                     ui.DrawString(statusText, left + layout.S(30f),
                         rowY + layout.S(24f), layout.S(UiTheme.FontSmall), textCol, alpha);
                 }
@@ -85,9 +89,12 @@ namespace Autonocraft.UI.VillagePanels
 
             if (!HasDisplayedCitizens(village, context.Villagers))
             {
-                string emptyHint = VillageSettlementHealth.IsPlayerNearTownHeart(village, context.PlayerPosition)
-                    ? "No villagers — click Summon settlers below"
-                    : "No villagers — walk to Town Heart, then summon settlers";
+                int stranded = VillageSettlementHealth.CountStrandedCitizens(village, context.Villagers);
+                string emptyHint = stranded > 0
+                    ? $"{stranded} settler(s) nearby — go to Overview and click Link nearby settlers"
+                    : VillageSettlementHealth.IsPlayerManagingSettlement(village, context.PlayerPosition)
+                        ? "No villagers linked — click Summon settlers on Overview"
+                        : "No villagers linked — stand at the Town Heart, then summon settlers";
                 ui.DrawString(emptyHint, left + layout.S(14f), y + layout.S(40f), layout.S(UiTheme.FontSmall),
                     UiTheme.Hint, alpha);
             }
@@ -124,19 +131,24 @@ namespace Autonocraft.UI.VillagePanels
             ui.DrawString(villager.Name, x + pad, detailY, layout.S(UiTheme.FontTitle),
                 UiTheme.Title, alpha, semiBold: true);
             detailY += layout.S(28f);
-            string detailStatusText = $"{villager.Role} · {villager.CurrentJob}";
-            Color detailCol = roleColor;
-            if (village.ConsecutiveDaysWithoutFood >= 2)
+            ui.DrawString($"{villager.Role} · {villager.CurrentJob}", x + pad, detailY,
+                layout.S(UiTheme.FontBody), roleColor, alpha);
+            detailY += layout.S(22f);
+
+            string activity = VillagerActivityText.Describe(villager, village, null);
+            string progress = VillagerActivityText.DescribeProgress(villager, village);
+            ui.DrawString(activity, x + pad, detailY, layout.S(UiTheme.FontSmall), UiTheme.Subtitle, alpha);
+            detailY += layout.S(18f);
+            if (!string.IsNullOrEmpty(progress))
             {
-                detailStatusText = "Starving · " + detailStatusText;
-                detailCol = UiTheme.Danger;
+                ui.DrawString(progress, x + pad, detailY, layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha);
+                detailY += layout.S(18f);
             }
-            ui.DrawString(detailStatusText, x + pad, detailY,
-                layout.S(UiTheme.FontBody), detailCol, alpha);
-            detailY += layout.S(24f);
+
+            detailY += layout.S(4f);
             ui.DrawString($"Trait: {villager.Persona.Trait}", x + pad, detailY, layout.S(UiTheme.FontSmall),
-                UiTheme.Meta, alpha);
-            detailY += layout.S(28f);
+                UiTheme.Accent, alpha);
+            detailY += layout.S(22f);
 
             ui.DrawString(
                 $"Skills — Mining {villager.Skills.Mining.Level} · Wood {villager.Skills.Woodcutting.Level} · Farm {villager.Skills.Farming.Level}",
@@ -145,9 +157,23 @@ namespace Autonocraft.UI.VillagePanels
             ui.DrawProgressBar(x + pad, detailY, w - pad * 2f, layout.S(12f), villager.Happiness, "Morale", 1f, alpha);
             detailY += layout.S(52f);
 
+            bool talkEnabled = context.PlayWithAi;
+            string talkHint = talkEnabled
+                ? $"Talk to {villager.Name}"
+                : "Enable Play with AI in settings to chat";
             DrawStyledButton(ui, x + pad, detailY, layout.S(96f), layout.S(ButtonHeight), "Talk", context.HoveredButton == 50,
-                UiButtonStyle.Secondary, layout, alpha);
+                UiButtonStyle.Secondary, layout, alpha, !talkEnabled);
+            ui.DrawString(talkHint, x + pad + layout.S(106f), detailY + layout.S(8f), layout.S(UiTheme.FontSmall),
+                UiTheme.Hint, alpha);
             detailY += layout.S(48f);
+
+            if (!string.IsNullOrEmpty(context.AssignFeedback))
+            {
+                Color feedbackColor = context.AssignSuccess ? UiTheme.Success : UiTheme.Danger;
+                ui.DrawString(context.AssignFeedback, x + pad, detailY, layout.S(UiTheme.FontSmall), feedbackColor, alpha);
+                detailY += layout.S(22f);
+            }
+
             ui.DrawString("Assign job", x + pad, detailY, layout.S(UiTheme.FontSection), UiTheme.Section, alpha, semiBold: true);
             detailY += layout.S(24f);
 

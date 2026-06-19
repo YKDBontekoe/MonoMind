@@ -69,7 +69,7 @@ namespace Autonocraft.Village
             dispatcher.AutoAssignIdleWorkers(village, world);
 
             RecordClaimedAnchor(heartX, heartZ);
-            ShowToast?.Invoke($"Welcome to {villageName}! Press V for the town board.");
+            ShowToast?.Invoke($"Welcome to {villageName}! Punch trees for wood, then press I to craft.");
             return (nearX, nearZ);
         }
 

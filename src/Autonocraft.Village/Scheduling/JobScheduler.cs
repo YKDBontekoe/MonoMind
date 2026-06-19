@@ -239,12 +239,12 @@ namespace Autonocraft.Village
                         !string.IsNullOrEmpty(goal.BlueprintId) &&
                         string.Equals(site.BlueprintId, goal.BlueprintId, StringComparison.OrdinalIgnoreCase))
                     {
-                        return assignment.TryAssignJob(village, villager, JobType.Build, null, site.Id);
+                        return assignment.TryAssignJob(village, villager, JobType.Build, null, site.Id).Success;
                     }
 
                     if (site != null && string.IsNullOrEmpty(goal.BlueprintId))
                     {
-                        return assignment.TryAssignJob(village, villager, JobType.Build, null, site.Id);
+                        return assignment.TryAssignJob(village, villager, JobType.Build, null, site.Id).Success;
                     }
 
                     return false;

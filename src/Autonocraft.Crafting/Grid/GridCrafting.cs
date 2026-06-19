@@ -27,7 +27,7 @@ namespace Autonocraft.Crafting
             DiscoveryJournal journal,
             CraftEnvironment? env = null)
         {
-            var candidates = CraftRecipeRegistry.AvailableForStation(stationType, journal).ToList();
+            var candidates = CraftRecipeRegistry.ForStation(stationType).ToList();
             var shaped = candidates.Where(r => r.ShapedPattern is { Count: > 0 });
             var shapeless = candidates.Where(r => r.ShapedPattern is not { Count: > 0 });
 

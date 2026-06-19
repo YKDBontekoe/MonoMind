@@ -42,9 +42,10 @@ namespace Autonocraft.Core.DevCommands.Commands
                 }
             }
 
-            return session.Villages.TryRecruit(village!, session.Grid)
+            var recruitResult = session.Villages.TryRecruit(village!, session.Grid);
+            return recruitResult.Success
                 ? "Recruited villager."
-                : "Recruit failed (need 4 oak planks, under cap).";
+                : recruitResult.PlayerMessage;
         }
     }
 
@@ -103,9 +104,10 @@ namespace Autonocraft.Core.DevCommands.Commands
             }
 
             session.Villages.SyncCitizensForVillage(village);
-            return session.Villages.TryAssignJob(village, villager, job)
+            var assignResult = session.Villages.TryAssignJob(village, villager, job);
+            return assignResult.Success
                 ? $"Assigned {job}."
-                : "Assign failed.";
+                : assignResult.PlayerMessage;
         }
     }
 }
