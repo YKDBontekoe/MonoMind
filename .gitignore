@@ -23,6 +23,10 @@ openrouter_key.txt
 
 # Test / generated artifacts
 screenshot_test.png
+test_output/
+coverage/
+*.trx
+TestResults/
 
 # Python
 __pycache__/

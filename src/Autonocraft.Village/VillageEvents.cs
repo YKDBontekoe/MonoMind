@@ -8,6 +8,7 @@ namespace Autonocraft.Village
     {
         public Action<string>? ShowToast { get; set; }
         public Action<string>? PlaySfx { get; set; }
+        public bool TownBoardOpen { get; set; }
 
         private float _lastFoodCriticalToast;
         private bool _wasHamlet = true;
@@ -29,6 +30,16 @@ namespace Autonocraft.Village
 
         public void OnRecruit(Villager villager) =>
             Notify($"{villager.Name} joined the settlement!", "recruit");
+
+        public void OnAssignFailure(string message)
+        {
+            if (TownBoardOpen)
+            {
+                return;
+            }
+
+            Notify(message, "assign");
+        }
 
         public void OnWorkshopCraft(string itemName)
         {

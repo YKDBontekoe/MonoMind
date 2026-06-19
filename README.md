@@ -124,25 +124,35 @@ GitHub Actions runs on every push and pull request to `main`/`master`, plus a ni
 
 | Workflow | What it runs |
 |----------|----------------|
-| [CI](.github/workflows/ci.yml) | Build + unit tests + headless integration (`--test`) on Ubuntu, Windows, and macOS |
-| [Quality](.github/workflows/quality.yml) | `dotnet format`, atlas validation, unit-test code coverage |
+| [CI](.github/workflows/ci.yml) | Fail-fast format/atlas, build + unit + integration on Ubuntu/Windows/macOS, agent E2E on Linux |
+| [Quality](.github/workflows/quality.yml) | `dotnet format`, atlas validation, unit-test code coverage (+ summary artifact) |
 | [CodeQL](.github/workflows/codeql.yml) | C# security analysis |
-| [Version](.github/workflows/version.yml) | After CI on `main`: semver bump, [CHANGELOG.md](CHANGELOG.md) update, git tag |
-| [Release](.github/workflows/release.yml) | Multi-platform publish on version tags (`v*.*.*`) |
+| [Version](.github/workflows/version.yml) | After CI, Quality, and CodeQL succeed on `main`: semver bump, [CHANGELOG.md](CHANGELOG.md) update, git tag |
+| [Release](.github/workflows/release.yml) | Multi-platform publish on version tags (`v*.*.*`) with headless `--test` on each binary |
+
+**Required checks registry:** [docs/ci/required-checks.md](docs/ci/required-checks.md)
 
 Reproduce CI locally:
 
 ```bash
-# Unit tests (same filter as CI)
-dotnet test tests/Autonocraft.Tests -c Release --filter "FullyQualifiedName~Unit"
+# Recommended — matches required check categories
+./scripts/verify_local.sh --quick   # format + atlas + unit
+./scripts/verify_local.sh --full    # + Release build + integration (--test)
 
-# Headless integration (same as CI integration job)
+# Individual commands (same as CI)
+dotnet format Autonocraft.slnx --verify-no-changes
+dotnet run --project src/Autonocraft.AtlasBuild -- --check
+dotnet test tests/Autonocraft.Tests -c Release --filter "FullyQualifiedName~Autonocraft.Tests.Unit"
+dotnet build Autonocraft.slnx -c Release
 dotnet run --project src/Autonocraft -c Release -- --test
 
-# Format and atlas checks
-dotnet format Autonocraft.slnx --verify-no-changes
-dotnet run --project src/Autonocraft.AtlasBuild --check
+# Agent HTTP E2E (after Release build)
+./scripts/ci_e2e.sh
 ```
+
+Windows: `pwsh scripts/verify_local.ps1 --quick` / `--full`, or `scripts/ci_e2e.ps1` for E2E.
+
+See also [docs/ci/release-gate.md](docs/ci/release-gate.md) and [docs/ci/manual-verification.md](docs/ci/manual-verification.md).
 
 ## OpenRouter (planned)
 

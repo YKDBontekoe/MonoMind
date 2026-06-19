@@ -54,12 +54,16 @@ namespace Autonocraft.UI
             if (_selectedVillagerId >= 0)
             {
                 float detailX = layout.Left + listW + layout.S(14f);
-                float detailW = layout.S(PanelWidth) - layout.S(40f) - listW - layout.S(14f);
                 float pad = layout.S(16f);
-                float detailY = y + pad + layout.S(28f) + layout.S(24f) + layout.S(28f) + layout.S(28f) + layout.S(52f);
+                float detailY = y + pad + layout.S(28f) + layout.S(22f) + layout.S(18f) + layout.S(26f) + layout.S(28f) + layout.S(52f);
                 HitRect(detailX + pad, detailY, layout.S(96f), layout.S(ButtonHeight), 50, mouse);
 
                 float jobY = detailY + layout.S(48f) + layout.S(24f);
+                if (!string.IsNullOrEmpty(AssignFeedback))
+                {
+                    jobY += layout.S(22f);
+                }
+
                 float jobW = layout.S(96f);
                 float jobH = layout.S(ButtonHeight);
                 float jobGap = layout.S(10f);
@@ -80,6 +84,17 @@ namespace Autonocraft.UI
                 return;
             }
 
+            if (_hoveredButton == 15 && _viewModel?.SuggestedTab is SettlementTab tab)
+            {
+                _selectedTab = tab switch
+                {
+                    SettlementTab.People => 2,
+                    SettlementTab.Build => 1,
+                    _ => 0
+                };
+                return;
+            }
+
             if (_hoveredButton == 10)
             {
                 if (CountDisplayedCitizens() > 0 && _village!.CanRecruit(_villagers, _playerCreative))
@@ -90,6 +105,10 @@ namespace Autonocraft.UI
                 {
                     SummonSettlersRequested = true;
                 }
+                else if (CountDisplayedCitizens() > 0)
+                {
+                    RecruitRequested = true;
+                }
 
                 return;
             }
@@ -97,6 +116,12 @@ namespace Autonocraft.UI
             if (_hoveredButton == 11)
             {
                 CloseRequested = true;
+                return;
+            }
+
+            if (_hoveredButton == 17 && _playWithAi)
+            {
+                RequestedStewardChat = true;
                 return;
             }
 
@@ -115,6 +140,7 @@ namespace Autonocraft.UI
             if (_hoveredButton == 16 && _takeRationsAction != null && _playerPayer is Core.Player player)
             {
                 _takeRationsAction(player);
+                RefreshVillageState();
                 return;
             }
 
@@ -152,7 +178,7 @@ namespace Autonocraft.UI
                 return;
             }
 
-            if (_hoveredButton == 50 && _selectedVillagerId >= 0)
+            if (_hoveredButton == 50 && _selectedVillagerId >= 0 && _playWithAi)
             {
                 RequestedChatVillagerId = _selectedVillagerId;
             }

@@ -73,6 +73,8 @@ namespace Autonocraft.UI.VillagePanels
         public IItemContainer? PlayerPayer { get; init; }
 
         public string? OpeningNote { get; init; }
+        public string? AssignFeedback { get; init; }
+        public bool AssignSuccess { get; init; }
     }
 
     /// <summary>Context for the founding-mode screen (no village yet).</summary>

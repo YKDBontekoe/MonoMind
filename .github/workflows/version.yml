@@ -2,12 +2,13 @@ name: Version and Changelog
 
 on:
   workflow_run:
-    workflows: [CI]
+    workflows: [CI, Quality, CodeQL]
     types: [completed]
     branches: [main, master]
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: version-release-${{ github.event.workflow_run.head_branch }}
@@ -22,6 +23,29 @@ jobs:
       !startsWith(github.event.workflow_run.head_commit.message, 'chore(release):')
     runs-on: ubuntu-latest
     steps:
+      - name: Verify CI, Quality, and CodeQL all succeeded
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = context.payload.workflow_run.head_sha;
+            const required = ['ci.yml', 'quality.yml', 'codeql.yml'];
+            for (const workflowFile of required) {
+              const { data } = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: workflowFile,
+                head_sha: sha,
+                status: 'completed',
+                per_page: 10
+              });
+              const success = data.workflow_runs.some(run => run.conclusion === 'success');
+              if (!success) {
+                core.setFailed(`Required workflow ${workflowFile} did not succeed for ${sha}`);
+                return;
+              }
+            }
+            core.info(`All required workflows succeeded for ${sha}`);
+
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v4.1.7
         with:
           ref: ${{ github.event.workflow_run.head_branch }}

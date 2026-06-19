@@ -47,6 +47,7 @@ namespace Autonocraft.UI
         private VoxelWorld? _world;
         private Vector3 _playerPos;
         private IItemContainer? _playerPayer;
+        private Core.Player? _guidePlayer;
         private bool _playerCreative;
         private string? _openingNote;
         private int _earlyGuideStage;
@@ -74,6 +75,8 @@ namespace Autonocraft.UI
             new GoalsPanel(),
         };
 
+        private int _strandedCitizenCount;
+        private bool _summonLinksNearby;
         private readonly FoundingPanel _foundingPanel = new();
 
         public bool IsOpen { get; private set; }
@@ -87,8 +90,49 @@ namespace Autonocraft.UI
         public int RequestedAssignVillagerId { get; private set; } = -1;
         public JobType RequestedAssignJob { get; private set; } = JobType.Idle;
         public int RequestedChatVillagerId { get; private set; } = -1;
+        public bool RequestedStewardChat { get; private set; }
         public bool RequestBlueprintPlacement { get; private set; }
         public bool RequestWorkZonePlacement { get; private set; }
+        public string? AssignFeedback { get; private set; }
+        public bool AssignSuccess { get; private set; }
+        public string? RecruitFeedback { get; private set; }
+
+        public void SetAssignFeedback(JobAssignmentResult result)
+        {
+            if (result.Success)
+            {
+                AssignFeedback = "Job assigned successfully.";
+                AssignSuccess = true;
+            }
+            else
+            {
+                AssignFeedback = string.IsNullOrEmpty(result.Remediation)
+                    ? result.PlayerMessage
+                    : $"{result.PlayerMessage} {result.Remediation}";
+                AssignSuccess = false;
+            }
+        }
+
+        public void SetRecruitFeedback(RecruitResult result)
+        {
+            RecruitFeedback = result.Success
+                ? result.PlayerMessage
+                : string.IsNullOrEmpty(result.Remediation)
+                    ? result.PlayerMessage
+                    : $"{result.PlayerMessage} {result.Remediation}";
+        }
+
+        public void RefreshAfterVillageAction()
+        {
+            _refreshVillageStateCooldown = 0;
+            RefreshVillageState();
+        }
+
+        public void ClearActionFeedback()
+        {
+            AssignFeedback = null;
+            RecruitFeedback = null;
+        }
 
         public VillageScreen(UiRenderer ui, VillagerManager villagers)
         {
@@ -134,13 +178,15 @@ namespace Autonocraft.UI
             bool playerCreative = false,
             string? openingNote = null,
             bool playWithAi = true,
-            int earlyGuideStage = 0)
+            int earlyGuideStage = 0,
+            Core.Player? guidePlayer = null)
         {
             _village = village;
             _villageManager = villageManager;
             _world = world;
             _playerPos = playerPos;
             _playerPayer = playerPayer;
+            _guidePlayer = guidePlayer;
             _playerCreative = playerCreative;
             _openingNote = openingNote;
             _isFoundingMode = false;
@@ -152,7 +198,7 @@ namespace Autonocraft.UI
             _editingNameBuffer = "";
             village.ReconcileVillagerRegistry(_villagers.All);
             _villageManager.SyncCitizensForVillage(village);
-            _viewModel = VillageViewModel.Build(village, villageManager, _villagers, playerCreative, playerPos);
+            _viewModel = VillageViewModel.Build(village, villageManager, _villagers, playerCreative, playerPos, guidePlayer);
             _selectedTab = 0;
             _selectedVillagerId = -1;
             foreach (var villager in _villagers.All)
@@ -176,9 +222,15 @@ namespace Autonocraft.UI
             IsOpen = true;
         }
 
-        public void OpenPeopleTab()
+        public void OpenPeopleTab(int? villagerId = null)
         {
             _selectedTab = 2;
+            if (villagerId.HasValue && CitizenExists(villagerId.Value))
+            {
+                _selectedVillagerId = villagerId.Value;
+                return;
+            }
+
             foreach (var villager in _villagers.All)
             {
                 if (_village != null && villager.VillageId == _village.Id && villager.Role == VillagerRole.Lumberjack)
@@ -332,8 +384,20 @@ namespace Autonocraft.UI
             float closeY = panelY + layout.S(PanelHeight) - layout.S(30f);
             HitRect(closeX, closeY, buttonW, buttonH, 11, mouse);
 
+            if (_playWithAi)
+            {
+                float stewardX = closeX - buttonW - layout.S(10f);
+                HitRect(stewardX, closeY, buttonW, buttonH, 17, mouse);
+            }
+
             if (_selectedTab == 0)
             {
+                if (_viewModel?.SuggestedTab != null && _viewModel.NextActionKind != SettlementActionKind.None)
+                {
+                    float ctaY = panelY + layout.S(ContentTop) + layout.S(44f);
+                    HitRect(left, ctaY, layout.S(140f), layout.S(28f), 15, mouse);
+                }
+
                 if (_canClaimNearby)
                 {
                     HitRect(left + buttonW + layout.S(10f), footerY, buttonW, buttonH, 12, mouse);
@@ -439,7 +503,9 @@ namespace Autonocraft.UI
                 SelectedGoalCountIndex = _selectedGoalCountIndex,
                 HoveredButton = _hoveredButton,
                 PlayerPayer = _playerPayer,
-                OpeningNote = _openingNote
+                OpeningNote = _openingNote,
+                AssignFeedback = AssignFeedback,
+                AssignSuccess = AssignSuccess
             };
 
             if (_selectedTab >= 0 && _selectedTab < _panels.Length)
@@ -470,14 +536,26 @@ namespace Autonocraft.UI
 
             float closeX = panelX + panelW - layout.S(20f) - buttonW;
             float closeY = panelY + panelH - layout.S(30f);
+            if (_playWithAi)
+            {
+                float stewardX = closeX - buttonW - layout.S(10f);
+                DrawStyledButton(stewardX, closeY, buttonW, buttonH, "Steward", _hoveredButton == 17,
+                    UiButtonStyle.Secondary, layout.Ui, alpha);
+            }
+
             DrawStyledButton(closeX, closeY, buttonW, buttonH, "Close", _hoveredButton == 11, UiButtonStyle.Ghost, layout.Ui, alpha);
 
             string footerHint;
             if (_hoveredButton == 10)
             {
-                footerHint = CountDisplayedCitizens() > 0
-                    ? "Recruit — bring a new peasant to the village (costs 4 oak planks)"
-                    : "Summon settlers — restore missing starter citizens at the Town Heart";
+                footerHint = _viewModel?.RecruitPreview
+                    ?? (CountDisplayedCitizens() > 0
+                        ? "Recruit — bring a new peasant to the village (costs 4 oak planks)"
+                        : _summonLinksNearby
+                            ? $"Link nearby settlers — attach {_strandedCitizenCount} villager(s) already in your world"
+                            : CanSummonSettlers()
+                                ? "Summon settlers — spawn starter citizens at the Town Heart"
+                                : "Stand on the Town Heart inside your settlement to summon settlers");
             }
             else if (_hoveredButton == 12)
             {
@@ -490,6 +568,10 @@ namespace Autonocraft.UI
             else if (_hoveredButton == 11)
             {
                 footerHint = "Close — exit the town board";
+            }
+            else if (_hoveredButton == 17)
+            {
+                footerHint = "Steward — chat with the village steward about priorities";
             }
             else if (_hoveredButton >= 20 && _hoveredButton < 30)
             {
@@ -507,6 +589,12 @@ namespace Autonocraft.UI
             }
             _ui.DrawCenteredText(footerHint, panelY + panelH - layout.S(12f), layout.S(UiTheme.FontSmall),
                 UiTheme.Hint, 0.9f * alpha);
+
+            if (!string.IsNullOrEmpty(RecruitFeedback))
+            {
+                _ui.DrawCenteredText(RecruitFeedback, panelY + panelH - layout.S(28f), layout.S(UiTheme.FontSmall),
+                    UiTheme.Danger, 0.95f * alpha);
+            }
         }
 
 

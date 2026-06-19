@@ -60,8 +60,9 @@ namespace Autonocraft.Engine
                 }
 
                 string line1 = villager.Name.ToUpperInvariant();
-                string line2 = Autonocraft.Village.VillagerActivityText.Describe(villager).ToUpperInvariant();
-                string line3 = Autonocraft.Village.VillagerActivityText.DescribeProgress(villager);
+                var village = ctx.Villages.GetVillage(villager.VillageId);
+                string line2 = Autonocraft.Village.VillagerActivityText.Describe(villager, village, ctx.Grid).ToUpperInvariant();
+                string line3 = Autonocraft.Village.VillagerActivityText.DescribeProgress(villager, village);
                 if (!string.IsNullOrEmpty(line3))
                 {
                     line2 += $" · {line3.ToUpperInvariant()}";

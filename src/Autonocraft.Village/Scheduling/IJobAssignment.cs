@@ -9,7 +9,7 @@ namespace Autonocraft.Village
     public interface IJobAssignment
     {
         bool CreativeMode { get; }
-        bool TryAssignJob(
+        JobAssignmentResult TryAssignJob(
             Village village,
             Villager villager,
             JobType job,

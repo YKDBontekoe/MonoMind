@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
+"""
+DEPRECATED: Use required CI path scripts/ci_e2e.sh instead.
+
+Overlapping coverage (starter village, population, basic fields) lives in
+.cursor/skills/autonocraft-game-test/scripts/test_live_api.py.
+
+This script is retained for manual deep villager flows (lumber → recruit →
+farm_plot build). See docs/ci/manual-verification.md.
+"""
 import argparse
+import warnings
 import json
 import sys
 import time
@@ -71,7 +81,12 @@ def villager_inventory_total(villager, *block_types):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Live end-to-end villager system test")
+    warnings.warn(
+        "tests/live_villager_e2e.py is deprecated; use scripts/ci_e2e.sh for required coverage",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    parser = argparse.ArgumentParser(description="[DEPRECATED] Live villager system test — use scripts/ci_e2e.sh")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=5001)
     parser.add_argument("--lumber-timeout", type=float, default=90.0)

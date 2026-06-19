@@ -58,22 +58,44 @@ On macOS, `run.sh` and `start.command` set `DYLD_LIBRARY_PATH=/opt/homebrew/lib`
 
 ## 2b. Continuous Integration
 
-GitHub Actions validates every push and PR on **Ubuntu, Windows, and macOS**:
+GitHub Actions validates every push and PR on **Ubuntu, Windows, and macOS**.
+Required check registry: [`docs/ci/required-checks.md`](docs/ci/required-checks.md)
+(authoritative contract: [`specs/003-improve-testing-cicd/contracts/ci-verification-contract.md`](specs/003-improve-testing-cicd/contracts/ci-verification-contract.md)).
 
 | Workflow | Jobs |
 |----------|------|
-| `.github/workflows/ci.yml` | `build` → `unit-tests` (xUnit unit filter) + `integration-tests` (`dotnet run -- --test`) |
-| `.github/workflows/version.yml` | After CI on `main`: semver bump, `CHANGELOG.md` update, git tag `v*.*.*` |
-| `.github/workflows/quality.yml` | `dotnet format --verify-no-changes`, `Autonocraft.AtlasBuild --check`, coverlet coverage |
-| `.github/workflows/codeql.yml` | C# CodeQL analysis |
-| `.github/workflows/release.yml` | Tag-triggered multi-RID `dotnet publish` + GitHub Release assets |
+| `.github/workflows/ci.yml` | `Fast gates` (format + atlas) → `Build (*)` → `Unit tests (*)` + `Integration tests (*)` + `Agent E2E (Linux)` |
+| `.github/workflows/quality.yml` | `dotnet format`, `Atlas validation`, `Code coverage` (+ summary artifact) |
+| `.github/workflows/codeql.yml` | `Analyze` (C# CodeQL) |
+| `.github/workflows/version.yml` | After **CI + Quality + CodeQL** succeed on `main`: semver bump, `CHANGELOG.md`, tag `v*.*.*` |
+| `.github/workflows/release.yml` | Tag-triggered multi-RID `dotnet publish` + headless `--test` on each binary |
 
-Nightly schedule (06:00 UTC) re-runs CI on `main`. Local parity:
+Nightly schedule (06:00 UTC) re-runs CI and Quality on `main`; CodeQL runs Monday 07:00 UTC.
+
+### Local parity (before opening a PR)
 
 ```bash
-dotnet test tests/Autonocraft.Tests -c Release --filter "FullyQualifiedName~Unit"
-dotnet run --project src/Autonocraft -c Release -- --test
+./scripts/verify_local.sh --quick   # format + atlas + unit tests
+./scripts/verify_local.sh --full    # + Release build + headless integration (--test)
 ```
+
+Windows: `pwsh scripts/verify_local.ps1 --quick` / `--full`.
+
+After agent HTTP or village workflow changes, also run `scripts/ci_e2e.sh` (requires Release build).
+Linux CI uses `USE_XVFB=1 scripts/ci_e2e.sh`. **Never** set `DYLD_LIBRARY_PATH` on GitHub Actions macOS runners.
+
+Protected-domain → test mapping: [`specs/003-improve-testing-cicd/contracts/protected-domain-coverage.md`](specs/003-improve-testing-cicd/contracts/protected-domain-coverage.md).
+
+### Flaky checks
+
+If a required check fails intermittently on unchanged code:
+
+1. Download the job artifact (TRX, `integration-output.log`, or `test_output/`).
+2. Re-run the failed job once to confirm flake vs real regression.
+3. Open an issue naming the job, platform, and last three run URLs.
+4. Quarantine only with maintainer approval — document reason, scope, and remediation date in the issue (do not disable required checks to merge).
+
+Manual-only scripts: [`docs/ci/manual-verification.md`](docs/ci/manual-verification.md).
 
 ---
 
@@ -178,6 +200,13 @@ Tests instantiate `AutonocraftGame(runTests: true)` without calling `Run()`, so 
 | Village Save Round-Trip V6 | Buildings, sites, caps, villager jobs persist (save v6) |
 | Village Save Round-Trip V7 | Extended villager haul/tool state, output chests, village radius (save v7) |
 | Village Guidance Hints | Next-best-action HUD hint selection |
+| Settlement Guidance Priority | Food crisis guidance beats idle-worker hints |
+| Settlement Dashboard Fields | Overview read-model: idle count, food risk, pending builds |
+| Job Assignment Blocked Reasons | `JobAssignmentResult` reason codes (quarry, farm, build) |
+| Villager Activity Text Context | Coordinates and site names in activity copy |
+| Recruit Preview Blocked Reason | Housing cap and missing-plank recruit remediation |
+| Settlement Well-Being Warnings | Crisis vs idle guidance ordering |
+| People Tab Citizen Differentiation | Distinct rows, attention flags, activity summaries |
 | Village Events Notifier | Recruit/build/tier toast events |
 | Village AI Tools | Mock LLM tool `get_village_summary` |
 
@@ -287,7 +316,9 @@ Use `POST /action?cmd=teleport&x=<anchor.x>&y=<anchor.y+4>&z=<anchor.z>` to visi
 
 Hotbar `kind` values: `"empty"`, `"block"`, `"tool"`, `"food"`, `"fluid_container"`. `nearbyStation` is `"Bench"`, `"Forge"`, `"Crucible"`, or `null`.
 
-`village` and `villagers[]` appear when a settlement exists. `playWithAi`, `aiProvider`, and `llmAvailable` reflect main-menu AI settings (`Mock`, `OpenRouter`, `LlamaCpp`, or off).
+`village` and `villagers[]` appear when a settlement exists. When present, `village` may also include `nextAction`, `idleWorkers`, and `foodRisk` (`ok`/`low`/`critical`). Each `villagers[]` entry may include `activity`, `progress`, and `needsAttention`. `playWithAi`, `aiProvider`, and `llmAvailable` reflect main-menu AI settings (`Mock`, `OpenRouter`, `LlamaCpp`, or off).
+
+**Town Board workflow:** Press **V** for Overview dashboard (next action, food risk, idle workers). **People** tab shows per-citizen activity and inline assign/recruit feedback. Near a villager, HUD shows `V — Manage <name>` and opens People with that citizen selected.
 
 ### `POST /village/chat`
 
@@ -458,6 +489,7 @@ Performance baseline: `dotnet run --project src/Autonocraft -- --bench` (see `do
 | Death penalty | `Core/DeathConsequences.cs` |
 | HTTP agent API | `Core/AgentHttpServer.cs`, `Core/Agent/Handlers/`, `Core/Agent/Serialization/AgentStateSerializer.cs` |
 | Integration tests | `tests/Autonocraft.Tests/`, `Core/GameIntegrationTests.cs` |
+| Village integration partials | `tests/Autonocraft.Tests/Integration/VillageTests.cs` (shared helpers), `VillageTests.Founding.cs`, `VillageTests.Lifecycle.cs`, `VillageTests.Agent.cs`, `VillageTests.SimulationHelpers.cs`, `VillageTests.Jobs.cs`, `VillageTests.Ui.cs` |
 | World & chunks | `Autonocraft.World/VoxelWorld.cs`, `Autonocraft.World/Chunks/` |
 | Terrain generation | `Autonocraft.World/Generation/` |
 | Structures | `Autonocraft.World/Structures/` |
@@ -591,5 +623,5 @@ See `openrouter_key.example.txt` for OpenRouter key file layout.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/001-improve-buildings/plan.md
+at specs/003-improve-testing-cicd/plan.md
 <!-- SPECKIT END -->

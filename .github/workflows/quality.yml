@@ -76,9 +76,38 @@ jobs:
           --collect:"XPlat Code Coverage"
           --results-directory coverage/
 
+      - name: Generate coverage summary
+        if: always()
+        shell: bash
+        run: |
+          SUMMARY="coverage-summary.txt"
+          {
+            echo "Autonocraft unit test coverage summary"
+            echo "Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo ""
+          } > "$SUMMARY"
+          found=0
+          while IFS= read -r file; do
+            found=1
+            line_rate=$(grep -o 'line-rate="[^"]*"' "$file" | head -1 | cut -d'"' -f2 || true)
+            branch_rate=$(grep -o 'branch-rate="[^"]*"' "$file" | head -1 | cut -d'"' -f2 || true)
+            lines_valid=$(grep -o 'lines-valid="[^"]*"' "$file" | head -1 | cut -d'"' -f2 || true)
+            lines_covered=$(grep -o 'lines-covered="[^"]*"' "$file" | head -1 | cut -d'"' -f2 || true)
+            echo "File: $file"
+            echo "  line-rate: ${line_rate:-unknown}"
+            echo "  branch-rate: ${branch_rate:-unknown}"
+            echo "  lines-covered: ${lines_covered:-?} / ${lines_valid:-?}"
+            echo ""
+          done < <(find coverage -name 'coverage.cobertura.xml' 2>/dev/null | sort)
+          if [[ "$found" -eq 0 ]]; then
+            echo "No coverage.cobertura.xml files found under coverage/"
+          fi
+
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage-report
-          path: coverage/
+          path: |
+            coverage/
+            coverage-summary.txt

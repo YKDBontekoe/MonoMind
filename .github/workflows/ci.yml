@@ -18,7 +18,25 @@ permissions:
   checks: write
 
 jobs:
+  fast-gates:
+    name: Fast gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: dotnet format
+        run: dotnet format Autonocraft.slnx --verify-no-changes
+
+      - name: Atlas validation
+        run: dotnet run --project src/Autonocraft.AtlasBuild -- --check
+
   build:
+    needs: fast-gates
     strategy:
       fail-fast: false
       matrix:
@@ -103,7 +121,7 @@ jobs:
           --no-build
           --verbosity normal
           --filter "FullyQualifiedName~Autonocraft.Tests.Unit"
-          --logger "trx;LogFileName=unit-results.trx"
+          --logger "trx;LogFileName=unit-results-${{ matrix.platform }}.trx"
           --results-directory TestResults
 
       - name: Publish unit test report
@@ -179,3 +197,37 @@ jobs:
         with:
           name: integration-log-${{ matrix.os }}
           path: integration-output.log
+
+  agent-e2e:
+    name: Agent E2E (Linux)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Download build output
+        uses: actions/download-artifact@v4
+        with:
+          name: dotnet-build-ubuntu-latest
+
+      - name: Install xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Run agent E2E suite
+        env:
+          USE_XVFB: '1'
+        run: bash scripts/ci_e2e.sh
+
+      - name: Upload E2E artifacts
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: agent-e2e-output
+          path: test_output/
+          if-no-files-found: ignore

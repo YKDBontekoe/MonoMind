@@ -63,25 +63,37 @@ namespace Autonocraft.Village
                     continue;
                 }
 
-                if (!IsNearTownHeart(villager.Position, village, 36f))
+                if (!IsNearTownHeart(villager.Position, village, 36f) && !village.Contains(villager.Position))
                 {
                     continue;
                 }
 
-                var assigned = FindVillage(allVillages, villager.VillageId);
-                if (assigned != null)
+                if (!TryClaimOrphan(villager, village, allVillages))
                 {
-                    float assignedDist = HorizontalDistanceSquared(villager.Position, assigned);
-                    float hereDist = HorizontalDistanceSquared(villager.Position, village);
-                    if (assignedDist <= hereDist)
-                    {
-                        continue;
-                    }
+                    continue;
                 }
 
                 villager.VillageId = village.Id;
                 village.RegisterVillager(villager.Id);
             }
+        }
+
+        private static bool TryClaimOrphan(Villager villager, Village village, IReadOnlyList<Village> allVillages)
+        {
+            var assigned = FindVillage(allVillages, villager.VillageId);
+            if (assigned == null)
+            {
+                return true;
+            }
+
+            if (assigned.Id == village.Id)
+            {
+                return true;
+            }
+
+            float assignedDist = HorizontalDistanceSquared(villager.Position, assigned);
+            float hereDist = HorizontalDistanceSquared(villager.Position, village);
+            return hereDist < assignedDist;
         }
 
         public static bool HasEstablishedSettlement(Village village)
@@ -123,6 +135,75 @@ namespace Autonocraft.Village
 
             return HasEstablishedSettlement(village);
         }
+
+        public static int CountStrandedCitizens(Village village, VillagerManager villagers, float maxDistance = 48f)
+        {
+            int count = 0;
+            float maxDistSq = maxDistance * maxDistance;
+            foreach (var villager in villagers.All)
+            {
+                if (villager.VillageId == village.Id)
+                {
+                    continue;
+                }
+
+                if (HorizontalDistanceSquared(villager.Position, village) <= maxDistSq || village.Contains(villager.Position))
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        /// <summary>
+        /// When a settlement shows zero citizens but villagers are physically present, attach them to this village.
+        /// </summary>
+        public static int RelinkStrandedCitizens(
+            Village village,
+            VillagerManager villagers,
+            IReadOnlyList<Village> allVillages)
+        {
+            if (GetLivePopulation(village, villagers) > 0)
+            {
+                return 0;
+            }
+
+            int linked = 0;
+            foreach (var villager in villagers.All)
+            {
+                if (villager.VillageId == village.Id)
+                {
+                    continue;
+                }
+
+                if (!IsNearTownHeart(villager.Position, village, 48f) && !village.Contains(villager.Position))
+                {
+                    continue;
+                }
+
+                var assigned = FindVillage(allVillages, villager.VillageId);
+                if (assigned != null && assigned.Id != village.Id)
+                {
+                    int assignedPop = GetLivePopulation(assigned, villagers);
+                    float assignedDist = HorizontalDistanceSquared(villager.Position, assigned);
+                    float hereDist = HorizontalDistanceSquared(villager.Position, village);
+                    if (assignedPop > 0 && assignedDist < hereDist)
+                    {
+                        continue;
+                    }
+                }
+
+                villager.VillageId = village.Id;
+                village.RegisterVillager(villager.Id);
+                linked++;
+            }
+
+            return linked;
+        }
+
+        public static bool IsPlayerManagingSettlement(Village village, Vector3 playerPos)
+            => village.Contains(playerPos) || IsPlayerNearTownHeart(village, playerPos, 32f);
 
         public static bool IsPlayerNearTownHeart(Village village, Vector3 playerPos, float maxHorizontalDistance = 16f)
             => IsNearTownHeart(playerPos, village, maxHorizontalDistance);
