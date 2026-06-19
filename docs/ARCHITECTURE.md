@@ -364,11 +364,12 @@ Villages are the default gameplay loop — not an optional side system.
 | `Village/Economy/*` | Food stock, storage, haul/farm/workshop simulation |
 | `Village/Founding/*` | Starter settlement, structure claim, blueprint placement |
 | `Village/Persistence/*` | Save v7 export/load |
-| `Village/AI/*` | Goal parsing, next-best-action HUD hints |
-| `VillageEvents` / `VillageGuidance` | Player feedback toasts and next-best-action hints |
+| `Village/AI/*` | `SettlementGuidance` (prioritized headline/detail), goal parsing |
+| `VillageEvents` / `VillageGuidance` | Player feedback toasts; `VillageGuidance` delegates to `SettlementGuidance` |
+| `JobAssignmentResult` / `RecruitResult` | Structured assign/recruit outcomes with `reasonCode` + remediation |
 | `Village` | Storage, food/happiness sim, tier progression, building sites |
 | `Villager` / `VillagerManager` | Entity state + registry; AI delegated to job handlers |
-| `VillageScreen` + `VillageViewModel` | Town board UI with plain-language villager activity |
+| `VillageScreen` + `VillageViewModel` | Town board dashboard (Overview), People inline feedback, recruit preview |
 | `VillageAiOrchestrator` (on `GameSession`) | Shared in-game + HTTP steward chat |
 
 **Jobs:** Idle, Lumber, Mine, Farm, Build, Haul, Craft, Hunt, Mason, Cook (+ Sleep at night).

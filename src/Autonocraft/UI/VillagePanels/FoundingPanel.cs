@@ -31,7 +31,7 @@ namespace Autonocraft.UI.VillagePanels
 
             ui.DrawCenteredTitle("Start a settlement", panelY + layout.S(20f), layout.S(UiTheme.FontTitle),
                 UiTheme.Title, alpha);
-            ui.DrawCenteredText("No village yet", panelY + layout.S(48f), layout.S(UiTheme.FontBody),
+            ui.DrawCenteredText("Town Board — your settlement command center", panelY + layout.S(48f), layout.S(UiTheme.FontBody),
                 UiTheme.Subtitle, alpha * 0.92f);
 
             float contentY = panelY + layout.S(VillageScreen.ContentTop);
@@ -43,10 +43,10 @@ namespace Autonocraft.UI.VillagePanels
             ui.DrawString("This save has no settlement yet.",
                 left + layout.S(18f), textY, layout.S(UiTheme.FontBody), UiTheme.StatValue, alpha);
             textY += layout.S(28f);
-            ui.DrawString("Place a Town Heart — one settler joins automatically and builds it.",
+            ui.DrawString("Place a Town Heart — your first settler joins and helps build it.",
                 left + layout.S(18f), textY, layout.S(UiTheme.FontSmall), UiTheme.Subtitle, alpha);
             textY += layout.S(28f);
-            ui.DrawString("Recruit is only for extra workers after you already have at least one villager.",
+            ui.DrawString("After settlers arrive, open Town Board (V) → People tab to assign jobs.",
                 left + layout.S(18f), textY, layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha);
 
             if (context.CanClaimNearby)

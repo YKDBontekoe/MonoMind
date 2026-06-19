@@ -121,7 +121,8 @@ namespace Autonocraft.Core
             catch (Exception ex)
             {
                 Console.WriteLine($"[Save] Failed to load slot '{slotId}': {ex.Message}");
-                _screens.SaveSlotScreen?.SetLoadError($"Failed to load save: {ex.Message}");
+                _screens.SaveSlotScreen?.SetLoadError($"Failed to load save: {ex.Message}. Try another slot or create a new world.");
+                _screens.MenuNav.ReturnToSaveBrowserFromGameplay();
                 return false;
             }
         }

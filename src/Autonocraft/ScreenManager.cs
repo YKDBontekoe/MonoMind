@@ -8,6 +8,7 @@ using Autonocraft.Engine;
 using Autonocraft.Engine.Animation;
 using Autonocraft.Engine.Audio;
 using Autonocraft.UI;
+using Autonocraft.UI.Menu;
 using Autonocraft.Village;
 using Autonocraft.World;
 
@@ -24,9 +25,8 @@ namespace Autonocraft.Core
         private readonly UiTransition _screenFade = new UiTransition();
         private readonly UiTransition _pauseFade = new UiTransition();
         private readonly UiTransition _deathFade = new UiTransition();
-
-        private bool _mainMenuSettingsOpen;
-        private bool _playerDashboardOpen;
+        private readonly MenuNavigationState _menuNav = new MenuNavigationState();
+        private UiRenderer? _ui;
 
         public GameState State
         {
@@ -38,17 +38,41 @@ namespace Autonocraft.Core
         public UiTransition ScreenFade => _screenFade;
         public UiTransition PauseFade => _pauseFade;
         public UiTransition DeathFade => _deathFade;
+        public MenuNavigationState MenuNav => _menuNav;
+
         public bool MainMenuSettingsOpen
         {
-            get => _mainMenuSettingsOpen;
-            set => _mainMenuSettingsOpen = value;
-        }
-        public bool PlayerDashboardOpen
-        {
-            get => _playerDashboardOpen;
-            set => _playerDashboardOpen = value;
+            get => _menuNav.Layer == MenuLayer.SettingsOverlay;
+            set
+            {
+                if (value)
+                {
+                    _menuNav.OpenOverlay(MenuLayer.SettingsOverlay);
+                }
+                else if (_menuNav.Layer == MenuLayer.SettingsOverlay)
+                {
+                    _menuNav.CloseOverlay();
+                }
+            }
         }
 
+        public bool PlayerDashboardOpen
+        {
+            get => _menuNav.Layer == MenuLayer.StatsOverlay;
+            set
+            {
+                if (value)
+                {
+                    _menuNav.OpenOverlay(MenuLayer.StatsOverlay);
+                }
+                else if (_menuNav.Layer == MenuLayer.StatsOverlay)
+                {
+                    _menuNav.CloseOverlay();
+                }
+            }
+        }
+
+        public MainMenuScreen? MainMenuScreen { get; private set; }
         public SaveSlotScreen? SaveSlotScreen { get; private set; }
         public MainMenuSettingsScreen? MainMenuSettingsScreen { get; private set; }
         public PlayerDashboardScreen? PlayerDashboardScreen { get; private set; }
@@ -74,6 +98,8 @@ namespace Autonocraft.Core
             Action<bool> onVSyncChanged,
             Action<bool> onHighQualityLightingChanged)
         {
+            _ui = ui;
+            MainMenuScreen = new MainMenuScreen(ui);
             SaveSlotScreen = new SaveSlotScreen(ui);
             MainMenuSettingsScreen = new MainMenuSettingsScreen(ui);
             PlayerDashboardScreen = new PlayerDashboardScreen(ui);
@@ -218,7 +244,7 @@ namespace Autonocraft.Core
 
         public bool ShouldDuckAudio(CraftingSystem crafting, GameState state) =>
             state != GameState.Playing
-                ? _mainMenuSettingsOpen || _playerDashboardOpen
+                ? _menuNav.IsOverlayActive
                 : PauseMenu?.IsOpen == true
                 || DeathScreen?.IsOpen == true
                 || DevConsole?.IsOpen == true
@@ -226,8 +252,7 @@ namespace Autonocraft.Core
                 || VillageChatScreen?.IsOpen == true
                 || crafting.Crucible.IsOpen
                 || crafting.IsJournalUiBlocking
-                || _mainMenuSettingsOpen
-                || _playerDashboardOpen;
+                || _menuNav.IsOverlayActive;
 
         public InputManager.GameplayInputBlockers GetInputBlockers(CraftingSystem crafting) =>
             new InputManager.GameplayInputBlockers
@@ -242,16 +267,33 @@ namespace Autonocraft.Core
                 InventoryOpen = crafting.InventoryOpen
             };
 
-        public void DrawMainMenu(GraphicsDevice graphicsDevice)
+        public void DrawMainMenu(GraphicsDevice graphicsDevice, float deltaTime)
         {
-            SaveSlotScreen!.Draw(graphicsDevice.Viewport, _screenFade.Alpha, _screenFade.OffsetY);
-            if (_playerDashboardOpen)
+            float alpha = _screenFade.Alpha;
+            float offsetY = _screenFade.OffsetY;
+            bool overlayActive = _menuNav.IsOverlayActive;
+
+            if (_menuNav.BaseLayer == MenuLayer.RootHub)
             {
-                PlayerDashboardScreen!.Draw(graphicsDevice.Viewport);
+                MainMenuScreen!.Draw(graphicsDevice.Viewport, deltaTime, alpha, offsetY);
             }
-            else if (_mainMenuSettingsOpen)
+            else
             {
-                MainMenuSettingsScreen!.Draw(graphicsDevice.Viewport);
+                SaveSlotScreen!.Draw(graphicsDevice.Viewport, alpha, offsetY);
+            }
+
+            if (_menuNav.Layer == MenuLayer.StatsOverlay)
+            {
+                if (overlayActive && _ui != null)
+                {
+                    MenuChrome.DrawOverlayScrim(_ui, graphicsDevice.Viewport, alpha * 0.72f);
+                }
+
+                PlayerDashboardScreen!.Draw(graphicsDevice.Viewport, overlayActive ? alpha : 1f, overlayActive);
+            }
+            else if (_menuNav.Layer == MenuLayer.SettingsOverlay)
+            {
+                MainMenuSettingsScreen!.Draw(graphicsDevice.Viewport, overlayActive);
             }
         }
 

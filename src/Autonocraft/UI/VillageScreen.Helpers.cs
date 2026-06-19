@@ -29,6 +29,7 @@ namespace Autonocraft.UI
             RequestedBlueprintId = null;
             RequestedAssignVillagerId = -1;
             RequestedChatVillagerId = -1;
+            RequestedStewardChat = false;
             RequestBlueprintPlacement = false;
             RequestWorkZonePlacement = false;
         }
@@ -40,13 +41,10 @@ namespace Autonocraft.UI
                 return;
             }
 
-            if (_villageManager.RepairVillageCitizens(_village, _world!))
-            {
-                _selectedTab = 2;
-            }
-
             _villageManager.SyncCitizensForVillage(_village);
-            _viewModel = VillageViewModel.Build(_village, _villageManager, _villagers, _playerCreative, _playerPos);
+            _strandedCitizenCount = VillageSettlementHealth.CountStrandedCitizens(_village, _villagers);
+            _summonLinksNearby = CountDisplayedCitizens() == 0 && _strandedCitizenCount > 0;
+            _viewModel = VillageViewModel.Build(_village, _villageManager, _villagers, _playerCreative, _playerPos, _guidePlayer);
 
             if (_selectedVillagerId < 0 || !CitizenExists(_selectedVillagerId))
             {
@@ -81,7 +79,14 @@ namespace Autonocraft.UI
             int citizens = CountDisplayedCitizens();
             if (citizens == 0)
             {
-                return CanSummonSettlers() ? "Summon settlers" : "Summon settlers (go to heart)";
+                if (_summonLinksNearby)
+                {
+                    return $"Link nearby settlers ({_strandedCitizenCount})";
+                }
+
+                return CanSummonSettlers()
+                    ? "Summon settlers"
+                    : "Summon settlers (stand at Town Heart)";
             }
 
             if (citizens >= _village.PopulationCap)
@@ -142,7 +147,12 @@ namespace Autonocraft.UI
                 return false;
             }
 
-            return VillageSettlementHealth.IsPlayerNearTownHeart(_village, _playerPos);
+            if (_strandedCitizenCount > 0)
+            {
+                return VillageSettlementHealth.IsPlayerManagingSettlement(_village, _playerPos);
+            }
+
+            return VillageSettlementHealth.IsPlayerManagingSettlement(_village, _playerPos);
         }
 
         private int CountDisplayedCitizens()

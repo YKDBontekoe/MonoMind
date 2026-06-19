@@ -100,7 +100,10 @@ public sealed record AgentVillageSummaryDto(
     [property: JsonPropertyName("happiness")] float Happiness,
     [property: JsonPropertyName("foodStock")] float FoodStock,
     [property: JsonPropertyName("anchorX")] int AnchorX,
-    [property: JsonPropertyName("anchorZ")] int AnchorZ);
+    [property: JsonPropertyName("anchorZ")] int AnchorZ,
+    [property: JsonPropertyName("nextAction")] string? NextAction = null,
+    [property: JsonPropertyName("idleWorkers")] int? IdleWorkers = null,
+    [property: JsonPropertyName("foodRisk")] string? FoodRisk = null);
 
 public sealed record AgentVillagerDto(
     [property: JsonPropertyName("id")] int Id,
@@ -110,7 +113,10 @@ public sealed record AgentVillagerDto(
     [property: JsonPropertyName("job")] string Job,
     [property: JsonPropertyName("x")] float X,
     [property: JsonPropertyName("y")] float Y,
-    [property: JsonPropertyName("z")] float Z);
+    [property: JsonPropertyName("z")] float Z,
+    [property: JsonPropertyName("activity")] string? Activity = null,
+    [property: JsonPropertyName("progress")] string? Progress = null,
+    [property: JsonPropertyName("needsAttention")] bool? NeedsAttention = null);
 
 public sealed record AgentNearbyVillagerDto(
     [property: JsonPropertyName("id")] int Id,

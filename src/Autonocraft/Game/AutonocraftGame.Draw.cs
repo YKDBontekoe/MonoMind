@@ -34,7 +34,7 @@ namespace Autonocraft.Core
             switch (_screens.State)
             {
                 case GameState.MainMenu:
-                    _screens.DrawMainMenu(GraphicsDevice);
+                    _screens.DrawMainMenu(GraphicsDevice, (float)gameTime.ElapsedGameTime.TotalSeconds);
                     break;
                 case GameState.NewWorldSetup:
                     _screens.DrawNewWorldSetup(GraphicsDevice);

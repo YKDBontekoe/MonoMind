@@ -92,6 +92,20 @@ namespace Autonocraft.World
             return slots.OrderByDescending(s => s.SavedAt).ToList();
         }
 
+        public static SaveSlotInfo? GetMostRecentSaveSlot()
+        {
+            var slots = ListSlots();
+            if (slots.Count == 0)
+            {
+                return null;
+            }
+
+            return slots
+                .OrderByDescending(s => s.SavedAt)
+                .ThenBy(s => s.SlotId, StringComparer.Ordinal)
+                .First();
+        }
+
         public static string CreateSlotId(string slotName)
         {
             string slug = Slugify(slotName);

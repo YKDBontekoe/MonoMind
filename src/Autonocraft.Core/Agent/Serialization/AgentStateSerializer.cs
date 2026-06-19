@@ -41,6 +41,22 @@ internal static class AgentStateSerializer
         {
             session.Villages.SyncCitizensForVillage(village);
             int livePopulation = VillageSettlementHealth.GetLivePopulation(village, session.Villagers);
+            var guidance = SettlementGuidance.Compute(village, session.Villagers, player.Position, player.CreativeMode);
+            int idleWorkers = 0;
+            foreach (var citizen in VillageSettlementHealth.EnumerateLiveCitizens(village, session.Villagers))
+            {
+                if (citizen.CurrentJob == Domain.Village.JobType.Idle)
+                {
+                    idleWorkers++;
+                }
+            }
+
+            string foodRisk = guidance.FoodRisk switch
+            {
+                FoodRiskLevel.Critical => "critical",
+                FoodRiskLevel.Low => "low",
+                _ => "ok"
+            };
             villageDto = new AgentVillageSummaryDto(
                 village.Id,
                 village.Name,
@@ -50,7 +66,10 @@ internal static class AgentStateSerializer
                 (float)Math.Round(village.Happiness, 2),
                 (float)Math.Round(village.FoodStock, 1),
                 village.AnchorX,
-                village.AnchorZ);
+                village.AnchorZ,
+                guidance.Detail,
+                idleWorkers,
+                foodRisk);
 
             foreach (var v in VillageSettlementHealth.EnumerateLiveCitizens(village, session.Villagers))
             {
@@ -62,7 +81,7 @@ internal static class AgentStateSerializer
             nearbyVillagers = session.Villagers.GetVillagersInRange(player.Position, 32f);
         }
 
-        var villagerDtos = BuildVillagerDtos(nearbyVillagers);
+        var villagerDtos = BuildVillagerDtos(nearbyVillagers, village);
         var chatTarget = session.Villagers.GetNearest(player.Position, 5f);
         AgentNearbyVillagerDto? nearbyVillagerDto = chatTarget == null
             ? null
@@ -287,12 +306,20 @@ internal static class AgentStateSerializer
             interaction.IsMining);
     }
 
-    private static List<AgentVillagerDto> BuildVillagerDtos(List<Entities.Villager> nearbyVillagers)
+    private static List<AgentVillagerDto> BuildVillagerDtos(
+        List<Entities.Villager> nearbyVillagers,
+        Autonocraft.Village.Village? village)
     {
         List<AgentVillagerDto> villagerDtos = new();
         for (int i = 0; i < nearbyVillagers.Count; i++)
         {
             var v = nearbyVillagers[i];
+            Autonocraft.Village.Village? villagerVillage = village;
+            if (villagerVillage == null || villagerVillage.Id != v.VillageId)
+            {
+                villagerVillage = null;
+            }
+
             villagerDtos.Add(new AgentVillagerDto(
                 v.Id,
                 v.VillageId,
@@ -301,7 +328,10 @@ internal static class AgentStateSerializer
                 v.CurrentJob.ToString(),
                 v.Position.X,
                 v.Position.Y,
-                v.Position.Z));
+                v.Position.Z,
+                VillagerActivityText.Describe(v, villagerVillage, null),
+                VillagerActivityText.DescribeProgress(v, villagerVillage),
+                VillagerActivityText.NeedsAttention(v, villagerVillage)));
         }
 
         return villagerDtos;

@@ -21,7 +21,7 @@ namespace Autonocraft.Village
             _haulCoordinator = haulCoordinator;
         }
 
-        public bool TryAssignJob(
+        public JobAssignmentResult TryAssignJob(
             Village village,
             Villager villager,
             JobType job,
@@ -31,7 +31,10 @@ namespace Autonocraft.Village
         {
             if (villager.VillageId != village.Id)
             {
-                return false;
+                return JobAssignmentResult.Failed(
+                    JobAssignmentReasonCodes.WrongVillage,
+                    "That villager does not belong to this settlement.",
+                    "Select a citizen from your active settlement.");
             }
 
             job = NormalizeJob(job);
@@ -42,6 +45,14 @@ namespace Autonocraft.Village
                 case JobType.Build:
                     villager.Role = VillagerRole.Builder;
                     buildingSiteId ??= village.GetNearestPendingSite(villager.Position)?.Id;
+                    if (!buildingSiteId.HasValue)
+                    {
+                        return JobAssignmentResult.Failed(
+                            JobAssignmentReasonCodes.NoPendingSite,
+                            "No construction site is queued.",
+                            "Queue a building on the Build tab, then assign Build.");
+                    }
+
                     break;
                 case JobType.Lumber:
                     villager.Role = VillagerRole.Lumberjack;
@@ -62,7 +73,10 @@ namespace Autonocraft.Village
                     {
                         if (quarry == null)
                         {
-                            return false;
+                            return JobAssignmentResult.Failed(
+                                JobAssignmentReasonCodes.NoQuarry,
+                                "No quarry — miners need a quarry building.",
+                                "Queue a quarry on the Build tab, then assign Mine.");
                         }
 
                         assignedBuildingId = quarry.Id;
@@ -77,7 +91,10 @@ namespace Autonocraft.Village
                 case JobType.Farm:
                     if (!village.HasBuilding(BuildingKind.FarmPlot))
                     {
-                        return false;
+                        return JobAssignmentResult.Failed(
+                            JobAssignmentReasonCodes.NoFarmPlot,
+                            "No farm plot — farmers need a farm building.",
+                            "Queue a farm plot on the Build tab, then assign Farm.");
                     }
 
                     villager.Role = VillagerRole.Farmer;
@@ -85,7 +102,10 @@ namespace Autonocraft.Village
                         ?? village.GetPreferredFarmPlot(villager.Position, _villagers.All);
                     if (farmPlot == null)
                     {
-                        return false;
+                        return JobAssignmentResult.Failed(
+                            JobAssignmentReasonCodes.NoFarmPlot,
+                            "No farm plot available for this villager.",
+                            "Queue a farm plot on the Build tab, then assign Farm.");
                     }
 
                     assignedBuildingId = farmPlot.Id;
@@ -98,17 +118,30 @@ namespace Autonocraft.Village
 
                     break;
                 case JobType.Craft:
-                    if (!village.HasBuilding(BuildingKind.Workshop) ||
-                        !VillageWorkshopCrafting.NeedsSmithWork(village.Storage, CreativeMode))
+                    if (!village.HasBuilding(BuildingKind.Workshop))
                     {
-                        return false;
+                        return JobAssignmentResult.Failed(
+                            JobAssignmentReasonCodes.NoWorkshop,
+                            "No workshop — smiths need a workshop building.",
+                            "Queue a workshop on the Build tab, then assign Craft.");
+                    }
+
+                    if (!VillageWorkshopCrafting.NeedsSmithWork(village.Storage, CreativeMode))
+                    {
+                        return JobAssignmentResult.Failed(
+                            JobAssignmentReasonCodes.NoSmithWork,
+                            "Workshop has no smithing work right now.",
+                            "Wait for tool repairs or queued crafts, or assign another job.");
                     }
 
                     villager.Role = VillagerRole.Smith;
                     var workshop = ResolveAssignedBuilding(village, buildingId, BuildingKind.Workshop, villager.Position);
                     if (workshop == null)
                     {
-                        return false;
+                        return JobAssignmentResult.Failed(
+                            JobAssignmentReasonCodes.NoWorkshop,
+                            "No workshop found near this villager.",
+                            "Queue a workshop on the Build tab, then assign Craft.");
                     }
 
                     assignedBuildingId = workshop.Id;
@@ -133,14 +166,20 @@ namespace Autonocraft.Village
                 case JobType.Cook:
                     if (!village.HasBuilding(BuildingKind.Kitchen))
                     {
-                        return false;
+                        return JobAssignmentResult.Failed(
+                            JobAssignmentReasonCodes.NoKitchen,
+                            "No kitchen — cooks need a kitchen building.",
+                            "Queue a kitchen on the Build tab, then assign Cook.");
                     }
 
                     villager.Role = VillagerRole.Cook;
                     var kitchen = ResolveAssignedBuilding(village, buildingId, BuildingKind.Kitchen, villager.Position);
                     if (kitchen == null)
                     {
-                        return false;
+                        return JobAssignmentResult.Failed(
+                            JobAssignmentReasonCodes.NoKitchen,
+                            "No kitchen found near this villager.",
+                            "Queue a kitchen on the Build tab, then assign Cook.");
                     }
 
                     assignedBuildingId = kitchen.Id;
@@ -150,7 +189,27 @@ namespace Autonocraft.Village
 
             if (target == null && job is JobType.Lumber or JobType.Mine or JobType.Farm)
             {
-                return false;
+                string reasonCode = job switch
+                {
+                    JobType.Lumber => JobAssignmentReasonCodes.NoLumberTarget,
+                    JobType.Mine => JobAssignmentReasonCodes.NoMineTarget,
+                    _ => JobAssignmentReasonCodes.NoTarget
+                };
+                string message = job switch
+                {
+                    JobType.Lumber => "No marked trees or lumber targets nearby.",
+                    JobType.Mine => "No mineable stone near the quarry.",
+                    JobType.Farm => "No farm work available right now.",
+                    _ => "No work target found."
+                };
+                string remediation = job switch
+                {
+                    JobType.Lumber => "Shift+click trees to mark them, or paint a lumber zone.",
+                    JobType.Mine => "Ensure the quarry has reachable stone nearby.",
+                    JobType.Farm => "Wait for crops to grow or queue a farm plot.",
+                    _ => "Try another job or queue the required building."
+                };
+                return JobAssignmentResult.Failed(reasonCode, message, remediation);
             }
 
             village.Scheduler.AssignJob(villager, job, target, buildingSiteId, assignedBuildingId);
@@ -166,7 +225,7 @@ namespace Autonocraft.Village
                 }
             }
 
-            return true;
+            return JobAssignmentResult.Succeeded();
         }
 
         public bool TryAssignStockGoalWorker(Village village, VoxelWorld world, Villager villager, BlockType blockType)
@@ -206,7 +265,7 @@ namespace Autonocraft.Village
                 buildingId = village.GetNearestBuilding(BuildingKind.LumberCamp, villager.Position)?.Id;
             }
 
-            return TryAssignJob(village, villager, job, target, buildingId: buildingId);
+            return TryAssignJob(village, villager, job, target, buildingId: buildingId).Success;
         }
 
         public void AutoAssignIdleWorkers(Village village, VoxelWorld world)
@@ -250,7 +309,7 @@ namespace Autonocraft.Village
                     {
                         var farmTarget = JobTargetScanner.FindNearbyFarmTarget(world, village, villager.Position, plot);
                         if (farmTarget.HasValue &&
-                            TryAssignJob(village, villager, JobType.Farm, farmTarget, buildingId: plot.Id))
+                            TryAssignJob(village, villager, JobType.Farm, farmTarget, buildingId: plot.Id).Success)
                         {
                             continue;
                         }
@@ -261,7 +320,7 @@ namespace Autonocraft.Village
                     VillageWorkshopCrafting.NeedsSmithWork(village.Storage, CreativeMode) &&
                     (villager.Role == VillagerRole.Smith || villager.Role == VillagerRole.Peasant))
                 {
-                    if (TryAssignJob(village, villager, JobType.Craft))
+                    if (TryAssignJob(village, villager, JobType.Craft).Success)
                     {
                         continue;
                     }
@@ -294,7 +353,7 @@ namespace Autonocraft.Village
                         {
                             buildingId = village.GetNearestBuilding(BuildingKind.LumberCamp, villager.Position)?.Id;
                         }
-                        if (TryAssignJob(village, villager, job, stockTarget, buildingId: buildingId))
+                        if (TryAssignJob(village, villager, job, stockTarget, buildingId: buildingId).Success)
                         {
                             continue;
                         }
@@ -309,7 +368,7 @@ namespace Autonocraft.Village
                     {
                         var lumberTarget = JobTargetScanner.FindNearbyLumberTarget(world, village, lumberCamp, villager.Position);
                         if (lumberTarget.HasValue &&
-                            TryAssignJob(village, villager, JobType.Lumber, lumberTarget, buildingId: lumberCamp.Id))
+                            TryAssignJob(village, villager, JobType.Lumber, lumberTarget, buildingId: lumberCamp.Id).Success)
                         {
                             continue;
                         }
@@ -324,7 +383,7 @@ namespace Autonocraft.Village
                     {
                         var mineTarget = JobTargetScanner.FindNearbyMineTarget(world, quarry);
                         if (mineTarget.HasValue &&
-                            TryAssignJob(village, villager, JobType.Mine, mineTarget, buildingId: quarry.Id))
+                            TryAssignJob(village, villager, JobType.Mine, mineTarget, buildingId: quarry.Id).Success)
                         {
                             continue;
                         }
@@ -429,7 +488,7 @@ namespace Autonocraft.Village
                     continue;
                 }
 
-                if (TryAssignJob(village, villager, JobType.Build, null, site.Id))
+                if (TryAssignJob(village, villager, JobType.Build, null, site.Id).Success)
                 {
                     return true;
                 }

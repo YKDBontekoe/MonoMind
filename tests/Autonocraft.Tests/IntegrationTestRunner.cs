@@ -27,6 +27,13 @@ public static class IntegrationTestRunner
         try
         {
             RunTimed(nameof(WorldGenTests.RunGameSettingsRoundTrip), WorldGenTests.RunGameSettingsRoundTrip);
+            RunTimed(nameof(MenuTests.RunMenuInitialLayerIsRootHub), MenuTests.RunMenuInitialLayerIsRootHub);
+            RunTimed(nameof(MenuTests.RunMainMenuRootHubLayoutBounds), MenuTests.RunMainMenuRootHubLayoutBounds);
+            RunTimed(nameof(MenuTests.RunSaveBrowserBackReturnsToRootHub), MenuTests.RunSaveBrowserBackReturnsToRootHub);
+            RunTimed(nameof(MenuTests.RunDeleteRequiresTwoStepConfirmation), MenuTests.RunDeleteRequiresTwoStepConfirmation);
+            RunTimed(nameof(MenuTests.RunSettingsCancelDoesNotPersist), MenuTests.RunSettingsCancelDoesNotPersist);
+            RunTimed(nameof(MenuTests.RunSettingsOverlayBlocksBaseInput), MenuTests.RunSettingsOverlayBlocksBaseInput);
+            RunTimed(nameof(MenuTests.RunContinueUsesMostRecentSave), MenuTests.RunContinueUsesMostRecentSave);
             RunTimed(nameof(VillageTests.RunVillageScreenInputLayout), VillageTests.RunVillageScreenInputLayout);
             RunTimed(nameof(VillageTests.RunBlueprintPlacementHelper), VillageTests.RunBlueprintPlacementHelper);
             RunTimed(nameof(VillageTests.RunCanPlaceBlueprint), VillageTests.RunCanPlaceBlueprint);
@@ -72,8 +79,17 @@ public static class IntegrationTestRunner
             RunTimed(nameof(VillageTests.RunRepairMissingCitizens), VillageTests.RunRepairMissingCitizens);
             RunTimed(nameof(VillageTests.RunVillagerLumberChopping), VillageTests.RunVillagerLumberChopping);
             RunTimed(nameof(VillageTests.RunAdoptOrphanedCitizens), VillageTests.RunAdoptOrphanedCitizens);
+            RunTimed(nameof(VillageTests.RunRelinkStrandedCitizens), VillageTests.RunRelinkStrandedCitizens);
             RunTimed(nameof(VillageTests.RunVillageRegistryDesyncLiveChop), VillageTests.RunVillageRegistryDesyncLiveChop);
             RunTimed(nameof(VillageTests.RunVillageGuidanceHints), VillageTests.RunVillageGuidanceHints);
+            RunTimed(nameof(VillageTests.RunSettlementGuidancePriority), VillageTests.RunSettlementGuidancePriority);
+            RunTimed(nameof(VillageTests.RunSettlementDashboardFields), VillageTests.RunSettlementDashboardFields);
+            RunTimed(nameof(VillageTests.RunJobAssignmentBlockedReasons), VillageTests.RunJobAssignmentBlockedReasons);
+            RunTimed(nameof(VillageTests.RunVillagerActivityTextContext), VillageTests.RunVillagerActivityTextContext);
+            RunTimed(nameof(VillageTests.RunRecruitPreviewBlockedReason), VillageTests.RunRecruitPreviewBlockedReason);
+            RunTimed(nameof(VillageTests.RunSettlementWellBeingWarnings), VillageTests.RunSettlementWellBeingWarnings);
+            RunTimed(nameof(VillageTests.RunPeopleTabCitizenDifferentiation), VillageTests.RunPeopleTabCitizenDifferentiation);
+            RunTimed(nameof(VillageTests.RunAgentStateGuidanceParity), VillageTests.RunAgentStateGuidanceParity);
             RunTimed(nameof(VillageTests.RunVillageEventsNotifier), VillageTests.RunVillageEventsNotifier);
             RunTimed(nameof(VillageTests.RunStarvationConsequences), VillageTests.RunStarvationConsequences);
             RunTimed(nameof(VillageTests.RunVillageRename), VillageTests.RunVillageRename);
