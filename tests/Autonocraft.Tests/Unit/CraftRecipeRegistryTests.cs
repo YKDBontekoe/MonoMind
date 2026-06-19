@@ -25,16 +25,16 @@ public class CraftRecipeRegistryTests
     }
 
     [Fact]
-    public void AvailableForStationRespectsUnlockRequirements()
+    public void AvailableForStationIgnoresUnlockRequirements()
     {
         var journal = new DiscoveryJournal();
         var available = CraftRecipeRegistry.AvailableForStation(BlockType.StationBench, journal).ToList();
         Assert.Contains(available, r => r.Id == "recipe:plank");
-        Assert.DoesNotContain(available, r => r.Id == "recipe:stone_pickaxe");
+        Assert.Contains(available, r => r.Id == "recipe:stone_pickaxe");
 
         journal.Unlock("recipe:stone_pickaxe");
-        available = CraftRecipeRegistry.AvailableForStation(BlockType.StationBench, journal).ToList();
-        Assert.Contains(available, r => r.Id == "recipe:stone_pickaxe");
+        var afterUnlock = CraftRecipeRegistry.AvailableForStation(BlockType.StationBench, journal).ToList();
+        Assert.Equal(available.Select(r => r.Id), afterUnlock.Select(r => r.Id));
     }
 
     [Fact]
