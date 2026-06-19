@@ -147,6 +147,40 @@ Each level has its own vertex/index buffers on the GPU.
 
 `World/Structures/` places multi-block templates during world generation. `StructureRegistry` defines 12 structure types with tier and biome placement rules. `StructurePlacer` integrates with `WorldGenerator` after decoration.
 
+### Building quality workflow
+
+Improved small and medium buildings are still defined in
+`src/Autonocraft.World/Structures/ProceduralStructures.cs`, but the visual and
+interior quality bar now depends on shared helper kits instead of per-template
+one-off block spam:
+
+- `MedievalDetailKit` owns reusable exterior signals such as porches, facade
+  depth, dormers, landmark spires, and planters.
+- `RoomStamper` owns reusable interior signals such as shelter camps, cottage
+  living corners, outpost supplies, watch-post details, and hearth corners.
+- `StructurePaths` owns approach and clear-entry carving so decorative upgrades
+  do not block player or villager traversal.
+- `BiomeStructurePalette` remains the biome-facing material switchboard; jungle
+  and forest palettes are intentionally distinct so repeated roles read
+  differently across biomes without changing structure IDs.
+
+Validation for improved buildings is split across deterministic integration
+checks and gallery inspection:
+
+- `WorldGenTests.RunImprovedBuildingCatalogQuality()` verifies deterministic
+  template resolution, silhouette/detail counts, and footprint bounds.
+- `WorldGenTests.RunImprovedBuildingInteriorQuality()` verifies navigable air,
+  two-high entries, and reachable interior features.
+- `WorldGenTests.RunImprovedBuildingGalleryReachability()` and
+  `RunImprovedBuildingFootprintSafety()` verify gallery entry clearance,
+  footprint metadata, and non-overlap assumptions for the updated structures.
+- `VillageTests.RunImprovedClaimableStructureAccess()` and
+  `SaveTests.RunImprovedBuildingSaveRoundTrip()` protect claim/save behavior for
+  updated claimable structures.
+
+For visual review, use `--structure-gallery`, fetch `/structures`, teleport to
+target anchors, and capture screenshots under `test_output/structure_gallery/`.
+
 ---
 
 ## Rendering

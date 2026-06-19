@@ -1,6 +1,7 @@
 # Build output
 [Bb]in/
 [Oo]bj/
+packages/
 
 # IDE
 .vs/
@@ -13,6 +14,9 @@
 # OS
 .DS_Store
 Thumbs.db
+*.tmp
+*.swp
+.vscode/
 
 # Local API keys (template is openrouter_key.example.txt)
 openrouter_key.txt
