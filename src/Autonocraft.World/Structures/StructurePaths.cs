@@ -4,6 +4,25 @@ namespace Autonocraft.World.Structures
 {
     internal static class StructurePaths
     {
+        public static void ClearSouthEntry(
+            StructureBuilder b,
+            int z,
+            int minX,
+            int maxX,
+            int minY,
+            int maxY,
+            StructurePlacementMode mode = StructurePlacementMode.ReplaceSurface)
+        {
+            for (int x = minX; x <= maxX; x++)
+            {
+                for (int y = minY; y <= maxY; y++)
+                {
+                    b.Add(x, y, z, BlockType.Air, mode);
+                    b.Add(x, y, z - 1, BlockType.Air, mode);
+                }
+            }
+        }
+
         public static void ApproachPath(
             StructureBuilder b,
             int fromZ,
@@ -30,12 +49,14 @@ namespace Autonocraft.World.Structures
             in BiomeStructurePalette palette)
         {
             int midX = (minX + maxX) / 2;
+            int span = maxX - minX + 1;
+            int secondX = (span & 1) == 0 ? midX + 1 : midX - 1;
             for (int y = minY; y <= maxY; y++)
             {
                 b.Add(midX, y, z, BlockType.Air);
                 if (maxX > minX)
                 {
-                    b.Add(midX - 1, y, z, BlockType.Air);
+                    b.Add(secondX, y, z, BlockType.Air);
                 }
             }
 

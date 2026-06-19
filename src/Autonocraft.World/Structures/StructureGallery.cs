@@ -21,7 +21,7 @@ namespace Autonocraft.World.Structures
         public static int VariantSaltFor(int index)
         {
             var definition = StructureRegistry.All[index];
-            return StructurePlacementKeys.MixSeed(Seed, index * 31, index * 17, definition.Id.GetHashCode(StringComparison.Ordinal));
+            return StructurePlacementKeys.MixSeed(Seed, index * 31, index * 17, StableOrdinalHash.Hash(definition.Id));
         }
 
         public readonly struct Placement

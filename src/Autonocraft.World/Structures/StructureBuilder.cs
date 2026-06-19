@@ -576,15 +576,32 @@ namespace Autonocraft.World.Structures
                 Dz = dz,
                 LootTableId = lootTableId
             });
-            return Add(dx, dy, dz, BlockType.Chest, mode);
+            return Add(dx, dy, dz, BlockType.Chest, mode)
+                .Add(dx, dy + 1, dz, BlockType.Air, mode);
         }
 
         public StructureTemplate Build(int footprintRadius)
         {
+            foreach (var chest in _chests)
+            {
+                Add(chest.Dx, chest.Dy + 1, chest.Dz, BlockType.Air, StructurePlacementMode.ReplaceAll);
+            }
+
             var blocks = _blocks.Values.ToArray();
+            int maxExtent = 0;
+            foreach (var block in blocks)
+            {
+                if (block.Type == BlockType.Air)
+                {
+                    continue;
+                }
+
+                maxExtent = Math.Max(maxExtent, Math.Max(Math.Abs(block.Dx), Math.Abs(block.Dz)));
+            }
+
             return new StructureTemplate
             {
-                FootprintRadius = footprintRadius,
+                FootprintRadius = Math.Max(footprintRadius, maxExtent),
                 Blocks = blocks,
                 Chests = _chests.ToArray(),
                 ChunkIndex = blocks.Length > 0 ? StructureChunkIndex.Build(blocks) : null

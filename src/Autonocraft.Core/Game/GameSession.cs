@@ -134,6 +134,7 @@ namespace Autonocraft.Core
 
         public void ReplaceWorld(int seed, WorldGenParams? parameters, Action<VoxelWorld>? onDispose = null)
         {
+            Chest.Close();
             _itemEntities.Clear();
             _nextItemEntityId = 1;
             onDispose?.Invoke(Grid);

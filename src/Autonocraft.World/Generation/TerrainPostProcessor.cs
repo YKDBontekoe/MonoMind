@@ -86,7 +86,9 @@ namespace Autonocraft.World
                 {
                     int px = lx + Padding;
                     int pz = lz + Padding;
-                    columns[lx, lz] = FinalizeColumn(drafts[px, pz], heights[px, pz], heights, px, pz);
+                    int worldX = originX + px;
+                    int worldZ = originZ + pz;
+                    columns[lx, lz] = FinalizeColumn(drafts[px, pz], heights[px, pz], heights, px, pz, worldX, worldZ);
                 }
             }
         }
@@ -512,7 +514,14 @@ namespace Autonocraft.World
             return (bestX, bestZ);
         }
 
-        private static TerrainColumn FinalizeColumn(TerrainColumn draft, float height, float[,] heights, int px, int pz)
+        private static TerrainColumn FinalizeColumn(
+            TerrainColumn draft,
+            float height,
+            float[,] heights,
+            int px,
+            int pz,
+            int worldX,
+            int worldZ)
         {
             int surfaceHeight = Math.Clamp((int)MathF.Round(height), 1, Chunk.Height - 12);
             bool isRiver = draft.IsRiver;
@@ -551,7 +560,7 @@ namespace Autonocraft.World
             }
             else if (draft.Biome.Primary is BiomeType.Mountains or BiomeType.SnowyPeaks)
             {
-                ApplyMountainSurface(draft, height, heights, px, pz, ref surface, ref subsurface);
+                ApplyMountainSurface(draft, height, heights, px, pz, worldX, worldZ, ref surface, ref subsurface);
             }
 
             return draft with
@@ -569,6 +578,8 @@ namespace Autonocraft.World
             float[,] heights,
             int px,
             int pz,
+            int worldX,
+            int worldZ,
             ref BlockType surface,
             ref BlockType subsurface)
         {
@@ -581,7 +592,7 @@ namespace Autonocraft.World
 
                 if (draft.Biome.Primary == BiomeType.SnowyPeaks && height > snowLine + 6f)
                 {
-                    uint hash = HashCoordinates(px, pz);
+                    uint hash = HashCoordinates(worldX, worldZ);
                     if ((hash & 0x7) <= 1)
                     {
                         surface = BlockType.Ice;

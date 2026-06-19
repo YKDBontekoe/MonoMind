@@ -128,7 +128,7 @@ namespace Autonocraft.Core
                 {
                     _input.IsMouseLocked = _input.MouseLockedBeforeVillageUi;
                     RestoreMouseLockAfterOverlay();
-                    return false;
+                    return true;
                 }
 
                 return true;
@@ -311,7 +311,7 @@ namespace Autonocraft.Core
 
             if (!_session.Player.CreativeMode)
             {
-                var rarity = LootRoller.PeekHighestRarity(
+                var rarity = chest.HighestRarity ?? LootRoller.PeekHighestRarity(
                     Enumerable.Range(0, chest.Inventory.SlotCount)
                         .Select(i => chest.Inventory.GetSlot(i))
                         .Where(s => !s.IsEmpty)

@@ -383,6 +383,11 @@ namespace Autonocraft.World
             int baseZ = chunk.ChunkZ * Chunk.Depth;
             foreach (var pending in chunk.PendingChests)
             {
+                if (chunk.GetBlock(pending.LocalX, pending.LocalY, pending.LocalZ) != BlockType.Chest)
+                {
+                    continue;
+                }
+
                 Containers.RegisterChest(
                     baseX + pending.LocalX,
                     pending.LocalY,
@@ -442,8 +447,8 @@ namespace Autonocraft.World
             _chunks.Add((cx, cz), chunk);
             RegisterChunk(chunk);
             _generator.GenerateChunkTerrain(chunk, this);
-            FlushChunkChests(chunk);
             ApplyModificationsToChunk(chunk);
+            FlushChunkChests(chunk);
             chunk.RebuildColumnHeights();
             return chunk;
         }
@@ -679,6 +684,8 @@ namespace Autonocraft.World
                 _activeChunkList.Clear();
                 _modifications.Clear();
                 _modificationsByChunk.Clear();
+                _containers.Clear();
+                StructurePlacementKeys.ClearCache();
                 _terrainScheduler.Clear();
             }
             finally
@@ -705,6 +712,8 @@ namespace Autonocraft.World
                 _activeChunkList.Clear();
                 _modifications.Clear();
                 _modificationsByChunk.Clear();
+                _containers.Clear();
+                StructurePlacementKeys.ClearCache();
                 _initialLoadQueue = null;
                 _initialLoadIndex = 0;
                 _initialLoadTotal = 0;

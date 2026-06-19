@@ -16,6 +16,8 @@ public static class AnimalCombatTests
     {
         Console.Write("Running Animal Gravity Test... ");
 
+        world.UpdateChunksAround(null, new Vector3(16.5f, 64f, 16.5f), 4);
+
         var animals = new AnimalManager(world.Seed);
         int surfaceY = world.GetHighestSolidY(16, 16);
         if (surfaceY < 0)

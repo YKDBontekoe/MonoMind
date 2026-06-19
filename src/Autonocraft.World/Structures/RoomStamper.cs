@@ -119,6 +119,52 @@ namespace Autonocraft.World.Structures
                 .Add(cx, oy + 2, cz - radius, BlockType.Air);
         }
 
+        public static void ShelterCamp(StructureBuilder b, int half, int y, in BiomeStructurePalette palette)
+        {
+            b.Add(-half + 1, y, half - 1, BlockType.HayBale)
+                .Add(-half + 2, y, half - 1, BlockType.HayBale)
+                .Add(0, y, half - 1, BlockType.MossCarpet)
+                .Add(0, y + 1, half - 1, palette.GlowAccent)
+                .Add(-half + 1, y + 1, 0, BlockType.Rope)
+                .Add(half - 1, y + 1, 0, BlockType.Rope);
+        }
+
+        public static void CottageLiving(StructureBuilder b, int half, int y, in BiomeStructurePalette palette)
+        {
+            b.Add(-half + 1, y, half - 1, BlockType.StationBench)
+                .Add(-half + 2, y, half - 1, BlockType.OakPlank)
+                .Add(half - 1, y, half - 1, BlockType.HayBale)
+                .Add(half - 2, y, half - 1, BlockType.HayBale)
+                .Add(half - 1, y + 1, 0, BlockType.Lantern)
+                .Add(-half + 1, y + 1, 0, palette.Accent)
+                .Add(0, y, half - 2, BlockType.MossCarpet);
+        }
+
+        public static void OutpostSupplies(StructureBuilder b, int half, int y, in BiomeStructurePalette palette)
+        {
+            b.Add(-half + 1, y, half - 1, BlockType.StationBench)
+                .Add(half - 1, y, half - 1, BlockType.HayBale)
+                .Add(half - 1, y, half - 2, BlockType.HayBale)
+                .Add(0, y + 1, half - 1, palette.GlowAccent)
+                .Add(-half + 1, y + 1, 0, BlockType.Rope)
+                .Add(half - 1, y + 1, 0, BlockType.Rope);
+        }
+
+        public static void WatchPostDetails(StructureBuilder b, int radius, int y, in BiomeStructurePalette palette)
+        {
+            b.Add(0, y, 0, BlockType.StationBench)
+                .Add(-radius + 1, y, radius - 1, BlockType.Rope)
+                .Add(radius - 1, y + 1, -radius + 1, palette.GlowAccent)
+                .Add(-radius + 1, y + 1, -radius + 1, palette.GlowAccent);
+        }
+
+        public static void HearthCorner(StructureBuilder b, int x, int y, int z, in BiomeStructurePalette palette)
+        {
+            b.Add(x, y, z, BlockType.StoneSlab)
+                .Add(x, y + 1, z, palette.GlowAccent)
+                .Add(x, y + 2, z, BlockType.Lantern);
+        }
+
         public static void StampRandomRoom(StructureBuilder b, StructureRng rng, BiomeStructurePalette p, int ox, int oy, int oz)
         {
             switch (rng.NextInt(7))

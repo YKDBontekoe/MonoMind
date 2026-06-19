@@ -6,6 +6,9 @@ namespace Autonocraft.Core.Agent.Handlers;
 
 internal static class ScreenshotCapture
 {
+    private static string ScreenshotsRoot =>
+        Path.Combine(AppContext.BaseDirectory, "screenshots");
+
     public static byte[] CapturePng(GraphicsDevice graphicsDevice)
     {
         int width = graphicsDevice.PresentationParameters.BackBufferWidth;
@@ -34,13 +37,31 @@ internal static class ScreenshotCapture
 
     public static void SavePng(GraphicsDevice graphicsDevice, string path)
     {
-        byte[] png = CapturePng(graphicsDevice);
-        string? directory = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(directory))
+        SaveBytes(path, CapturePng(graphicsDevice));
+    }
+
+    public static void SaveBytes(string path, byte[] png)
+    {
+        string fullPath = ResolveSafePath(path);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        File.WriteAllBytes(fullPath, png);
+    }
+
+    private static string ResolveSafePath(string path)
+    {
+        string root = Path.GetFullPath(ScreenshotsRoot);
+        string fullRoot = root + Path.DirectorySeparatorChar;
+        string requested = string.IsNullOrWhiteSpace(path)
+            ? Path.Combine(root, "screenshot.png")
+            : Path.IsPathRooted(path)
+                ? path
+                : Path.Combine(root, path);
+        string fullPath = Path.GetFullPath(requested);
+        if (!fullPath.StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase))
         {
-            Directory.CreateDirectory(directory);
+            throw new InvalidOperationException("Screenshot path must stay under the screenshots directory.");
         }
 
-        File.WriteAllBytes(path, png);
+        return fullPath;
     }
 }

@@ -5,14 +5,21 @@ using Autonocraft.World.Structures;
 
 namespace Autonocraft.World.Loot
 {
+    public readonly struct LootRollResult
+    {
+        public List<ItemStack> Items { get; init; }
+        public LootRarity? HighestRarity { get; init; }
+    }
+
     public static class LootRoller
     {
-        public static List<ItemStack> Roll(string tableId, int seed)
+        public static LootRollResult Roll(string tableId, int seed)
         {
             var table = LootTableRegistry.Get(tableId);
             var rng = new StructureRng(seed);
             int rolls = rng.Range(table.MinRolls, table.MaxRolls + 1);
             var results = new List<ItemStack>(rolls);
+            LootRarity? highestRarity = null;
 
             for (int i = 0; i < rolls; i++)
             {
@@ -22,6 +29,11 @@ namespace Autonocraft.World.Loot
                     continue;
                 }
 
+                if (highestRarity == null || entry.Rarity > highestRarity)
+                {
+                    highestRarity = entry.Rarity;
+                }
+
                 var stack = CreateStack(entry, rng);
                 if (!stack.IsEmpty)
                 {
@@ -29,7 +41,11 @@ namespace Autonocraft.World.Loot
                 }
             }
 
-            return results;
+            return new LootRollResult
+            {
+                Items = results,
+                HighestRarity = highestRarity
+            };
         }
 
         public static LootRarity? PeekHighestRarity(IReadOnlyList<ItemStack> stacks)

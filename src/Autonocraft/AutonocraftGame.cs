@@ -165,8 +165,14 @@ namespace Autonocraft.Core
                 _screenshotSavePath = null;
             }
 
-            if (tcs == null || _graphics == null)
+            if (tcs == null)
             {
+                return;
+            }
+
+            if (_graphics == null)
+            {
+                tcs.TrySetException(new InvalidOperationException("Screenshot capture is unavailable without a graphics device."));
                 return;
             }
 
@@ -175,13 +181,7 @@ namespace Autonocraft.Core
                 byte[] png = Agent.Handlers.ScreenshotCapture.CapturePng(GraphicsDevice);
                 if (!string.IsNullOrWhiteSpace(savePath))
                 {
-                    string? directory = Path.GetDirectoryName(savePath);
-                    if (!string.IsNullOrEmpty(directory))
-                    {
-                        Directory.CreateDirectory(directory);
-                    }
-
-                    File.WriteAllBytes(savePath, png);
+                    Agent.Handlers.ScreenshotCapture.SaveBytes(savePath, png);
                 }
 
                 tcs.TrySetResult(png);
@@ -423,8 +423,15 @@ namespace Autonocraft.Core
 
         private void TryActivateWindow() => _input.TryActivateWindow();
 
-        private void CloseAllGameplayOverlays() =>
+        private void CloseAllGameplayOverlays()
+        {
+            if (_session.Chest.IsOpen)
+            {
+                _session.Chest.Close();
+            }
+
             _screens.CloseAllGameplayOverlays(_session.Crafting);
+        }
 
         private void ApplyMouseCapture() => _input.ApplyMouseCapture();
 
@@ -702,13 +709,26 @@ namespace Autonocraft.Core
                 PerfCounters.TerrainDrawCalls);
         }
 
-        public void SaveScreenshot(string path) =>
+        public void SaveScreenshot(string path)
+        {
+            if (_graphics == null)
+            {
+                throw new InvalidOperationException("Screenshot capture is unavailable without a graphics device.");
+            }
+
             Agent.Handlers.ScreenshotCapture.SavePng(GraphicsDevice, path);
+        }
 
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
+                lock (_screenshotGate)
+                {
+                    _screenshotTcs?.TrySetException(new ObjectDisposedException(nameof(AutonocraftGame)));
+                    _screenshotTcs = null;
+                    _screenshotSavePath = null;
+                }
                 ReleaseMouseCapture();
                 IsMouseVisible = true;
                 PerformExitSave();

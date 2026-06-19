@@ -254,6 +254,13 @@ namespace Autonocraft.World.Structures
                 int wx = anchorX + chest.Dx;
                 int wy = surfaceHeight + chest.Dy;
                 int wz = anchorZ + chest.Dz;
+                int lx = wx - chunkMinX;
+                int lz = wz - chunkMinZ;
+                if (lx < 0 || lx >= Chunk.Width || lz < 0 || lz >= Chunk.Depth || wy <= 0 || wy >= Chunk.Height)
+                {
+                    continue;
+                }
+
                 int rollSeed = StructureContainerSystem.RollSeed(worldSeed, wx, wy, wz, chest.LootTableId);
                 world.Containers.RegisterChest(wx, wy, wz, chest.LootTableId, rollSeed);
             }
@@ -278,7 +285,7 @@ namespace Autonocraft.World.Structures
                 int lx = wx - chunkMinX;
                 int lz = wz - chunkMinZ;
 
-                if (lx < 0 || lx >= Chunk.Width || lz < 0 || lz >= Chunk.Depth)
+                if (lx < 0 || lx >= Chunk.Width || lz < 0 || lz >= Chunk.Depth || wy <= 0 || wy >= Chunk.Height)
                 {
                     continue;
                 }

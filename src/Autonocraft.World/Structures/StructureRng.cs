@@ -42,11 +42,16 @@ namespace Autonocraft.World.Structures
 
         public float NextFloat()
         {
-            return NextUInt() / (float)uint.MaxValue;
+            return NextUInt() / ((float)uint.MaxValue + 1f);
         }
 
         public int Pick(params int[] options)
         {
+            if (options == null || options.Length == 0)
+            {
+                throw new ArgumentException("Pick requires at least one option.", nameof(options));
+            }
+
             return options[NextInt(options.Length)];
         }
 

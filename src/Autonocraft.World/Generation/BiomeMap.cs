@@ -209,11 +209,6 @@ namespace Autonocraft.World
                 return BiomeType.Plains;
             }
 
-            if (moisture > -0.06f)
-            {
-                return BiomeType.Forest;
-            }
-
             return BiomeType.Forest;
         }
     }

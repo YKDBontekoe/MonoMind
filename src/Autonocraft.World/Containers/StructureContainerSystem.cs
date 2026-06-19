@@ -1,3 +1,4 @@
+using Autonocraft.Domain.Items;
 using Autonocraft.Domain.Persistence;
 using Autonocraft.Items;
 using Autonocraft.World.Loot;
@@ -13,6 +14,7 @@ namespace Autonocraft.World.Containers
         public Inventory Inventory { get; } = new(StructureContainerSystem.SlotCount);
         public string LootTableId { get; init; } = string.Empty;
         public bool Opened { get; set; }
+        public LootRarity? HighestRarity { get; set; }
     }
 
     public sealed class StructureContainerSystem
@@ -55,7 +57,9 @@ namespace Autonocraft.World.Containers
                     LootTableId = lootTableId
                 };
 
-                foreach (var stack in LootRoller.Roll(lootTableId, rollSeed))
+                var rolled = LootRoller.Roll(lootTableId, rollSeed);
+                chest.HighestRarity = rolled.HighestRarity;
+                foreach (var stack in rolled.Items)
                 {
                     chest.Inventory.AddItem(stack);
                 }
@@ -95,6 +99,11 @@ namespace Autonocraft.World.Containers
                 var result = new List<ContainerModification>(_chests.Count);
                 foreach (var chest in _chests.Values)
                 {
+                    if (!chest.Opened)
+                    {
+                        continue;
+                    }
+
                     var slots = new List<InventorySlotSaveData>(SlotCount);
                     for (int i = 0; i < SlotCount; i++)
                     {
@@ -116,7 +125,7 @@ namespace Autonocraft.World.Containers
 
         public static int RollSeed(int worldSeed, int x, int y, int z, string lootTableId)
         {
-            int salt = unchecked(y * 92821 + lootTableId.GetHashCode(StringComparison.Ordinal));
+            int salt = unchecked(y * 92821 + StableOrdinalHash.Hash(lootTableId));
             return StructurePlacementKeys.MixSeed(worldSeed, x, z, salt);
         }
     }

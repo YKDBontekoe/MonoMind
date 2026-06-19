@@ -28,13 +28,23 @@ namespace Autonocraft.World.Structures
                 .Add(0, height - 1, 0, p.Accent)
                 .Add(0, height + 1, 0, p.GlowAccent)
                 .Chest(span - 1, 1, 0, LootTableIds.Small);
+            b.Add(span - 1, 2, 0, BlockType.Air);
+            MedievalDetailKit.PorchSouth(b, Math.Min(2, span), -span, 0, 2, p);
+            MedievalDetailKit.FacadeDepthSouth(b, -span, -span, span, 1, height, p);
+            MedievalDetailKit.RoofDormerSouth(b, 0, -span, height + 1, p);
+            MedievalDetailKit.ExteriorPlanters(b, -span - 2, 0, Math.Min(2, span));
+            RoomStamper.ShelterCamp(b, span, 1, p);
+            RoomStamper.HearthCorner(b, -span + 1, 1, 0, p);
+            StructurePaths.ClearSouthEntry(b, -span, -1, 1, 1, 2);
 
             if (rng.Chance(0.35f))
             {
                 MedievalDetailKit.StampRuinWear(b, rng, -span, 1, -span, span, height - 1, span, p, 0.12f);
             }
 
-            return b.Build(span + 2);
+            b.Add(0, height + 4, 0, BlockType.Lantern);
+            b.Add(span - 1, 2, 0, BlockType.Air);
+            return b.Build(span + 3);
         }
 
         public static StructureTemplate PlainsWell(in StructureGenContext ctx)
@@ -175,11 +185,21 @@ namespace Autonocraft.World.Structures
                 .Add(1, 1, w - 1, BlockType.HayBale)
                 .Add(0, h, 0, p.Accent)
                 .Chest(-w + 1, 1, w - 1, LootTableIds.Medium);
+            b.Add(-w + 1, 2, w - 1, BlockType.Air);
+            MedievalDetailKit.PorchSouth(b, 2, -w, 0, 2, p);
+            MedievalDetailKit.FacadeDepthSouth(b, -w, -w, w, 1, h, p);
+            MedievalDetailKit.RoofDormerSouth(b, -w / 2, -w, h + 1, p);
+            MedievalDetailKit.RoofDormerSouth(b, w / 2, -w, h + 1, p);
+            MedievalDetailKit.ExteriorPlanters(b, -w - 2, 0, 2);
+            RoomStamper.CottageLiving(b, w, 1, p);
+            RoomStamper.HearthCorner(b, w - 1, 1, -w + 1, p);
 
             StructurePaths.ApproachPath(b, -w, rng.Range(4, 7), 1, p.Path);
             StructurePaths.DoorwaySouth(b, -w, -1, 1, 1, 2, p);
+            StructurePaths.ClearSouthEntry(b, -w, -1, 1, 1, 2);
             b.Add(0, 3, -w - 1, p.GlowAccent);
-            return b.Build(w + 2);
+            b.Add(0, h + 4, 0, BlockType.Lantern);
+            return b.Build(w + 3);
         }
 
         public static StructureTemplate ForestWatchtower(in StructureGenContext ctx)
@@ -212,7 +232,12 @@ namespace Autonocraft.World.Structures
                 .SpiralStair(0, 0, 1, Math.Min(topH - 2, 10), Math.Max(1, r - 1), BlockType.StoneSlab, p.Pillar)
                 .Add(0, topH + 2, 0, p.GlowAccent)
                 .Add(0, topH - 2, 0, p.Accent);
-            return b.Build(r + 2);
+            MedievalDetailKit.PorchSouth(b, Math.Min(2, r), -r, 0, 2, p);
+            MedievalDetailKit.FacadeDepthSouth(b, -r, -r, r, baseH + 1, baseH + 3, p);
+            MedievalDetailKit.LandmarkSpire(b, 0, 0, topH + 3, p);
+            RoomStamper.WatchPostDetails(b, r, baseH + 1, p);
+            StructurePaths.ClearSouthEntry(b, -r, -1, 1, baseH + 1, baseH + 2);
+            return b.Build(r + 3);
         }
 
         public static StructureTemplate DesertShrine(in StructureGenContext ctx)
@@ -284,8 +309,16 @@ namespace Autonocraft.World.Structures
                 .Dome(0, 0, wallH + 1, r, p.Wall)
                 .Chimney(r - 1, -r + 1, wallH, 3, p.Pillar, p.Trim, withLantern: false)
                 .Add(0, 1, 0, p.Accent)
-                .Add(0, wallH + r + 2, 0, p.GlowAccent);
-            return b.Build(r + 2);
+                .Add(0, wallH + r + 2, 0, p.GlowAccent)
+                .Chest(r - 1, 1, r - 1, LootTableIds.Small);
+            b.Add(r - 1, 2, r - 1, BlockType.Air);
+            MedievalDetailKit.PorchSouth(b, Math.Min(2, r), -r, 0, 2, p);
+            MedievalDetailKit.FacadeDepthSouth(b, -r, -r, r, 1, wallH, p);
+            MedievalDetailKit.LandmarkSpire(b, 0, 0, wallH + r + 3, p);
+            RoomStamper.ShelterCamp(b, r, 1, p);
+            RoomStamper.HearthCorner(b, -r + 1, 1, r - 1, p);
+            StructurePaths.ClearSouthEntry(b, -r, -1, 1, 1, 2);
+            return b.Build(r + 3);
         }
 
         public static StructureTemplate VillageOutpost(in StructureGenContext ctx)
@@ -317,15 +350,23 @@ namespace Autonocraft.World.Structures
                 .Add(-1, 1, 1, BlockType.StationBench)
                 .Add(1, 1, 1, BlockType.HayBale)
                 .Add(0, wallH + 1, 0, p.Accent)
-                .Chest(2, 2, 0, LootTableIds.Medium);
+                .Chest(-1, 2, 1, LootTableIds.Medium);
+            b.Add(-1, 3, 1, BlockType.Air);
 
             MedievalDetailKit.WallButtresses(b, r, 1, wallH / 2, 4, p);
             b.PointedArchZ(-r, 1, wallH - 1, -1, 1, p.Trim);
             MedievalDetailKit.CourtyardLanterns(b, r - 3, 2, p);
+            MedievalDetailKit.PorchSouth(b, 2, -r, 0, 2, p);
+            MedievalDetailKit.FacadeDepthSouth(b, -r, -r, r, 1, wallH, p);
+            MedievalDetailKit.LandmarkSpire(b, 0, 0, wallH + 6, p);
+            RoomStamper.OutpostSupplies(b, 2, 2, p);
+            RoomStamper.HearthCorner(b, -1, 2, 1, p);
 
             StructurePaths.ApproachPath(b, -r, rng.Range(5, 8), 2, p.Path);
             StructurePaths.DoorwaySouth(b, -2, -1, 1, 2, 3, p);
-            return b.Build(r + 2);
+            StructurePaths.ClearSouthEntry(b, -r, -1, 1, 1, 2);
+            StructurePaths.ClearSouthEntry(b, -2, -1, 1, 2, 3);
+            return b.Build(r + 3);
         }
 
         public static StructureTemplate BadlandsSpire(in StructureGenContext ctx)

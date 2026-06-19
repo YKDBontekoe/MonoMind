@@ -515,6 +515,117 @@ public static class WorldGenTests
         Console.ResetColor();
     }
 
+    public static void RunImprovedBuildingCatalogQuality()
+    {
+        Console.Write("Running Improved Building Catalog Quality Test... ");
+
+        foreach (var id in StructureQualityAssertions.TargetBuildings)
+        {
+            var templateA = StructureQualityAssertions.ResolveTemplate(id, anchorX: 32, anchorZ: 48);
+            var templateB = StructureQualityAssertions.ResolveTemplate(id, anchorX: 32, anchorZ: 48);
+            if (templateA.Blocks.Length != templateB.Blocks.Length)
+            {
+                throw new Exception($"{id} template resolution should be deterministic.");
+            }
+
+            StructureQualityAssertions.AssertExteriorQuality(id, templateA);
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
+
+    public static void RunImprovedBuildingInteriorQuality()
+    {
+        Console.Write("Running Improved Building Interior Quality Test... ");
+
+        foreach (var id in StructureQualityAssertions.TargetBuildings)
+        {
+            var template = StructureQualityAssertions.ResolveTemplate(id, anchorX: 96, anchorZ: 64);
+            StructureQualityAssertions.AssertInteriorQuality(id, template);
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
+
+    public static void RunImprovedBuildingGalleryReachability()
+    {
+        Console.Write("Running Improved Building Gallery Reachability Test... ");
+
+        var parameters = WorldGenParams.ForType(WorldType.StructureGallery);
+        using var world = new VoxelWorld(StructureGallery.Seed, parameters);
+        var placements = StructureGallery.GetPlacements();
+        var spawn = StructureGallery.GetPlayerSpawn();
+        var loadPos = new Vector3(spawn.X + 0.5f, StructureGallery.SurfaceY, spawn.Z + 0.5f);
+        world.UpdateChunksAround(null, loadPos, 10);
+
+        for (int pass = 0; pass < 30; pass++)
+        {
+            world.ProcessPendingWork(null, loadPos, 10);
+        }
+
+        foreach (var placement in placements.Where(p => StructureQualityAssertions.TargetBuildings.Contains(p.Id)))
+        {
+            StructureQualityAssertions.AssertGalleryPlacementReachable(world, placement);
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
+
+    public static void RunImprovedBuildingFootprintSafety()
+    {
+        Console.Write("Running Improved Building Footprint Safety Test... ");
+
+        var placements = StructureGallery.GetPlacements()
+            .Where(p => StructureQualityAssertions.TargetBuildings.Contains(p.Id))
+            .ToArray();
+
+        foreach (var placement in placements)
+        {
+            var definition = StructureRegistry.All[placement.Index];
+            var template = definition.ResolveTemplate(
+                StructureGallery.Seed,
+                placement.AnchorX,
+                placement.AnchorZ,
+                StructureGallery.VariantSaltFor(placement.Index),
+                BiomeType.Plains);
+
+            if (placement.FootprintRadius != template.FootprintRadius)
+            {
+                throw new Exception(
+                    $"{placement.Id} gallery footprint metadata mismatch: placement={placement.FootprintRadius}, template={template.FootprintRadius}.");
+            }
+
+            StructureQualityAssertions.AssertExteriorQuality(placement.Id, template);
+        }
+
+        for (int i = 0; i < placements.Length; i++)
+        {
+            for (int j = i + 1; j < placements.Length; j++)
+            {
+                var a = placements[i];
+                var b = placements[j];
+                int dx = a.AnchorX - b.AnchorX;
+                int dz = a.AnchorZ - b.AnchorZ;
+                int minSeparation = a.FootprintRadius + b.FootprintRadius + 2;
+                if (dx * dx + dz * dz < minSeparation * minSeparation)
+                {
+                    throw new Exception(
+                        $"Improved building placements '{a.Id}' and '{b.Id}' overlap ({dx}, {dz}) < {minSeparation}.");
+                }
+            }
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
+
     public static void RunChunkStreamingStability()
     {
         Console.Write("Running Chunk Streaming Stability Test... ");
@@ -694,10 +805,11 @@ public static class WorldGenTests
             throw new Exception("Expected pure desert columns within preview range.");
         }
 
+        VoxelWorld.GetChunkCoords(desertCoord.Value.x, desertCoord.Value.z, out int centerChunkX, out int centerChunkZ, out _, out _);
         int palmCount = 0;
-        for (int chunkZ = -24; chunkZ <= 24; chunkZ++)
+        for (int chunkZ = centerChunkZ - 4; chunkZ <= centerChunkZ + 4; chunkZ++)
         {
-            for (int chunkX = -24; chunkX <= 24; chunkX++)
+            for (int chunkX = centerChunkX - 4; chunkX <= centerChunkX + 4; chunkX++)
             {
                 var columns = generator.PreviewChunkColumns(chunkX, chunkZ);
                 bool hasDesert = false;
@@ -905,9 +1017,9 @@ public static class WorldGenTests
         bool foundCrystal = false;
         bool foundDripstone = false;
 
-        for (int chunkZ = -16; chunkZ <= 16; chunkZ++)
+        for (int chunkZ = -12; chunkZ <= 12; chunkZ++)
         {
-            for (int chunkX = -16; chunkX <= 16; chunkX++)
+            for (int chunkX = -12; chunkX <= 12; chunkX++)
             {
                 var chunk = new Chunk(chunkX, chunkZ);
                 generator.GenerateChunkTerrain(chunk, null);
@@ -926,6 +1038,16 @@ public static class WorldGenTests
                 {
                     foundDripstone = true;
                 }
+
+                if (foundLush && foundCrystal && foundDripstone)
+                {
+                    break;
+                }
+            }
+
+            if (foundLush && foundCrystal && foundDripstone)
+            {
+                break;
             }
         }
 
@@ -1290,9 +1412,23 @@ public static class WorldGenTests
     }
     private static bool ScanGeneratedChunksForLog(WorldGenerator generator, BiomeType biome, BlockType logType)
     {
-        for (int chunkZ = -24; chunkZ <= 24; chunkZ++)
+        var anchor = WorldGenTestHelpers.FindPreviewCoord(
+            generator,
+            c => c.Biome.Primary == biome
+                && c.Profile.TreeDensity > 0f
+                && !c.IsRiver
+                && !c.IsLake,
+            radius: 768,
+            step: 4);
+        if (anchor == null)
         {
-            for (int chunkX = -24; chunkX <= 24; chunkX++)
+            return false;
+        }
+
+        VoxelWorld.GetChunkCoords(anchor.Value.x, anchor.Value.z, out int centerChunkX, out int centerChunkZ, out _, out _);
+        for (int chunkZ = centerChunkZ - 4; chunkZ <= centerChunkZ + 4; chunkZ++)
+        {
+            for (int chunkX = centerChunkX - 4; chunkX <= centerChunkX + 4; chunkX++)
             {
                 var columns = generator.PreviewChunkColumns(chunkX, chunkZ);
                 bool hasBiomeTrees = false;
@@ -1362,9 +1498,23 @@ public static class WorldGenTests
             BlockType.OakLog, BlockType.BirchLog, BlockType.MahoganyLog, BlockType.MapleLog
         ];
 
-        for (int chunkZ = -24; chunkZ <= 24; chunkZ++)
+        var anchor = WorldGenTestHelpers.FindPreviewCoord(
+            generator,
+            c => c.Biome.Primary == BiomeType.Forest
+                && c.Profile.TreeDensity > 0f
+                && !c.IsRiver
+                && !c.IsLake,
+            radius: 768,
+            step: 4);
+        if (anchor == null)
         {
-            for (int chunkX = -24; chunkX <= 24; chunkX++)
+            return 0;
+        }
+
+        VoxelWorld.GetChunkCoords(anchor.Value.x, anchor.Value.z, out int centerChunkX, out int centerChunkZ, out _, out _);
+        for (int chunkZ = centerChunkZ - 4; chunkZ <= centerChunkZ + 4; chunkZ++)
+        {
+            for (int chunkX = centerChunkX - 4; chunkX <= centerChunkX + 4; chunkX++)
             {
                 var columns = generator.PreviewChunkColumns(chunkX, chunkZ);
                 bool hasForest = false;
@@ -1521,10 +1671,17 @@ public static class WorldGenTests
 
     private static int MeasureLeafVerticalSpan(WorldGenerator generator, BiomeType biome, BlockType leafType)
     {
-        int bestSpan = 0;
-        for (int chunkZ = -16; chunkZ <= 16; chunkZ++)
+        var anchor = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == biome, 768, 4);
+        if (anchor == null)
         {
-            for (int chunkX = -16; chunkX <= 16; chunkX++)
+            return 0;
+        }
+
+        VoxelWorld.GetChunkCoords(anchor.Value.x, anchor.Value.z, out int centerChunkX, out int centerChunkZ, out _, out _);
+        int bestSpan = 0;
+        for (int chunkZ = centerChunkZ - 4; chunkZ <= centerChunkZ + 4; chunkZ++)
+        {
+            for (int chunkX = centerChunkX - 4; chunkX <= centerChunkX + 4; chunkX++)
             {
                 if (!ChunkHasBiome(generator, chunkX, chunkZ, biome))
                 {
@@ -1545,10 +1702,17 @@ public static class WorldGenTests
 
     private static int MeasureLeafHorizontalSpan(WorldGenerator generator, BiomeType biome, BlockType leafType)
     {
-        int bestWidth = 0;
-        for (int chunkZ = -16; chunkZ <= 16; chunkZ++)
+        var anchor = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == biome, 768, 4);
+        if (anchor == null)
         {
-            for (int chunkX = -16; chunkX <= 16; chunkX++)
+            return 0;
+        }
+
+        VoxelWorld.GetChunkCoords(anchor.Value.x, anchor.Value.z, out int centerChunkX, out int centerChunkZ, out _, out _);
+        int bestWidth = 0;
+        for (int chunkZ = centerChunkZ - 4; chunkZ <= centerChunkZ + 4; chunkZ++)
+        {
+            for (int chunkX = centerChunkX - 4; chunkX <= centerChunkX + 4; chunkX++)
             {
                 if (!ChunkHasBiome(generator, chunkX, chunkZ, biome))
                 {

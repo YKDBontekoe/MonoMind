@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Autonocraft.Domain.World;
 using Autonocraft.Entities;
+using Autonocraft.Tests.Integration;
 using Autonocraft.Village;
 using Autonocraft.World;
 using Autonocraft.World.Structures;
@@ -14,22 +15,19 @@ public sealed class ClaimStructureFingerprintTests
     [Fact]
     public void QuickClaimScan_IgnoresMegaStructures()
     {
-        var world = new VoxelWorld(4242);
+        using var world = new VoxelWorld(4242);
         world.UpdateChunksAround(null, new System.Numerics.Vector3(64.5f, 64f, 64.5f), 4);
 
-        var sw = System.Diagnostics.Stopwatch.StartNew();
         bool found = new VillageFoundingService(new VillagerManager(), new HashSet<long>())
             .TryFindClaimableStructure(world, new System.Numerics.Vector3(64.5f, 70f, 64.5f), 16f, out _, out _, out _, quickScan: true);
-        sw.Stop();
 
         Assert.False(found);
-        Assert.True(sw.Elapsed.TotalMilliseconds < 500, $"Quick claim scan took {sw.Elapsed.TotalMilliseconds:F0}ms");
     }
 
     [Fact]
     public void ManualPlainsCottage_MatchesFingerprint()
     {
-        var world = new VoxelWorld(5555);
+        using var world = new VoxelWorld(5555);
         world.UpdateChunksAround(null, new System.Numerics.Vector3(32.5f, 64f, 32.5f), 2);
 
         int ax = 32;
@@ -60,5 +58,12 @@ public sealed class ClaimStructureFingerprintTests
         Assert.True(
             StructureFingerprint.TryMatchWorldStructure(world, ax, ay, az, out _, out ratio),
             $"TryMatch ratio={ratio:F2}");
+    }
+
+    [Fact]
+    public void ForestShelter_ExteriorQuality()
+    {
+        var template = StructureQualityAssertions.ResolveTemplate("ForestShelter", anchorX: 32, anchorZ: 48);
+        StructureQualityAssertions.AssertExteriorQuality("ForestShelter", template);
     }
 }

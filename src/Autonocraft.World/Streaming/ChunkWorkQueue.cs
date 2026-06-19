@@ -45,6 +45,13 @@ namespace Autonocraft.World
                 TryEnqueueNeighborRemeshInRange(chunk.ChunkX, chunk.ChunkZ - 1, profile);
                 TryEnqueueNeighborRemeshInRange(chunk.ChunkX, chunk.ChunkZ + 1, profile);
             }
+            else
+            {
+                TryEnqueueNeighborRemesh(chunk.ChunkX - 1, chunk.ChunkZ, profile);
+                TryEnqueueNeighborRemesh(chunk.ChunkX + 1, chunk.ChunkZ, profile);
+                TryEnqueueNeighborRemesh(chunk.ChunkX, chunk.ChunkZ - 1, profile);
+                TryEnqueueNeighborRemesh(chunk.ChunkX, chunk.ChunkZ + 1, profile);
+            }
         }
 
         private void TryEnqueueNeighborRemeshInRange(int cx, int cz, ChunkStreamingProfile profile)
@@ -482,6 +489,22 @@ namespace Autonocraft.World
             if (processStopwatch != null &&
                 processStopwatch.Elapsed.TotalMilliseconds >= GameplayChunkProcessBudgetMs)
             {
+                if (_meshJobsScratch.Count > 0)
+                {
+                    _lock.EnterWriteLock();
+                    try
+                    {
+                        foreach (var (chunk, _, _, _) in _meshJobsScratch)
+                        {
+                            _pendingMesh.Add((chunk.ChunkX, chunk.ChunkZ));
+                        }
+                    }
+                    finally
+                    {
+                        _lock.ExitWriteLock();
+                    }
+                }
+
                 return meshed;
             }
 

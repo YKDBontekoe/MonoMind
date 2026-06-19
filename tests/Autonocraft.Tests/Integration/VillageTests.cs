@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
 using System.Numerics;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -253,6 +254,66 @@ public static class VillageTests
         if (village.Population < 1)
         {
             throw new Exception("Claimed village should spawn a villager.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunImprovedClaimableStructureAccess()
+    {
+        Console.Write("Running Improved Claimable Structure Access Test... ");
+        var villagers = new VillagerManager();
+        var villages = new VillageManager(villagers);
+        var world = new VoxelWorld(6601);
+
+        string[] claimableIds = ["PlainsCottage", "VillageOutpost"];
+        for (int i = 0; i < claimableIds.Length; i++)
+        {
+            string id = claimableIds[i];
+            int ax = 48 + i * 64;
+            int az = 48;
+            world.UpdateChunksAround(null, new Vector3(ax + 0.5f, 64f, az + 0.5f), 2);
+            int ay = StructureFingerprint.FindSurfaceAnchorY(world, ax, az) - 1;
+
+            var definition = StructureRegistry.All.First(s => s.Id == id);
+            var biome = world.SampleBiome(ax, az).Primary;
+            int placementHash = StructureFingerprint.StructureHashForTests(ax, az, world.Seed, 11);
+            int variantSalt = StructurePlacementKeys.VariantSaltForStructure(world.Seed, ax, az, definition.Id, placementHash);
+            var template = definition.ResolveTemplate(world.Seed, ax, az, variantSalt, biome);
+
+            ClearStructureFootprint(world, ax, ay, az, template.FootprintRadius + 1, 10);
+            StampTemplate(world, ax, ay, az, template);
+
+            if (!StructureFingerprint.TryMatchWorldStructure(world, ax, ay, az, out _, out float ratio))
+            {
+                throw new Exception($"{id} fingerprint failed before claim (ratio={ratio:F2}).");
+            }
+
+            if (!villages.TryClaimStructure(world, ax, az, out var village) || village == null)
+            {
+                throw new Exception($"{id} claim failed.");
+            }
+
+            if (village.Population < 1)
+            {
+                throw new Exception($"{id} claim should spawn a villager.");
+            }
+
+            foreach (var chest in template.Chests)
+            {
+                int chestX = ax + chest.Dx;
+                int chestY = ay + chest.Dy;
+                int chestZ = az + chest.Dz;
+                if (world.GetBlock(chestX, chestY, chestZ) != BlockType.Chest)
+                {
+                    throw new Exception($"{id} chest missing at ({chestX},{chestY},{chestZ}).");
+                }
+
+                if (world.GetBlock(chestX, chestY + 1, chestZ) != BlockType.Air)
+                {
+                    throw new Exception($"{id} chest headroom blocked at ({chestX},{chestY + 1},{chestZ}).");
+                }
+            }
         }
 
         Console.WriteLine("PASSED");
@@ -828,6 +889,34 @@ public static class VillageTests
         if (!village.HasCompletedBuilding("peasant_house") || village.PopulationCap < 6)
         {
             throw new Exception("Peasant house was not completed and registered.");
+        }
+    }
+
+    private static void ClearStructureFootprint(VoxelWorld world, int ax, int ay, int az, int radius, int height)
+    {
+        for (int x = ax - radius; x <= ax + radius; x++)
+        {
+            for (int z = az - radius; z <= az + radius; z++)
+            {
+                for (int y = ay; y <= ay + height; y++)
+                {
+                    world.SetBlock(x, y, z, BlockType.Air);
+                }
+            }
+        }
+    }
+
+    private static void StampTemplate(VoxelWorld world, int ax, int ay, int az, StructureTemplate template)
+    {
+        foreach (var block in template.Blocks)
+        {
+            world.SetBlock(ax + block.Dx, ay + block.Dy, az + block.Dz, block.Type);
+        }
+
+        foreach (var chest in template.Chests)
+        {
+            world.SetBlock(ax + chest.Dx, ay + chest.Dy, az + chest.Dz, BlockType.Chest);
+            world.SetBlock(ax + chest.Dx, ay + chest.Dy + 1, az + chest.Dz, BlockType.Air);
         }
     }
 

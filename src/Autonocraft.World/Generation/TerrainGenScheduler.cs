@@ -31,6 +31,7 @@ namespace Autonocraft.World
 
         public void Clear()
         {
+            InvalidateGeneration();
             WaitForInFlight(TimeSpan.FromSeconds(2));
             _pendingTerrain.Clear();
             _pendingTerrainLookup.Clear();
@@ -112,15 +113,12 @@ namespace Autonocraft.World
                     }
                     finally
                     {
-                        if (!_disposed)
+                        try
                         {
-                            try
-                            {
-                                _terrainGenSemaphore.Release();
-                            }
-                            catch (ObjectDisposedException)
-                            {
-                            }
+                            _terrainGenSemaphore.Release();
+                        }
+                        catch (ObjectDisposedException)
+                        {
                         }
                     }
                 })

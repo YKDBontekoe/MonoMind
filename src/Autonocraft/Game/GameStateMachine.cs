@@ -18,7 +18,7 @@ namespace Autonocraft.Core
         private int _agentPort = 5001;
         private float _spawnWarmupRemaining;
         private bool _fastLoadingGraphicsApplied;
-        private float _claimHintTimer = 30f;
+        private float _claimHintTimer;
         private const float SpawnWarmupSeconds = 15f;
 
         private float SpawnWarmupProgress =>
@@ -122,6 +122,7 @@ namespace Autonocraft.Core
 
             _loadingFromSave = false;
             _spawnWarmupRemaining = SpawnWarmupSeconds;
+            _claimHintTimer = 0f;
 
             _session.BlockInteraction.BindAnimator(_session.InteractionAnimator);
 

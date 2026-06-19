@@ -58,6 +58,11 @@ namespace Autonocraft.World.Structures
             in BiomeStructurePalette palette,
             StructurePlacementMode mode = StructurePlacementMode.ReplaceSurface)
         {
+            if (spacing <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(spacing), "spacing must be > 0.");
+            }
+
             for (int x = -half + spacing; x < half; x += spacing)
             {
                 b.Buttress(-half, x, baseY, height, alongX: true, palette.WallAccent, mode);
@@ -102,6 +107,87 @@ namespace Autonocraft.World.Structures
             ],
             palette,
             mode);
+        }
+
+        public static void PorchSouth(
+            StructureBuilder b,
+            int halfWidth,
+            int z,
+            int y,
+            int depth,
+            in BiomeStructurePalette palette,
+            StructurePlacementMode mode = StructurePlacementMode.ReplaceSurface)
+        {
+            b.Fill(-halfWidth, y, z - depth, halfWidth, y, z, palette.Floor, mode)
+                .Pillar(-halfWidth, z - depth, y + 1, y + 3, palette.Pillar, mode)
+                .Pillar(halfWidth, z - depth, y + 1, y + 3, palette.Pillar, mode)
+                .Fill(-halfWidth, y + 4, z - depth, halfWidth, y + 4, z, palette.Roof, mode)
+                .Add(-halfWidth, y + 2, z - depth, palette.GlowAccent, mode)
+                .Add(halfWidth, y + 2, z - depth, palette.GlowAccent, mode);
+        }
+
+        public static void FacadeDepthSouth(
+            StructureBuilder b,
+            int z,
+            int minX,
+            int maxX,
+            int minY,
+            int maxY,
+            in BiomeStructurePalette palette,
+            StructurePlacementMode mode = StructurePlacementMode.ReplaceSurface)
+        {
+            b.PointedArchZ(z, minY, maxY, -1, 1, palette.Trim, mode);
+            for (int x = minX; x <= maxX; x++)
+            {
+                if (x is >= -1 and <= 1)
+                {
+                    continue;
+                }
+
+                if ((x - minX) % 2 == 0)
+                {
+                    b.Pillar(x, z, minY, maxY, palette.WallAccent, mode);
+                }
+            }
+        }
+
+        public static void RoofDormerSouth(
+            StructureBuilder b,
+            int x,
+            int z,
+            int baseY,
+            in BiomeStructurePalette palette,
+            StructurePlacementMode mode = StructurePlacementMode.ReplaceSurface)
+        {
+            b.Fill(x - 1, baseY, z, x + 1, baseY + 1, z, palette.WallAccent, mode)
+                .Add(x, baseY, z, palette.Window, mode)
+                .GabledRoof(x - 1, z, x + 1, z + 2, baseY + 2, 2, palette.Roof, palette.Trim, ridgeAlongX: true, mode);
+        }
+
+        public static void LandmarkSpire(
+            StructureBuilder b,
+            int x,
+            int z,
+            int baseY,
+            in BiomeStructurePalette palette,
+            StructurePlacementMode mode = StructurePlacementMode.ReplaceSurface)
+        {
+            b.Pillar(x, z, baseY, baseY + 2, palette.Trim, mode)
+                .Add(x, baseY + 3, z, palette.Accent, mode)
+                .Add(x, baseY + 4, z, palette.GlowAccent, mode);
+        }
+
+        public static void ExteriorPlanters(
+            StructureBuilder b,
+            int z,
+            int y,
+            int halfWidth,
+            StructurePlacementMode mode = StructurePlacementMode.ReplaceSurface)
+        {
+            b.Add(-halfWidth, y, z, BlockType.MossCarpet, mode)
+                .Add(-halfWidth, y + 1, z, BlockType.Flower, mode)
+                .Add(halfWidth, y, z, BlockType.MossCarpet, mode)
+                .Add(halfWidth, y + 1, z, BlockType.Poppy, mode);
         }
     }
 }

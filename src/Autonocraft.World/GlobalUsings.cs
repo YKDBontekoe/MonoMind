@@ -3,4 +3,5 @@ global using Autonocraft.Domain.Items;
 global using Autonocraft.Domain.Persistence;
 global using Autonocraft.Domain.World;
 global using Autonocraft.World.Containers;
+global using Autonocraft.World.Structures;
 global using Autonocraft.Diagnostics;

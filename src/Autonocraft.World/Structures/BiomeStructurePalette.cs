@@ -92,7 +92,7 @@ namespace Autonocraft.World.Structures
                 GlowAccent = BlockType.Glowshroom,
                 Ruin = BlockType.MossStone
             },
-            BiomeType.Forest or BiomeType.Jungle => new BiomeStructurePalette
+            BiomeType.Forest => new BiomeStructurePalette
             {
                 Foundation = BlockType.Cobblestone,
                 Floor = BlockType.OakPlank,
@@ -104,6 +104,21 @@ namespace Autonocraft.World.Structures
                 Window = BlockType.Glass,
                 Accent = BlockType.Lantern,
                 Path = BlockType.Gravel,
+                GlowAccent = BlockType.Lantern,
+                Ruin = BlockType.MossStone
+            },
+            BiomeType.Jungle => new BiomeStructurePalette
+            {
+                Foundation = BlockType.Cobblestone,
+                Floor = BlockType.MahoganyPlank,
+                Wall = BlockType.MahoganyPlank,
+                WallAccent = BlockType.MahoganyLog,
+                Roof = BlockType.MaplePlank,
+                Pillar = BlockType.MahoganyLog,
+                Trim = BlockType.MaplePlank,
+                Window = BlockType.Glass,
+                Accent = BlockType.Lantern,
+                Path = BlockType.Dirt,
                 GlowAccent = BlockType.Lantern,
                 Ruin = BlockType.MossStone
             },

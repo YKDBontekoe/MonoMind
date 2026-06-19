@@ -7,7 +7,7 @@ namespace Autonocraft.World.Structures
 
     public static class StructurePlacementKeys
     {
-        private static readonly ConcurrentDictionary<(int Seed, int X, int Z, string Id, int Salt), StructureTemplate> Cache = new();
+        private static readonly ConcurrentDictionary<(int Seed, int X, int Z, string Id, int Salt, BiomeType Biome), StructureTemplate> Cache = new();
         private static readonly ConcurrentDictionary<(int Seed, int X, int Z, int TierSalt, int Radius, int Delta), bool> FlatnessCache = new();
 
         public static int MixSeed(int worldSeed, int anchorX, int anchorZ, int variantSalt)
@@ -27,7 +27,7 @@ namespace Autonocraft.World.Structures
 
         public static int VariantSaltForStructure(int worldSeed, int anchorX, int anchorZ, string structureId, int placementHash)
         {
-            return MixSeed(worldSeed, anchorX, anchorZ, placementHash ^ structureId.GetHashCode(StringComparison.Ordinal));
+            return MixSeed(worldSeed, anchorX, anchorZ, placementHash ^ StableOrdinalHash.Hash(structureId));
         }
 
         public static StructureTemplate Resolve(
@@ -43,7 +43,7 @@ namespace Autonocraft.World.Structures
                 return definition.Template;
             }
 
-            var key = (worldSeed, anchorX, anchorZ, definition.Id, variantSalt);
+            var key = (worldSeed, anchorX, anchorZ, definition.Id, variantSalt, biome);
             return Cache.GetOrAdd(key, _ =>
             {
                 var context = StructureGenContext.Create(worldSeed, anchorX, anchorZ, variantSalt, biome);
