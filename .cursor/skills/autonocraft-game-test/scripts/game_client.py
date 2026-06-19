@@ -204,7 +204,9 @@ class GameClient:
     def screenshot(self, path: str | Path = "screenshot.png", min_bytes: int = 1000) -> Path:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        data, is_binary, _ = self._request("/screenshot", params={"path": str(path.resolve())})
+        # Agent API only accepts paths under AppContext.BaseDirectory/screenshots/.
+        server_path = path.name
+        data, is_binary, _ = self._request("/screenshot", params={"path": server_path})
         if not is_binary:
             raise GameClientError(f"Screenshot failed: {data}")
         path.write_bytes(data)

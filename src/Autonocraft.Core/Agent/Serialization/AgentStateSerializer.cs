@@ -357,7 +357,7 @@ internal static class AgentStateSerializer
                 {
                     slot = i,
                     kind = "tool",
-                    toolId = slot.ToolId,
+                    toolId = slot.ToolId.ToString(),
                     name = slot.GetDisplayName(),
                     durability = slot.Durability,
                     maxDurability = slot.MaxDurability
@@ -380,7 +380,7 @@ internal static class AgentStateSerializer
                 {
                     slot = i,
                     kind = "fluid_container",
-                    itemId = slot.ToolId,
+                    itemId = slot.ToolId.ToString(),
                     name = slot.GetDisplayName(),
                     filled = slot.IsWaterBucket()
                 });
