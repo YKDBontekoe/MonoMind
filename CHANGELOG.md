@@ -7,6 +7,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 Releases are created automatically when changes land on `main` (after CI passes).
 
+## [0.2.9] - 2026-06-19
+
+### Other
+- specify and agent skills
+
 ## [0.2.8] - 2026-06-19
 
 ### Other
