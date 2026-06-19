@@ -514,6 +514,26 @@ python3 tests/interact.py screenshot render_check.png
 python3 tests/interact.py state
 ```
 
+### Validate improved buildings in the structure gallery
+
+```bash
+# Terminal 1
+dotnet run --project src/Autonocraft -- --structure-gallery --agent-port 5001
+
+# Terminal 2
+python3 tests/interact.py wait
+curl -s http://localhost:5001/structures
+python3 tests/interact.py action teleport x=<anchor.x> y=<anchor.y+4> z=<anchor.z>
+python3 tests/interact.py screenshot test_output/structure_gallery/<structure-id>.png
+```
+
+Expected checks for improved buildings:
+
+- Exterior silhouette is recognizable from approach distance
+- Entrance area has clear two-block-high access
+- Reachable chests or stations keep headroom and do not clip into terrain
+- Screenshots remain nonblank and usable for review evidence
+
 ### Regenerate block textures
 
 ```bash
@@ -567,3 +587,9 @@ llama-server -m /path/to/model.gguf --port 8080
 ```
 
 See `openrouter_key.example.txt` for OpenRouter key file layout.
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+at specs/001-improve-buildings/plan.md
+<!-- SPECKIT END -->
