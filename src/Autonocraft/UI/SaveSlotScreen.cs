@@ -6,6 +6,7 @@ using Microsoft.Xna.Framework.Input;
 using Autonocraft.Core;
 using Autonocraft.Engine;
 using Autonocraft.Engine.Animation;
+using Autonocraft.UI.Menu;
 using Autonocraft.World;
 
 namespace Autonocraft.UI
@@ -65,6 +66,7 @@ namespace Autonocraft.UI
         public bool SettingsRequested { get; private set; }
         public bool StatsRequested { get; private set; }
         public bool QuitRequested { get; private set; }
+        public bool BackRequested { get; private set; }
         public string? SelectedSlotId { get; private set; }
 
         public string? GetSelectedSlotId()
@@ -183,6 +185,7 @@ namespace Autonocraft.UI
             SettingsRequested = false;
             StatsRequested = false;
             QuitRequested = false;
+            BackRequested = false;
             SelectedSlotId = null;
 
             var layout = new UiLayout(viewport);
@@ -240,7 +243,11 @@ namespace Autonocraft.UI
 
             if (click)
             {
-                if (_hoveredButton == 0)
+                if (TryHandleBackClick(mouse, prevMouse, metrics, layout, offsetY))
+                {
+                    _confirmingDelete = false;
+                }
+                else if (_hoveredButton == 0)
                 {
                     if (_slots.Count > 0) TryRequestLoad();
                     _confirmingDelete = false;
@@ -323,7 +330,7 @@ namespace Autonocraft.UI
                 }
                 else
                 {
-                    QuitRequested = true;
+                    BackRequested = true;
                 }
             }
 
@@ -358,7 +365,7 @@ namespace Autonocraft.UI
             var layout = new UiLayout(viewport);
             var metrics = ComputeLayout(layout);
 
-            _backdrop.Draw(_ui, viewport, alpha);
+            MenuChrome.DrawBackdrop(_backdrop, _ui, viewport, alpha);
 
             float titleY = layout.S(52f) + offsetY;
             _ui.DrawCenteredTitle("Autonocraft", titleY, layout.S(UiTheme.FontHero), UiTheme.Title, alpha);
@@ -376,6 +383,7 @@ namespace Autonocraft.UI
             _ui.DrawFilledRect(dividerX, dividerTop, 1f, metrics.ShellH - layout.S(BodyTopOffset + 16f), UiTheme.Rule * (0.85f * alpha));
 
             DrawSidebarHeader(metrics, layout, alpha, offsetY);
+            DrawBackLink(metrics, layout, alpha, offsetY);
             DrawSlotList(metrics, layout, alpha, offsetY);
             DrawDetailPanel(metrics, layout, alpha, offsetY);
             DrawActionButtons(metrics, layout, alpha, offsetY);
@@ -392,7 +400,7 @@ namespace Autonocraft.UI
             }
 
             string hint = _slots.Count == 0
-                ? "Create your first world to begin"
+                ? "No saves yet — choose New World from the hub or create one here"
                 : _renaming
                     ? "Enter to save · Esc to cancel"
                     : "↑↓ select · Enter continue · F2 rename · Double-click load";
@@ -456,6 +464,31 @@ namespace Autonocraft.UI
                 _ui.DrawString(count, metrics.SidebarX + metrics.SidebarW - layout.S(20f) - countW, headerY + layout.S(2f),
                     layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha);
             }
+        }
+
+        private void DrawBackLink(MenuMetrics metrics, UiLayout layout, float alpha, float offsetY)
+        {
+            float x = metrics.ShellX + layout.S(20f);
+            float y = metrics.ShellY + layout.S(12f) + offsetY;
+            _ui.DrawLabel("← Back to Main Menu", x, y, layout.S(UiTheme.FontBody), UiTheme.Accent, alpha: alpha);
+        }
+
+        private bool TryHandleBackClick(MouseState mouse, MouseState prevMouse, MenuMetrics metrics, UiLayout layout, float offsetY)
+        {
+            float x = metrics.ShellX + layout.S(20f);
+            float y = metrics.ShellY + layout.S(12f) + offsetY;
+            float w = layout.S(180f);
+            float h = layout.S(24f);
+            var rect = new Rectangle((int)x, (int)y, (int)w, (int)h);
+            if (rect.Contains(mouse.X, mouse.Y)
+                && mouse.LeftButton == ButtonState.Pressed
+                && prevMouse.LeftButton == ButtonState.Released)
+            {
+                BackRequested = true;
+                return true;
+            }
+
+            return false;
         }
 
         private void DrawSlotList(MenuMetrics metrics, UiLayout layout, float alpha, float offsetY)

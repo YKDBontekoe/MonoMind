@@ -44,6 +44,7 @@ namespace Autonocraft.Core
         public VillageManager Villages { get; private set; }
         public HudToast HudToast => _hudToast;
         public string? VillageHudHint { get; set; }
+        public int? NearbyManageVillagerId { get; set; }
         public string? NearbyClaimHint { get; set; }
         private Vector3 _lastClaimHintScanPos = new(float.MinValue, 0f, float.MinValue);
         public BlockInteractionSystem BlockInteraction => _blockInteraction;
@@ -179,6 +180,7 @@ namespace Autonocraft.Core
 
         public void UpdateVillageHudHint(bool playerCreative)
         {
+            NearbyManageVillagerId = null;
             if (NearbyClaimHint != null)
             {
                 VillageHudHint = null;
@@ -192,19 +194,29 @@ namespace Autonocraft.Core
                 return;
             }
 
+            var nearbyVillager = Villagers.GetNearest(Player.Position, 4f);
+            if (nearbyVillager != null && nearbyVillager.VillageId == village.Id)
+            {
+                NearbyManageVillagerId = nearbyVillager.Id;
+                VillageHudHint = $"V — Manage {nearbyVillager.Name}";
+                return;
+            }
+
             if (Villages.GetVillageAt(Player.Position) == null
                 && !VillageSettlementHealth.IsPlayerNearTownHeart(village, Player.Position))
             {
                 float dx = Player.Position.X - village.Center.X;
                 float dz = Player.Position.Z - village.Center.Z;
                 int dist = (int)MathF.Round(MathF.Sqrt(dx * dx + dz * dz));
+                var guidance = SettlementGuidance.Compute(village, Villagers, Player.Position, playerCreative);
                 VillageHudHint = dist > 8
                     ? $"V — Return to {village.Name} (~{dist} blocks away)"
-                    : "V — " + VillageGuidance.GetNextBestAction(village, Villagers, Player.Position);
+                    : "V — " + guidance.Headline;
                 return;
             }
 
-            VillageHudHint = "V — " + VillageGuidance.GetNextBestAction(village, Villagers, Player.Position);
+            var activeGuidance = SettlementGuidance.Compute(village, Villagers, Player.Position, playerCreative);
+            VillageHudHint = "V — " + activeGuidance.Headline;
         }
 
         public void UpdateNearbyClaimHint()

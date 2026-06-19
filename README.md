@@ -19,7 +19,7 @@ A 3D voxel sandbox built with **MonoGame** (DesktopGL) on **.NET 10**. Explore p
 # Restore dependencies (first time)
 dotnet build Autonocraft.slnx
 
-# Run the game (main menu → new world or load save)
+# Run the game (root hub → continue, browse saves, new world, or settings)
 dotnet run --project src/Autonocraft
 
 # Skip the menu and jump straight into a new world

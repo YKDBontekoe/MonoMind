@@ -5,6 +5,7 @@ using Microsoft.Xna.Framework.Input;
 using Autonocraft.Core;
 using Autonocraft.Engine;
 using Autonocraft.Engine.Animation;
+using Autonocraft.UI.Menu;
 using Autonocraft.World;
 
 namespace Autonocraft.UI
@@ -145,7 +146,7 @@ namespace Autonocraft.UI
             }
         }
 
-        public void Draw(Viewport viewport, float alpha = 1f)
+        public void Draw(Viewport viewport, float alpha = 1f, bool overlayMode = false)
         {
             if (!IsOpen || alpha <= 0.01f)
             {
@@ -162,8 +163,11 @@ namespace Autonocraft.UI
             float buttonW = layout.S(ButtonWidth);
             float buttonH = layout.S(ButtonHeight);
 
-            _backdrop.Draw(_ui, viewport, alpha * 0.85f);
-            UiTheme.DrawMenuScrim(_ui, viewport, alpha);
+            if (!overlayMode)
+            {
+                _backdrop.Draw(_ui, viewport, alpha * 0.85f);
+                UiTheme.DrawMenuScrim(_ui, viewport, alpha);
+            }
 
             _ui.DrawFramedPanel(panelX, panelY, panelW, panelH, UiTheme.PanelFill * 0.96f, UiTheme.PanelBorder, alpha);
 

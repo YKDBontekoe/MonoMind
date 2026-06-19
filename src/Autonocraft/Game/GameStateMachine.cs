@@ -6,6 +6,7 @@ using Autonocraft.Diagnostics;
 using Autonocraft.Engine;
 using Autonocraft.Engine.Animation;
 using Autonocraft.Engine.Audio;
+using Autonocraft.UI.Menu;
 using Autonocraft.World;
 using Vector3 = System.Numerics.Vector3;
 
@@ -152,11 +153,17 @@ namespace Autonocraft.Core
             Console.WriteLine($"[Spawn] Placed player on surface at ({_session.Player.Position.X:F1}, {_session.Player.Position.Y:F1}, {_session.Player.Position.Z:F1})");
         }
 
-        private void OpenNewWorldSetup()
+        private void OpenNewWorldSetup(MenuLayer backTarget)
         {
+            _screens.MenuNav.NewWorldBackTarget = backTarget;
             _screens.NewWorldSetupScreen!.Reset();
             _screens.State = GameState.NewWorldSetup;
             Window.Title = "Autonocraft | New World";
+        }
+
+        private void OpenNewWorldSetup()
+        {
+            OpenNewWorldSetup(_screens.MenuNav.BaseLayer);
         }
 
         private void StartWorldLoading()
@@ -177,11 +184,24 @@ namespace Autonocraft.Core
             _isStructureGalleryWorld = false;
             _screens.SnapOverlaysVisible();
             _screens.SaveSlotScreen!.RefreshSlots();
+            _screens.MainMenuScreen!.RefreshContinueEligibility();
+            _screens.MenuNav.ReturnToSaveBrowserFromGameplay();
             ReleaseMouseCapture();
             IsMouseVisible = true;
             _input.IsMouseLocked = false;
             _screens.State = GameState.MainMenu;
-            Window.Title = "Autonocraft | Main Menu";
+            UpdateMenuWindowTitle();
+        }
+
+        private void UpdateMenuWindowTitle()
+        {
+            Window.Title = _screens.MenuNav.Layer switch
+            {
+                MenuLayer.SettingsOverlay => "Autonocraft | Settings",
+                MenuLayer.StatsOverlay => "Autonocraft | Player Stats",
+                MenuLayer.SaveBrowser => "Autonocraft | Main Menu",
+                _ => "Autonocraft | Main Menu"
+            };
         }
 
         private void UpdateFrame(GameTime gameTime)
@@ -230,7 +250,7 @@ namespace Autonocraft.Core
 
         private void UpdateMainMenu(KeyboardState kbState, MouseState mouseState, float deltaTime)
         {
-            if (_screens.PlayerDashboardOpen)
+            if (_screens.MenuNav.Layer == MenuLayer.StatsOverlay)
             {
                 _screens.PlayerDashboardScreen!.Update(
                     GraphicsDevice.Viewport,
@@ -243,14 +263,14 @@ namespace Autonocraft.Core
                 if (_screens.PlayerDashboardScreen.CloseRequested)
                 {
                     _screens.PlayerDashboardScreen.Close();
-                    _screens.PlayerDashboardOpen = false;
+                    _screens.MenuNav.CloseOverlay();
                 }
 
-                Window.Title = "Autonocraft | Player Stats";
+                UpdateMenuWindowTitle();
                 return;
             }
 
-            if (_screens.MainMenuSettingsOpen)
+            if (_screens.MenuNav.Layer == MenuLayer.SettingsOverlay)
             {
                 _screens.MainMenuSettingsScreen!.Update(
                     GraphicsDevice.Viewport,
@@ -264,23 +284,77 @@ namespace Autonocraft.Core
                 {
                     ApplyGameSettings(_screens.MainMenuSettingsScreen.GetWorkingCopy());
                     _screens.MainMenuSettingsScreen.Close();
-                    _screens.MainMenuSettingsOpen = false;
+                    _screens.MenuNav.CloseOverlay();
                 }
                 else if (_screens.MainMenuSettingsScreen.CancelRequested)
                 {
                     _screens.MainMenuSettingsScreen.Close();
-                    _screens.MainMenuSettingsOpen = false;
+                    _screens.MenuNav.CloseOverlay();
                 }
 
-                Window.Title = "Autonocraft | Settings";
+                UpdateMenuWindowTitle();
                 return;
             }
 
+            if (_screens.MenuNav.Layer == MenuLayer.RootHub)
+            {
+                UpdateRootHub(kbState, mouseState, deltaTime);
+                return;
+            }
+
+            UpdateSaveBrowser(kbState, mouseState, deltaTime);
+        }
+
+        private void UpdateRootHub(KeyboardState kbState, MouseState mouseState, float deltaTime)
+        {
+            _screens.MainMenuScreen!.Update(
+                GraphicsDevice.Viewport,
+                kbState,
+                mouseState,
+                _input.PrevKeyboard,
+                _input.PrevMouse,
+                deltaTime);
+
+            if (_screens.MainMenuScreen.ContinueRequested && _screens.MainMenuScreen.ContinueSlotId != null)
+            {
+                TryStartLoadedWorld(_screens.MainMenuScreen.ContinueSlotId);
+            }
+            else if (_screens.MainMenuScreen.BrowseSavesRequested)
+            {
+                _screens.MenuNav.NavigateTo(MenuLayer.SaveBrowser);
+            }
+            else if (_screens.MainMenuScreen.NewWorldRequested)
+            {
+                OpenNewWorldSetup(MenuLayer.RootHub);
+            }
+            else if (_screens.MainMenuScreen.SettingsRequested)
+            {
+                OpenMainMenuSettings();
+            }
+            else if (_screens.MainMenuScreen.StructureGalleryRequested)
+            {
+                StartStructureGalleryWorld();
+            }
+            else if (_screens.MainMenuScreen.QuitRequested)
+            {
+                Exit();
+            }
+
+            UpdateMenuWindowTitle();
+        }
+
+        private void UpdateSaveBrowser(KeyboardState kbState, MouseState mouseState, float deltaTime)
+        {
             _screens.SaveSlotScreen!.Update(GraphicsDevice.Viewport, kbState, mouseState, _input.PrevKeyboard, _input.PrevMouse, deltaTime);
 
-            if (_screens.SaveSlotScreen.NewWorldRequested)
+            if (_screens.SaveSlotScreen.BackRequested)
             {
-                OpenNewWorldSetup();
+                _screens.MenuNav.NavigateTo(MenuLayer.RootHub);
+                _screens.MainMenuScreen!.RefreshContinueEligibility();
+            }
+            else if (_screens.SaveSlotScreen.NewWorldRequested)
+            {
+                OpenNewWorldSetup(MenuLayer.SaveBrowser);
             }
             else if (_screens.SaveSlotScreen.StructureGalleryRequested)
             {
@@ -292,8 +366,7 @@ namespace Autonocraft.Core
             }
             else if (_screens.SaveSlotScreen.SettingsRequested)
             {
-                _screens.MainMenuSettingsScreen!.Open(_settings);
-                _screens.MainMenuSettingsOpen = true;
+                OpenMainMenuSettings();
             }
             else if (_screens.SaveSlotScreen.StatsRequested)
             {
@@ -304,7 +377,13 @@ namespace Autonocraft.Core
                 Exit();
             }
 
-            Window.Title = "Autonocraft | Main Menu";
+            UpdateMenuWindowTitle();
+        }
+
+        private void OpenMainMenuSettings()
+        {
+            _screens.MainMenuSettingsScreen!.Open(_settings);
+            _screens.MenuNav.OpenOverlay(MenuLayer.SettingsOverlay);
         }
 
         private void OpenPlayerDashboard()
@@ -312,7 +391,7 @@ namespace Autonocraft.Core
             _screens.PlayerDashboardScreen!.Open(
                 _screens.SaveSlotScreen!.GetSelectedSlotId(),
                 _screens.SaveSlotScreen.GetSelectedSlotName());
-            _screens.PlayerDashboardOpen = true;
+            _screens.MenuNav.OpenOverlay(MenuLayer.StatsOverlay);
         }
 
         private void ApplyGameSettings(GameSettings settings)
@@ -395,7 +474,8 @@ namespace Autonocraft.Core
             else if (_screens.NewWorldSetupScreen.BackRequested)
             {
                 _screens.State = GameState.MainMenu;
-                Window.Title = "Autonocraft | Main Menu";
+                _screens.MenuNav.NavigateTo(_screens.MenuNav.NewWorldBackTarget);
+                UpdateMenuWindowTitle();
             }
         }
 
@@ -407,6 +487,7 @@ namespace Autonocraft.Core
             {
                 Console.WriteLine($"[Load] World loading timed out: {_screens.LoadingScreen.TimeoutReason}");
                 _screens.SaveSlotScreen?.SetLoadError(_screens.LoadingScreen.TimeoutReason ?? "World failed to load.");
+                _screens.MenuNav.ReturnToSaveBrowserFromGameplay();
                 ReturnToMainMenu();
                 return;
             }

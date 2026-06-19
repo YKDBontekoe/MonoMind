@@ -5,6 +5,7 @@ using Microsoft.Xna.Framework.Input;
 using Autonocraft.Core;
 using Autonocraft.Engine;
 using Autonocraft.Engine.Animation;
+using Autonocraft.UI.Menu;
 
 namespace Autonocraft.UI
 {
@@ -222,7 +223,7 @@ namespace Autonocraft.UI
             }
         }
 
-        public void Draw(Viewport viewport)
+        public void Draw(Viewport viewport, bool overlayMode = false)
         {
             if (!IsOpen)
             {
@@ -233,16 +234,22 @@ namespace Autonocraft.UI
             var layout = new UiLayout(viewport);
             float cx = layout.CenterX;
             float panelW = layout.S(PanelWidth);
-            float panelH = layout.S(PanelHeight);
+            float panelH = Math.Min(layout.S(PanelHeight), layout.Height - layout.S(80f));
             float panelX = cx - panelW / 2f;
-            float panelY = layout.CenterY - panelH / 2f + _transition.OffsetY;
+            float panelY = Math.Max(layout.S(24f), layout.CenterY - panelH / 2f) + _transition.OffsetY;
             float left = panelX + layout.S(24f);
             float buttonW = layout.S(ButtonWidth);
             float buttonH = layout.S(ButtonHeight);
             float rowH = layout.S(34f);
 
-            _backdrop.Draw(_ui, viewport, alpha * 0.85f);
-            UiTheme.DrawMenuScrim(_ui, viewport, alpha);
+            if (!overlayMode)
+            {
+                _backdrop.Draw(_ui, viewport, alpha * 0.85f);
+            }
+            else if (alpha > 0f)
+            {
+                MenuChrome.DrawOverlayScrim(_ui, viewport, alpha * 0.72f);
+            }
 
             _ui.DrawCard(panelX, panelY, panelW, panelH, alpha, UiTheme.RadiusXl);
             _ui.DrawCenteredTitle("Settings", panelY + layout.S(20f), layout.S(UiTheme.FontTitle), UiTheme.Title, alpha);

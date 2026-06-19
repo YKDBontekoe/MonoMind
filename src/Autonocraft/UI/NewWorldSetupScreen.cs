@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Autonocraft.Engine;
 using Autonocraft.Engine.Animation;
+using Autonocraft.UI.Menu;
 using Autonocraft.World;
 
 namespace Autonocraft.UI
@@ -24,6 +25,7 @@ namespace Autonocraft.UI
         private int _selectedWorldType;
         private string _seedText = WorldConstants.DefaultSeed.ToString();
         private bool _seedFocused;
+        private string? _seedErrorMessage;
 
         public bool CreateRequested { get; private set; }
         public bool BackRequested { get; private set; }
@@ -48,6 +50,7 @@ namespace Autonocraft.UI
             _seedText = WorldConstants.DefaultSeed.ToString();
             _selectedWorldType = 0;
             _seedFocused = false;
+            _seedErrorMessage = null;
             SelectedSeed = WorldConstants.DefaultSeed;
             SelectedWorldType = WorldType.Default;
             _transition.BeginFadeIn(0.3f);
@@ -86,9 +89,11 @@ namespace Autonocraft.UI
             {
                 if (_hoveredButton == 0)
                 {
-                    CommitSeed();
-                    SelectedWorldType = WorldTypes[_selectedWorldType];
-                    CreateRequested = true;
+                    if (TryCommitSeedForCreate())
+                    {
+                        SelectedWorldType = WorldTypes[_selectedWorldType];
+                        CreateRequested = true;
+                    }
                 }
                 else if (_hoveredButton == 1)
                 {
@@ -132,9 +137,11 @@ namespace Autonocraft.UI
                     }
                     else if (key == Keys.Enter)
                     {
-                        CommitSeed();
-                        SelectedWorldType = WorldTypes[_selectedWorldType];
-                        CreateRequested = true;
+                        if (TryCommitSeedForCreate())
+                        {
+                            SelectedWorldType = WorldTypes[_selectedWorldType];
+                            CreateRequested = true;
+                        }
                     }
                     else if (key == Keys.Escape)
                     {
@@ -167,14 +174,43 @@ namespace Autonocraft.UI
             }
         }
 
-        private void CommitSeed()
+        private bool TryCommitSeedForCreate()
         {
-            if (!int.TryParse(_seedText, out int seed) || seed == 0)
+            if (string.IsNullOrWhiteSpace(_seedText))
             {
-                seed = WorldConstants.DefaultSeed;
-                _seedText = seed.ToString();
+                _seedErrorMessage = "Enter a number seed or tap Random.";
+                return false;
             }
 
+            if (!int.TryParse(_seedText, out int seed))
+            {
+                _seedErrorMessage = "Seed must be a whole number (digits only).";
+                return false;
+            }
+
+            if (seed == 0)
+            {
+                _seedErrorMessage = "Seed cannot be zero — try another number.";
+                return false;
+            }
+
+            _seedErrorMessage = null;
+            SelectedSeed = seed;
+            _seedText = seed.ToString();
+            return true;
+        }
+
+        private void CommitSeed()
+        {
+            if (int.TryParse(_seedText, out int seed) && seed != 0)
+            {
+                SelectedSeed = seed;
+                _seedErrorMessage = null;
+                return;
+            }
+
+            seed = WorldConstants.DefaultSeed;
+            _seedText = seed.ToString();
             SelectedSeed = seed;
         }
 
@@ -190,10 +226,8 @@ namespace Autonocraft.UI
             var metrics = ComputeLayout(layout, offsetY);
             float panelX = metrics.Cx - panelW / 2f;
 
-            _backdrop.Draw(_ui, viewport, alpha);
-            UiTheme.DrawMenuScrim(_ui, viewport, alpha);
-
-            _ui.DrawCenteredTitle("New world", layout.Height * 0.085f + offsetY, layout.S(UiTheme.FontHero), UiTheme.Title, alpha);
+            MenuChrome.DrawBackdrop(_backdrop, _ui, viewport, alpha);
+            MenuChrome.DrawTitleBlock(_ui, layout, "New world", "Choose terrain — your steward awaits", 0.085f, alpha, offsetY);
 
             _ui.DrawCard(panelX, metrics.PanelY, panelW, panelH, alpha, UiTheme.RadiusXl);
             _ui.DrawCenteredTitle("World setup", metrics.PanelY + layout.S(24f), layout.S(UiTheme.FontTitle), UiTheme.Title, alpha);
@@ -232,12 +266,17 @@ namespace Autonocraft.UI
                 UiTheme.RadiusMd);
             _ui.DrawString(_seedText, metrics.Cx - layout.S(120f), metrics.SeedY + layout.S(10f), layout.S(UiTheme.FontBody), UiTheme.Title, alpha);
 
+            if (!string.IsNullOrEmpty(_seedErrorMessage))
+            {
+                _ui.DrawCenteredText(_seedErrorMessage, metrics.SeedY + layout.S(44f), layout.S(UiTheme.FontSmall), UiTheme.Danger, alpha);
+            }
+
             DrawButton(metrics.Cx + layout.S(100f), metrics.RandomY, layout.S(120f), layout.S(34f), "Random", 2, UiButtonStyle.Ghost, layout, alpha);
 
             DrawButton(metrics.Cx - buttonW / 2f - layout.S(6f), metrics.CreateY, buttonW, buttonH, "Create world", 0, UiButtonStyle.Primary, layout, alpha);
             DrawButton(metrics.Cx + buttonW / 2f + layout.S(6f), metrics.CreateY, buttonW, buttonH, "Back", 1, UiButtonStyle.Ghost, layout, alpha);
 
-            _ui.DrawCenteredText("← → change terrain", layout.Height - layout.S(32f) + offsetY, layout.S(UiTheme.FontSmall), UiTheme.Hint, 0.85f * alpha);
+            MenuChrome.DrawHintFooter(_ui, layout, "← → change terrain · Esc back", alpha);
         }
 
         private void DrawButton(float x, float y, float width, float height, string label, int index, UiButtonStyle style, UiLayout layout, float alpha)
