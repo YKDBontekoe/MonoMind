@@ -1,3 +1,4 @@
+using Autonocraft.Domain.Core;
 using Autonocraft.Engine;
 using Xunit;
 
@@ -7,9 +8,9 @@ public class SceneLightingTests
 {
     [Theory]
     [InlineData(0.0f)]
-    [InlineData(0.25f)]
-    [InlineData(0.5f)]
-    [InlineData(0.75f)]
+    [InlineData(0.31f)]
+    [InlineData(0.62f)]
+    [InlineData(0.81f)]
     public void LightingScalarsStayNormalizedAcrossCycle(float timeOfDay)
     {
         var lighting = SceneLighting.FromTimeOfDay(timeOfDay);
@@ -19,9 +20,9 @@ public class SceneLightingTests
     }
 
     [Fact]
-    public void QuarterCycleEnablesSunAndDisablesMoon()
+    public void NoonEnablesSunAndDisablesMoon()
     {
-        var lighting = SceneLighting.FromTimeOfDay(0.25f);
+        var lighting = SceneLighting.FromTimeOfDay(DayNightCycle.Noon);
         Assert.True(lighting.SunEnabled);
         Assert.False(lighting.MoonEnabled);
         Assert.True(lighting.SunDirection.Y > 0.02f);
@@ -30,9 +31,9 @@ public class SceneLightingTests
     }
 
     [Fact]
-    public void ThreeQuarterCycleEnablesMoonAndDisablesSun()
+    public void MidnightEnablesMoonAndDisablesSun()
     {
-        var lighting = SceneLighting.FromTimeOfDay(0.75f);
+        var lighting = SceneLighting.FromTimeOfDay(DayNightCycle.Midnight);
         Assert.False(lighting.SunEnabled);
         Assert.True(lighting.MoonEnabled);
         Assert.True(lighting.MoonDirection.Y > 0.02f);
@@ -41,15 +42,15 @@ public class SceneLightingTests
     [Fact]
     public void SunAndMoonDirectionsAreOpposite()
     {
-        var lighting = SceneLighting.FromTimeOfDay(0.33f);
+        var lighting = SceneLighting.FromTimeOfDay(0.15f);
         Assert.Equal(-lighting.SunDirection, lighting.MoonDirection);
     }
 
     [Fact]
-    public void HorizonCycleHasStrongerSunsetTintThanNoon()
+    public void SunsetHasStrongerSunsetTintThanNoon()
     {
-        var noon = SceneLighting.FromTimeOfDay(0.25f);
-        var sunset = SceneLighting.FromTimeOfDay(0.5f);
+        var noon = SceneLighting.FromTimeOfDay(DayNightCycle.Noon);
+        var sunset = SceneLighting.FromTimeOfDay(DayNightCycle.Sunset);
         Assert.True(sunset.SunsetFactor > noon.SunsetFactor);
     }
 }

@@ -191,7 +191,7 @@ namespace Autonocraft.Crafting
                     Output = BlockType.Grass,
                     OutputCount = 1,
                     RequiresWater = true,
-                    AllowedBiomes = new[] { BiomeType.Plains, BiomeType.Forest }
+                    AllowedBiomes = new[] { BiomeType.Plains, BiomeType.Forest, BiomeType.Jungle }
                 },
                 new CraftRecipe
                 {

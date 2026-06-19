@@ -43,28 +43,45 @@ namespace Autonocraft.World
 
             _prefetchCooldown = FastTravelPrefetchIntervalFrames;
 
-            int leadCx = profile.AgentChunkX;
-            int leadCz = profile.AgentChunkZ;
-            if (MathF.Abs(profile.Velocity.X) > 2f)
-            {
-                leadCx += profile.Velocity.X > 0f ? 1 : -1;
-            }
-
-            if (MathF.Abs(profile.Velocity.Z) > 2f)
-            {
-                leadCz += profile.Velocity.Z > 0f ? 1 : -1;
-            }
-
-            if (leadCx == profile.AgentChunkX && leadCz == profile.AgentChunkZ)
+            float speedSq = profile.Velocity.X * profile.Velocity.X + profile.Velocity.Z * profile.Velocity.Z;
+            if (speedSq < 4f)
             {
                 return;
             }
 
-            for (int dx = -renderDistance; dx <= renderDistance; dx++)
+            float invSpeed = 1f / MathF.Sqrt(speedSq);
+            int dirX = MathF.Abs(profile.Velocity.X * invSpeed) > 0.3f
+                ? profile.Velocity.X > 0f ? 1 : -1
+                : 0;
+            int dirZ = MathF.Abs(profile.Velocity.Z * invSpeed) > 0.3f
+                ? profile.Velocity.Z > 0f ? 1 : -1
+                : 0;
+            if (dirX == 0 && dirZ == 0)
             {
-                for (int dz = -renderDistance; dz <= renderDistance; dz++)
+                return;
+            }
+
+            int agentCx = profile.AgentChunkX;
+            int agentCz = profile.AgentChunkZ;
+            const int prefetchDepth = 2;
+            for (int ahead = 1; ahead <= prefetchDepth; ahead++)
+            {
+                if (dirX != 0)
                 {
-                    QueueTerrainLoad(leadCx + dx, leadCz + dz);
+                    int leadCx = agentCx + dirX * (renderDistance + ahead);
+                    for (int dz = -renderDistance; dz <= renderDistance; dz++)
+                    {
+                        QueueTerrainLoad(leadCx, agentCz + dz);
+                    }
+                }
+
+                if (dirZ != 0)
+                {
+                    int leadCz = agentCz + dirZ * (renderDistance + ahead);
+                    for (int dx = -renderDistance; dx <= renderDistance; dx++)
+                    {
+                        QueueTerrainLoad(agentCx + dx, leadCz);
+                    }
                 }
             }
         }

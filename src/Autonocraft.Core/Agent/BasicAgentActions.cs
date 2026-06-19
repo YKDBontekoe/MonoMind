@@ -488,6 +488,61 @@ internal sealed class CloseVillageUiAliasAction : AgentActionBase
         => CloseVillage.Execute(bridge, request);
 }
 
+internal sealed class ScreenshotAction : AgentActionBase
+{
+    public override string Command => "screenshot";
+
+    public override AgentActionResponseDto Execute(IGameAgentBridge bridge, HttpListenerRequest request)
+    {
+        string? path = request.QueryString["path"];
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            path = Path.Combine(AppContext.BaseDirectory, "screenshot.png");
+        }
+
+        try
+        {
+            Task<byte[]> captureTask = bridge.RequestScreenshotAsync(path);
+            if (!captureTask.Wait(AgentActionTimeouts.QueuedActionWaitMs))
+            {
+                return Fail("Screenshot capture timed out");
+            }
+
+            byte[] bytes = captureTask.Result;
+            return Ok($"Screenshot saved ({bytes.Length} bytes) to {path}");
+        }
+        catch (Exception ex)
+        {
+            return Fail(ex.InnerException?.Message ?? ex.Message);
+        }
+    }
+}
+
+internal sealed class LoadStructureGalleryAction : AgentActionBase
+{
+    public override string Command => "load_structure_gallery";
+
+    public override AgentActionResponseDto Execute(IGameAgentBridge bridge, HttpListenerRequest request)
+    {
+        if (bridge.CurrentGameState == GameState.WorldLoading)
+        {
+            return Fail("World is already loading");
+        }
+
+        var loadTcs = new TaskCompletionSource<bool>();
+        bridge.EnqueueAction(() =>
+        {
+            bridge.RequestLoadStructureGallery();
+            loadTcs.SetResult(true);
+        }, runImmediatelyInTests: false);
+
+        bool success = loadTcs.Task.Wait(AgentActionTimeouts.QueuedActionWaitMs) && loadTcs.Task.Result;
+        return success
+            ? Ok("Structure gallery loading — poll /health until gameState is Playing")
+            : Fail("Failed to queue structure gallery load");
+    }
+}
+
 internal sealed class SummonSettlersAction : AgentActionBase
 {
     public override string Command => "summon_settlers";

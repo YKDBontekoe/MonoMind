@@ -93,10 +93,15 @@ public static class TerrainSlabTests
         Console.Write("Running Terrain Slab Upper Step Regression... ");
 
         var generator = new WorldGenerator(103);
-        var center = generator.PreviewColumn(-20, 1);
+        if (!WorldGenTestHelpers.TryFindGrassUpperStep(generator, out int wx, out int wz))
+        {
+            throw new Exception("Could not find grass upper-step regression column for seed 103.");
+        }
+
+        var center = generator.PreviewColumn(wx, wz);
         if (center.SurfaceBlock.IsSlab())
         {
-            throw new Exception($"Lower step cell (-20,1) must be a full block, got {center.SurfaceBlock} at y={center.SurfaceHeight}.");
+            throw new Exception($"Lower step cell ({wx},{wz}) must be a full block, got {center.SurfaceBlock} at y={center.SurfaceHeight}.");
         }
 
         if (center.SurfaceHeight != 65 || center.SurfaceBlock != BlockType.Grass)
@@ -104,10 +109,10 @@ public static class TerrainSlabTests
             throw new Exception($"Expected grass full block at y=65, got {center.SurfaceBlock} at y={center.SurfaceHeight}.");
         }
 
-        var east = generator.PreviewColumn(-19, 1);
+        var east = generator.PreviewColumn(wx + 1, wz);
         if (!east.SurfaceBlock.IsSlab() || east.SurfaceHeight != 66)
         {
-            throw new Exception($"Expected grass slab on upper step at (-19,1) y=66, got {east.SurfaceBlock} at y={east.SurfaceHeight}.");
+            throw new Exception($"Expected grass slab on upper step at ({wx + 1},{wz}) y=66, got {east.SurfaceBlock} at y={east.SurfaceHeight}.");
         }
 
         Console.ForegroundColor = ConsoleColor.Green;

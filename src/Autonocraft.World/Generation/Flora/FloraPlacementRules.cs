@@ -21,6 +21,7 @@ namespace Autonocraft.World.Generation.Flora
             return biome switch
             {
                 BiomeType.Forest => ForestEntries,
+                BiomeType.Jungle => JungleEntries,
                 BiomeType.Plains => PlainsEntries,
                 BiomeType.Desert => DesertEntries,
                 BiomeType.Swamp => SwampEntries,
@@ -50,6 +51,18 @@ namespace Autonocraft.World.Generation.Flora
             new() { Block = BlockType.Flower, Weight = 10, SampleThreshold = 0.50f, RequiresFlowers = true },
             new() { Block = BlockType.Daisy, Weight = 12, SampleThreshold = 0.48f, RequiresFlowers = true },
             new() { Block = BlockType.Sunflower, Weight = 4, SampleThreshold = 0.58f, HashMod = 9, RequiresFlowers = true }
+        ];
+
+        private static readonly FloraPlacementEntry[] JungleEntries =
+        [
+            new() { Block = BlockType.Fern, Weight = 22, SampleThreshold = 0.44f, HashMod = 3, UnderstoryOnly = true },
+            new() { Block = BlockType.Fern, Weight = 14, SampleThreshold = 0.46f, HashMod = 4 },
+            new() { Block = BlockType.MossCarpet, Weight = 20, SampleThreshold = 0.42f, HashMod = 3 },
+            new() { Block = BlockType.Shrub, Weight = 16, SampleThreshold = 0.46f, HashMod = 4, UnderstoryOnly = true },
+            new() { Block = BlockType.MushroomBrown, Weight = 8, SampleThreshold = 0.46f, HashMod = 11, UnderstoryOnly = true },
+            new() { Block = BlockType.MushroomRed, Weight = 8, SampleThreshold = 0.46f, HashMod = 13, UnderstoryOnly = true },
+            new() { Block = BlockType.BerryBush, Weight = 12, SampleThreshold = 0.48f, HashMod = 5 },
+            new() { Block = BlockType.Vine, Weight = 10, SampleThreshold = 0.50f, HashMod = 7 }
         ];
 
         private static readonly FloraPlacementEntry[] PlainsEntries =
@@ -87,15 +100,16 @@ namespace Autonocraft.World.Generation.Flora
             new() { Block = BlockType.MushroomBrown, Weight = 8, SampleThreshold = 0.48f, HashMod = 23, UnderstoryOnly = true },
             new() { Block = BlockType.Fern, Weight = 16, SampleThreshold = 0.48f, HashMod = 4, UnderstoryOnly = true },
             new() { Block = BlockType.MossCarpet, Weight = 18, SampleThreshold = 0.44f, HashMod = 3 },
+            new() { Block = BlockType.LilyPad, Weight = 20, SampleThreshold = 0.44f, HashMod = 3 },
             new() { Block = BlockType.Lichen, Weight = 6, SampleThreshold = 0.50f, HashMod = 9 },
             new() { Block = BlockType.WildRose, Weight = 8, SampleThreshold = 0.50f, HashMod = 5 }
         ];
 
         private static readonly FloraPlacementEntry[] SnowyPeaksEntries =
         [
-            new() { Block = BlockType.Heather, Weight = 55, SampleThreshold = 0.65f, HashMod = 5 },
-            new() { Block = BlockType.Juniper, Weight = 35, SampleThreshold = 0.65f, HashMod = 5 },
-            new() { Block = BlockType.Lichen, Weight = 10, SampleThreshold = 0.62f, HashMod = 7 }
+            new() { Block = BlockType.Heather, Weight = 55, SampleThreshold = 0.50f, HashMod = 3 },
+            new() { Block = BlockType.Juniper, Weight = 35, SampleThreshold = 0.50f, HashMod = 3 },
+            new() { Block = BlockType.Lichen, Weight = 10, SampleThreshold = 0.48f, HashMod = 5 }
         ];
 
         private static readonly FloraPlacementEntry[] MountainsEntries =
@@ -195,24 +209,29 @@ namespace Autonocraft.World.Generation.Flora
             }
 
             int roll = Math.Abs(hash % totalWeight);
+            int pickIndex = 0;
             for (int i = 0; i < candidateCount; i++)
             {
-                var entry = candidates[i];
-                roll -= entry.Weight;
-                if (roll >= 0)
+                roll -= candidates[i].Weight;
+                if (roll < 0)
+                {
+                    pickIndex = i;
+                    break;
+                }
+            }
+
+            for (int attempt = 0; attempt < candidateCount; attempt++)
+            {
+                var entry = candidates[(pickIndex + attempt) % candidateCount];
+                float threshold = entry.SampleThreshold - profile.FloraDensity * 0.12f;
+                if (floraSample <= threshold)
                 {
                     continue;
                 }
 
-                float threshold = entry.SampleThreshold - profile.FloraDensity * 0.12f;
-                if (floraSample <= threshold)
-                {
-                    return false;
-                }
-
                 if (entry.HashMod > 0 && !PassesRarityGate(hash, entry.HashMod))
                 {
-                    return false;
+                    continue;
                 }
 
                 picked = entry;

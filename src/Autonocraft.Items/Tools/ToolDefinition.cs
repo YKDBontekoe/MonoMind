@@ -9,5 +9,6 @@ namespace Autonocraft.Items
         public int MaxDurability { get; init; }
         public float MiningSpeedMultiplier { get; init; }
         public float MeleeDamage { get; init; }
+        public bool LootOnly { get; init; }
     }
 }

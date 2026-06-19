@@ -195,6 +195,7 @@ namespace Autonocraft.Engine
             BiomeType.Beach => "Beach",
             BiomeType.Plains => "Plains",
             BiomeType.Forest => "Forest",
+            BiomeType.Jungle => "Jungle",
             BiomeType.Desert => "Desert",
             BiomeType.Mountains => "Mountains",
             BiomeType.SnowyPeaks => "Snowy peaks",

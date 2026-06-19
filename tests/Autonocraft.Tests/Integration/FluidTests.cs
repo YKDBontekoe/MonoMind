@@ -208,6 +208,7 @@ public static class FluidTests
         const int y = 40;
 
         world.UpdateChunksAround(null, new Vector3(x + 0.5f, y, z + 0.5f), 1);
+        world.Fluids.Clear();
 
         for (int dx = -2; dx <= 2; dx++)
         {

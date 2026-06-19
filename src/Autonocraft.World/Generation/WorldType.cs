@@ -5,6 +5,7 @@ namespace Autonocraft.World
         Default,
         Mountains,
         Islands,
-        Flat
+        Flat,
+        StructureGallery
     }
 }

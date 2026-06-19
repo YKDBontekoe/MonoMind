@@ -558,44 +558,47 @@ namespace Autonocraft.Engine
                     {
                         var stones = new[]
                         {
-                        ShiftColor(new Color(96, 96, 100), seedShift),
-                        ShiftColor(new Color(118, 118, 122), seedShift),
-                        ShiftColor(new Color(88, 88, 92), seedShift),
-                        ShiftColor(new Color(132, 132, 136), seedShift)
+                        ShiftColor(new Color(78, 78, 84), seedShift),
+                        ShiftColor(new Color(108, 108, 114), seedShift),
+                        ShiftColor(new Color(68, 68, 74), seedShift),
+                        ShiftColor(new Color(128, 128, 134), seedShift),
+                        ShiftColor(new Color(92, 92, 98), seedShift)
                     };
                         return FromSynth(ProceduralTextureSynth.Cobble(
                             _tileSize,
                             name,
                             stones,
-                            ShiftColor(new Color(64, 64, 68), seedShift)));
+                            ShiftColor(new Color(48, 48, 52), seedShift)));
                     }
                 case "brick":
                     return FromSynth(ProceduralTextureSynth.Brick(
                         _tileSize,
                         name,
-                        ShiftColor(new Color(148, 72, 52), seedShift),
-                        ShiftColor(new Color(92, 88, 84), seedShift),
-                        ShiftColor(new Color(168, 88, 62), seedShift),
-                        ShiftColor(new Color(128, 58, 42), seedShift)));
+                        ShiftColor(new Color(132, 58, 42), seedShift),
+                        ShiftColor(new Color(78, 74, 70), seedShift),
+                        ShiftColor(new Color(158, 72, 52), seedShift),
+                        ShiftColor(new Color(108, 46, 34), seedShift)));
                 case "moss_stone":
                     {
                         var stonePalette = new[]
                         {
-                        ShiftColor(new Color(92, 98, 86), seedShift),
-                        ShiftColor(new Color(108, 114, 100), seedShift),
-                        ShiftColor(new Color(84, 90, 78), seedShift)
+                        ShiftColor(new Color(82, 88, 76), seedShift),
+                        ShiftColor(new Color(98, 104, 90), seedShift),
+                        ShiftColor(new Color(72, 78, 68), seedShift),
+                        ShiftColor(new Color(108, 114, 98), seedShift)
                     };
                         var mossPalette = new[]
                         {
-                        ShiftColor(new Color(48, 98, 42), seedShift),
-                        ShiftColor(new Color(62, 118, 52), seedShift),
-                        ShiftColor(new Color(38, 84, 36), seedShift)
+                        ShiftColor(new Color(42, 92, 36), seedShift),
+                        ShiftColor(new Color(58, 112, 48), seedShift),
+                        ShiftColor(new Color(32, 78, 30), seedShift),
+                        ShiftColor(new Color(68, 128, 56), seedShift)
                     };
                         return FromSynth(ProceduralTextureSynth.MossStone(
                             _tileSize,
                             name,
                             stonePalette,
-                            ShiftColor(new Color(68, 72, 62), seedShift),
+                            ShiftColor(new Color(58, 62, 54), seedShift),
                             mossPalette));
                     }
                 case "mud":
@@ -926,12 +929,24 @@ namespace Autonocraft.Engine
                         }
                         return img;
                     }
+                case "chest":
+                    {
+                        var pixels = ProceduralTextureSynth.WoodPlank(_tileSize, name, new Color(120, 82, 48), new Color(88, 58, 32), new Color(150, 108, 62));
+                        var img = new Image(pixels);
+                        int cx = _tileSize / 2;
+                        int cy = _tileSize / 2;
+                        FillRect(img, cx - 18, cy - 14, 37, 28, new Color(96, 64, 36));
+                        FillRect(img, cx - 16, cy - 12, 33, 24, new Color(132, 92, 52));
+                        FillRect(img, cx - 2, cy - 4, 5, 8, new Color(210, 180, 60));
+                        DrawRectOutline(img, cx - 16, cy - 12, cx + 16, cy + 12, new Color(70, 48, 28), 2);
+                        return img;
+                    }
+                case "slate_brick":
+                    return FromSynth(ProceduralTextureSynth.Brick(_tileSize, name, ShiftColor(new Color(62, 68, 78), seedShift), ShiftColor(new Color(32, 36, 44), seedShift), ShiftColor(new Color(82, 88, 98), seedShift), ShiftColor(new Color(48, 54, 64), seedShift)));
                 case "marble_brick":
-                    return FromSynth(ProceduralTextureSynth.Brick(_tileSize, name, ShiftColor(new Color(225, 225, 230), seedShift), ShiftColor(new Color(160, 160, 165), seedShift), ShiftColor(new Color(255, 255, 255), seedShift), ShiftColor(new Color(190, 190, 195), seedShift)));
+                    return FromSynth(ProceduralTextureSynth.Brick(_tileSize, name, ShiftColor(new Color(210, 210, 218), seedShift), ShiftColor(new Color(148, 148, 156), seedShift), ShiftColor(new Color(238, 238, 244), seedShift), ShiftColor(new Color(178, 178, 186), seedShift)));
                 case "basalt_brick":
                     return FromSynth(ProceduralTextureSynth.Brick(_tileSize, name, ShiftColor(new Color(45, 45, 50), seedShift), ShiftColor(new Color(20, 20, 25), seedShift), ShiftColor(new Color(65, 65, 70), seedShift), ShiftColor(new Color(30, 30, 35), seedShift)));
-                case "slate_brick":
-                    return FromSynth(ProceduralTextureSynth.Brick(_tileSize, name, ShiftColor(new Color(70, 75, 85), seedShift), ShiftColor(new Color(35, 40, 50), seedShift), ShiftColor(new Color(90, 95, 105), seedShift), ShiftColor(new Color(50, 55, 65), seedShift)));
                 case "polished_marble":
                     return FromSynth(ProceduralTextureSynth.MetalBlock(_tileSize, name, ShiftColor(new Color(240, 240, 245), seedShift), ShiftColor(new Color(180, 180, 185), seedShift)));
                 case "polished_granite":

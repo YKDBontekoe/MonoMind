@@ -1,9 +1,16 @@
+using System.Collections.Generic;
+using System.Linq;
 using Autonocraft.World.Structures;
 
 namespace Autonocraft.Village
 {
     public static class ClaimableStructureMap
     {
+        private static StructureDefinition[]? _definitions;
+
+        public static IReadOnlyList<StructureDefinition> Definitions =>
+            _definitions ??= StructureRegistry.All.Where(d => IsClaimable(d.Id)).ToArray();
+
         public static bool IsClaimable(string structureId)
             => structureId is "PlainsCottage" or "VillageOutpost" or "ForestShelter";
 

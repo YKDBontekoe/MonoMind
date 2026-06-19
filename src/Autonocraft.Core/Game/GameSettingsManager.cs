@@ -39,6 +39,22 @@ namespace Autonocraft.Core
                 string json = File.ReadAllText(path);
                 var settings = JsonSerializer.Deserialize<GameSettings>(json, JsonOptions) ?? CreateDefault();
                 settings.Clamp();
+                if (settings.RenderDistance > GameSettings.StableRenderDistanceCap)
+                {
+                    int previous = settings.RenderDistance;
+                    settings.RenderDistance = GameSettings.StableRenderDistanceCap;
+                    Console.WriteLine(
+                        $"[Settings] Clamped render distance {previous} -> {settings.RenderDistance} for stable play. Raise in SETTINGS after the world has loaded.");
+                    try
+                    {
+                        Save(settings);
+                    }
+                    catch (Exception saveEx)
+                    {
+                        Console.WriteLine($"[Settings] Could not save clamped render distance: {saveEx.Message}");
+                    }
+                }
+
                 return settings;
             }
             catch (Exception ex)

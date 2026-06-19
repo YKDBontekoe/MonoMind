@@ -29,6 +29,7 @@ namespace Autonocraft.Engine
                 "silver" => (new Color(210, 220, 225), new Color(155, 165, 170)),
                 "diamond" => (new Color(60, 220, 230), new Color(30, 160, 180)),
                 "emerald" => (new Color(40, 220, 110), new Color(20, 160, 70)),
+                "relic" => (new Color(180, 90, 255), new Color(120, 40, 200)),
                 _ => (new Color(160, 160, 160), new Color(110, 110, 110))
             };
 

@@ -143,6 +143,9 @@ public static class AgentHttpServer
                 case ("/debug/slabscan", "GET"):
                     StateHandler.HandleGetSlabScan(_bridge, request, response);
                     break;
+                case ("/structures", "GET"):
+                    StructuresHandler.HandleGetStructures(_bridge, response);
+                    break;
                 case ("/screenshot", "GET"):
                     ScreenshotHandler.HandleGetScreenshot(_bridge, request, response);
                     break;

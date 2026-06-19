@@ -4,11 +4,14 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
 using System.Numerics;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
+using System.Threading.Tasks;
 using Autonocraft.Core;
 using DevCommands = Autonocraft.Core.DevCommands.DevCommandRouter;
 using Autonocraft.Ai;
+using Autonocraft.Domain.Core;
 using Autonocraft.Domain.Village;
 using Autonocraft.Entities;
 using Autonocraft.Items;
@@ -40,6 +43,31 @@ public static class VillageTests
         }
 
         return villages.TryFoundVillage(world, name, ax, az, out village);
+    }
+
+    private static void EnsureFlatVillagePad(VoxelWorld world, VillageEntity village, int radius)
+    {
+        world.UpdateChunksAround(null, village.Center, 3);
+        for (int dx = -radius; dx <= radius; dx++)
+        {
+            for (int dz = -radius; dz <= radius; dz++)
+            {
+                int x = village.AnchorX + dx;
+                int z = village.AnchorZ + dz;
+                int targetY = village.AnchorY;
+                int top = world.GetHighestSolidY(x, z);
+                for (int y = top; y > targetY; y--)
+                {
+                    world.SetBlock(x, y, z, BlockType.Air);
+                }
+
+                world.SetBlock(x, targetY, z, BlockType.Grass);
+                if (targetY > 1)
+                {
+                    world.SetBlock(x, targetY - 1, z, BlockType.Dirt);
+                }
+            }
+        }
     }
 
     public static void RunInventoryStacking()
@@ -199,12 +227,16 @@ public static class VillageTests
         world.UpdateChunksAround(null, new System.Numerics.Vector3(ax + 0.5f, 64f, az + 0.5f), 2);
         int ay = StructureFingerprint.FindSurfaceAnchorY(world, ax, az) - 1;
         var cottage = StructureRegistry.All.First(s => s.Id == "PlainsCottage");
-        foreach (var block in cottage.Template.Blocks)
+        var biome = world.SampleBiome(ax, az).Primary;
+        int placementHash = StructureFingerprint.StructureHashForTests(ax, az, world.Seed, 11);
+        int variantSalt = StructurePlacementKeys.VariantSaltForStructure(world.Seed, ax, az, cottage.Id, placementHash);
+        var template = cottage.ResolveTemplate(world.Seed, ax, az, variantSalt, biome);
+        foreach (var block in template.Blocks)
         {
             world.SetBlock(ax + block.Dx, ay + block.Dy, az + block.Dz, BlockType.Air);
         }
 
-        foreach (var block in cottage.Template.Blocks)
+        foreach (var block in template.Blocks)
         {
             world.SetBlock(ax + block.Dx, ay + block.Dy, az + block.Dz, block.Type);
         }
@@ -222,6 +254,66 @@ public static class VillageTests
         if (village.Population < 1)
         {
             throw new Exception("Claimed village should spawn a villager.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunImprovedClaimableStructureAccess()
+    {
+        Console.Write("Running Improved Claimable Structure Access Test... ");
+        var villagers = new VillagerManager();
+        var villages = new VillageManager(villagers);
+        var world = new VoxelWorld(6601);
+
+        string[] claimableIds = ["PlainsCottage", "VillageOutpost"];
+        for (int i = 0; i < claimableIds.Length; i++)
+        {
+            string id = claimableIds[i];
+            int ax = 48 + i * 64;
+            int az = 48;
+            world.UpdateChunksAround(null, new Vector3(ax + 0.5f, 64f, az + 0.5f), 2);
+            int ay = StructureFingerprint.FindSurfaceAnchorY(world, ax, az) - 1;
+
+            var definition = StructureRegistry.All.First(s => s.Id == id);
+            var biome = world.SampleBiome(ax, az).Primary;
+            int placementHash = StructureFingerprint.StructureHashForTests(ax, az, world.Seed, 11);
+            int variantSalt = StructurePlacementKeys.VariantSaltForStructure(world.Seed, ax, az, definition.Id, placementHash);
+            var template = definition.ResolveTemplate(world.Seed, ax, az, variantSalt, biome);
+
+            ClearStructureFootprint(world, ax, ay, az, template.FootprintRadius + 1, 10);
+            StampTemplate(world, ax, ay, az, template);
+
+            if (!StructureFingerprint.TryMatchWorldStructure(world, ax, ay, az, out _, out float ratio))
+            {
+                throw new Exception($"{id} fingerprint failed before claim (ratio={ratio:F2}).");
+            }
+
+            if (!villages.TryClaimStructure(world, ax, az, out var village) || village == null)
+            {
+                throw new Exception($"{id} claim failed.");
+            }
+
+            if (village.Population < 1)
+            {
+                throw new Exception($"{id} claim should spawn a villager.");
+            }
+
+            foreach (var chest in template.Chests)
+            {
+                int chestX = ax + chest.Dx;
+                int chestY = ay + chest.Dy;
+                int chestZ = az + chest.Dz;
+                if (world.GetBlock(chestX, chestY, chestZ) != BlockType.Chest)
+                {
+                    throw new Exception($"{id} chest missing at ({chestX},{chestY},{chestZ}).");
+                }
+
+                if (world.GetBlock(chestX, chestY + 1, chestZ) != BlockType.Air)
+                {
+                    throw new Exception($"{id} chest headroom blocked at ({chestX},{chestY + 1},{chestZ}).");
+                }
+            }
         }
 
         Console.WriteLine("PASSED");
@@ -629,8 +721,8 @@ public static class VillageTests
         {
             Host = new GameHostContext(session, renderDistance: 2, settings: new GameSettings())
             {
-                TimeOfDay = 0.5f,
-                TimeScale = 0.01f
+                TimeOfDay = DayNightCycle.Noon,
+                TimeScale = DayNightCycle.DefaultTimeScale
             };
 
             CurrentGameState = GameState.Playing;
@@ -677,7 +769,16 @@ public static class VillageTests
         {
         }
 
-        public void SaveScreenshot(string path) => File.WriteAllBytes(path, Array.Empty<byte>());
+        public Task<byte[]> RequestScreenshotAsync(string? savePath = null)
+        {
+            byte[] png = Convert.FromHexString("89504E470D0A1A0A0000000D49484452000000010000000108060000001F15C4890000000A49444154789C63000100000500010D0A2DB40000000049454E44AE426082");
+            if (!string.IsNullOrWhiteSpace(savePath))
+            {
+                File.WriteAllBytes(savePath, png);
+            }
+
+            return Task.FromResult(png);
+        }
 
         public void SimulateClick(MouseButton button)
         {
@@ -693,6 +794,15 @@ public static class VillageTests
         {
             Host.TimeScale = Math.Max(0f, scale);
             Host.TimePaused = scale <= 0f;
+        }
+
+        public bool IsStructureGalleryWorld =>
+            StructureGallery.IsGalleryWorld(Host.Session.Grid.GenerationParams.WorldType);
+
+        public WorldType CurrentWorldType => Host.Session.Grid.GenerationParams.WorldType;
+
+        public void RequestLoadStructureGallery()
+        {
         }
 
         public void Step(float deltaTime)
@@ -773,12 +883,40 @@ public static class VillageTests
                 builder.WorkTimer = 10f;
             }
 
-            villages.Update(0.2f, world, 0.5f, animals);
+            villages.Update(0.2f, world, DayNightCycle.Noon, animals);
         }
 
         if (!village.HasCompletedBuilding("peasant_house") || village.PopulationCap < 6)
         {
             throw new Exception("Peasant house was not completed and registered.");
+        }
+    }
+
+    private static void ClearStructureFootprint(VoxelWorld world, int ax, int ay, int az, int radius, int height)
+    {
+        for (int x = ax - radius; x <= ax + radius; x++)
+        {
+            for (int z = az - radius; z <= az + radius; z++)
+            {
+                for (int y = ay; y <= ay + height; y++)
+                {
+                    world.SetBlock(x, y, z, BlockType.Air);
+                }
+            }
+        }
+    }
+
+    private static void StampTemplate(VoxelWorld world, int ax, int ay, int az, StructureTemplate template)
+    {
+        foreach (var block in template.Blocks)
+        {
+            world.SetBlock(ax + block.Dx, ay + block.Dy, az + block.Dz, block.Type);
+        }
+
+        foreach (var chest in template.Chests)
+        {
+            world.SetBlock(ax + chest.Dx, ay + chest.Dy, az + chest.Dz, BlockType.Chest);
+            world.SetBlock(ax + chest.Dx, ay + chest.Dy + 1, az + chest.Dz, BlockType.Air);
         }
     }
 
@@ -805,7 +943,7 @@ public static class VillageTests
 
         for (int i = 0; i < 80 && village.FoodStock <= foodBefore; i++)
         {
-            villages.Update(0.2f, world, 0.5f, animals);
+            villages.Update(0.2f, world, DayNightCycle.Noon, animals);
         }
 
         if (village.FoodStock <= foodBefore)
@@ -838,7 +976,7 @@ public static class VillageTests
 
         for (int i = 0; i < 120 && world.GetBlock(stoneX, stoneY, stoneZ) == BlockType.Stone; i++)
         {
-            villages.Update(0.2f, world, 0.5f, animals);
+            villages.Update(0.2f, world, DayNightCycle.Noon, animals);
         }
 
         if (world.GetBlock(stoneX, stoneY, stoneZ) == BlockType.Stone || miner.Inventory.CountBlock(BlockType.Stone) == 0)
@@ -860,7 +998,7 @@ public static class VillageTests
 
         for (int i = 0; i < 120 && world.GetBlock(masonX, stoneY, masonZ) == BlockType.Cobblestone; i++)
         {
-            villages.Update(0.2f, world, 0.5f, animals);
+            villages.Update(0.2f, world, DayNightCycle.Noon, animals);
         }
 
         if (world.GetBlock(masonX, stoneY, masonZ) == BlockType.Cobblestone || mason.Inventory.CountBlock(BlockType.Cobblestone) == 0)
@@ -920,7 +1058,7 @@ public static class VillageTests
                 activeHauler.SetAiPhase(VillagerAiPhase.Working);
             }
 
-            villages.Update(0.2f, world, 0.5f, animals);
+            villages.Update(0.2f, world, DayNightCycle.Noon, animals);
         }
 
         if (village.Storage.CountBlock(BlockType.Stone) <= storageBefore)
@@ -967,7 +1105,7 @@ public static class VillageTests
                 smith.WorkTimer = 10f;
             }
 
-            villages.Update(0.2f, world, 0.5f, animals);
+            villages.Update(0.2f, world, DayNightCycle.Noon, animals);
         }
 
         if (village.Storage.CountBlock(BlockType.OakPlank) <= planksBefore &&
@@ -1001,7 +1139,7 @@ public static class VillageTests
                 cook.WorkTimer = 10f;
             }
 
-            villages.Update(0.2f, world, 0.5f, animals);
+            villages.Update(0.2f, world, DayNightCycle.Noon, animals);
         }
 
         if (village.FoodStock <= foodBefore)
@@ -1027,7 +1165,7 @@ public static class VillageTests
 
         for (int i = 0; i < 120 && animals.Animals.Contains(sheep); i++)
         {
-            villages.Update(0.2f, world, 0.5f, animals);
+            villages.Update(0.2f, world, DayNightCycle.Noon, animals);
         }
 
         if (animals.Animals.Contains(sheep) || hunter.Inventory.CountBlock(BlockType.Carrot) == 0)
@@ -1187,7 +1325,7 @@ public static class VillageTests
         float initialFood = village.FoodStock;
         for (int i = 0; i < 120; i++)
         {
-            villages.Update(0.25f, world, 0.5f, animals);
+            villages.Update(0.25f, world, DayNightCycle.Noon, animals);
             if (i < 10)
             {
                 if (villagers.TryGet(farmer.Id, out var f))
@@ -1290,27 +1428,22 @@ public static class VillageTests
     {
         Console.Write("Running Village Save Round-Trip V6 Test... ");
         var session = game.Session;
-        int ax = (int)session.Player.Position.X + 8;
-        int az = (int)session.Player.Position.Z + 8;
-        int ay = StructureFingerprint.FindSurfaceAnchorY(session.Grid, ax, az);
-        if (PlayerStructureRegistry.TryGet("town_heart", out var heart))
-        {
-            foreach (var block in heart.Template.Blocks)
-            {
-                session.Grid.SetBlock(ax + block.Dx, ay + block.Dy, az + block.Dz, BlockType.Air);
-            }
-        }
-
-        if (!session.Villages.TryFoundVillage(session.Grid, "Save Test", ax, az, out var village) || village == null)
+        var world = session.Grid;
+        int ax = (int)session.Player.Position.X + 20;
+        int az = (int)session.Player.Position.Z + 20;
+        if (!TryFoundTestVillage(session.Villages, world, "Save Test", ax, az, out var village) || village == null)
         {
             throw new Exception("Could not found Save Test village.");
         }
 
+        EnsureFlatVillagePad(world, village, radius: 10);
         village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 8));
         village.Storage.AddItem(ItemStack.CreateBlock(BlockType.Dirt, 32));
         village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 8));
-        session.Villages.TryRecruit(village, session.Grid);
-        if (!session.Villages.TryQueueBlueprint(session.Grid, village, "farm_plot", ax + 4, az, village.Storage))
+        session.Villages.TryRecruit(village, world);
+        int plotX = ax + 6;
+        int plotZ = az + 6;
+        if (!session.Villages.TryQueueBlueprint(world, village, "farm_plot", plotX, plotZ, village.Storage, village.AnchorY))
         {
             throw new Exception("Failed to queue farm_plot for save test.");
         }
@@ -1805,6 +1938,8 @@ public static class VillageTests
             throw new Exception("Village missing.");
         }
 
+        EnsureFlatVillagePad(world, village, 12);
+
         if (!VillageGoalParser.TryParseDescription("Stock 64 Cobblestone", out var stockParsed) ||
             stockParsed.Kind != VillageGoalKind.Stock ||
             stockParsed.StockBlock != BlockType.Cobblestone ||
@@ -1922,7 +2057,10 @@ public static class VillageTests
             }
         }
 
-        if (!villages.TryMarkWorkBlock(world, ax + 2, minY, az + 2, out _))
+        int markX = ax + 2;
+        int markZ = az + 2;
+        int markY = world.GetHighestSolidY(markX, markZ);
+        if (!villages.TryMarkWorkBlock(world, markX, markY, markZ, out _))
         {
             throw new Exception("Mark work block failed.");
         }
@@ -2241,7 +2379,7 @@ public static class VillageTests
 
         for (int i = 0; i < 240; i++)
         {
-            villages.Update(0.25f, world, 0.5f, new AnimalManager(world.Seed));
+            villages.Update(0.25f, world, DayNightCycle.Noon, new AnimalManager(world.Seed));
             if (world.GetBlock(x, logY, z) == BlockType.Air)
             {
                 break;
@@ -2322,7 +2460,7 @@ public static class VillageTests
         var finalizedSites = new HashSet<int>();
 
         // Day 1
-        simulation.Update(new[] { village }, finalizedSites, 120f, world, 0.5f, null!);
+        simulation.Update(new[] { village }, finalizedSites, 120f, world, DayNightCycle.Noon, null!);
         if (village.ConsecutiveDaysWithoutFood != 1)
         {
             throw new Exception($"Expected 1 day without food, got {village.ConsecutiveDaysWithoutFood}");
@@ -2333,7 +2471,7 @@ public static class VillageTests
         }
 
         // Day 2
-        simulation.Update(new[] { village }, finalizedSites, 120f, world, 0.5f, null!);
+        simulation.Update(new[] { village }, finalizedSites, 120f, world, DayNightCycle.Noon, null!);
         if (village.ConsecutiveDaysWithoutFood != 2)
         {
             throw new Exception("Expected 2 days without food.");
@@ -2345,10 +2483,10 @@ public static class VillageTests
         }
 
         // Day 3
-        simulation.Update(new[] { village }, finalizedSites, 120f, world, 0.5f, null!);
+        simulation.Update(new[] { village }, finalizedSites, 120f, world, DayNightCycle.Noon, null!);
 
         // Day 4 - Departure
-        simulation.Update(new[] { village }, finalizedSites, 120f, world, 0.5f, null!);
+        simulation.Update(new[] { village }, finalizedSites, 120f, world, DayNightCycle.Noon, null!);
         if (village.Population != 0)
         {
             throw new Exception("Expected villager to despawn/leave due to starvation.");

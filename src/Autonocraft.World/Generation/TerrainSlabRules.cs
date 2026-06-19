@@ -71,7 +71,7 @@ namespace Autonocraft.World
                 return false;
             }
 
-            if (draft.Biome.Primary is not (BiomeType.Plains or BiomeType.Forest or BiomeType.Desert))
+            if (draft.Biome.Primary is not (BiomeType.Plains or BiomeType.Forest or BiomeType.Jungle or BiomeType.Desert))
             {
                 return false;
             }

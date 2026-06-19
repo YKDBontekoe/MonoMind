@@ -1,6 +1,8 @@
 using System;
 using Autonocraft.Items;
 
+using Autonocraft.Domain.Core;
+
 namespace Autonocraft.Core.DevCommands
 {
     /// <summary>
@@ -25,11 +27,7 @@ namespace Autonocraft.Core.DevCommands
 
         public static string GetTimeLabel(float time)
         {
-            if (time < 0.2f || time > 0.9f) return "NIGHT";
-            if (time < 0.3f) return "DAWN";
-            if (time < 0.7f) return "DAY";
-            if (time < 0.8f) return "DUSK";
-            return "NIGHT";
+            return DayNightCycle.GetHudTimeLabel(time);
         }
     }
 }

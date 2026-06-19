@@ -48,7 +48,7 @@ namespace Autonocraft.World
         public const float MeshBuildBudgetMs = 14f;
         public const float LoadingMeshBuildBudgetMs = 22f;
         public const float FastTravelMeshBuildBudgetMs = 10f;
-        public const int MissingMeshScanIntervalFrames = 120;
+        public const int MissingMeshScanChunksPerFrame = 16;
         public const int MaxMeshBuildsInFlight = 6;
         public const int MaxMeshDispatchesPerFrame = 4;
         public const int MaxMeshUploadsPerFrame = 6;
@@ -61,12 +61,18 @@ namespace Autonocraft.World
         public const int MeshPressurePendingThreshold = 36;
         public const int MaxTerrainCompletionsUnderMeshPressure = 2;
         public const int MaxDistantShellDispatchesPerFrame = 2;
+        public const float GameplayChunkProcessBudgetMs = 18f;
+        private const long GameplayMeshMemoryPressureBytes = 1_800_000_000L;
+
+        /// <summary>0..1 mesh promotion rate after spawn (1 = normal). Lower values defer full-detail builds.</summary>
+        public float GameplayMeshThrottle { get; set; } = 1f;
 
         private readonly Dictionary<(int x, int z), Chunk> _chunks = new Dictionary<(int x, int z), Chunk>();
         private readonly Dictionary<(int x, int y, int z), byte> _modifications = new Dictionary<(int x, int y, int z), byte>();
         private readonly Dictionary<(int cx, int cz), List<(int x, int y, int z)>> _modificationsByChunk = new();
         private readonly List<Chunk> _activeChunkList = new();
         private readonly FluidSystem _fluids = new();
+        private readonly StructureContainerSystem _containers = new();
         private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
         private readonly WorldGenerator _generator;
 
@@ -84,6 +90,7 @@ namespace Autonocraft.World
         public int Seed { get; }
         public WorldGenParams GenerationParams { get; }
         public FluidSystem Fluids => _fluids;
+        public StructureContainerSystem Containers => _containers;
         public int ActiveChunkCount => _activeChunkList.Count;
         public int StreamRenderDistance => _streamRenderDistance;
         public IReadOnlyList<Chunk> ActiveChunks => _activeChunkList;
@@ -269,6 +276,7 @@ namespace Autonocraft.World
                 }
 
                 _fluids.ApplySaveData(data.FluidModifications ?? new List<FluidModification>());
+                _containers.ApplySaveData(data.ContainerModifications ?? new List<ContainerModification>());
             }
             finally
             {
@@ -364,6 +372,33 @@ namespace Autonocraft.World
             int distanceZ = Math.Abs(cz - _streamAgentCz);
             return distanceX <= _streamRenderDistance + 1 && distanceZ <= _streamRenderDistance + 1;
         }
+        private void FlushChunkChests(Chunk chunk)
+        {
+            if (chunk.PendingChests.Count == 0)
+            {
+                return;
+            }
+
+            int baseX = chunk.ChunkX * Chunk.Width;
+            int baseZ = chunk.ChunkZ * Chunk.Depth;
+            foreach (var pending in chunk.PendingChests)
+            {
+                if (chunk.GetBlock(pending.LocalX, pending.LocalY, pending.LocalZ) != BlockType.Chest)
+                {
+                    continue;
+                }
+
+                Containers.RegisterChest(
+                    baseX + pending.LocalX,
+                    pending.LocalY,
+                    baseZ + pending.LocalZ,
+                    pending.LootTableId,
+                    pending.RollSeed);
+            }
+
+            chunk.PendingChests.Clear();
+        }
+
         private void StartChunkGeneration(int cx, int cz)
         {
             var coord = (cx, cz);
@@ -401,6 +436,7 @@ namespace Autonocraft.World
             _chunks.Add(coord, chunk);
             RegisterChunk(chunk);
             ApplyModificationsToChunk(chunk);
+            FlushChunkChests(chunk);
             chunk.RebuildColumnHeights();
             return true;
         }
@@ -412,6 +448,7 @@ namespace Autonocraft.World
             RegisterChunk(chunk);
             _generator.GenerateChunkTerrain(chunk, this);
             ApplyModificationsToChunk(chunk);
+            FlushChunkChests(chunk);
             chunk.RebuildColumnHeights();
             return chunk;
         }
@@ -647,6 +684,8 @@ namespace Autonocraft.World
                 _activeChunkList.Clear();
                 _modifications.Clear();
                 _modificationsByChunk.Clear();
+                _containers.Clear();
+                StructurePlacementKeys.ClearCache();
                 _terrainScheduler.Clear();
             }
             finally
@@ -673,6 +712,8 @@ namespace Autonocraft.World
                 _activeChunkList.Clear();
                 _modifications.Clear();
                 _modificationsByChunk.Clear();
+                _containers.Clear();
+                StructurePlacementKeys.ClearCache();
                 _initialLoadQueue = null;
                 _initialLoadIndex = 0;
                 _initialLoadTotal = 0;

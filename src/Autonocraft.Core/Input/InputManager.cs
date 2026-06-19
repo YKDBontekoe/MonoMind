@@ -12,15 +12,17 @@ namespace Autonocraft.Core
     /// </summary>
     internal sealed class InputManager
     {
-        private const float FocusLossReleaseDelay = 0.35f;
         private const int MouseWarpRejectThreshold = 120;
 
         private readonly Game _game;
 
-        private float _inactiveTimer;
         private bool _wasActive = true;
         private bool _deferPrevMouseReset;
+        private bool _useWarpMouseFallback;
+        private bool _isWindowActive = true;
 
+        public bool UsesWarpMouseFallback => _useWarpMouseFallback;
+        public bool IsWindowActive => _isWindowActive;
         public KeyboardState PrevKeyboard { get; private set; }
         public MouseState PrevMouse { get; private set; }
         public bool IsMouseLocked { get; set; } = true;
@@ -91,7 +93,7 @@ namespace Autonocraft.Core
         public void ApplyMouseCapture()
         {
             _game.IsMouseVisible = false;
-            SdlMouseCapture.TryEnableRelativeMode();
+            _useWarpMouseFallback = !SdlMouseCapture.TryEnableRelativeMode();
             PrevMouse = GetUiMouseState();
             SkipMouseLookFrame = true;
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
@@ -99,11 +101,12 @@ namespace Autonocraft.Core
                 SdlWindowGrab.SetGrabbed(_game.Window.Handle, true);
             }
 
-            InputDebugTrace.Log($"MOUSE_CAPTURE relative={SdlMouseCapture.IsRelativeModeEnabled}");
+            InputDebugTrace.Log($"MOUSE_CAPTURE relative={SdlMouseCapture.IsRelativeModeEnabled} warpFallback={_useWarpMouseFallback}");
         }
 
         public void ReleaseMouseCapture()
         {
+            _useWarpMouseFallback = false;
             SdlMouseCapture.DisableRelativeMode();
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
@@ -127,7 +130,6 @@ namespace Autonocraft.Core
 
         public void HandleFocusGained(in GameplayInputBlockers blockers, GameState state)
         {
-            _inactiveTimer = 0f;
             if (ShouldCaptureMouse(state, blockers))
             {
                 ApplyMouseCapture();
@@ -137,7 +139,7 @@ namespace Autonocraft.Core
 
         public void HandleFocusLost(in GameplayInputBlockers blockers, GameState state)
         {
-            if (ShouldCaptureMouse(state, blockers))
+            if (state == GameState.Playing && IsMouseLocked)
             {
                 ReleaseMouseCapture();
                 _game.IsMouseVisible = true;
@@ -146,19 +148,43 @@ namespace Autonocraft.Core
         }
 
         public bool CanProcessGameplayMouse(GameState state, in GameplayInputBlockers blockers) =>
-            IsMouseLocked && ShouldCaptureMouse(state, blockers);
+            _isWindowActive
+            && state == GameState.Playing
+            && IsMouseLocked
+            && !blockers.HasBlockingOverlay;
+
+        public void TryRecaptureMouseOnClick(GameState state, in GameplayInputBlockers blockers, MouseState mouseState)
+        {
+            if (!_isWindowActive
+                || state != GameState.Playing
+                || IsMouseLocked
+                || blockers.HasBlockingOverlay)
+            {
+                return;
+            }
+
+            if (mouseState.LeftButton != ButtonState.Pressed || PrevMouse.LeftButton != ButtonState.Released)
+            {
+                return;
+            }
+
+            IsMouseLocked = true;
+            ApplyMouseCapture();
+            InputDebugTrace.Log("CLICK_RECAPTURE mouse lock restored");
+        }
 
         public void EnsureMouseLockedForGameplay()
         {
             if (!IsMouseLocked)
             {
                 IsMouseLocked = true;
-                _game.IsMouseVisible = false;
-                SdlMouseCapture.TryEnableRelativeMode();
+                ApplyMouseCapture();
             }
         }
 
-        public void ResetInactiveTimer() => _inactiveTimer = 0f;
+        public void ResetInactiveTimer()
+        {
+        }
 
         public void ReleaseMouseOnLeavePlaying()
         {
@@ -170,7 +196,7 @@ namespace Autonocraft.Core
 
         public void RestoreMouseLockAfterOverlay()
         {
-            if (IsMouseLocked)
+            if (IsMouseLocked && _isWindowActive)
             {
                 ApplyMouseCapture();
             }
@@ -186,6 +212,8 @@ namespace Autonocraft.Core
             GameState state,
             in GameplayInputBlockers blockers)
         {
+            _isWindowActive = isActive;
+
             if (isActive && !_wasActive)
             {
                 HandleFocusGained(blockers, state);
@@ -197,21 +225,11 @@ namespace Autonocraft.Core
 
             if (!isActive && state == GameState.Playing && IsMouseLocked)
             {
-                _inactiveTimer += deltaTime;
-                if (_inactiveTimer >= FocusLossReleaseDelay)
+                if (SdlMouseCapture.IsRelativeModeEnabled || !_game.IsMouseVisible)
                 {
-                    SdlMouseCapture.DisableRelativeMode();
+                    ReleaseMouseCapture();
                     _game.IsMouseVisible = true;
                 }
-            }
-            else
-            {
-                if (isActive && _inactiveTimer >= FocusLossReleaseDelay && ShouldCaptureMouse(state, blockers))
-                {
-                    ApplyMouseCapture();
-                }
-
-                _inactiveTimer = 0f;
             }
 
             _wasActive = isActive;
@@ -249,6 +267,18 @@ namespace Autonocraft.Core
                     mouseDx = relativeDx;
                     mouseDy = relativeDy;
                 }
+                else if (_useWarpMouseFallback)
+                {
+                    mouseDx = mouseState.X - clientCenter.X;
+                    mouseDy = mouseState.Y - clientCenter.Y;
+                    if (Math.Abs(mouseDx) > MouseWarpRejectThreshold || Math.Abs(mouseDy) > MouseWarpRejectThreshold)
+                    {
+                        mouseDx = 0f;
+                        mouseDy = 0f;
+                    }
+
+                    TryWarpMouseToCenter(clientCenter);
+                }
                 else
                 {
                     mouseDx = mouseState.X - PrevMouse.X;
@@ -267,6 +297,18 @@ namespace Autonocraft.Core
             }
 
             return new MouseLookResult(mouseDx, mouseDy, clientCenter.X, clientCenter.Y);
+        }
+
+        private void TryWarpMouseToCenter(Point clientCenter)
+        {
+            try
+            {
+                Mouse.SetPosition(clientCenter.X, clientCenter.Y);
+            }
+            catch (Exception ex)
+            {
+                InputDebugTrace.Log($"MOUSE_WARP failed: {ex.Message}");
+            }
         }
 
         public readonly struct GameplayInputBlockers

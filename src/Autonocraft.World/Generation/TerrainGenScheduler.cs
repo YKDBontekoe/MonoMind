@@ -21,6 +21,7 @@ namespace Autonocraft.World
         private readonly HashSet<(int cx, int cz)> _pendingTerrainLookup = new();
         private readonly Dictionary<(int cx, int cz), InFlightChunkJob> _inFlightGeneration = new();
         private int _generationToken;
+        private bool _disposed;
 
         public int GenerationToken => _generationToken;
         public int PendingTerrainCount => _pendingTerrain.Count;
@@ -30,6 +31,8 @@ namespace Autonocraft.World
 
         public void Clear()
         {
+            InvalidateGeneration();
+            WaitForInFlight(TimeSpan.FromSeconds(2));
             _pendingTerrain.Clear();
             _pendingTerrainLookup.Clear();
             _inFlightGeneration.Clear();
@@ -83,10 +86,18 @@ namespace Autonocraft.World
                 GenerationToken = token,
                 Task = Task.Run(async () =>
                 {
-                    await _terrainGenSemaphore.WaitAsync().ConfigureAwait(false);
                     try
                     {
-                        if (token != _generationToken)
+                        await _terrainGenSemaphore.WaitAsync().ConfigureAwait(false);
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        return null;
+                    }
+
+                    try
+                    {
+                        if (_disposed || token != _generationToken)
                         {
                             return null;
                         }
@@ -102,7 +113,13 @@ namespace Autonocraft.World
                     }
                     finally
                     {
-                        _terrainGenSemaphore.Release();
+                        try
+                        {
+                            _terrainGenSemaphore.Release();
+                        }
+                        catch (ObjectDisposedException)
+                        {
+                        }
                     }
                 })
             };
@@ -154,7 +171,45 @@ namespace Autonocraft.World
             };
         }
 
-        public void Dispose() => _terrainGenSemaphore.Dispose();
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            InvalidateGeneration();
+            WaitForInFlight(TimeSpan.FromSeconds(5));
+            _pendingTerrain.Clear();
+            _pendingTerrainLookup.Clear();
+            _inFlightGeneration.Clear();
+            _terrainGenSemaphore.Dispose();
+        }
+
+        private void WaitForInFlight(TimeSpan timeout)
+        {
+            if (_inFlightGeneration.Count == 0)
+            {
+                return;
+            }
+
+            var tasks = new Task[_inFlightGeneration.Count];
+            int index = 0;
+            foreach (var job in _inFlightGeneration.Values)
+            {
+                tasks[index++] = job.Task;
+            }
+
+            try
+            {
+                Task.WaitAll(tasks, timeout);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[World] Waiting for terrain generation to finish: {ex.Message}");
+            }
+        }
         public bool IsTerrainQueued((int cx, int cz) coord) => _pendingTerrainLookup.Contains(coord);
 
         public void RemoveCoord((int cx, int cz) coord)

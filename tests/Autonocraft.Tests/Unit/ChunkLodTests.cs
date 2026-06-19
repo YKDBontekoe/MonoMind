@@ -76,6 +76,17 @@ public class ChunkLodTests
     }
 
     [Fact]
+    public void SelectBuildDetailDeferFullDetailSkipsFullNearPlayer()
+    {
+        var chunk = new Chunk(0, 0);
+        chunk.EnsureMeshForTest(ChunkMeshDetail.Shell);
+        chunk.EnsureMeshForTest(ChunkMeshDetail.Surface);
+        var detail = ChunkLod.SelectBuildDetail(chunk, chunkDistance: 1, renderDistance: 8, deferFullDetail: true);
+        Assert.Equal(ChunkMeshDetail.Surface, detail);
+        Assert.False(ChunkLod.NeedsHigherDetailBuild(chunk, chunkDistance: 1, renderDistance: 8, deferFullDetail: true));
+    }
+
+    [Fact]
     public void GetChunkDistanceUsesChebyshevMetric()
     {
         Assert.Equal(3, ChunkLod.GetChunkDistance(5, 8, 2, 5));

@@ -74,6 +74,11 @@ namespace Autonocraft.World
                         continue;
                     }
 
+                    if (column.Biome.Primary == BiomeType.Swamp)
+                    {
+                        _floraPlacer.TryPlaceWaterFlora(chunk, world, wx, wz, lx, lz, column);
+                    }
+
                     _treePlacer.TryPlaceTrees(chunk, world, columns, wx, wz, lx, lz, column, previewColumn);
                     _floraPlacer.TryPlaceGroundFlora(chunk, world, wx, wz, lx, lz, column, columnHash);
                     TryPlaceBoulder(chunk, world, wx, wz, lx, lz, column, GenerationBlocks.Hash(wx, wz, _seed, 41));

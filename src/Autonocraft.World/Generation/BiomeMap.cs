@@ -8,6 +8,8 @@ namespace Autonocraft.World
         private readonly NoiseStack _moistureNoise;
         private readonly NoiseStack _continentNoise;
         private readonly NoiseStack _erosionNoise;
+        private readonly NoiseStack _upliftNoise;
+        private readonly NoiseStack _volcanicBeltNoise;
         private readonly WorldGenParams _params;
 
         public BiomeMap(int seed, WorldGenParams parameters)
@@ -17,6 +19,8 @@ namespace Autonocraft.World
             _moistureNoise = new NoiseStack(seed + 202);
             _continentNoise = new NoiseStack(seed + 303);
             _erosionNoise = new NoiseStack(seed + 404);
+            _upliftNoise = new NoiseStack(seed + 515);
+            _volcanicBeltNoise = new NoiseStack(seed + 616);
         }
 
         public BiomeSample Sample(int wx, int wz)
@@ -30,7 +34,16 @@ namespace Autonocraft.World
             float moisture = _moistureNoise.Fbm(warpX + 150f, warpZ + 150f, 4);
             float erosion = _erosionNoise.Fbm(warpX + 250f, warpZ + 250f, 4);
 
-            BiomeType biome = Classify(temperature, moisture, continentalness, erosion);
+            // Broad FBM domes form wide mountain massifs; ridged arcs are reserved for volcanic belts only.
+            float uplift = _upliftNoise.Fbm(wx * 0.00038f, wz * 0.00038f, 5)
+                + _upliftNoise.Fbm(wx * 0.00022f, wz * 0.00022f, 4) * 0.58f;
+            uplift *= _params.MountainWeight;
+
+            float volcanicArc = _volcanicBeltNoise.Ridged(wx * 0.00050f, wz * 0.00050f, 3);
+            float volcanicBasin = _volcanicBeltNoise.Fbm(wx * 0.0016f, wz * 0.0016f, 3);
+            float volcanicStrength = volcanicArc * 0.74f + volcanicBasin * 0.26f;
+
+            BiomeType biome = Classify(temperature, moisture, continentalness, erosion, uplift, volcanicStrength);
             return new BiomeSample
             {
                 Primary = biome,
@@ -107,7 +120,13 @@ namespace Autonocraft.World
             };
         }
 
-        private BiomeType Classify(float temperature, float moisture, float continentalness, float erosion)
+        private static BiomeType Classify(
+            float temperature,
+            float moisture,
+            float continentalness,
+            float erosion,
+            float uplift,
+            float volcanicStrength)
         {
             if (continentalness < -0.22f)
             {
@@ -119,59 +138,78 @@ namespace Autonocraft.World
                 return BiomeType.Beach;
             }
 
-            if (continentalness < 0f && continentalness > -0.18f && moisture > 0.22f && temperature > 0.05f)
+            if (continentalness < 0f && continentalness > -0.18f && moisture > 0.12f && temperature > 0f)
             {
                 return BiomeType.Mangrove;
             }
 
-            bool rugged = erosion > 0.5f * _params.MountainWeight && continentalness > 0.08f;
-            if (temperature < -0.18f)
-            {
-                return rugged ? BiomeType.SnowyPeaks : BiomeType.Mountains;
-            }
+            bool inland = continentalness > 0.05f;
+            bool inVolcanicBelt = inland && volcanicStrength > 0.08f;
+            bool inMountainBelt = inland && uplift > 0.0f && !inVolcanicBelt;
+            bool inHighlands = inland && uplift > -0.05f;
+            bool inValley = inland && uplift < -0.10f;
 
-            if (rugged)
-            {
-                return temperature < 0.1f ? BiomeType.SnowyPeaks : BiomeType.Mountains;
-            }
-
-            if (temperature > 0.18f && moisture < -0.12f && erosion > 0.42f)
+            if (inVolcanicBelt && temperature > -0.10f)
             {
                 return BiomeType.Volcanic;
             }
 
-            if (temperature > 0.15f && moisture < -0.05f && erosion > 0.38f)
+            if (temperature > 0.06f && moisture > 0.14f && uplift < 0.10f && volcanicStrength < 0.08f)
             {
-                return BiomeType.Badlands;
+                return BiomeType.Jungle;
             }
 
-            if (temperature > 0.22f && moisture < -0.1f)
-            {
-                return BiomeType.Desert;
-            }
-
-            if (moisture > 0.32f && temperature > -0.08f && temperature < 0.18f && erosion < 0.35f)
+            if (moisture > 0.22f && temperature > -0.10f && temperature < 0.24f && uplift < 0.08f)
             {
                 return BiomeType.MushroomForest;
             }
 
-            if (temperature < -0.04f && temperature > -0.18f && moisture > 0.02f)
+            if (inMountainBelt)
             {
-                return BiomeType.BorealTaiga;
+                if (temperature < 0.04f || (temperature < 0.12f && erosion > 0.30f))
+                {
+                    return BiomeType.SnowyPeaks;
+                }
+
+                return BiomeType.Mountains;
             }
 
-            if (moisture > 0.18f && temperature > -0.08f && continentalness < 0.18f)
+            if (temperature > 0.10f && moisture < -0.02f && uplift < 0.06f)
+            {
+                if (moisture < -0.10f && erosion > 0.26f)
+                {
+                    return BiomeType.Badlands;
+                }
+
+                return BiomeType.Desert;
+            }
+
+            if (moisture > 0.10f && temperature > -0.12f && uplift < 0.02f && (inValley || continentalness < 0.28f))
             {
                 return BiomeType.Swamp;
             }
 
-            if (moisture > 0.08f)
+            if (temperature < -0.02f && moisture > -0.20f && uplift < 0.08f)
             {
-                return BiomeType.Forest;
+                return BiomeType.BorealTaiga;
             }
 
-            return BiomeType.Plains;
-        }
+            if (temperature < -0.05f && moisture > -0.12f && inHighlands)
+            {
+                return BiomeType.SnowyPeaks;
+            }
 
+            if (inValley && temperature > -0.10f && temperature < 0.20f && moisture > -0.14f && moisture < 0.16f)
+            {
+                return BiomeType.Plains;
+            }
+
+            if (uplift < 0.02f && moisture > -0.10f && moisture < 0.10f && temperature > -0.06f && temperature < 0.14f)
+            {
+                return BiomeType.Plains;
+            }
+
+            return BiomeType.Forest;
+        }
     }
 }

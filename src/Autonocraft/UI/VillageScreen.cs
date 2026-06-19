@@ -59,6 +59,7 @@ namespace Autonocraft.UI
         private float _buildScroll;
         private float _peopleScroll;
         private VillageViewModel? _viewModel;
+        private int _refreshVillageStateCooldown;
         private bool _playWithAi;
         private int _selectedGoalBlockIndex;
         private int _selectedGoalCountIndex;
@@ -120,7 +121,7 @@ namespace Autonocraft.UI
             _selectedGoalCountIndex = 1;
             _isEditingName = false;
             _editingNameBuffer = "";
-            _canClaimNearby = villageManager.TryFindClaimableStructure(world, playerPos, 24f, out _, out _, out _);
+            _canClaimNearby = villageManager.TryFindClaimableStructure(world, playerPos, 24f, out _, out _, out _, quickScan: true);
             IsOpen = true;
         }
 
@@ -171,7 +172,7 @@ namespace Autonocraft.UI
             _hoveredButton = -1;
             _buildScroll = 0f;
             _peopleScroll = 0f;
-            _canClaimNearby = villageManager.TryFindClaimableStructure(world, playerPos, 24f, out _, out _, out _);
+            _canClaimNearby = villageManager.TryFindClaimableStructure(world, playerPos, 24f, out _, out _, out _, quickScan: true);
             IsOpen = true;
         }
 
@@ -248,7 +249,15 @@ namespace Autonocraft.UI
                 return;
             }
 
-            RefreshVillageState();
+            if (--_refreshVillageStateCooldown > 0)
+            {
+                // Input handling below still runs; only skip expensive registry rebuilds.
+            }
+            else
+            {
+                _refreshVillageStateCooldown = 8;
+                RefreshVillageState();
+            }
 
             if (kb.IsKeyDown(Keys.Escape) && !prevKb.IsKeyDown(Keys.Escape))
             {

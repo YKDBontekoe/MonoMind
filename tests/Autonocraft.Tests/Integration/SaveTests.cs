@@ -1,10 +1,12 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Numerics;
 using Autonocraft.Core;
 using Autonocraft.Crafting;
 using Autonocraft.Entities;
 using Autonocraft.Items;
+using Autonocraft.Village;
 using Autonocraft.World;
 using Autonocraft.World.Structures;
 
@@ -110,6 +112,86 @@ public static class SaveTests
             !loadedSave.UnlockedCraftingIds.Contains("recipe:plank"))
         {
             throw new Exception("Loaded crafting journal did not match saved discoveries.");
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
+
+    public static void RunImprovedBuildingSaveRoundTrip(AutonocraftGame game, Player player, VoxelWorld world)
+    {
+        Console.Write("Running Improved Building Save/Load Round-Trip Test... ");
+
+        const string slotId = "test-improved-buildings";
+        const string slotName = "Improved Buildings";
+        string[] ids = ["PlainsCottage", "VillageOutpost"];
+        var anchors = new (int X, int Z)[]
+        {
+            (64, 48),
+            (128, 48)
+        };
+        var expected = new (string Id, int X, int Y, int Z, StructureTemplate Template)[ids.Length];
+
+        for (int i = 0; i < ids.Length; i++)
+        {
+            string id = ids[i];
+            int ax = anchors[i].X;
+            int az = anchors[i].Z;
+            world.UpdateChunksAround(null, new Vector3(ax + 0.5f, 64f, az + 0.5f), 2);
+            int ay = StructureFingerprint.FindSurfaceAnchorY(world, ax, az) - 1;
+            var definition = StructureRegistry.All.FirstOrDefault(s => s.Id == id)
+                ?? throw new Exception($"Missing structure definition for {id}.");
+            var biome = world.SampleBiome(ax, az).Primary;
+            int placementHash = StructureFingerprint.StructureHashForTests(ax, az, world.Seed, 11);
+            int variantSalt = StructurePlacementKeys.VariantSaltForStructure(world.Seed, ax, az, definition.Id, placementHash);
+            var template = definition.ResolveTemplate(world.Seed, ax, az, variantSalt, biome);
+
+            ClearArea(world, ax, ay, az, template.FootprintRadius + 1, 10);
+            StampTemplate(world, ax, ay, az, template);
+            expected[i] = (id, ax, ay, az, template);
+        }
+
+        var snapshot = game.Session.BuildSaveSnapshot(
+            slotId, slotName, game.TimeOfDay, game.TimeScale, game.TimePaused,
+            GameConstants.DefaultSpawnX, GameConstants.DefaultSpawnZ);
+        var saveData = WorldSaveManager.BuildFromSnapshot(snapshot);
+        WorldSaveManager.Save(saveData);
+
+        using var loadedWorld = new VoxelWorld(saveData.Seed);
+        var loadedSave = WorldSaveManager.Load(slotId);
+        loadedWorld.ApplySaveData(loadedSave);
+
+        loadedWorld.UpdateChunksAround(null, new Vector3(96f, 64f, 48f), 4);
+
+        foreach (var structure in expected)
+        {
+            float ratio = StructureFingerprint.ComputeMatchRatio(
+                loadedWorld,
+                structure.X,
+                structure.Y,
+                structure.Z,
+                structure.Template);
+            if (ratio < StructureFingerprint.MinMatchRatio)
+            {
+                throw new Exception($"{structure.Id} changed after save/load (ratio={ratio:P0}).");
+            }
+
+            foreach (var chest in structure.Template.Chests)
+            {
+                int chestX = structure.X + chest.Dx;
+                int chestY = structure.Y + chest.Dy;
+                int chestZ = structure.Z + chest.Dz;
+                if (loadedWorld.GetBlock(chestX, chestY, chestZ) != BlockType.Chest)
+                {
+                    throw new Exception($"{structure.Id} chest missing after load at ({chestX},{chestY},{chestZ}).");
+                }
+
+                if (loadedWorld.GetBlock(chestX, chestY + 1, chestZ) != BlockType.Air)
+                {
+                    throw new Exception($"{structure.Id} chest headroom blocked after load at ({chestX},{chestY + 1},{chestZ}).");
+                }
+            }
         }
 
         Console.ForegroundColor = ConsoleColor.Green;
@@ -286,5 +368,33 @@ public static class SaveTests
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine("PASSED");
         Console.ResetColor();
+    }
+
+    private static void ClearArea(VoxelWorld world, int ax, int ay, int az, int radius, int height)
+    {
+        for (int x = ax - radius; x <= ax + radius; x++)
+        {
+            for (int z = az - radius; z <= az + radius; z++)
+            {
+                for (int y = ay; y <= ay + height; y++)
+                {
+                    world.SetBlock(x, y, z, BlockType.Air);
+                }
+            }
+        }
+    }
+
+    private static void StampTemplate(VoxelWorld world, int ax, int ay, int az, StructureTemplate template)
+    {
+        foreach (var block in template.Blocks)
+        {
+            world.SetBlock(ax + block.Dx, ay + block.Dy, az + block.Dz, block.Type);
+        }
+
+        foreach (var chest in template.Chests)
+        {
+            world.SetBlock(ax + chest.Dx, ay + chest.Dy, az + chest.Dz, BlockType.Chest);
+            world.SetBlock(ax + chest.Dx, ay + chest.Dy + 1, az + chest.Dz, BlockType.Air);
+        }
     }
 }

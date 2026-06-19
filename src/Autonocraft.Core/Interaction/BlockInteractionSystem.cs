@@ -58,6 +58,7 @@ namespace Autonocraft.Core
 
         public Vector3? PendingStationOpen { get; private set; }
         public BlockType PendingStationType { get; private set; } = BlockType.Air;
+        public Vector3? PendingChestOpen { get; private set; }
 
         public void BindAnimator(InteractionAnimator animator) => _animator = animator;
 
@@ -124,6 +125,7 @@ namespace Autonocraft.Core
             _animTime += deltaTime;
             PendingStationOpen = null;
             PendingStationType = BlockType.Air;
+            PendingChestOpen = null;
 
             UpdateHotbarPulse(player.SelectedSlot, deltaTime);
             UpdatePlacePop(deltaTime);
@@ -203,6 +205,10 @@ namespace Autonocraft.Core
                         particles.SpawnHint(hitBlockPos.Value + new Vector3(0.5f, 0.5f, 0.5f));
                     }
                 }
+            }
+            else if (rightPressed && hitBlockPos.HasValue && blockType.IsChest())
+            {
+                PendingChestOpen = hitBlockPos.Value;
             }
             else if (rightPressed && hitBlockPos.HasValue && blockType.IsStation())
             {
@@ -538,6 +544,12 @@ namespace Autonocraft.Core
             if (GhostBlockPos.HasValue)
             {
                 Crosshair = GhostValid ? CrosshairState.ValidPlace : CrosshairState.InvalidPlace;
+                return;
+            }
+
+            if (TargetBlockPos.HasValue && TargetBlockType.IsChest())
+            {
+                Crosshair = CrosshairState.InteractChest;
                 return;
             }
 

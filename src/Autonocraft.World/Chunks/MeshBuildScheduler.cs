@@ -22,6 +22,7 @@ namespace Autonocraft.World
         public const int LoadingMaxMeshDispatchesPerFrame = 8;
         public const int LoadingMaxMeshUploadsPerFrame = 14;
         private const float LoadingMeshUploadBudgetMs = 18f;
+        public const int MaxCompletedUploadsBeforePause = 10;
 
         public sealed class CompletedMeshUpload
         {
@@ -132,10 +133,18 @@ namespace Autonocraft.World
             Action<Chunk, ChunkMeshDetail> clearBuildInFlight,
             List<(int cx, int cz)> requeueScratch,
             Func<Chunk, int, int, bool, bool> needsHigherDetailBuild,
-            bool initialLoading = false)
+            bool initialLoading = false,
+            int maxInFlightCap = 0,
+            int maxCompletedQueue = 0)
         {
-            int maxInFlight = initialLoading ? LoadingMaxMeshBuildsInFlight : MaxMeshBuildsInFlight;
-            if (Volatile.Read(ref _meshBuildsInFlight) >= maxInFlight)
+            int maxInFlight = maxInFlightCap > 0
+                ? maxInFlightCap
+                : initialLoading ? LoadingMaxMeshBuildsInFlight : MaxMeshBuildsInFlight;
+            int queueCap = maxCompletedQueue > 0
+                ? maxCompletedQueue
+                : initialLoading ? 24 : MaxCompletedUploadsBeforePause;
+            if (_completedMeshUploads.Count >= queueCap ||
+                Volatile.Read(ref _meshBuildsInFlight) >= maxInFlight)
             {
                 return false;
             }

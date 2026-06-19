@@ -556,6 +556,18 @@ namespace Autonocraft.Engine
 
         public void UpdateAmbient(float deltaTime, Vector3 playerPos, VoxelWorld world, float timeOfDay, WeatherSystem weather)
         {
+            try
+            {
+                UpdateAmbientCore(deltaTime, playerPos, world, timeOfDay, weather);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Particles] Ambient update skipped: {ex.Message}");
+            }
+        }
+
+        private void UpdateAmbientCore(float deltaTime, Vector3 playerPos, VoxelWorld world, float timeOfDay, WeatherSystem weather)
+        {
             if (weather.RainIntensity > 0.01f)
             {
                 int spawnCount = (int)(weather.RainIntensity * 80f * deltaTime);
@@ -626,12 +638,21 @@ namespace Autonocraft.Engine
 
             if (_ambientRng.NextDouble() < 0.5f)
             {
+                if (py >= Chunk.Height - 12)
+                {
+                    return;
+                }
+
                 int minX = px - 8;
                 int maxX = px + 8;
-                int minY = Math.Max(0, py - 4);
-                int maxY = Math.Min(190, py + 8);
                 int minZ = pz - 8;
                 int maxZ = pz + 8;
+                int maxY = Math.Min(Chunk.Height - 2, py + 8);
+                int minY = Math.Clamp(py - 4, 0, maxY);
+                if (minX > maxX || minZ > maxZ || minY > maxY)
+                {
+                    return;
+                }
 
                 int rx = _ambientRng.Next(minX, maxX + 1);
                 int ry = _ambientRng.Next(minY, maxY + 1);

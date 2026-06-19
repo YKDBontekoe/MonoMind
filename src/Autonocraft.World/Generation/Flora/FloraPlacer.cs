@@ -28,49 +28,59 @@ namespace Autonocraft.World.Generation.Flora
             int surfaceHeight = column.SurfaceHeight;
             BlockType surface = VegetationSurfaces.GetSurfaceBlock(chunk, world, wx, wz, lx, lz, surfaceHeight);
 
-            TryPlaceMeadowLayer(chunk, world, wx, wz, lx, lz, column, surface, surfaceHeight, hash);
-
             float patchNoise = _floraNoise.Fbm(wx * 0.045f, wz * 0.045f, 2);
             float detailNoise = _floraNoise.Fbm(wx * 0.22f, wz * 0.22f, 3);
             float floraSample = patchNoise * 0.45f + detailNoise * 0.55f;
             float densityGate = 0.38f - column.Profile.FloraDensity * 0.28f * _params.FloraDensityScale;
-            if (floraSample < densityGate)
+            bool placedFlora = false;
+            if (floraSample >= densityGate)
             {
-                return;
-            }
-
-            if ((column.Profile.Type == BiomeType.Swamp || column.Profile.Type == BiomeType.Beach)
-                && floraSample > 0.82f
-                && PassesRarityGate(hash, 9))
-            {
-                if (surface is BlockType.Mud or BlockType.Sand or BlockType.Grass)
+                if ((column.Profile.Type == BiomeType.Swamp || column.Profile.Type == BiomeType.Beach)
+                    && floraSample > 0.82f
+                    && PassesRarityGate(hash, 9))
                 {
-                    int bambooHeight = 2 + hash % 3;
-                    for (int by = 1; by <= bambooHeight; by++)
+                    if (surface is BlockType.Mud or BlockType.Sand or BlockType.Grass)
                     {
-                        GenerationBlocks.SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + by, BlockType.Bamboo);
+                        int bambooHeight = 2 + hash % 3;
+                        for (int by = 1; by <= bambooHeight; by++)
+                        {
+                            GenerationBlocks.SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + by, BlockType.Bamboo);
+                        }
                     }
+
+                    return;
                 }
 
-                return;
+                bool underCanopy = IsUnderLeafCanopy(chunk, world, wx, wz, lx, lz, surfaceHeight);
+                var entries = FloraPlacementRules.For(column.Biome.Primary);
+                if (FloraPlacementRules.TryPick(entries, column.Profile, floraSample, hash, underCanopy, out var picked)
+                    || FloraPlacementRules.TryPick(entries, column.Profile, floraSample, hash, !underCanopy, out picked))
+                {
+                    if (VegetationSurfaces.CanPlaceFlora(surface, column.Biome.Primary, picked.Block))
+                    {
+                        GenerationBlocks.SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, picked.Block);
+                        placedFlora = chunk.GetBlockUnchecked(lx, surfaceHeight + 1, lz) == picked.Block;
+                        if (placedFlora)
+                        {
+                            TryPlaceFloraCluster(chunk, world, wx, wz, lx, lz, column, surfaceHeight, picked.Block, floraSample, hash);
+                        }
+                    }
+                }
             }
 
-            bool underCanopy = IsUnderLeafCanopy(chunk, world, wx, wz, lx, lz, surfaceHeight);
-            var entries = FloraPlacementRules.For(column.Biome.Primary);
-            if (!FloraPlacementRules.TryPick(entries, column.Profile, floraSample, hash, underCanopy, out var picked)
-                && !FloraPlacementRules.TryPick(entries, column.Profile, floraSample, hash, !underCanopy, out picked))
+            if (!placedFlora)
             {
-                return;
+                TryPlaceMeadowLayer(chunk, world, wx, wz, lx, lz, column, surface, surfaceHeight, hash);
             }
 
-            if (!VegetationSurfaces.CanPlaceFlora(surface, column.Biome.Primary, picked.Block))
+            if (!placedFlora && floraSample >= densityGate)
             {
-                return;
+                TryPlaceSurfaceGrowth(chunk, world, wx, wz, lx, lz, column, surface, surfaceHeight, floraSample, hash);
             }
-
-            GenerationBlocks.SetBlockIfAir(chunk, world, wx, wz, lx, lz, surfaceHeight + 1, picked.Block);
-            TryPlaceFloraCluster(chunk, world, wx, wz, lx, lz, column, surfaceHeight, picked.Block, floraSample, hash);
-            TryPlaceSurfaceGrowth(chunk, world, wx, wz, lx, lz, column, surface, surfaceHeight, floraSample, hash);
+            else if (placedFlora)
+            {
+                TryPlaceMoss(chunk, world, wx, wz, lx, lz, column, surfaceHeight, hash);
+            }
         }
 
         private void TryPlaceSurfaceGrowth(
@@ -248,7 +258,7 @@ namespace Autonocraft.World.Generation.Flora
             }
 
             float floraSample = _floraNoise.Fbm(wx * 0.21f, wz * 0.21f, 3);
-            if (floraSample < 0.52f)
+            if (floraSample < 0.44f)
             {
                 return;
             }
@@ -296,7 +306,7 @@ namespace Autonocraft.World.Generation.Flora
                 }
             }
 
-            if (column.Biome.Primary == BiomeType.Swamp && PassesRarityGate(hash, 7))
+            if (column.Biome.Primary == BiomeType.Swamp && PassesRarityGate(hash, 5))
             {
                 int padY = waterY + 1;
                 if (padY < Chunk.Height && chunk.GetBlockUnchecked(lx, padY, lz) == BlockType.Air)
@@ -353,20 +363,26 @@ namespace Autonocraft.World.Generation.Flora
 
         private static bool IsUnderLeafCanopy(Chunk chunk, VoxelWorld? world, int wx, int wz, int lx, int lz, int surfaceHeight)
         {
-            int checkY = surfaceHeight + 2;
-            if (checkY >= Chunk.Height)
+            int maxY = Math.Min(surfaceHeight + 14, Chunk.Height - 1);
+            for (int checkY = surfaceHeight + 2; checkY <= maxY; checkY++)
             {
-                return false;
-            }
+                if (world != null)
+                {
+                    if (world.GetBlock(wx, checkY, wz).IsAnyLeaves())
+                    {
+                        return true;
+                    }
 
-            if (world != null)
-            {
-                return world.GetBlock(wx, checkY, wz).IsAnyLeaves();
-            }
+                    continue;
+                }
 
-            if (lx >= 0 && lx < Chunk.Width && lz >= 0 && lz < Chunk.Depth)
-            {
-                return chunk.GetBlockUnchecked(lx, checkY, lz).IsAnyLeaves();
+                if (lx >= 0 && lx < Chunk.Width && lz >= 0 && lz < Chunk.Depth)
+                {
+                    if (chunk.GetBlockUnchecked(lx, checkY, lz).IsAnyLeaves())
+                    {
+                        return true;
+                    }
+                }
             }
 
             return false;

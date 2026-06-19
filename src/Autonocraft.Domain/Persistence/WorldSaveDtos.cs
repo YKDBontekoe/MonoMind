@@ -14,9 +14,17 @@ namespace Autonocraft.Domain.Persistence
         public bool IsSource { get; set; }
     }
 
+    public sealed class ContainerModification
+    {
+        public int X { get; set; }
+        public int Y { get; set; }
+        public int Z { get; set; }
+        public List<InventorySlotSaveData> Slots { get; set; } = new();
+    }
+
     public sealed class WorldSaveData
     {
-        public int Version { get; set; } = 7;
+        public int Version { get; set; } = 8;
         public string SlotId { get; set; } = string.Empty;
         public string SlotName { get; set; } = string.Empty;
         public int Seed { get; set; } = 1337;
@@ -26,6 +34,7 @@ namespace Autonocraft.Domain.Persistence
         public TimeSaveData Time { get; set; } = new();
         public List<BlockModification> Modifications { get; set; } = new();
         public List<FluidModification> FluidModifications { get; set; } = new();
+        public List<ContainerModification> ContainerModifications { get; set; } = new();
         public List<string> UnlockedCraftingIds { get; set; } = new();
         public List<VillageSaveData> Villages { get; set; } = new();
         public List<VillagerSaveData> Villagers { get; set; } = new();
@@ -111,8 +120,8 @@ namespace Autonocraft.Domain.Persistence
 
     public sealed class TimeSaveData
     {
-        public float TimeOfDay { get; set; } = 0.3f;
-        public float TimeScale { get; set; } = 0.01f;
+        public float TimeOfDay { get; set; } = 0.15f;
+        public float TimeScale { get; set; } = DayNightCycle.DefaultTimeScale;
         public bool TimePaused { get; set; }
     }
 

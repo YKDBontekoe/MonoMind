@@ -58,6 +58,21 @@ namespace Autonocraft.World.Generation.Trees
                 return TreeSpecies.Oak();
             }
 
+            if (biome.Primary == BiomeType.Jungle)
+            {
+                if (treeTypeRand < 45)
+                {
+                    return TreeSpecies.Mahogany();
+                }
+
+                if (treeTypeRand < 65)
+                {
+                    return TreeSpecies.Palm();
+                }
+
+                return TreeSpecies.Oak();
+            }
+
             if (treeTypeRand < 33)
             {
                 return TreeSpecies.Birch();

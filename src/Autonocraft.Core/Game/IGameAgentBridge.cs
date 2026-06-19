@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Autonocraft.World;
 
 namespace Autonocraft.Core
@@ -20,12 +21,15 @@ namespace Autonocraft.Core
         string ExecuteDevCommand(string input);
         void SyncTimeFromHost();
         void SyncCameraFromPlayer();
-        void SaveScreenshot(string path);
+        Task<byte[]> RequestScreenshotAsync(string? savePath = null);
         void SimulateClick(MouseButton button);
         void RequestExit();
         void RequestOpenVillageUi();
         void RequestCloseVillageUi();
         void SetTimeOfDay(float value);
         void SetTimeScale(float scale);
+        void RequestLoadStructureGallery();
+        bool IsStructureGalleryWorld { get; }
+        WorldType CurrentWorldType { get; }
     }
 }

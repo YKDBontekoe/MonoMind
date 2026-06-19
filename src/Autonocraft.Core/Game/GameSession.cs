@@ -52,6 +52,7 @@ namespace Autonocraft.Core
         public WeatherSystem Weather => _weather;
         public InteractionAnimator InteractionAnimator => _interactionAnimator;
         public CraftingSystem Crafting => _craftingSystem;
+        public ChestSession Chest { get; } = new();
         public Ai.VillageAiOrchestrator VillageAi { get; private set; }
         public VillageEvents VillageEvents { get; } = new();
         public EarlyGameGuide EarlyGameGuide => _earlyGameGuide;
@@ -133,6 +134,7 @@ namespace Autonocraft.Core
 
         public void ReplaceWorld(int seed, WorldGenParams? parameters, Action<VoxelWorld>? onDispose = null)
         {
+            Chest.Close();
             _itemEntities.Clear();
             _nextItemEntityId = 1;
             onDispose?.Invoke(Grid);
@@ -207,6 +209,12 @@ namespace Autonocraft.Core
 
         public void UpdateNearbyClaimHint()
         {
+            if (Villages.GetActiveVillage(Player.Position) != null)
+            {
+                NearbyClaimHint = null;
+                return;
+            }
+
             const float moveRescanSq = 24f * 24f;
             const float idleRescanSq = 8f * 8f;
             float movedSq = Vector3.DistanceSquared(Player.Position, _lastClaimHintScanPos);
@@ -502,6 +510,8 @@ namespace Autonocraft.Core
             _renderContext.TimeOfDay = timeOfDay;
             _renderContext.WaterAnimTime = waterAnimTime;
             _renderContext.RenderDistance = renderDistance;
+            var streamProfile = ChunkStreamingProfile.FromMovement(Player.Position, Player.Velocity, Player.CreativeMode);
+            _renderContext.RestrictLod = streamProfile.FastTravel;
             _renderContext.Weather = Weather;
             return _renderContext;
         }
@@ -526,6 +536,7 @@ namespace Autonocraft.Core
                 },
                 Modifications = Grid.ExportModifications(),
                 FluidModifications = Grid.Fluids.ExportModifications(),
+                ContainerModifications = Grid.Containers.ExportModifications(),
                 UnlockedCraftingIds = Crafting.Journal.Export(),
                 Villages = Villages.ExportVillages(),
                 Villagers = Villagers.ExportVillagers(),

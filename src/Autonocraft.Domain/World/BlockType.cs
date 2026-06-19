@@ -123,7 +123,8 @@ namespace Autonocraft.Domain.World
         MossCarpet = 116,
         Lichen = 117,
         RedSand = 118,
-        Dripstone = 119
+        Dripstone = 119,
+        Chest = 120
     }
 
     public static class BlockTypeExtensions
@@ -251,6 +252,8 @@ namespace Autonocraft.Domain.World
                 or BlockType.StationSmoker or BlockType.StationStonecutter;
         }
 
+        public static bool IsChest(this BlockType type) => type == BlockType.Chest;
+
         public static float GetBreakTime(this BlockType type)
         {
             return type switch
@@ -349,6 +352,7 @@ namespace Autonocraft.Domain.World
                 BlockType.StationCrucible => 2.0f,
                 BlockType.StationSmoker => 2.0f,
                 BlockType.StationStonecutter => 2.0f,
+                BlockType.Chest => 1.2f,
                 BlockType.Water => 0f,
                 BlockType.Lava => 0f,
                 _ => type.IsSlab() ? 0.5f * type.GetBaseBlockType().GetBreakTime() : 0.6f

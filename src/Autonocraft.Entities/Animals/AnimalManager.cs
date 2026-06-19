@@ -279,7 +279,7 @@ namespace Autonocraft.Entities
             }
             int typeRoll = rng.Next(100);
 
-            if (biome == BiomeType.Forest)
+            if (biome == BiomeType.Forest || biome == BiomeType.Jungle)
             {
                 type = typeRoll switch
                 {

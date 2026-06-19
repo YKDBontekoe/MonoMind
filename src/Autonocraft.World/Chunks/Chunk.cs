@@ -17,7 +17,7 @@ namespace Autonocraft.World
     public partial class Chunk : IDisposable
     {
         public const int Width = 16;
-        public const int Height = 192;
+        public const int Height = 320;
         public const int Depth = 16;
         /// <summary>Rendered water tops sit below the block ceiling, similar to Minecraft source water.</summary>
         public const float WaterSurfaceHeight = 0.875f;
@@ -34,6 +34,7 @@ namespace Autonocraft.World
         internal volatile bool MeshStale;
         public volatile bool IsUnloaded;
         internal bool InitialLoadShellReported;
+        internal readonly List<PendingChestRegistration> PendingChests = new();
         public Chunk(int chunkX, int chunkZ)
         {
             ChunkX = chunkX;

@@ -287,7 +287,7 @@ namespace Autonocraft.Engine.Audio
 
                     if (isOutdoors)
                     {
-                        _forestTarget = (biome == BiomeType.Forest || biome == BiomeType.Plains) && isDay ? 0.75f : 0f;
+                        _forestTarget = (biome == BiomeType.Forest || biome == BiomeType.Jungle || biome == BiomeType.Plains) && isDay ? 0.75f : 0f;
                         _swampTarget = biome == BiomeType.Swamp ? 0.75f : 0f;
                         _desertTarget = biome == BiomeType.Desert ? 0.75f : 0f;
                     }

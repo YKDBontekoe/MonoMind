@@ -58,7 +58,9 @@ internal static class ActionHandler
             new OpenVillageAction(),
             new CloseVillageAction(),
             new CloseVillageUiAliasAction(),
-            new SummonSettlersAction()
+            new SummonSettlersAction(),
+            new LoadStructureGalleryAction(),
+            new ScreenshotAction()
         };
 
         var dict = new Dictionary<string, IAgentAction>(StringComparer.OrdinalIgnoreCase);

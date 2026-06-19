@@ -50,6 +50,7 @@ namespace Autonocraft.World
                 BlockType.IronBlock => new Vector3(0.72f, 0.74f, 0.78f),
                 BlockType.GoldBlock => new Vector3(0.92f, 0.78f, 0.22f),
                 BlockType.StationBench or BlockType.StationForge or BlockType.StationCrucible => new Vector3(0.62f, 0.48f, 0.32f),
+                BlockType.Chest => new Vector3(0.55f, 0.38f, 0.22f),
                 BlockType.Cactus => new Vector3(0.38f, 0.62f, 0.28f),
                 BlockType.TallGrass => new Vector3(0.48f, 0.72f, 0.32f),
                 BlockType.Flower => new Vector3(0.92f, 0.42f, 0.58f),

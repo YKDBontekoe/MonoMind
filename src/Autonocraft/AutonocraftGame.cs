@@ -8,6 +8,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Autonocraft.Diagnostics;
+using Autonocraft.Domain.Core;
 using Autonocraft.Engine;
 using Autonocraft.Engine.Animation;
 using Autonocraft.Engine.Audio;
@@ -44,8 +45,8 @@ namespace Autonocraft.Core
         private int? _renderDistanceOverride;
         private readonly GameSettings _settings;
         private const int DefaultSeed = WorldConstants.DefaultSeed;
-        private float _timeOfDay = 0.3f;
-        private float _timeScale = 0.01f;
+        private float _timeOfDay = 0.15f;
+        private float _timeScale = DayNightCycle.DefaultTimeScale;
         private float _waterAnimTime;
         private bool _playerWasInWater;
         private bool _playerWasInLava;
@@ -57,7 +58,11 @@ namespace Autonocraft.Core
         private float _lastDeltaTime;
 
         private readonly ConcurrentQueue<Action> _pendingActions = new ConcurrentQueue<Action>();
+        private readonly object _screenshotGate = new();
+        private TaskCompletionSource<byte[]>? _screenshotTcs;
+        private string? _screenshotSavePath;
         private readonly bool _runTests;
+        private readonly bool _structureGalleryCli;
 
         public GameSession Session => _session;
         public Camera Camera => _camera;
@@ -112,6 +117,81 @@ namespace Autonocraft.Core
             else _pendingActions.Enqueue(action);
         }
 
+        public Task<byte[]> RequestScreenshotAsync(string? savePath = null)
+        {
+            var tcs = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+            EnqueueAction(() =>
+            {
+                lock (_screenshotGate)
+                {
+                    if (_screenshotTcs != null)
+                    {
+                        tcs.TrySetException(new InvalidOperationException("Another screenshot capture is already pending."));
+                        return;
+                    }
+
+                    _screenshotTcs = tcs;
+                    _screenshotSavePath = savePath;
+                }
+            }, runImmediatelyInTests: false);
+
+            return tcs.Task;
+        }
+
+        private void ProcessPendingAgentActions()
+        {
+            while (_pendingActions.TryDequeue(out var action))
+            {
+                try
+                {
+                    action();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Agent Action Error] {ex.Message}");
+                }
+            }
+        }
+
+        private void FlushPendingScreenshot()
+        {
+            TaskCompletionSource<byte[]>? tcs;
+            string? savePath;
+            lock (_screenshotGate)
+            {
+                tcs = _screenshotTcs;
+                savePath = _screenshotSavePath;
+                _screenshotTcs = null;
+                _screenshotSavePath = null;
+            }
+
+            if (tcs == null)
+            {
+                return;
+            }
+
+            if (_graphics == null)
+            {
+                tcs.TrySetException(new InvalidOperationException("Screenshot capture is unavailable without a graphics device."));
+                return;
+            }
+
+            try
+            {
+                byte[] png = Agent.Handlers.ScreenshotCapture.CapturePng(GraphicsDevice);
+                if (!string.IsNullOrWhiteSpace(savePath))
+                {
+                    Agent.Handlers.ScreenshotCapture.SaveBytes(savePath, png);
+                }
+
+                tcs.TrySetResult(png);
+            }
+            catch (Exception ex)
+            {
+                tcs.TrySetException(ex);
+            }
+        }
+
         public void SyncTimeFromHost()
         {
             _timeOfDay = _hostContext.TimeOfDay;
@@ -163,6 +243,24 @@ namespace Autonocraft.Core
             _hostContext.TimePaused = _timePaused;
         }
 
+        public bool IsStructureGalleryWorld => _isStructureGalleryWorld;
+
+        public WorldType CurrentWorldType => _session.Grid.GenerationParams.WorldType;
+
+        public void RequestLoadStructureGallery()
+        {
+            if (_screens.State == GameState.WorldLoading)
+            {
+                return;
+            }
+
+            CloseAllGameplayOverlays();
+            ReleaseMouseCapture();
+            IsMouseVisible = true;
+            _input.IsMouseLocked = false;
+            StartStructureGalleryWorld();
+        }
+
         public void SetRenderDistance(int value)
         {
             _settings.RenderDistance = Math.Clamp(value, GameSettings.MinRenderDistance, GameSettings.MaxRenderDistance);
@@ -184,22 +282,24 @@ namespace Autonocraft.Core
         public const int DefaultSpawnX = GameConstants.DefaultSpawnX;
         public const int DefaultSpawnZ = GameConstants.DefaultSpawnZ;
 
-        public AutonocraftGame(bool runTests = false, bool skipMenu = false, int agentPort = 5001, bool debugMetrics = false, int? renderDistanceOverride = null)
+        public AutonocraftGame(bool runTests = false, bool skipMenu = false, bool structureGallery = false, int agentPort = 5001, bool debugMetrics = false, int? renderDistanceOverride = null)
         {
             _input = new InputManager(this);
             _screens = new ScreenManager();
             _runTests = runTests;
             _skipMenu = skipMenu;
+            _structureGalleryCli = structureGallery;
             _agentPort = agentPort;
             _renderDistanceOverride = renderDistanceOverride;
             if (debugMetrics && !RuntimeMetrics.FileLoggingEnabled)
             {
                 RuntimeMetrics.EnableFileLogging(fromCli: true);
             }
-            if (_skipMenu)
+            if (_skipMenu || _structureGalleryCli)
             {
                 _screens.State = GameState.WorldLoading;
             }
+
             if (!_runTests)
             {
                 _graphics = new GraphicsDeviceManager(this);
@@ -213,7 +313,7 @@ namespace Autonocraft.Core
                     GameSettings.MinRenderDistance,
                     GameSettings.MaxRenderDistance);
             }
-            else if (_skipMenu && IsCiEnvironment())
+            else if ((_skipMenu || _structureGalleryCli) && IsCiEnvironment())
             {
                 _settings.RenderDistance = Math.Min(_settings.RenderDistance, 4);
             }
@@ -323,8 +423,15 @@ namespace Autonocraft.Core
 
         private void TryActivateWindow() => _input.TryActivateWindow();
 
-        private void CloseAllGameplayOverlays() =>
+        private void CloseAllGameplayOverlays()
+        {
+            if (_session.Chest.IsOpen)
+            {
+                _session.Chest.Close();
+            }
+
             _screens.CloseAllGameplayOverlays(_session.Crafting);
+        }
 
         private void ApplyMouseCapture() => _input.ApplyMouseCapture();
 
@@ -403,7 +510,11 @@ namespace Autonocraft.Core
 
             UpdateMusicForState(_screens.State);
 
-            if (_skipMenu)
+            if (_structureGalleryCli)
+            {
+                StartStructureGalleryWorld();
+            }
+            else if (_skipMenu)
             {
                 _needsStarterSettlement = true;
                 StartWorldLoading();
@@ -460,7 +571,13 @@ namespace Autonocraft.Core
             finally
             {
                 updateStopwatch.Stop();
-                PerfCounters.RecordUpdate((float)updateStopwatch.Elapsed.TotalMilliseconds);
+                float updateMs = (float)updateStopwatch.Elapsed.TotalMilliseconds;
+                PerfCounters.RecordUpdate(updateMs);
+                if (updateMs > 500f)
+                {
+                    Console.WriteLine(
+                        $"[Perf] Slow update {updateMs:F0}ms chunks={PerfCounters.UpdateChunksMs:F1} fluids={PerfCounters.UpdateFluidsMs:F1} villages={PerfCounters.UpdateVillagesMs:F1} pendingMesh={PerfCounters.PendingMeshCount} managedMb={GC.GetTotalMemory(false) / (1024 * 1024):F0}");
+                }
             }
         }
 
@@ -594,28 +711,24 @@ namespace Autonocraft.Core
 
         public void SaveScreenshot(string path)
         {
-            if (_runTests) return;
-
-            int w = GraphicsDevice.PresentationParameters.BackBufferWidth;
-            int h = GraphicsDevice.PresentationParameters.BackBufferHeight;
-
-            Color[] backBuffer = new Color[w * h];
-            GraphicsDevice.GetBackBufferData(backBuffer);
-
-            using (var texture = new Texture2D(GraphicsDevice, w, h))
+            if (_graphics == null)
             {
-                texture.SetData(backBuffer);
-                using (var stream = File.Create(path))
-                {
-                    texture.SaveAsPng(stream, w, h);
-                }
+                throw new InvalidOperationException("Screenshot capture is unavailable without a graphics device.");
             }
+
+            Agent.Handlers.ScreenshotCapture.SavePng(GraphicsDevice, path);
         }
 
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
+                lock (_screenshotGate)
+                {
+                    _screenshotTcs?.TrySetException(new ObjectDisposedException(nameof(AutonocraftGame)));
+                    _screenshotTcs = null;
+                    _screenshotSavePath = null;
+                }
                 ReleaseMouseCapture();
                 IsMouseVisible = true;
                 PerformExitSave();

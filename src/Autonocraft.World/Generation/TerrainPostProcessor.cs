@@ -69,6 +69,7 @@ namespace Autonocraft.World
             }
 
             SmoothLandHeights(heights, drafts, passes: 5, maxSlope: 0.85f);
+            BroadenMountainHeights(heights, drafts, rawHeights, passes: 4, maxSlope: 2.4f);
             SmoothCoastalHeights(heights, drafts, passes: 3);
             EnforcePlayableSlope(heights, drafts, maxStep: 1f);
 
@@ -85,7 +86,9 @@ namespace Autonocraft.World
                 {
                     int px = lx + Padding;
                     int pz = lz + Padding;
-                    columns[lx, lz] = FinalizeColumn(drafts[px, pz], heights[px, pz], heights, px, pz);
+                    int worldX = originX + px;
+                    int worldZ = originZ + pz;
+                    columns[lx, lz] = FinalizeColumn(drafts[px, pz], heights[px, pz], heights, px, pz, worldX, worldZ);
                 }
             }
         }
@@ -127,6 +130,71 @@ namespace Autonocraft.World
                         void AccumulateNeighbor(int nx, int nz, ref float sum, ref float w)
                         {
                             if (!IsSmoothableLand(drafts[nx, nz]))
+                            {
+                                return;
+                            }
+
+                            sum += heights[nx, nz];
+                            w += 1f;
+                        }
+                    }
+                }
+
+                SwapHeightBuffers(ref heights, ref next);
+            }
+
+            if (!ReferenceEquals(heights, _heightsScratch))
+            {
+                Array.Copy(heights, _heightsScratch!, heights.Length);
+            }
+        }
+
+        private static void BroadenMountainHeights(
+            float[,] heights,
+            TerrainColumn[,] drafts,
+            float[,] rawHeights,
+            int passes,
+            float maxSlope)
+        {
+            int width = heights.GetLength(0);
+            int depth = heights.GetLength(1);
+            var next = _smoothScratch!;
+
+            for (int pass = 0; pass < passes; pass++)
+            {
+                Array.Copy(heights, next, heights.Length);
+                for (int z = 1; z < depth - 1; z++)
+                {
+                    for (int x = 1; x < width - 1; x++)
+                    {
+                        if (!IsMountainTerrain(drafts[x, z]))
+                        {
+                            continue;
+                        }
+
+                        float total = heights[x, z] * 3f;
+                        float weight = 3f;
+
+                        AccumulateMountainNeighbor(x - 1, z, ref total, ref weight);
+                        AccumulateMountainNeighbor(x + 1, z, ref total, ref weight);
+                        AccumulateMountainNeighbor(x, z - 1, ref total, ref weight);
+                        AccumulateMountainNeighbor(x, z + 1, ref total, ref weight);
+                        AccumulateMountainNeighbor(x - 1, z - 1, ref total, ref weight);
+                        AccumulateMountainNeighbor(x + 1, z - 1, ref total, ref weight);
+                        AccumulateMountainNeighbor(x - 1, z + 1, ref total, ref weight);
+                        AccumulateMountainNeighbor(x + 1, z + 1, ref total, ref weight);
+
+                        float target = total / weight;
+                        float delta = Math.Clamp(target - heights[x, z], -maxSlope, maxSlope);
+                        float smoothed = heights[x, z] + delta;
+
+                        float cliffPreserve = MathF.Abs(rawHeights[x, z] - smoothed);
+                        float blend = cliffPreserve > 2.5f ? 0.62f : 0.28f;
+                        next[x, z] = Lerp(smoothed, rawHeights[x, z], blend);
+
+                        void AccumulateMountainNeighbor(int nx, int nz, ref float sum, ref float w)
+                        {
+                            if (!IsMountainTerrain(drafts[nx, nz]))
                             {
                                 return;
                             }
@@ -446,7 +514,14 @@ namespace Autonocraft.World
             return (bestX, bestZ);
         }
 
-        private static TerrainColumn FinalizeColumn(TerrainColumn draft, float height, float[,] heights, int px, int pz)
+        private static TerrainColumn FinalizeColumn(
+            TerrainColumn draft,
+            float height,
+            float[,] heights,
+            int px,
+            int pz,
+            int worldX,
+            int worldZ)
         {
             int surfaceHeight = Math.Clamp((int)MathF.Round(height), 1, Chunk.Height - 12);
             bool isRiver = draft.IsRiver;
@@ -483,6 +558,10 @@ namespace Autonocraft.World
                 surfaceHeight = Math.Clamp(slabHeight, 1, Chunk.Height - 12);
                 surface = slabType;
             }
+            else if (draft.Biome.Primary is BiomeType.Mountains or BiomeType.SnowyPeaks)
+            {
+                ApplyMountainSurface(draft, height, heights, px, pz, worldX, worldZ, ref surface, ref subsurface);
+            }
 
             return draft with
             {
@@ -493,10 +572,120 @@ namespace Autonocraft.World
             };
         }
 
+        private static void ApplyMountainSurface(
+            TerrainColumn draft,
+            float height,
+            float[,] heights,
+            int px,
+            int pz,
+            int worldX,
+            int worldZ,
+            ref BlockType surface,
+            ref BlockType subsurface)
+        {
+            float snowLine = WorldConstants.SeaLevel + WorldConstants.SnowLineOffset;
+
+            if (height > snowLine)
+            {
+                surface = BlockType.Snow;
+                subsurface = BlockType.Stone;
+
+                if (draft.Biome.Primary == BiomeType.SnowyPeaks && height > snowLine + 6f)
+                {
+                    uint hash = HashCoordinates(worldX, worldZ);
+                    if ((hash & 0x7) <= 1)
+                    {
+                        surface = BlockType.Ice;
+                        subsurface = BlockType.Ice;
+                    }
+                }
+
+                return;
+            }
+
+            if (IsMountainCliffFace(heights, px, pz, height))
+            {
+                surface = BlockType.Stone;
+                subsurface = BlockType.Stone;
+                return;
+            }
+
+            if (height > WorldConstants.SeaLevel + 12f && IsMountainScreeSlope(heights, px, pz, height))
+            {
+                surface = BlockType.Gravel;
+                subsurface = BlockType.Stone;
+            }
+        }
+
+        private static bool IsMountainCliffFace(float[,] heights, int x, int z, float height)
+        {
+            int width = heights.GetLength(0);
+            int depth = heights.GetLength(1);
+            int steepNeighbors = 0;
+
+            for (int dz = -1; dz <= 1; dz++)
+            {
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    if (dx == 0 && dz == 0)
+                    {
+                        continue;
+                    }
+
+                    int nx = x + dx;
+                    int nz = z + dz;
+                    if (nx < 0 || nz < 0 || nx >= width || nz >= depth)
+                    {
+                        continue;
+                    }
+
+                    if (MathF.Abs(heights[nx, nz] - height) >= TerrainSlabRules.SteepHeightDelta)
+                    {
+                        steepNeighbors++;
+                    }
+                }
+            }
+
+            return steepNeighbors >= 2;
+        }
+
+        private static bool IsMountainScreeSlope(float[,] heights, int x, int z, float height)
+        {
+            int width = heights.GetLength(0);
+            int depth = heights.GetLength(1);
+            float maxDrop = 0f;
+
+            ReadOnlySpan<(int dx, int dz)> offsets = stackalloc (int, int)[]
+            {
+                (-1, 0), (1, 0), (0, -1), (0, 1)
+            };
+
+            foreach (var (dx, dz) in offsets)
+            {
+                int nx = x + dx;
+                int nz = z + dz;
+                if (nx < 0 || nz < 0 || nx >= width || nz >= depth)
+                {
+                    continue;
+                }
+
+                float drop = height - heights[nx, nz];
+                maxDrop = MathF.Max(maxDrop, drop);
+            }
+
+            return maxDrop >= 1.1f && maxDrop < TerrainSlabRules.SteepHeightDelta + 0.5f;
+        }
+
+        private static bool IsMountainTerrain(TerrainColumn column)
+        {
+            return column.Biome.Primary is BiomeType.Mountains or BiomeType.SnowyPeaks;
+        }
+
         private static bool IsSmoothableLand(TerrainColumn column)
         {
             return column.Biome.Primary is BiomeType.Plains
                 or BiomeType.Forest
+                or BiomeType.Jungle
                 or BiomeType.Swamp
                 or BiomeType.Desert
                 or BiomeType.Beach;
@@ -517,6 +706,7 @@ namespace Autonocraft.World
         {
             return column.Biome.Primary is BiomeType.Plains
                 or BiomeType.Forest
+                or BiomeType.Jungle
                 or BiomeType.Mountains
                 or BiomeType.SnowyPeaks
                 or BiomeType.Swamp
@@ -526,7 +716,7 @@ namespace Autonocraft.World
 
         private static bool IsPlayableLand(TerrainColumn column)
         {
-            return column.Biome.Primary is BiomeType.Plains or BiomeType.Forest or BiomeType.Swamp
+            return column.Biome.Primary is BiomeType.Plains or BiomeType.Forest or BiomeType.Jungle or BiomeType.Swamp
                 or BiomeType.Desert or BiomeType.Badlands or BiomeType.BorealTaiga;
         }
 
@@ -556,7 +746,8 @@ namespace Autonocraft.World
         private static bool IsRiverHead(int wx, int wz, TerrainColumn column, float[,] rawHeights, int x, int z)
         {
             float height = rawHeights[x, z];
-            if (height < WorldConstants.SeaLevel + 16f || height > WorldConstants.SeaLevel + 52f)
+            if (height < WorldConstants.SeaLevel + WorldConstants.RiverHeadMinOffset
+                || height > WorldConstants.SeaLevel + WorldConstants.RiverHeadMaxOffset)
             {
                 return false;
             }

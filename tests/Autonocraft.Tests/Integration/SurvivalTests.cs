@@ -3,6 +3,7 @@ using System.Linq;
 using Autonocraft.Core;
 using Autonocraft.Crafting;
 using Autonocraft.Domain.Core;
+using Autonocraft.Domain.Core;
 using Autonocraft.Entities;
 using Autonocraft.Items;
 using Autonocraft.World;
@@ -132,7 +133,7 @@ public static class SurvivalTests
         spawner.Update(0f, 0.9f, false, world, player, animals);
         int wolvesAtNight = animals.Animals.Count(a => a.Type == AnimalType.Wolf);
 
-        spawner.Update(0f, 0.5f, false, world, player, animals);
+        spawner.Update(0f, DayNightCycle.Noon, false, world, player, animals);
         int wolvesAtNoon = animals.Animals.Count(a => a.Type == AnimalType.Wolf);
 
         if (wolvesAtNight <= 0)

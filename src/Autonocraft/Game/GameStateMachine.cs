@@ -17,9 +17,8 @@ namespace Autonocraft.Core
         private bool _agentServerStarted;
         private int _agentPort = 5001;
         private float _spawnWarmupRemaining;
-        private bool _pendingAutoOpenPeopleTab;
         private bool _fastLoadingGraphicsApplied;
-        private float _claimHintTimer = 10f;
+        private float _claimHintTimer;
         private const float SpawnWarmupSeconds = 15f;
 
         private float SpawnWarmupProgress =>
@@ -31,7 +30,7 @@ namespace Autonocraft.Core
 
         private void ConfigureAgentSessionGraphics()
         {
-            if (!_skipMenu || _graphics == null)
+            if ((!_skipMenu && !_structureGalleryCli) || _graphics == null)
             {
                 return;
             }
@@ -87,7 +86,13 @@ namespace Autonocraft.Core
             CloseAllGameplayOverlays();
 
             bool fromSave = _loadingFromSave;
-            if (_needsStarterSettlement)
+            if (_isStructureGalleryWorld)
+            {
+                PlacePlayerOnSurface();
+                _session.VillageHudHint = "Structure gallery — fly around to inspect every world-gen structure";
+                _session.Crafting.ShowCraftingHint = false;
+            }
+            else if (_needsStarterSettlement)
             {
                 _needsStarterSettlement = false;
                 PrepareNewWorldSettlement();
@@ -101,12 +106,12 @@ namespace Autonocraft.Core
                 _session.Villages.RepairAllVillages(_session.Grid);
             }
 
-            if (!fromSave)
+            if (!_isStructureGalleryWorld && !fromSave)
             {
                 _session.VillageHudHint = "V — Town board · Recruit villagers and queue buildings";
                 _session.Crafting.ShowCraftingHint = false;
             }
-            else
+            else if (fromSave && !_isStructureGalleryWorld)
             {
                 SyncCameraFromPlayer();
             }
@@ -117,15 +122,15 @@ namespace Autonocraft.Core
 
             _loadingFromSave = false;
             _spawnWarmupRemaining = SpawnWarmupSeconds;
+            _claimHintTimer = 0f;
 
             _session.BlockInteraction.BindAnimator(_session.InteractionAnimator);
 
-            if (!fromSave)
+            if (!fromSave && !_isStructureGalleryWorld)
             {
                 _session.HudToast.Show(
                     "Founder's Hamlet is ready. Press V → PEOPLE tab to assign jobs to your 2 settlers.",
                     durationSeconds: 8f);
-                _pendingAutoOpenPeopleTab = true;
             }
 
             _input.IsMouseLocked = true;
@@ -169,6 +174,7 @@ namespace Autonocraft.Core
         {
             CloseAllGameplayOverlays();
             SaveWorld(sync: true);
+            _isStructureGalleryWorld = false;
             _screens.SnapOverlaysVisible();
             _screens.SaveSlotScreen!.RefreshSlots();
             ReleaseMouseCapture();
@@ -181,6 +187,8 @@ namespace Autonocraft.Core
         private void UpdateFrame(GameTime gameTime)
         {
             float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+            ProcessPendingAgentActions();
 
             _screens.HandleStateTransition(
                 () => _input.ReleaseMouseOnLeavePlaying(),
@@ -273,6 +281,10 @@ namespace Autonocraft.Core
             if (_screens.SaveSlotScreen.NewWorldRequested)
             {
                 OpenNewWorldSetup();
+            }
+            else if (_screens.SaveSlotScreen.StructureGalleryRequested)
+            {
+                StartStructureGalleryWorld();
             }
             else if (_screens.SaveSlotScreen.LoadRequested && _screens.SaveSlotScreen.SelectedSlotId != null)
             {
@@ -457,6 +469,16 @@ namespace Autonocraft.Core
             float warmup = SpawnWarmupProgress;
             int targetTerrainPerFrame = VoxelWorld.GetRuntimeTerrainChunksPerFrame(_settings.RenderDistance);
             int targetMeshPerFrame = VoxelWorld.GetRuntimeMeshChunksPerFrame(_settings.RenderDistance);
+            var streamProfile = ChunkStreamingProfile.FromMovement(
+                _session.Player.Position,
+                _session.Player.Velocity,
+                _session.Player.CreativeMode);
+            if (streamProfile.FastTravel)
+            {
+                targetTerrainPerFrame = Math.Min(targetTerrainPerFrame + 4, 14);
+                targetMeshPerFrame = Math.Min(targetMeshPerFrame + 4, 14);
+            }
+
             int terrainPerFrame = inSpawnWarmup
                 ? Math.Max(1, (int)MathF.Round(1f + (targetTerrainPerFrame - 1f) * warmup))
                 : targetTerrainPerFrame;
@@ -465,6 +487,7 @@ namespace Autonocraft.Core
                 : targetMeshPerFrame;
 
             _session.DeferAmbientSpawns = inSpawnWarmup && warmup < 0.7f;
+            _session.Grid.GameplayMeshThrottle = inSpawnWarmup ? warmup : 1f;
 
             var swChunks = System.Diagnostics.Stopwatch.StartNew();
             _session.UpdateChunks(GraphicsDevice, _camera.Position, _settings.RenderDistance, terrainPerFrame, meshPerFrame);
@@ -484,25 +507,30 @@ namespace Autonocraft.Core
             if (!inSpawnWarmup || warmup >= 0.6f)
             {
                 _session.UpdateVillages(deltaTime, _timeOfDay);
-                _session.UpdateSurvival(deltaTime, _timeOfDay, inSpawnWarmup);
-                _session.UpdateEarlyGuide(deltaTime, _timeOfDay, _screens.VillageScreen?.IsOpen == true);
-                _claimHintTimer += deltaTime;
-                if (_claimHintTimer >= 10f)
+                if (!_isStructureGalleryWorld)
                 {
-                    _claimHintTimer = 0f;
-                    _session.UpdateNearbyClaimHint();
-                }
+                    _session.UpdateSurvival(deltaTime, _timeOfDay, inSpawnWarmup);
+                    _session.UpdateEarlyGuide(deltaTime, _timeOfDay, _screens.VillageScreen?.IsOpen == true);
 
-                _session.UpdateVillageHudHint(_session.Player.CreativeMode);
+                    _claimHintTimer += deltaTime;
+                    if (_claimHintTimer >= 30f)
+                    {
+                        _claimHintTimer = 0f;
+                        var swClaim = System.Diagnostics.Stopwatch.StartNew();
+                        _session.UpdateNearbyClaimHint();
+                        swClaim.Stop();
+                        if (swClaim.Elapsed.TotalMilliseconds > 50f)
+                        {
+                            Console.WriteLine(
+                                $"[Perf] Slow claim scan {swClaim.Elapsed.TotalMilliseconds:F0}ms managedMb={GC.GetTotalMemory(false) / (1024 * 1024):F0}");
+                        }
+                    }
+
+                    _session.UpdateVillageHudHint(_session.Player.CreativeMode);
+                }
             }
             swVillages.Stop();
             PerfCounters.UpdateVillagesMs = (float)swVillages.Elapsed.TotalMilliseconds;
-
-            if (_pendingAutoOpenPeopleTab && !inSpawnWarmup && _session.Player.Stats.EarlyGuideStage <= 1)
-            {
-                _pendingAutoOpenPeopleTab = false;
-                OpenVillageUiToPeopleTab();
-            }
         }
     }
 }

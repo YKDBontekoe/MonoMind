@@ -1,4 +1,6 @@
 using System;
+using Autonocraft.Domain.World;
+using Autonocraft.World.Containers;
 
 namespace Autonocraft.World.Structures
 {
@@ -6,11 +8,16 @@ namespace Autonocraft.World.Structures
     {
         private const int SmallCellSize = 96;
         private const int MediumCellSize = 192;
+        private const int LargeCellSize = 384;
+        private const int MegaCellSize = 640;
         private const int SmallRarity = 900;
         private const int MediumRarity = 5000;
+        private const int LargeRarity = 12000;
+        private const int MegaRarity = 32000;
         private const int SpawnRemainder = 37;
         private const int MaxSearchRadius = 12;
         private const int MaxFlatnessDelta = 2;
+        private const int MegaFlatnessDelta = 6;
 
         private readonly int _seed;
         private readonly WorldGenParams _params;
@@ -24,15 +31,24 @@ namespace Autonocraft.World.Structures
         public void PlaceStructures(
             Chunk chunk,
             TerrainColumn[,] columns,
-            Func<int, int, TerrainColumn> previewColumn)
+            Func<int, int, TerrainColumn> previewColumn,
+            VoxelWorld? world = null)
         {
+            if (StructureGallery.IsGalleryWorld(_params.WorldType))
+            {
+                PlaceGalleryGrid(chunk, world);
+                return;
+            }
+
             if (!_params.EnableStructures)
             {
                 return;
             }
 
-            PlaceTier(chunk, columns, previewColumn, StructureTier.Small, SmallCellSize, SmallRarity, 11);
-            PlaceTier(chunk, columns, previewColumn, StructureTier.Medium, MediumCellSize, MediumRarity, 29);
+            PlaceTier(chunk, columns, previewColumn, StructureTier.Small, SmallCellSize, SmallRarity, 11, MaxFlatnessDelta, world);
+            PlaceTier(chunk, columns, previewColumn, StructureTier.Medium, MediumCellSize, MediumRarity, 29, MaxFlatnessDelta, world);
+            PlaceTier(chunk, columns, previewColumn, StructureTier.Large, LargeCellSize, LargeRarity, 53, MaxFlatnessDelta + 1, world);
+            PlaceTier(chunk, columns, previewColumn, StructureTier.Mega, MegaCellSize, MegaRarity, 71, MegaFlatnessDelta, world);
         }
 
         private void PlaceTier(
@@ -42,7 +58,9 @@ namespace Autonocraft.World.Structures
             StructureTier tier,
             int cellSize,
             int baseRarity,
-            int salt)
+            int salt,
+            int maxFlatnessDelta,
+            VoxelWorld? world)
         {
             float density = Math.Max(0.1f, _params.StructureDensityScale);
             int rarity = Math.Max(64, (int)(baseRarity / density));
@@ -83,12 +101,35 @@ namespace Autonocraft.World.Structures
                     }
 
                     var definition = candidates[hash % candidates.Count];
-                    if (!IsFlat(anchorX, anchorZ, definition.Template, chunk, columns, previewColumn))
+                    int flatRadius = definition.Template.FootprintRadius;
+                    if (!StructureCoords.ChunkOverlapsFootprint(
+                            chunkMinX, chunkMaxX, chunkMinZ, chunkMaxZ, anchorX, anchorZ, flatRadius))
                     {
                         continue;
                     }
 
-                    PlaceInChunk(chunk, anchorX, anchorZ, anchorColumn.SurfaceHeight, definition);
+                    if (!StructurePlacementKeys.IsAnchorFlat(
+                            _seed,
+                            anchorX,
+                            anchorZ,
+                            salt,
+                            flatRadius,
+                            maxFlatnessDelta,
+                            () => IsFlat(anchorX, anchorZ, flatRadius, chunk, columns, previewColumn, maxFlatnessDelta)))
+                    {
+                        continue;
+                    }
+
+                    int variantSalt = StructurePlacementKeys.VariantSaltForStructure(
+                        _seed, anchorX, anchorZ, definition.Id, hash);
+                    var template = definition.ResolveTemplate(
+                        _seed,
+                        anchorX,
+                        anchorZ,
+                        variantSalt,
+                        anchorColumn.Biome.Primary);
+
+                    PlaceInChunk(chunk, anchorX, anchorZ, anchorColumn.SurfaceHeight, template, world, _seed);
                 }
             }
         }
@@ -124,18 +165,19 @@ namespace Autonocraft.World.Structures
         private static bool IsFlat(
             int anchorX,
             int anchorZ,
-            StructureTemplate template,
+            int radius,
             Chunk chunk,
             TerrainColumn[,] columns,
-            Func<int, int, TerrainColumn> previewColumn)
+            Func<int, int, TerrainColumn> previewColumn,
+            int maxFlatnessDelta)
         {
             var center = SampleColumn(anchorX, anchorZ, chunk, columns, previewColumn);
             int baseHeight = center.SurfaceHeight;
-            int radius = template.FootprintRadius;
+            int step = radius > 24 ? 4 : radius > 12 ? 2 : 1;
 
-            for (int dx = -radius; dx <= radius; dx++)
+            for (int dx = -radius; dx <= radius; dx += step)
             {
-                for (int dz = -radius; dz <= radius; dz++)
+                for (int dz = -radius; dz <= radius; dz += step)
                 {
                     var column = SampleColumn(anchorX + dx, anchorZ + dz, chunk, columns, previewColumn);
                     if (!IsValidAnchorColumn(column))
@@ -143,7 +185,7 @@ namespace Autonocraft.World.Structures
                         return false;
                     }
 
-                    if (Math.Abs(column.SurfaceHeight - baseHeight) > MaxFlatnessDelta)
+                    if (Math.Abs(column.SurfaceHeight - baseHeight) > maxFlatnessDelta)
                     {
                         return false;
                     }
@@ -158,12 +200,18 @@ namespace Autonocraft.World.Structures
             int anchorX,
             int anchorZ,
             int surfaceHeight,
-            StructureDefinition definition)
+            StructureTemplate template,
+            VoxelWorld? world,
+            int worldSeed)
         {
             int chunkMinX = chunk.ChunkX * Chunk.Width;
             int chunkMinZ = chunk.ChunkZ * Chunk.Depth;
 
-            foreach (var block in definition.Template.Blocks)
+            IEnumerable<StructureBlock> blocks = template.ChunkIndex != null
+                ? template.ChunkIndex.EnumerateForChunk(chunkMinX, chunkMinZ, anchorX, anchorZ)
+                : template.Blocks;
+
+            foreach (var block in blocks)
             {
                 int wx = anchorX + block.Dx;
                 int wz = anchorZ + block.Dz;
@@ -183,17 +231,89 @@ namespace Autonocraft.World.Structures
                 }
 
                 BlockType current = chunk.GetBlock(lx, wy, lz);
-                if (!CanReplace(current, block.Mode))
+                if (!CanReplace(current, block.Type, block.Mode))
                 {
                     continue;
                 }
 
                 chunk.SetBlock(lx, wy, lz, block.Type);
             }
+
+            if (world == null || template.Chests.Length == 0)
+            {
+                if (world == null)
+                {
+                    QueueChestRegistrations(chunk, anchorX, anchorZ, surfaceHeight, template, worldSeed);
+                }
+
+                return;
+            }
+
+            foreach (var chest in template.Chests)
+            {
+                int wx = anchorX + chest.Dx;
+                int wy = surfaceHeight + chest.Dy;
+                int wz = anchorZ + chest.Dz;
+                int lx = wx - chunkMinX;
+                int lz = wz - chunkMinZ;
+                if (lx < 0 || lx >= Chunk.Width || lz < 0 || lz >= Chunk.Depth || wy <= 0 || wy >= Chunk.Height)
+                {
+                    continue;
+                }
+
+                int rollSeed = StructureContainerSystem.RollSeed(worldSeed, wx, wy, wz, chest.LootTableId);
+                world.Containers.RegisterChest(wx, wy, wz, chest.LootTableId, rollSeed);
+            }
         }
 
-        private static bool CanReplace(BlockType current, StructurePlacementMode mode)
+        private static void QueueChestRegistrations(
+            Chunk chunk,
+            int anchorX,
+            int anchorZ,
+            int surfaceHeight,
+            StructureTemplate template,
+            int worldSeed)
         {
+            int chunkMinX = chunk.ChunkX * Chunk.Width;
+            int chunkMinZ = chunk.ChunkZ * Chunk.Depth;
+
+            foreach (var chest in template.Chests)
+            {
+                int wx = anchorX + chest.Dx;
+                int wy = surfaceHeight + chest.Dy;
+                int wz = anchorZ + chest.Dz;
+                int lx = wx - chunkMinX;
+                int lz = wz - chunkMinZ;
+
+                if (lx < 0 || lx >= Chunk.Width || lz < 0 || lz >= Chunk.Depth || wy <= 0 || wy >= Chunk.Height)
+                {
+                    continue;
+                }
+
+                int rollSeed = StructureContainerSystem.RollSeed(worldSeed, wx, wy, wz, chest.LootTableId);
+                chunk.PendingChests.Add(new PendingChestRegistration
+                {
+                    LocalX = lx,
+                    LocalY = wy,
+                    LocalZ = lz,
+                    LootTableId = chest.LootTableId,
+                    RollSeed = rollSeed
+                });
+            }
+        }
+
+        private static bool CanReplace(BlockType current, BlockType target, StructurePlacementMode mode)
+        {
+            if (mode == StructurePlacementMode.ReplaceAll)
+            {
+                return true;
+            }
+
+            if (target == BlockType.Air)
+            {
+                return current != BlockType.Air;
+            }
+
             if (mode == StructurePlacementMode.AirOnly)
             {
                 return current == BlockType.Air;
@@ -231,6 +351,33 @@ namespace Autonocraft.World.Structures
                 h *= 1274126177;
                 h ^= h >> 16;
                 return Math.Abs(h);
+            }
+        }
+
+        private void PlaceGalleryGrid(Chunk chunk, VoxelWorld? world)
+        {
+            int chunkMinX = chunk.ChunkX * Chunk.Width;
+            int chunkMinZ = chunk.ChunkZ * Chunk.Depth;
+
+            foreach (var placement in StructureGallery.GetPlacements())
+            {
+                int radius = placement.FootprintRadius;
+                int gridX = placement.AnchorX;
+                int gridZ = placement.AnchorZ;
+
+                if (gridX + radius >= chunkMinX && gridX - radius < chunkMinX + Chunk.Width &&
+                    gridZ + radius >= chunkMinZ && gridZ - radius < chunkMinZ + Chunk.Depth)
+                {
+                    var definition = StructureRegistry.All[placement.Index];
+                    int variantSalt = StructureGallery.VariantSaltFor(placement.Index);
+                    var template = definition.ResolveTemplate(
+                        StructureGallery.Seed,
+                        gridX,
+                        gridZ,
+                        variantSalt,
+                        BiomeType.Plains);
+                    PlaceInChunk(chunk, gridX, gridZ, placement.SurfaceY, template, world, StructureGallery.Seed);
+                }
             }
         }
     }

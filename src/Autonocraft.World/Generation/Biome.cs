@@ -6,6 +6,7 @@ namespace Autonocraft.World
         Beach,
         Plains,
         Forest,
+        Jungle,
         Desert,
         Mountains,
         SnowyPeaks,
@@ -82,6 +83,19 @@ namespace Autonocraft.World
                 AllowFlowers = true,
                 AllowUnderstory = true
             },
+            BiomeType.Jungle => new BiomeProfile
+            {
+                Type = type,
+                BaseHeight = WorldConstants.SeaLevel + 7,
+                HeightAmplitude = 14f,
+                SurfaceBlock = BlockType.Grass,
+                SubsurfaceBlock = BlockType.Dirt,
+                FillerBlock = BlockType.Stone,
+                TreeDensity = 0.78f,
+                FloraDensity = 1.0f,
+                AllowTallGrass = true,
+                AllowUnderstory = true
+            },
             BiomeType.Desert => new BiomeProfile
             {
                 Type = type,
@@ -97,9 +111,9 @@ namespace Autonocraft.World
             BiomeType.Mountains => new BiomeProfile
             {
                 Type = type,
-                BaseHeight = WorldConstants.SeaLevel + 18,
-                HeightAmplitude = 42f,
-                RidgeWeight = 0.75f,
+                BaseHeight = WorldConstants.SeaLevel + 28,
+                HeightAmplitude = 95f,
+                RidgeWeight = 0.68f,
                 SurfaceBlock = BlockType.Stone,
                 SubsurfaceBlock = BlockType.Stone,
                 FillerBlock = BlockType.Stone,
@@ -109,9 +123,9 @@ namespace Autonocraft.World
             BiomeType.SnowyPeaks => new BiomeProfile
             {
                 Type = type,
-                BaseHeight = WorldConstants.SeaLevel + 28,
-                HeightAmplitude = 52f,
-                RidgeWeight = 0.9f,
+                BaseHeight = WorldConstants.SeaLevel + 48,
+                HeightAmplitude = 125f,
+                RidgeWeight = 0.78f,
                 SurfaceBlock = BlockType.Snow,
                 SubsurfaceBlock = BlockType.Stone,
                 FillerBlock = BlockType.Stone,
@@ -171,9 +185,9 @@ namespace Autonocraft.World
             BiomeType.Volcanic => new BiomeProfile
             {
                 Type = type,
-                BaseHeight = WorldConstants.SeaLevel + 14,
-                HeightAmplitude = 20f,
-                RidgeWeight = 0.45f,
+                BaseHeight = WorldConstants.SeaLevel + 32,
+                HeightAmplitude = 58f,
+                RidgeWeight = 0.70f,
                 SurfaceBlock = BlockType.Basalt,
                 SubsurfaceBlock = BlockType.Basalt,
                 FillerBlock = BlockType.Obsidian,

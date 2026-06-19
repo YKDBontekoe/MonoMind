@@ -7,6 +7,7 @@ namespace Autonocraft.Domain.Rendering
         ValidPlace,
         InvalidPlace,
         InteractStation,
+        InteractChest,
         Flash,
         Melee
     }

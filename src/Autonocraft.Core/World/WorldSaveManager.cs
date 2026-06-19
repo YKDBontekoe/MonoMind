@@ -144,7 +144,7 @@ namespace Autonocraft.World
         {
             return new WorldSaveData
             {
-                Version = 7,
+                Version = 8,
                 SlotId = snapshot.SlotId,
                 SlotName = snapshot.SlotName,
                 Seed = snapshot.Seed,
@@ -153,6 +153,7 @@ namespace Autonocraft.World
                 Time = snapshot.Time,
                 Modifications = snapshot.Modifications,
                 FluidModifications = snapshot.FluidModifications,
+                ContainerModifications = snapshot.ContainerModifications,
                 UnlockedCraftingIds = snapshot.UnlockedCraftingIds,
                 Villages = snapshot.Villages,
                 Villagers = snapshot.Villagers,
@@ -189,6 +190,7 @@ namespace Autonocraft.World
             data.SlotId = slotId;
             data.Modifications ??= new List<BlockModification>();
             data.FluidModifications ??= new List<FluidModification>();
+            data.ContainerModifications ??= new List<ContainerModification>();
             data.UnlockedCraftingIds ??= new List<string>();
             data.Villages ??= new List<VillageSaveData>();
             data.Villagers ??= new List<VillagerSaveData>();
@@ -561,6 +563,12 @@ namespace Autonocraft.World
                 }
 
                 data.Version = 7;
+            }
+
+            if (data.Version < 8)
+            {
+                data.ContainerModifications ??= new List<ContainerModification>();
+                data.Version = 8;
             }
         }
 

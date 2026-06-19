@@ -1,4 +1,5 @@
 using System;
+using Autonocraft.Domain.Core;
 
 namespace Autonocraft.Core.DevCommands.Commands
 {
@@ -37,26 +38,26 @@ namespace Autonocraft.Core.DevCommands.Commands
 
             if (DevCommandParser.EqualsIgnoreCase(subSpan, "dawn"))
             {
-                host.SetTimeOfDay(0.25f);
-                return "Time set to dawn (0.25)";
+                host.SetTimeOfDay(DayNightCycle.Sunrise + 0.02f);
+                return $"Time set to dawn ({host.TimeOfDay:F3})";
             }
 
             if (DevCommandParser.EqualsIgnoreCase(subSpan, "noon"))
             {
-                host.SetTimeOfDay(0.5f);
-                return "Time set to noon (0.5)";
+                host.SetTimeOfDay(DayNightCycle.Noon);
+                return $"Time set to noon ({host.TimeOfDay:F3})";
             }
 
             if (DevCommandParser.EqualsIgnoreCase(subSpan, "dusk"))
             {
-                host.SetTimeOfDay(0.75f);
-                return "Time set to dusk (0.75)";
+                host.SetTimeOfDay(DayNightCycle.Sunset - 0.02f);
+                return $"Time set to dusk ({host.TimeOfDay:F3})";
             }
 
             if (DevCommandParser.EqualsIgnoreCase(subSpan, "midnight"))
             {
-                host.SetTimeOfDay(0.0f);
-                return "Time set to midnight (0.0)";
+                host.SetTimeOfDay(DayNightCycle.Midnight);
+                return $"Time set to midnight ({host.TimeOfDay:F3})";
             }
 
             if (DevCommandParser.EqualsIgnoreCase(subSpan, "scale"))
@@ -82,7 +83,7 @@ namespace Autonocraft.Core.DevCommands.Commands
             if (DevCommandParser.EqualsIgnoreCase(subSpan, "resume"))
             {
                 host.TimePaused = false;
-                if (host.TimeScale <= 0f) host.TimeScale = 0.01f;
+                if (host.TimeScale <= 0f) host.TimeScale = DayNightCycle.DefaultTimeScale;
                 return "Day cycle resumed";
             }
 
