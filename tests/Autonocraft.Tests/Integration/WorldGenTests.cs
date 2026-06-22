@@ -154,7 +154,7 @@ public static class WorldGenTests
         Console.Write("Running Ocean Shell Mesh Test... ");
 
         var generator = new WorldGenerator(1337, WorldGenParams.ForType(WorldType.Default));
-        var oceanCoord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Ocean, 1024, 8);
+        var oceanCoord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Ocean, 1024, 32);
         if (oceanCoord == null)
         {
             throw new Exception("Expected at least one ocean biome within preview range.");
@@ -723,8 +723,8 @@ public static class WorldGenTests
         Console.Write("Running Biome Tree Species Test... ");
 
         var generator = new WorldGenerator(1337, WorldGenParams.ForType(WorldType.Default));
-        var swampCoord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Swamp && !c.IsRiver && !c.IsLake && c.Biome.Continentalness >= 0.05f, 1024, 8);
-        var desertCoord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Desert && !c.IsRiver && !c.IsLake, 1024, 8);
+        var swampCoord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Swamp && !c.IsRiver && !c.IsLake && c.Biome.Continentalness >= 0.05f, 1024, 32);
+        var desertCoord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Desert && !c.IsRiver && !c.IsLake, 1024, 32);
 
         if (swampCoord == null || desertCoord == null)
         {
@@ -746,7 +746,7 @@ public static class WorldGenTests
             throw new Exception("Expected PalmLog in generated desert biome.");
         }
 
-        var forestCoord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Forest, 1024, 8);
+        var forestCoord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Forest, 1024, 32);
         if (forestCoord == null)
         {
             throw new Exception("Expected forest biome within preview range.");
@@ -798,7 +798,7 @@ public static class WorldGenTests
             generator,
             c => c.Biome.Primary == BiomeType.Desert && c.Profile.TreeDensity >= 0.02f,
             1024,
-            4);
+            32);
 
         if (desertCoord == null)
         {
@@ -913,7 +913,7 @@ public static class WorldGenTests
         Console.Write("Running Ocean No Surface Ice Test... ");
 
         var generator = new WorldGenerator(1337, WorldGenParams.ForType(WorldType.Default));
-        var oceanCoord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Ocean, 1024, 4);
+        var oceanCoord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Ocean, 1024, 32);
         if (oceanCoord == null)
         {
             throw new Exception("Expected ocean biome within preview range.");
@@ -987,16 +987,23 @@ public static class WorldGenTests
             BiomeType.Jungle
         ];
 
+        // Use cheap SampleBiome (noise only) to verify each biome exists within range.
         foreach (var biome in expected)
         {
-            var coord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == biome, 1536, 4);
-            if (coord == null)
+            var hits = WorldGenTestHelpers.FindBiomeCoordsFast(
+                generator,
+                b => b.Primary == biome,
+                radius: 1536,
+                step: 32,
+                maxResults: 1);
+            if (hits.Count == 0)
             {
                 throw new Exception($"Expected {biome} within preview range.");
             }
         }
 
-        var badlands = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Badlands, 1536, 4);
+        // Badlands surface block verification requires a TerrainColumn; one FindPreviewCoord is acceptable.
+        var badlands = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Badlands, 1536, 32);
         if (badlands == null || badlands.Value.column.SurfaceBlock != BlockType.RedSand)
         {
             var surface = badlands?.column.SurfaceBlock.ToString() ?? "not found";
@@ -1410,65 +1417,73 @@ public static class WorldGenTests
             && !column.IsRiver
             && !column.IsLake;
     }
-    private static bool ScanGeneratedChunksForLog(WorldGenerator generator, BiomeType biome, BlockType logType)
+    /// <summary>
+    /// Verifies chunk (cx,cz) and adjacent chunks for the given predicate.
+    /// Only generates terrain for chunks where the biome preview matches.
+    /// </summary>
+    private static bool ScanChunkArea(
+        WorldGenerator generator,
+        int centerCx, int centerCz,
+        Func<TerrainColumn, bool> previewPredicate,
+        Func<Chunk, bool> chunkPredicate,
+        int range = 3)
     {
-        var anchor = WorldGenTestHelpers.FindPreviewCoord(
-            generator,
-            c => c.Biome.Primary == biome
-                && c.Profile.TreeDensity > 0f
-                && !c.IsRiver
-                && !c.IsLake,
-            radius: 1536,
-            step: 4);
-        if (anchor == null)
+        for (int dz = -range; dz <= range; dz++)
         {
-            return false;
-        }
-
-        VoxelWorld.GetChunkCoords(anchor.Value.x, anchor.Value.z, out int centerChunkX, out int centerChunkZ, out _, out _);
-        for (int chunkZ = centerChunkZ - 4; chunkZ <= centerChunkZ + 4; chunkZ++)
-        {
-            for (int chunkX = centerChunkX - 4; chunkX <= centerChunkX + 4; chunkX++)
+            for (int dx = -range; dx <= range; dx++)
             {
-                var columns = generator.PreviewChunkColumns(chunkX, chunkZ);
-                bool hasBiomeTrees = false;
-                for (int lx = 0; lx < Chunk.Width; lx++)
+                int cx = centerCx + dx;
+                int cz = centerCz + dz;
+                var columns = generator.PreviewChunkColumns(cx, cz);
+                bool hasMatch = false;
+                for (int lx = 0; lx < Chunk.Width && !hasMatch; lx++)
                 {
-                    for (int lz = 0; lz < Chunk.Depth; lz++)
+                    for (int lz = 0; lz < Chunk.Depth && !hasMatch; lz++)
                     {
-                        var column = columns[lx, lz];
-                        if (column.Biome.Primary == biome
-                            && column.Profile.TreeDensity > 0f
-                            && !column.IsRiver
-                            && !column.IsLake)
+                        if (previewPredicate(columns[lx, lz]))
                         {
-                            hasBiomeTrees = true;
-                            break;
+                            hasMatch = true;
                         }
                     }
-
-                    if (hasBiomeTrees)
-                    {
-                        break;
-                    }
                 }
 
-                if (!hasBiomeTrees)
-                {
-                    continue;
-                }
+                if (!hasMatch) continue;
 
-                var chunk = new Chunk(chunkX, chunkZ);
+                var chunk = new Chunk(cx, cz);
                 generator.GenerateChunkTerrain(chunk, null);
-                if (ChunkContainsLog(chunk, logType))
+                if (chunkPredicate(chunk))
                 {
                     return true;
                 }
             }
         }
+        return false;
+    }
+
+    private static bool ScanGeneratedChunksForLog(WorldGenerator generator, BiomeType biome, BlockType logType)
+    {
+        var candidates = WorldGenTestHelpers.FindBiomeCoordsFast(
+            generator,
+            b => b.Primary == biome && b.Profile.TreeDensity > 0f,
+            radius: 1536,
+            step: 32,
+            maxResults: 15);
+
+        Func<TerrainColumn, bool> preview = c =>
+            c.Biome.Primary == biome && c.Profile.TreeDensity > 0f && !c.IsRiver && !c.IsLake;
+
+        foreach (var (wx, wz) in candidates)
+        {
+            VoxelWorld.GetChunkCoords(wx, wz, out int cx, out int cz, out _, out _);
+            if (ScanChunkArea(generator, cx, cz, preview, chunk => ChunkContainsLog(chunk, logType)))
+            {
+                return true;
+            }
+        }
 
         return false;
     }
+
     private static bool ChunkContainsLog(Chunk chunk, BlockType logType)
     {
         for (int lx = 0; lx < Chunk.Width; lx++)
@@ -1498,50 +1513,21 @@ public static class WorldGenTests
             BlockType.OakLog, BlockType.BirchLog, BlockType.MahoganyLog, BlockType.MapleLog
         ];
 
-        var anchor = WorldGenTestHelpers.FindPreviewCoord(
+        var candidates = WorldGenTestHelpers.FindBiomeCoordsFast(
             generator,
-            c => c.Biome.Primary == BiomeType.Forest
-                && c.Profile.TreeDensity > 0f
-                && !c.IsRiver
-                && !c.IsLake,
+            b => b.Primary == BiomeType.Forest && b.Profile.TreeDensity > 0f,
             radius: 1536,
-            step: 4);
-        if (anchor == null)
-        {
-            return 0;
-        }
+            step: 32,
+            maxResults: 20);
 
-        VoxelWorld.GetChunkCoords(anchor.Value.x, anchor.Value.z, out int centerChunkX, out int centerChunkZ, out _, out _);
-        for (int chunkZ = centerChunkZ - 4; chunkZ <= centerChunkZ + 4; chunkZ++)
+        Func<TerrainColumn, bool> preview = c =>
+            c.Biome.Primary == BiomeType.Forest && c.Profile.TreeDensity > 0f && !c.IsRiver && !c.IsLake;
+
+        foreach (var (wx, wz) in candidates)
         {
-            for (int chunkX = centerChunkX - 4; chunkX <= centerChunkX + 4; chunkX++)
+            VoxelWorld.GetChunkCoords(wx, wz, out int cx, out int cz, out _, out _);
+            ScanChunkArea(generator, cx, cz, preview, chunk =>
             {
-                var columns = generator.PreviewChunkColumns(chunkX, chunkZ);
-                bool hasForest = false;
-                for (int lx = 0; lx < Chunk.Width; lx++)
-                {
-                    for (int lz = 0; lz < Chunk.Depth; lz++)
-                    {
-                        if (columns[lx, lz].Biome.Primary == BiomeType.Forest)
-                        {
-                            hasForest = true;
-                            break;
-                        }
-                    }
-
-                    if (hasForest)
-                    {
-                        break;
-                    }
-                }
-
-                if (!hasForest)
-                {
-                    continue;
-                }
-
-                var chunk = new Chunk(chunkX, chunkZ);
-                generator.GenerateChunkTerrain(chunk, null);
                 foreach (var logType in forestLogs)
                 {
                     if (ChunkContainsLog(chunk, logType))
@@ -1549,61 +1535,57 @@ public static class WorldGenTests
                         species.Add(logType);
                     }
                 }
-
-                if (species.Count >= 2)
-                {
-                    return species.Count;
-                }
-            }
+                return species.Count >= 2;
+            });
+            if (species.Count >= 2) break;
         }
 
         return species.Count;
     }
 
+
     private static bool ScanGeneratedChunksForFlora(WorldGenerator generator, BiomeType biome, BlockType floraType)
     {
-        bool ColumnMatches(TerrainColumn column)
+        bool needsLake = biome == BiomeType.Swamp && floraType == BlockType.LilyPad;
+
+        if (needsLake)
         {
-            if (column.IsRiver)
-            {
-                return false;
-            }
+            // Lakes are terrain-level features; SampleBiome doesn't know about them.
+            // Use FindPreviewCoord which checks IsLake via TerrainColumn preview.
+            var lakeCoord = WorldGenTestHelpers.FindPreviewCoord(
+                generator,
+                c => c.Biome.Primary == BiomeType.Swamp && c.IsLake && !c.IsRiver,
+                radius: 1536,
+                step: 32);
 
-            if (biome == BiomeType.Swamp && floraType == BlockType.LilyPad)
-            {
-                return column.Biome.Primary == BiomeType.Swamp && column.IsLake;
-            }
+            if (lakeCoord == null) return false;
 
-            return column.Biome.Primary == biome && !column.IsLake;
+            VoxelWorld.GetChunkCoords(lakeCoord.Value.x, lakeCoord.Value.z, out int lx, out int lz, out _, out _);
+            Func<TerrainColumn, bool> lakePreview = c => c.Biome.Primary == BiomeType.Swamp && c.IsLake && !c.IsRiver;
+            return ScanChunkArea(generator, lx, lz, lakePreview, chunk => ChunkContainsBlock(chunk, floraType));
         }
 
-        var anchor = WorldGenTestHelpers.FindPreviewCoord(
+        var candidates = WorldGenTestHelpers.FindBiomeCoordsFast(
             generator,
-            ColumnMatches,
+            b => b.Primary == biome,
             radius: 1536,
-            step: 4);
-        if (anchor == null)
-        {
-            return false;
-        }
+            step: 32,
+            maxResults: 15);
 
-        int centerChunkX = anchor.Value.x >> 4;
-        int centerChunkZ = anchor.Value.z >> 4;
-        for (int chunkZ = centerChunkZ - 4; chunkZ <= centerChunkZ + 4; chunkZ++)
+        Func<TerrainColumn, bool> preview = c => c.Biome.Primary == biome && !c.IsLake && !c.IsRiver;
+
+        foreach (var (wx, wz) in candidates)
         {
-            for (int chunkX = centerChunkX - 4; chunkX <= centerChunkX + 4; chunkX++)
+            VoxelWorld.GetChunkCoords(wx, wz, out int cx, out int cz, out _, out _);
+            if (ScanChunkArea(generator, cx, cz, preview, chunk => ChunkContainsBlock(chunk, floraType)))
             {
-                var chunk = new Chunk(chunkX, chunkZ);
-                generator.GenerateChunkTerrain(chunk, null);
-                if (ChunkContainsBlock(chunk, floraType))
-                {
-                    return true;
-                }
+                return true;
             }
         }
 
         return false;
     }
+
 
     private static bool ChunkContainsBlock(Chunk chunk, BlockType blockType, bool nearSurfaceOnly = true)
     {
@@ -1671,7 +1653,7 @@ public static class WorldGenTests
 
     private static int MeasureLeafVerticalSpan(WorldGenerator generator, BiomeType biome, BlockType leafType)
     {
-        var anchor = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == biome, 1536, 4);
+        var anchor = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == biome, 1536, 32);
         if (anchor == null)
         {
             return 0;
@@ -1702,7 +1684,7 @@ public static class WorldGenTests
 
     private static int MeasureLeafHorizontalSpan(WorldGenerator generator, BiomeType biome, BlockType leafType)
     {
-        var anchor = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == biome, 1536, 4);
+        var anchor = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == biome, 1536, 32);
         if (anchor == null)
         {
             return 0;
