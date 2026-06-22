@@ -7,6 +7,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 Releases are created automatically when changes land on `main` (after CI passes).
 
+## [0.2.13] - 2026-06-22
+
+### Changed
+- replace ScanConcentric with fast two-phase biome scanner
+
+### Other
+- add diagnostics to Mining and Placing test and clean up test runner
+- Improved pipeline
+- Make test sharding dynamic
+
 ## [0.2.12] - 2026-06-22
 
 ### Other
