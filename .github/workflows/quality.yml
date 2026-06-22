@@ -48,6 +48,18 @@ jobs:
   coverage:
     name: Code coverage
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: core-a
+            filter: "FullyQualifiedName~Autonocraft.Tests.Unit.AssemblyDependencyRulesTests|FullyQualifiedName~Autonocraft.Tests.Unit.ChunkLodTests|FullyQualifiedName~Autonocraft.Tests.Unit.CornerAoTests|FullyQualifiedName~Autonocraft.Tests.Unit.DayNightCycleTests|FullyQualifiedName~Autonocraft.Tests.Unit.SceneLightingTests"
+          - group: core-b
+            filter: "FullyQualifiedName~Autonocraft.Tests.Unit.CraftPatternMatcherTests|FullyQualifiedName~Autonocraft.Tests.Unit.CraftRecipeRegistryTests|FullyQualifiedName~Autonocraft.Tests.Unit.GridCraftingTests|FullyQualifiedName~Autonocraft.Tests.Unit.MiningCalculatorTests|FullyQualifiedName~Autonocraft.Tests.Unit.SigilRegistryTests"
+          - group: world-a
+            filter: "FullyQualifiedName~Autonocraft.Tests.Unit.AnimalPanicTests|FullyQualifiedName~Autonocraft.Tests.Unit.ClaimStructureFingerprintTests|FullyQualifiedName~Autonocraft.Tests.Unit.JungleFernPlacementTests|FullyQualifiedName~Autonocraft.Tests.Unit.ParticleSystemHighAltitudeTests"
+          - group: world-b
+            filter: "FullyQualifiedName~Autonocraft.Tests.Unit.SnowyPeaksFloraPlacementTests|FullyQualifiedName~Autonocraft.Tests.Unit.SwampLilyPadPlacementTests"
     steps:
       - uses: actions/checkout@v7
 
@@ -72,13 +84,13 @@ jobs:
           dotnet test tests/Autonocraft.Tests
           --configuration Release
           --no-build
-          --filter "FullyQualifiedName~Autonocraft.Tests.Unit"
+          --filter "${{ matrix.filter }}"
           --collect:"XPlat Code Coverage"
-          --results-directory coverage/
+          --results-directory coverage/${{ matrix.group }}/
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: coverage-report
-          path: coverage/
+          name: coverage-report-${{ matrix.group }}
+          path: coverage/${{ matrix.group }}/
