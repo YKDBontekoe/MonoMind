@@ -1,6 +1,8 @@
 using System;
-using System.Numerics;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
+using System.Reflection;
 using Autonocraft.Core;
 using Autonocraft.Tests.Integration;
 
@@ -8,6 +10,20 @@ namespace Autonocraft.Tests;
 
 public static class IntegrationTestRunner
 {
+    private const string ShardIndexEnv = "AUTONOCRAFT_TEST_SHARD_INDEX";
+    private const string ShardCountEnv = "AUTONOCRAFT_TEST_SHARD_COUNT";
+    private const string IntegrationNamespace = "Autonocraft.Tests.Integration";
+
+    private sealed record IntegrationCase(string ClassName, string MethodName, Action Execute)
+    {
+        public string DisplayName => $"{ClassName}.{MethodName}";
+    }
+
+    private sealed record IntegrationClass(string ClassName, IReadOnlyList<IntegrationCase> Cases)
+    {
+        public int Weight => Cases.Count;
+    }
+
     private static void RunTimed(string label, Action test)
     {
         var stopwatch = Stopwatch.StartNew();
@@ -16,98 +32,136 @@ public static class IntegrationTestRunner
         Console.WriteLine($"[Timing] {label}: {stopwatch.Elapsed.TotalSeconds:F2}s");
     }
 
+    private static (int ShardIndex, int ShardCount) GetShardConfig()
+    {
+        var shardCount = 1;
+        var shardIndex = 0;
+
+        if (int.TryParse(Environment.GetEnvironmentVariable(ShardCountEnv), out var parsedShardCount) && parsedShardCount > 0)
+        {
+            shardCount = parsedShardCount;
+        }
+
+        if (int.TryParse(Environment.GetEnvironmentVariable(ShardIndexEnv), out var parsedShardIndex))
+        {
+            shardIndex = parsedShardIndex;
+        }
+
+        if (shardIndex < 0 || shardIndex >= shardCount)
+        {
+            throw new InvalidOperationException(
+                $"Invalid integration test shard {shardIndex}/{shardCount}. Expected 0 <= shard_index < shard_count.");
+        }
+
+        return (shardIndex, shardCount);
+    }
+
+    private static IReadOnlyList<IntegrationClass> DiscoverIntegrationClasses()
+    {
+        var assembly = typeof(IntegrationTestRunner).Assembly;
+        var classes = new List<IntegrationClass>();
+
+        foreach (var type in assembly.GetTypes()
+                     .Where(type => type.IsClass
+                         && type.IsAbstract
+                         && type.IsSealed
+                         && type.Namespace == IntegrationNamespace)
+                     .OrderBy(type => type.Name, StringComparer.Ordinal))
+        {
+            var cases = type
+                .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+                .Where(method =>
+                    method.ReturnType == typeof(void)
+                    && method.GetParameters().Length == 0
+                    && method.Name.StartsWith("Run", StringComparison.Ordinal))
+                .OrderBy(method => method.Name, StringComparer.Ordinal)
+                .Select(method => new IntegrationCase(
+                    type.Name,
+                    method.Name,
+                    () => _ = method.Invoke(null, null)))
+                .ToList();
+
+            if (cases.Count > 0)
+            {
+                classes.Add(new IntegrationClass(type.Name, cases));
+            }
+        }
+
+        if (classes.Count == 0)
+        {
+            throw new InvalidOperationException("No integration tests were discovered.");
+        }
+
+        return classes;
+    }
+
+    private static IReadOnlyList<IntegrationClass> SelectShard(IReadOnlyList<IntegrationClass> classes, int shardIndex, int shardCount)
+    {
+        if (shardCount > classes.Count)
+        {
+            throw new InvalidOperationException(
+                $"Integration test shard count {shardCount} exceeds discovered class count {classes.Count}.");
+        }
+
+        var buckets = new List<IntegrationClass>[shardCount];
+        var totals = new int[shardCount];
+
+        for (var i = 0; i < shardCount; i++)
+        {
+            buckets[i] = [];
+        }
+
+        foreach (var integrationClass in classes
+                     .OrderByDescending(integrationClass => integrationClass.Weight)
+                     .ThenBy(integrationClass => integrationClass.ClassName, StringComparer.Ordinal))
+        {
+            var targetIndex = 0;
+            for (var i = 1; i < shardCount; i++)
+            {
+                if (totals[i] < totals[targetIndex])
+                {
+                    targetIndex = i;
+                }
+            }
+
+            buckets[targetIndex].Add(integrationClass);
+            totals[targetIndex] += integrationClass.Weight;
+        }
+
+        return buckets[shardIndex]
+            .OrderBy(integrationClass => integrationClass.ClassName, StringComparer.Ordinal)
+            .ToList();
+    }
+
     public static bool Run()
     {
+        var (shardIndex, shardCount) = GetShardConfig();
+        var classes = DiscoverIntegrationClasses();
+        var selectedClasses = shardCount == 1 ? classes : SelectShard(classes, shardIndex, shardCount);
+        var selectedCases = selectedClasses.SelectMany(@class => @class.Cases).ToList();
+
+        if (selectedCases.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"Integration shard {shardIndex + 1}/{shardCount} did not receive any tests.");
+        }
+
         Console.WriteLine("\n==================================================================");
         Console.WriteLine("RUNNING AUTONOCRAFT AUTOMATED INTEGRATION TESTS");
         Console.WriteLine("==================================================================");
+        Console.WriteLine($"Shard {shardIndex + 1}/{shardCount}: {selectedClasses.Count} classes, {selectedCases.Count} tests");
 
         using var host = new TestHost();
 
         try
         {
-            RunTimed(nameof(WorldGenTests.RunGameSettingsRoundTrip), WorldGenTests.RunGameSettingsRoundTrip);
-            RunTimed(nameof(MenuTests.RunMenuInitialLayerIsRootHub), MenuTests.RunMenuInitialLayerIsRootHub);
-            RunTimed(nameof(MenuTests.RunMainMenuRootHubLayoutBounds), MenuTests.RunMainMenuRootHubLayoutBounds);
-            RunTimed(nameof(MenuTests.RunSaveBrowserBackReturnsToRootHub), MenuTests.RunSaveBrowserBackReturnsToRootHub);
-            RunTimed(nameof(MenuTests.RunDeleteRequiresTwoStepConfirmation), MenuTests.RunDeleteRequiresTwoStepConfirmation);
-            RunTimed(nameof(MenuTests.RunSettingsCancelDoesNotPersist), MenuTests.RunSettingsCancelDoesNotPersist);
-            RunTimed(nameof(MenuTests.RunSettingsOverlayBlocksBaseInput), MenuTests.RunSettingsOverlayBlocksBaseInput);
-            RunTimed(nameof(MenuTests.RunContinueUsesMostRecentSave), MenuTests.RunContinueUsesMostRecentSave);
-            RunTimed(nameof(VillageTests.RunVillageScreenInputLayout), VillageTests.RunVillageScreenInputLayout);
-            RunTimed(nameof(VillageTests.RunBlueprintPlacementHelper), VillageTests.RunBlueprintPlacementHelper);
-            RunTimed(nameof(VillageTests.RunCanPlaceBlueprint), VillageTests.RunCanPlaceBlueprint);
-            RunTimed(nameof(VillageTests.RunQueuedBuildingSiteSurvivesSync), VillageTests.RunQueuedBuildingSiteSurvivesSync);
-            RunTimed(nameof(VillageTests.RunStarterSettlementBeforeChunksLoaded), VillageTests.RunStarterSettlementBeforeChunksLoaded);
-            RunTimed(nameof(VillageTests.RunLiveStyleJobAssignmentHasWorld), VillageTests.RunLiveStyleJobAssignmentHasWorld);
-            RunTimed(nameof(VillageTests.RunFullVillageLifecycleJobs), VillageTests.RunFullVillageLifecycleJobs);
-            RunTimed(nameof(VillageTests.RunAgentHttpVillageBridgeE2E), VillageTests.RunAgentHttpVillageBridgeE2E);
-            RunTimed(nameof(WorldGenTests.RunChunkLodBands), WorldGenTests.RunChunkLodBands);
-            RunTimed(nameof(WorldGenTests.RunChunkLodMeshCounts), WorldGenTests.RunChunkLodMeshCounts);
-            RunTimed(nameof(WorldGenTests.RunOceanShellMeshSurfaces), WorldGenTests.RunOceanShellMeshSurfaces);
-            RunTimed(nameof(ChunkStreamingTests.RunInitialLoadWaitsForInFlightGeneration), ChunkStreamingTests.RunInitialLoadWaitsForInFlightGeneration);
-            RunTimed(nameof(ChunkStreamingTests.RunFaultedChunkGenerationDoesNotCrash), ChunkStreamingTests.RunFaultedChunkGenerationDoesNotCrash);
-            RunTimed(nameof(ChunkStreamingTests.RunChunkUnloadDiscardsStaleInFlight), ChunkStreamingTests.RunChunkUnloadDiscardsStaleInFlight);
-            RunTimed(nameof(ChunkStreamingTests.RunEnsureChunksLoadedDoesNotUnloadPlayerRadius), ChunkStreamingTests.RunEnsureChunksLoadedDoesNotUnloadPlayerRadius);
-            RunTimed(nameof(WorldGenTests.RunChunkStreamingStability), WorldGenTests.RunChunkStreamingStability);
-            RunTimed(nameof(WorldGenTests.RunWorldGenerationBasics), WorldGenTests.RunWorldGenerationBasics);
-            RunTimed(nameof(WorldGenTests.RunOceanNoSurfaceIce), WorldGenTests.RunOceanNoSurfaceIce);
-            RunTimed(nameof(WorldGenTests.RunNewSurfaceBiomes), WorldGenTests.RunNewSurfaceBiomes);
-            RunTimed(nameof(WorldGenTests.RunCaveBiomes), WorldGenTests.RunCaveBiomes);
-            RunTimed(nameof(TerrainSlabTests.RunTerrainSlabUnitRules), TerrainSlabTests.RunTerrainSlabUnitRules);
-            RunTimed(nameof(TerrainSlabTests.RunTerrainSlabPlacementRules), TerrainSlabTests.RunTerrainSlabPlacementRules);
-            RunTimed(nameof(TerrainSlabTests.RunTerrainSlabUpperStepRegression), TerrainSlabTests.RunTerrainSlabUpperStepRegression);
-            RunTimed(nameof(TerrainSlabTests.RunGeneratedWorldHasNoMountainSlabs), TerrainSlabTests.RunGeneratedWorldHasNoMountainSlabs);
-            RunTimed(nameof(WorldGenTests.RunStructureGeneration), WorldGenTests.RunStructureGeneration);
-            RunTimed(nameof(WorldGenTests.RunStructureGallery), WorldGenTests.RunStructureGallery);
-            RunTimed(nameof(WorldGenTests.RunStructureChestLoot), WorldGenTests.RunStructureChestLoot);
-            RunTimed(nameof(WorldGenTests.RunImprovedBuildingCatalogQuality), WorldGenTests.RunImprovedBuildingCatalogQuality);
-            RunTimed(nameof(WorldGenTests.RunImprovedBuildingInteriorQuality), WorldGenTests.RunImprovedBuildingInteriorQuality);
-            RunTimed(nameof(WorldGenTests.RunImprovedBuildingGalleryReachability), WorldGenTests.RunImprovedBuildingGalleryReachability);
-            RunTimed(nameof(WorldGenTests.RunImprovedBuildingFootprintSafety), WorldGenTests.RunImprovedBuildingFootprintSafety);
-
-            RunTimed(nameof(VillageTests.RunInventoryStacking), VillageTests.RunInventoryStacking);
-            RunTimed(nameof(VillageTests.RunBlockActionService), VillageTests.RunBlockActionService);
-            RunTimed(nameof(VillageTests.RunClaimWorldStructure), VillageTests.RunClaimWorldStructure);
-            RunTimed(nameof(VillageTests.RunImprovedClaimableStructureAccess), VillageTests.RunImprovedClaimableStructureAccess);
-            RunTimed(nameof(VillageTests.RunTownHeartPlacementExcavatesUnevenTerrain), VillageTests.RunTownHeartPlacementExcavatesUnevenTerrain);
-            RunTimed(nameof(VillageTests.RunTownHeartPlacementRejectsBuiltObjects), VillageTests.RunTownHeartPlacementRejectsBuiltObjects);
-            RunTimed(nameof(VillageTests.RunTownHeartFoundingUsesSurfaceAnchor), VillageTests.RunTownHeartFoundingUsesSurfaceAnchor);
-            RunTimed(nameof(VillageTests.RunFarmFoodProduction), VillageTests.RunFarmFoodProduction);
-            RunTimed(nameof(VillageTests.RunBuildingJobWiring), VillageTests.RunBuildingJobWiring);
-            RunTimed(nameof(VillageTests.RunVillagerToolMining), VillageTests.RunVillagerToolMining);
-            RunTimed(nameof(VillageTests.RunVillageAiToolsMock), VillageTests.RunVillageAiToolsMock);
-            RunTimed(nameof(VillageTests.RunVillageAiStructuredToolCalls), VillageTests.RunVillageAiStructuredToolCalls);
-            RunTimed(nameof(VillageTests.RunOpenRouterModelCatalogFilters), VillageTests.RunOpenRouterModelCatalogFilters);
-            RunTimed(nameof(VillageTests.RunVillageNumericGoals), VillageTests.RunVillageNumericGoals);
-            RunTimed(nameof(VillageTests.RunPlayerWorkQueue), VillageTests.RunPlayerWorkQueue);
-            RunTimed(nameof(VillageTests.RunRepairMissingCitizens), VillageTests.RunRepairMissingCitizens);
-            RunTimed(nameof(VillageTests.RunVillagerLumberChopping), VillageTests.RunVillagerLumberChopping);
-            RunTimed(nameof(VillageTests.RunLumberJobsIgnoreLeaves), VillageTests.RunLumberJobsIgnoreLeaves);
-            RunTimed(nameof(VillageTests.RunVillagersCollectNearbySaplingDrops), VillageTests.RunVillagersCollectNearbySaplingDrops);
-            RunTimed(nameof(VillageTests.RunAdoptOrphanedCitizens), VillageTests.RunAdoptOrphanedCitizens);
-            RunTimed(nameof(VillageTests.RunRelinkStrandedCitizens), VillageTests.RunRelinkStrandedCitizens);
-            RunTimed(nameof(VillageTests.RunVillageRegistryDesyncLiveChop), VillageTests.RunVillageRegistryDesyncLiveChop);
-            RunTimed(nameof(VillageTests.RunVillageGuidanceHints), VillageTests.RunVillageGuidanceHints);
-            RunTimed(nameof(VillageTests.RunSettlementGuidancePriority), VillageTests.RunSettlementGuidancePriority);
-            RunTimed(nameof(VillageTests.RunSettlementDashboardFields), VillageTests.RunSettlementDashboardFields);
-            RunTimed(nameof(VillageTests.RunVillagePulseEvolvesDynamically), VillageTests.RunVillagePulseEvolvesDynamically);
-            RunTimed(nameof(VillageTests.RunVillageFavorAndContracts), VillageTests.RunVillageFavorAndContracts);
-            RunTimed(nameof(VillageTests.RunVillageFoundingCostIsExplicit), VillageTests.RunVillageFoundingCostIsExplicit);
-            RunTimed(nameof(VillageTests.RunBuildCatalogRecommendationsFollowVillageNeeds), VillageTests.RunBuildCatalogRecommendationsFollowVillageNeeds);
-            RunTimed(nameof(VillageTests.RunJobAssignmentBlockedReasons), VillageTests.RunJobAssignmentBlockedReasons);
-            RunTimed(nameof(VillageTests.RunVillagerActivityTextContext), VillageTests.RunVillagerActivityTextContext);
-            RunTimed(nameof(VillageTests.RunRecruitPreviewBlockedReason), VillageTests.RunRecruitPreviewBlockedReason);
-            RunTimed(nameof(VillageTests.RunSettlementWellBeingWarnings), VillageTests.RunSettlementWellBeingWarnings);
-            RunTimed(nameof(VillageTests.RunPeopleTabCitizenDifferentiation), VillageTests.RunPeopleTabCitizenDifferentiation);
-            RunTimed(nameof(VillageTests.RunAgentStateGuidanceParity), VillageTests.RunAgentStateGuidanceParity);
-            RunTimed(nameof(VillageTests.RunVillageEventsNotifier), VillageTests.RunVillageEventsNotifier);
-            RunTimed(nameof(VillageTests.RunStarvationConsequences), VillageTests.RunStarvationConsequences);
-            RunTimed(nameof(VillageTests.RunVillageOrganicFamilyGrowth), VillageTests.RunVillageOrganicFamilyGrowth);
-            RunTimed(nameof(VillageTests.RunVillageRename), VillageTests.RunVillageRename);
-            RunTimed(nameof(VillageTests.RunVillageScreenOpenRelinksStarterCitizens), VillageTests.RunVillageScreenOpenRelinksStarterCitizens);
-            RunTimed(nameof(VillageTests.RunStarterSettlementSpawnsAssignedCitizens), VillageTests.RunStarterSettlementSpawnsAssignedCitizens);
-            RunTimed(nameof(VillageTests.RunVillagerPathfinderRoutesAroundObstacle), VillageTests.RunVillagerPathfinderRoutesAroundObstacle);
+            foreach (var integrationClass in selectedClasses)
+            {
+                foreach (var testCase in integrationClass.Cases)
+                {
+                    RunTimed(testCase.DisplayName, testCase.Execute);
+                }
+            }
 
             using (var game = new AutonocraftGame(runTests: true))
             {

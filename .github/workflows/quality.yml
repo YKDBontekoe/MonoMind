@@ -45,21 +45,9 @@ jobs:
       - name: Validate atlas layout and generation
         run: dotnet run --project src/Autonocraft.AtlasBuild -- --check
 
-  coverage:
-    name: Code coverage
+  build:
+    name: Build
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - group: core-a
-            filter: "FullyQualifiedName~Autonocraft.Tests.Unit.AssemblyDependencyRulesTests|FullyQualifiedName~Autonocraft.Tests.Unit.ChunkLodTests|FullyQualifiedName~Autonocraft.Tests.Unit.CornerAoTests|FullyQualifiedName~Autonocraft.Tests.Unit.DayNightCycleTests|FullyQualifiedName~Autonocraft.Tests.Unit.SceneLightingTests"
-          - group: core-b
-            filter: "FullyQualifiedName~Autonocraft.Tests.Unit.CraftPatternMatcherTests|FullyQualifiedName~Autonocraft.Tests.Unit.CraftRecipeRegistryTests|FullyQualifiedName~Autonocraft.Tests.Unit.GridCraftingTests|FullyQualifiedName~Autonocraft.Tests.Unit.MiningCalculatorTests|FullyQualifiedName~Autonocraft.Tests.Unit.SigilRegistryTests"
-          - group: world-a
-            filter: "FullyQualifiedName~Autonocraft.Tests.Unit.AnimalPanicTests|FullyQualifiedName~Autonocraft.Tests.Unit.ClaimStructureFingerprintTests|FullyQualifiedName~Autonocraft.Tests.Unit.JungleFernPlacementTests|FullyQualifiedName~Autonocraft.Tests.Unit.ParticleSystemHighAltitudeTests"
-          - group: world-b
-            filter: "FullyQualifiedName~Autonocraft.Tests.Unit.SnowyPeaksFloraPlacementTests|FullyQualifiedName~Autonocraft.Tests.Unit.SwampLilyPadPlacementTests"
     steps:
       - uses: actions/checkout@v7
 
@@ -79,18 +67,61 @@ jobs:
       - name: Build solution
         run: dotnet build Autonocraft.slnx --configuration Release
 
+      - name: Upload build output
+        uses: actions/upload-artifact@v7
+        with:
+          name: dotnet-build-ubuntu-latest
+          path: |
+            src/**/bin/
+            src/**/obj/
+            tests/**/bin/
+            tests/**/obj/
+          if-no-files-found: error
+
+  coverage:
+    name: ${{ format('Code coverage (shard {0})', matrix.shard_index) }}
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard_index: 0
+          - shard_index: 1
+          - shard_index: 2
+          - shard_index: 3
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/dotnet-tools.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Download build output
+        uses: actions/download-artifact@v4
+        with:
+          name: dotnet-build-ubuntu-latest
+
       - name: Run tests with coverage
         run: >
-          dotnet test tests/Autonocraft.Tests
-          --configuration Release
-          --no-build
-          --filter "${{ matrix.filter }}"
-          --collect:"XPlat Code Coverage"
-          --results-directory coverage/${{ matrix.group }}/
+          python scripts/run_unit_test_shard.py
+          --shard-index ${{ matrix.shard_index }}
+          --shard-count 4
+          --collect-coverage
+          --results-directory coverage/shard-${{ matrix.shard_index }}/
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: coverage-report-${{ matrix.group }}
-          path: coverage/${{ matrix.group }}/
+          name: coverage-report-shard-${{ matrix.shard_index }}
+          path: coverage/shard-${{ matrix.shard_index }}/
