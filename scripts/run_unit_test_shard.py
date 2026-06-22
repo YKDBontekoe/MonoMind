@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 TEST_ROOT_FILTER = "FullyQualifiedName~Autonocraft.Tests.Unit"
-CLASS_PATTERN = re.compile(r"^(Autonocraft\.Tests\.Unit\.[^.]+)\.")
+TEST_PATTERN = re.compile(r"^(Autonocraft\.Tests\.Unit\.[^(]+)")
 
 
 def run_command(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
@@ -49,42 +49,42 @@ def discover_unit_tests(repo_root: Path) -> list[tuple[str, int]]:
 
     counts: collections.Counter[str] = collections.Counter()
     for line in (result.stdout + "\n" + result.stderr).splitlines():
-        match = CLASS_PATTERN.match(line.strip())
+        match = TEST_PATTERN.match(line.strip())
         if match:
             counts[match.group(1)] += 1
 
     if not counts:
-        raise RuntimeError("No unit test classes were discovered from dotnet test --list-tests.")
+        raise RuntimeError("No unit tests were discovered from dotnet test --list-tests.")
 
     return sorted(counts.items())
 
 
-def shard_classes(
-    classes: list[tuple[str, int]], shard_index: int, shard_count: int
+def shard_tests(
+    tests: list[tuple[str, int]], shard_index: int, shard_count: int
 ) -> list[tuple[str, int]]:
     if shard_index < 0 or shard_index >= shard_count:
         raise ValueError(
             f"Shard index {shard_index} is out of range for shard count {shard_count}."
         )
 
-    if shard_count > len(classes):
+    if shard_count > len(tests):
         raise ValueError(
-            f"Shard count {shard_count} exceeds discovered class count {len(classes)}."
+            f"Shard count {shard_count} exceeds discovered test count {len(tests)}."
         )
 
     allocations: list[list[tuple[str, int]]] = [[] for _ in range(shard_count)]
     totals = [0 for _ in range(shard_count)]
 
-    for class_name, test_count in sorted(classes, key=lambda item: (-item[1], item[0])):
+    for test_name, test_count in sorted(tests, key=lambda item: (-item[1], item[0])):
         target_index = min(range(shard_count), key=lambda index: (totals[index], index))
-        allocations[target_index].append((class_name, test_count))
+        allocations[target_index].append((test_name, test_count))
         totals[target_index] += test_count
 
     return sorted(allocations[shard_index])
 
 
-def build_filter(class_names: list[str]) -> str:
-    return "|".join(f"FullyQualifiedName~{class_name}" for class_name in class_names)
+def build_filter(test_names: list[str]) -> str:
+    return "|".join(f"FullyQualifiedName~{test_name}" for test_name in test_names)
 
 
 def main() -> int:
@@ -115,23 +115,23 @@ def main() -> int:
     args = parser.parse_args()
 
     repo_root = Path(__file__).resolve().parents[1]
-    classes = discover_unit_tests(repo_root)
-    assigned = shard_classes(classes, args.shard_index, args.shard_count)
+    tests = discover_unit_tests(repo_root)
+    assigned = shard_tests(tests, args.shard_index, args.shard_count)
 
     if not assigned:
         raise RuntimeError(
-            f"Shard {args.shard_index} of {args.shard_count} did not receive any unit test classes."
+            f"Shard {args.shard_index} of {args.shard_count} did not receive any unit tests."
         )
 
-    class_names = [class_name for class_name, _ in assigned]
+    test_names = [test_name for test_name, _ in assigned]
     total_cases = sum(test_count for _, test_count in assigned)
     print(
         f"Running shard {args.shard_index + 1}/{args.shard_count}: "
-        f"{len(class_names)} classes, {total_cases} discovered tests",
+        f"{len(test_names)} test methods, {total_cases} discovered cases",
         file=sys.stderr,
     )
-    for class_name, test_count in assigned:
-        print(f"  - {class_name} ({test_count})", file=sys.stderr)
+    for test_name, test_count in assigned:
+        print(f"  - {test_name} ({test_count})", file=sys.stderr)
 
     command = [
         "dotnet",
@@ -143,7 +143,7 @@ def main() -> int:
         "--verbosity",
         args.verbosity,
         "--filter",
-        build_filter(class_names),
+        build_filter(test_names),
     ]
 
     for logger in args.logger:

@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   publish:
-    name: Publish (${{ matrix.rid }})
+    name: ${{ format('Publish ({0}, integration shard {1}/{2})', matrix.rid, matrix.shard_number, matrix.shard_count) }}
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -27,21 +27,29 @@ jobs:
             os_name: linux
             arch: x64
             shard_index: 0
+            shard_number: 1
+            shard_count: 4
           - rid: win-x64
             runner: windows-latest
             os_name: windows
             arch: x64
             shard_index: 1
+            shard_number: 2
+            shard_count: 4
           - rid: osx-arm64
             runner: macos-latest
             os_name: macos
             arch: arm64
             shard_index: 2
+            shard_number: 3
+            shard_count: 4
           - rid: osx-x64
             runner: macos-13
             os_name: macos
             arch: x64
             shard_index: 3
+            shard_number: 4
+            shard_count: 4
     steps:
       - uses: actions/checkout@v7
         with:
@@ -81,7 +89,7 @@ jobs:
             BIN="publish/${{ matrix.rid }}/Autonocraft.exe"
           fi
           export AUTONOCRAFT_TEST_SHARD_INDEX="${{ matrix.shard_index }}"
-          export AUTONOCRAFT_TEST_SHARD_COUNT="4"
+          export AUTONOCRAFT_TEST_SHARD_COUNT="${{ matrix.shard_count }}"
           "$BIN" --test
 
       - name: Create archive (Unix)

@@ -79,7 +79,7 @@ jobs:
           if-no-files-found: error
 
   coverage:
-    name: ${{ format('Code coverage (shard {0})', matrix.shard_index) }}
+    name: ${{ format('Code coverage (shard {0}/{1})', matrix.shard_number, matrix.shard_count) }}
     runs-on: ubuntu-latest
     needs: build
     strategy:
@@ -87,9 +87,17 @@ jobs:
       matrix:
         include:
           - shard_index: 0
+            shard_number: 1
+            shard_count: 4
           - shard_index: 1
+            shard_number: 2
+            shard_count: 4
           - shard_index: 2
+            shard_number: 3
+            shard_count: 4
           - shard_index: 3
+            shard_number: 4
+            shard_count: 4
     steps:
       - uses: actions/checkout@v7
 
@@ -115,13 +123,13 @@ jobs:
         run: >
           python scripts/run_unit_test_shard.py
           --shard-index ${{ matrix.shard_index }}
-          --shard-count 4
+          --shard-count ${{ matrix.shard_count }}
           --collect-coverage
-          --results-directory coverage/shard-${{ matrix.shard_index }}/
+          --results-directory coverage/shard-${{ matrix.shard_number }}-of-${{ matrix.shard_count }}/
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: coverage-report-shard-${{ matrix.shard_index }}
-          path: coverage/shard-${{ matrix.shard_index }}/
+          name: coverage-report-shard-${{ matrix.shard_number }}-of-${{ matrix.shard_count }}
+          path: coverage/shard-${{ matrix.shard_number }}-of-${{ matrix.shard_count }}/
