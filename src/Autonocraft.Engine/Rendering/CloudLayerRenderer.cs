@@ -47,30 +47,34 @@ namespace Autonocraft.Engine
             float timeOfDay,
             SceneLighting lighting)
         {
-            if (lighting.DayLight < 0.06f)
+            if (lighting.DayLight < 0.03f)
             {
                 return;
             }
 
-            float alpha = MathHelper.Lerp(0.22f, 0.48f, lighting.DayLight);
-            var warmTint = Color.Lerp(Color.White, new Color(1f, 0.82f, 0.62f), lighting.SunsetFactor * 0.72f);
+            float weatherWeight = MathHelper.Clamp(lighting.CloudIntensity * 0.72f + lighting.RainIntensity * 0.28f, 0f, 0.85f);
+            float alpha = MathHelper.Lerp(0.20f, 0.44f, lighting.DayLight);
+            alpha = MathHelper.Lerp(alpha, 0.62f, weatherWeight);
+            var warmTint = Color.Lerp(Color.White, new Color(1f, 0.80f, 0.56f), lighting.SunsetFactor * 0.78f);
+            var stormTint = Color.Lerp(warmTint, new Color(0.58f, 0.62f, 0.68f), weatherWeight);
 
             device.DepthStencilState = DepthStencilState.None;
             device.RasterizerState = RasterizerState.CullNone;
             device.BlendState = BlendState.AlphaBlend;
             device.SamplerStates[0] = SamplerState.LinearClamp;
 
-            float windX = timeOfDay * 120f;
-            float windZ = timeOfDay * 80f;
+            float windSpeed = MathHelper.Lerp(120f, 190f, weatherWeight);
+            float windX = timeOfDay * windSpeed;
+            float windZ = timeOfDay * (windSpeed * 0.68f);
 
             foreach (var layer in Layers)
             {
                 float layerAlpha = alpha * layer.AlphaScale;
-                var cloudColor = new Color(warmTint.R, warmTint.G, warmTint.B) * layerAlpha;
+                var cloudColor = new Color(stormTint.R, stormTint.G, stormTint.B) * layerAlpha;
 
                 float scrollX = windX * layer.WindScale + layer.WindOffset;
                 float scrollZ = windZ * layer.WindScale * 0.75f - layer.WindOffset * 0.4f;
-                var world = BuildDomeAlignedWorld(scrollX, scrollZ, layer);
+                var world = BuildDomeAlignedWorld(scrollX, scrollZ, layer, weatherWeight);
 
                 skyEffect.ApplyCloudLayer(world, view, projection, cloudColor, _cloudTexture);
 
@@ -91,11 +95,12 @@ namespace Autonocraft.Engine
             }
         }
 
-        private static Matrix BuildDomeAlignedWorld(float scrollX, float scrollZ, CloudLayerSpec layer)
+        private static Matrix BuildDomeAlignedWorld(float scrollX, float scrollZ, CloudLayerSpec layer, float weatherWeight)
         {
-            float y = layer.Elevation * 420f + layer.HeightOffset;
+            float y = layer.Elevation * 420f + layer.HeightOffset - weatherWeight * 44f;
             float curve = layer.Elevation * 28f;
-            return Matrix.CreateTranslation(scrollX, y + curve, scrollZ);
+            return Matrix.CreateScale(1f + weatherWeight * 0.18f, 1f, 1f + weatherWeight * 0.12f)
+                * Matrix.CreateTranslation(scrollX, y + curve, scrollZ);
         }
 
         private void FillLayerVertices(CloudLayerSpec layer, Color cloudColor)
@@ -123,9 +128,11 @@ namespace Autonocraft.Engine
                     float ny = y / (float)size;
                     float n = SimpleNoise(nx * 3.2f, ny * 2.8f);
                     n += SimpleNoise(nx * 6.1f + 0.4f, ny * 5.7f) * 0.5f;
+                    n += SimpleNoise(nx * 11.0f + 0.2f, ny * 9.4f + 0.6f) * 0.22f;
                     n = MathHelper.Clamp(n, 0f, 1f);
                     float edge = Math.Min(Math.Min(nx, 1f - nx), Math.Min(ny, 1f - ny)) * 4f;
-                    float alpha = MathHelper.Clamp(n * edge, 0f, 1f);
+                    float wisps = MathF.Sin((nx * 26f) + SimpleNoise(nx * 4f, ny * 4f) * 3f) * 0.08f;
+                    float alpha = MathHelper.Clamp((n + wisps) * edge, 0f, 1f);
                     data[y * size + x] = new Color(1f, 1f, 1f, alpha * 0.75f);
                 }
             }

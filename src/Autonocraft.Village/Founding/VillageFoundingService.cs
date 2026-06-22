@@ -11,6 +11,12 @@ namespace Autonocraft.Village
 {
     public sealed class VillageFoundingService
     {
+        private const float StarterFoodStock = 3f;
+        private const int StarterPlankCount = 8;
+        private const int StarterSettlementPlankCount = 16;
+        private const int StarterSettlementCobblestoneCount = 8;
+        private const int StarterSettlementCookedMeatCount = 2;
+
         private readonly VillagerManager _villagers;
         private readonly HashSet<long> _claimedAnchors;
         private int _worldSeed;
@@ -48,15 +54,14 @@ namespace Autonocraft.Village
             var village = new Village(villageName, heartX, heartY, heartZ, blueprint.StorageSlots);
             villages.Add(village);
             village.RegisterClaimedBuilding(blueprint, heartX, heartY, heartZ);
-            village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 16));
-            village.Storage.AddItem(ItemStack.CreateBlock(BlockType.Cobblestone, 8));
-            village.Storage.AddItem(ItemStack.CreateFood(ItemId.CookedMeat, 2));
-            village.Storage.AddItem(ToolRegistry.CreateStack(ToolType.Axe, ToolTier.Wood));
-            village.Storage.AddItem(ToolRegistry.CreateStack(ToolType.Pickaxe, ToolTier.Wood));
-            village.FoodStock = 6f;
+            SeedStarterSettlementStorage(village);
 
             VillageSettlementHealth.EnsureVillageChunksLoaded(world, village);
-            SpawnStarterCitizens(village, world, dispatcher);
+            int starterCount = SpawnStarterCitizens(village, world, dispatcher);
+            if (starterCount < 2)
+            {
+                throw new InvalidOperationException($"Starter settlement '{villageName}' failed to spawn its first citizens.");
+            }
 
             if (PlayerStructureRegistry.TryGet("farm_plot", out var farmBlueprint))
             {
@@ -84,7 +89,7 @@ namespace Autonocraft.Village
             }
 
             int spawned = VillageSettlementHealth.GetLivePopulation(village, _villagers);
-            int seedBase = _worldSeed ^ (village.AnchorX * 92821 + village.AnchorZ);
+            int seedBase = GetVillageSeed(village.AnchorX, village.AnchorZ);
 
             if (spawned == 0)
             {
@@ -134,7 +139,7 @@ namespace Autonocraft.Village
                 return false;
             }
 
-            return BlueprintPlacementHelper.HasClearFootprint(world, blueprint, anchorX, anchorY, anchorZ);
+            return BlueprintPlacementHelper.CanExcavateFootprint(world, blueprint, anchorX, anchorY, anchorZ);
         }
 
         public bool TryFoundVillage(
@@ -152,28 +157,27 @@ namespace Autonocraft.Village
                 return false;
             }
 
+            int resolvedX = anchorX;
+            int resolvedZ = anchorZ;
             int resolvedY = anchorY >= 0
                 ? anchorY
-                : StructureFingerprint.FindSurfaceAnchorY(world, anchorX, anchorZ);
+                : BlueprintPlacementHelper.GetGroundAnchorY(world, resolvedX, resolvedZ);
 
-            if (!BlueprintPlacementHelper.HasClearFootprint(world, blueprint, anchorX, resolvedY, anchorZ))
+            if (!BlueprintPlacementHelper.CanExcavateFootprint(world, blueprint, resolvedX, resolvedY, resolvedZ) &&
+                (anchorY >= 0 || !TryFindNearbyTownHeartAnchor(world, blueprint, anchorX, anchorZ, out resolvedX, out resolvedY, out resolvedZ)))
             {
-                ShowToast?.Invoke("Not enough space for Town Heart.");
+                ShowToast?.Invoke("Town Heart needs natural terrain nearby; steep cliffs or solid structures block it.");
                 return false;
             }
 
-            village = new Village(name, anchorX, resolvedY, anchorZ, blueprint.StorageSlots);
+            BlueprintPlacementHelper.ExcavateAndLevelFootprint(world, blueprint, resolvedX, resolvedY, resolvedZ);
+            village = new Village(name, resolvedX, resolvedY, resolvedZ, blueprint.StorageSlots);
             villages.Add(village);
-            village.QueueBuild(blueprint, anchorX, resolvedY, anchorZ);
-            village.FoodStock = 3f;
-            village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 8));
+            village.QueueBuild(blueprint, resolvedX, resolvedY, resolvedZ);
+            SeedBasicVillageStorage(village);
 
             VillageSettlementHealth.EnsureVillageChunksLoaded(world, village);
-            var spawn = VillageSpawnHelper.FindSpawnPosition(world, village, _worldSeed ^ (anchorX * 92821 + anchorZ));
-            var founder = _villagers.Spawn(village.Id, spawn, _worldSeed ^ (anchorX * 92821 + anchorZ));
-            founder.Role = VillagerRole.Peasant;
-            founder.IsGrounded = true;
-            village.RegisterVillager(founder.Id);
+            SpawnFounder(village, world, resolvedX, resolvedZ);
 
             ShowToast?.Invoke($"Founded '{name}'. Your settler will build the Town Heart — recruit more on the Overview tab.");
             return true;
@@ -262,15 +266,10 @@ namespace Autonocraft.Village
             village = new Village(name, anchorX, anchorY, anchorZ);
             villages.Add(village);
             village.RegisterClaimedBuilding(blueprint, anchorX, anchorY, anchorZ);
-            village.FoodStock = 3f;
-            village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 8));
+            SeedBasicVillageStorage(village);
 
             VillageSettlementHealth.EnsureVillageChunksLoaded(world, village);
-            var spawn = VillageSpawnHelper.FindSpawnPosition(world, village, _worldSeed ^ (anchorX * 92821 + anchorZ));
-            var villager = _villagers.Spawn(village.Id, spawn, _worldSeed ^ (anchorX * 92821 + anchorZ));
-            villager.Role = VillagerRole.Peasant;
-            villager.IsGrounded = true;
-            village.RegisterVillager(villager.Id);
+            SpawnFounder(village, world, anchorX, anchorZ);
 
             RecordClaimedAnchor(anchorX, anchorZ);
             ShowToast?.Invoke($"Claimed {matched.Id} ({ratio:P0} intact) as '{name}'.");
@@ -300,6 +299,74 @@ namespace Autonocraft.Village
 
         public bool IsAnchorClaimed(int anchorX, int anchorZ) =>
             _claimedAnchors.Contains(PackAnchor(anchorX, anchorZ));
+
+        private static bool TryFindNearbyTownHeartAnchor(
+            VoxelWorld world,
+            BuildingBlueprint blueprint,
+            int originX,
+            int originZ,
+            out int anchorX,
+            out int anchorY,
+            out int anchorZ)
+        {
+            for (int radius = 1; radius <= 6; radius++)
+            {
+                for (int dx = -radius; dx <= radius; dx++)
+                {
+                    for (int dz = -radius; dz <= radius; dz++)
+                    {
+                        if (Math.Abs(dx) != radius && Math.Abs(dz) != radius)
+                        {
+                            continue;
+                        }
+
+                        int candidateX = originX + dx;
+                        int candidateZ = originZ + dz;
+                        int candidateY = BlueprintPlacementHelper.GetGroundAnchorY(world, candidateX, candidateZ);
+                        if (BlueprintPlacementHelper.CanExcavateFootprint(world, blueprint, candidateX, candidateY, candidateZ))
+                        {
+                            anchorX = candidateX;
+                            anchorY = candidateY;
+                            anchorZ = candidateZ;
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            anchorX = originX;
+            anchorY = BlueprintPlacementHelper.GetGroundAnchorY(world, originX, originZ);
+            anchorZ = originZ;
+            return false;
+        }
+
+        private void SpawnFounder(Village village, VoxelWorld world, int anchorX, int anchorZ)
+        {
+            int seed = GetVillageSeed(anchorX, anchorZ);
+            var spawn = VillageSpawnHelper.FindSpawnPosition(world, village, seed);
+            var founder = _villagers.Spawn(village.Id, spawn, seed);
+            founder.Role = VillagerRole.Peasant;
+            founder.IsGrounded = true;
+            village.RegisterVillager(founder.Id);
+        }
+
+        private static void SeedBasicVillageStorage(Village village)
+        {
+            village.FoodStock = StarterFoodStock;
+            village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, StarterPlankCount));
+        }
+
+        private static void SeedStarterSettlementStorage(Village village)
+        {
+            village.FoodStock = StarterFoodStock;
+            village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, StarterSettlementPlankCount));
+            village.Storage.AddItem(ItemStack.CreateBlock(BlockType.Cobblestone, StarterSettlementCobblestoneCount));
+            village.Storage.AddItem(ItemStack.CreateFood(ItemId.CookedMeat, StarterSettlementCookedMeatCount));
+            village.Storage.AddItem(ToolRegistry.CreateStack(ToolType.Axe, ToolTier.Wood));
+            village.Storage.AddItem(ToolRegistry.CreateStack(ToolType.Pickaxe, ToolTier.Wood));
+        }
+
+        private int GetVillageSeed(int anchorX, int anchorZ) => _worldSeed ^ (anchorX * 92821 + anchorZ);
 
         public List<ClaimedAnchorSaveData> ExportClaimedAnchors()
         {

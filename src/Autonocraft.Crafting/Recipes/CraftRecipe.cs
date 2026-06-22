@@ -40,6 +40,8 @@ namespace Autonocraft.Crafting
     {
         public string Id { get; init; } = string.Empty;
         public string DisplayName { get; init; } = string.Empty;
+        public string GuideText { get; init; } = string.Empty;
+        public string UnlockHint { get; init; } = string.Empty;
         public BlockType StationType { get; init; }
         public IReadOnlyList<CraftInput> Inputs { get; init; } = Array.Empty<CraftInput>();
         public BlockType Output { get; init; }

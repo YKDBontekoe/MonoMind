@@ -12,7 +12,9 @@ using Autonocraft.Core;
 using DevCommands = Autonocraft.Core.DevCommands.DevCommandRouter;
 using Autonocraft.Ai;
 using Autonocraft.Domain.Core;
+using Autonocraft.Domain.Items;
 using Autonocraft.Domain.Village;
+using Autonocraft.Domain.World;
 using Autonocraft.Entities;
 using Autonocraft.Items;
 using Autonocraft.Village;
@@ -271,6 +273,134 @@ public static partial class VillageTests
         }
 
         Console.WriteLine("PASSED");
+    }
+
+    public static void RunTownHeartPlacementExcavatesUnevenTerrain()
+    {
+        Console.Write("Running Town Heart Uneven Terrain Placement Test... ");
+        if (!PlayerStructureRegistry.TryGet("town_heart", out var heart))
+        {
+            throw new Exception("Town Heart blueprint missing.");
+        }
+
+        var villagers = new VillagerManager();
+        var villages = new VillageManager(villagers);
+        var world = new VoxelWorld(9801);
+        villages.SetWorldSeed(world.Seed);
+
+        int ax = 96;
+        int ay = 68;
+        int az = 96;
+        PrepareTownHeartTerrain(world, heart, ax, ay, az);
+
+        int bumpX = ax + 1;
+        int bumpZ = az + 1;
+        world.SetBlock(bumpX, ay, bumpZ, BlockType.Grass);
+        world.SetBlock(bumpX, ay + 1, bumpZ, BlockType.Stone);
+
+        var payer = TownHeartStarterKit();
+        if (!villages.CanPlaceTownHeart(world, ax, ay, az, payer))
+        {
+            throw new Exception("Town Heart should accept uneven natural terrain.");
+        }
+
+        if (!villages.TryFoundVillage(world, "Uneven Founding", ax, az, out var village, ay) || village == null)
+        {
+            throw new Exception("Town Heart founding failed on excavatable terrain.");
+        }
+
+        if (world.GetBlock(bumpX, ay, bumpZ) != BlockType.Air ||
+            world.GetBlock(bumpX, ay + 1, bumpZ) != BlockType.Air)
+        {
+            throw new Exception("Town Heart founding did not excavate terrain bumps inside the footprint.");
+        }
+
+        if (village.AnchorY != ay)
+        {
+            throw new Exception($"Town Heart founded at wrong height: expected {ay}, got {village.AnchorY}.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunTownHeartPlacementRejectsBuiltObjects()
+    {
+        Console.Write("Running Town Heart Built Object Rejection Test... ");
+        if (!PlayerStructureRegistry.TryGet("town_heart", out var heart))
+        {
+            throw new Exception("Town Heart blueprint missing.");
+        }
+
+        var villagers = new VillagerManager();
+        var villages = new VillageManager(villagers);
+        var world = new VoxelWorld(9802);
+
+        int ax = 112;
+        int ay = 68;
+        int az = 112;
+        PrepareTownHeartTerrain(world, heart, ax, ay, az);
+        world.SetBlock(ax + 1, ay, az + 1, BlockType.Chest);
+
+        if (villages.CanPlaceTownHeart(world, ax, ay, az, TownHeartStarterKit()))
+        {
+            throw new Exception("Town Heart should reject built objects inside the excavation volume.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunTownHeartFoundingUsesSurfaceAnchor()
+    {
+        Console.Write("Running Town Heart Surface Anchor Founding Test... ");
+        var session = new GameSession(5151);
+        session.Grid.UpdateChunksAround(null, session.Player.Position, 2);
+        int ax = (int)MathF.Floor(session.Player.Position.X);
+        int az = (int)MathF.Floor(session.Player.Position.Z);
+
+        if (!session.Villages.TryFoundVillage(session.Grid, "Surface Anchor", ax, az, out var village) || village == null)
+        {
+            throw new Exception("Town Heart founding failed at normal spawn terrain.");
+        }
+
+        int surfaceY = session.Grid.GetHighestSolidY(ax, az);
+        if (village.AnchorY < surfaceY - 1)
+        {
+            throw new Exception($"Town Heart founded underground at Y={village.AnchorY}; surface is {surfaceY}.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    private static Inventory TownHeartStarterKit()
+    {
+        var inventory = new Inventory(9);
+        inventory.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 8));
+        inventory.AddItem(ItemStack.CreateBlock(BlockType.Cobblestone, 4));
+        return inventory;
+    }
+
+    private static void PrepareTownHeartTerrain(VoxelWorld world, BuildingBlueprint heart, int ax, int ay, int az)
+    {
+        world.UpdateChunksAround(null, new Vector3(ax + 0.5f, ay + 2f, az + 0.5f), 2);
+        BlueprintPlacementHelper.GetWorldBounds(heart, ax, ay, az, out int minX, out _, out int minZ, out int maxX, out _, out int maxZ);
+
+        for (int x = minX - 2; x <= maxX + 2; x++)
+        {
+            for (int z = minZ - 2; z <= maxZ + 2; z++)
+            {
+                for (int y = 1; y < Chunk.Height; y++)
+                {
+                    world.SetBlock(x, y, z, BlockType.Air);
+                }
+
+                for (int y = Math.Max(1, ay - 4); y < ay; y++)
+                {
+                    world.SetBlock(x, y, z, BlockType.Dirt);
+                }
+
+                world.SetBlock(x, ay - 1, z, BlockType.Grass);
+            }
+        }
     }
 
     public static void RunStarterSettlementBeforeChunksLoaded()

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using Microsoft.Xna.Framework;
 using Autonocraft.Domain.Village;
@@ -72,7 +73,7 @@ namespace Autonocraft.UI.VillagePanels
             float cardH = layout.S(58f);
             float cardW = layout.S(PanelWidth) - layout.S(64f);
             int buildIndex = 0;
-            foreach (var blueprint in PlayerStructureRegistry.All)
+            foreach (var blueprint in GetOrderedBlueprints(context))
             {
                 if (blueprint.Id == "town_heart")
                 {
@@ -81,6 +82,7 @@ namespace Autonocraft.UI.VillagePanels
 
                 bool hovered = context.HoveredButton == 20 + buildIndex;
                 bool canAfford = CanAffordBlueprint(context, blueprint);
+                var recommendation = GetRecommendation(context, blueprint);
                 Color cardBorder = hovered ? UiTheme.Accent : (canAfford ? UiTheme.PanelBorder : UiTheme.Rule);
                 Color cardFill = hovered ? UiTheme.PanelBgHighlight : UiTheme.PanelBgMuted;
                 if (cardY + cardH >= catalogY + layout.S(34f) && cardY <= catalogY + catalogH - layout.S(6f))
@@ -88,8 +90,18 @@ namespace Autonocraft.UI.VillagePanels
                     ui.DrawPanel(left + layout.S(12f), cardY, cardW, cardH, cardFill, cardBorder, 0.8f, alpha, UiTheme.RadiusMd);
                     ui.DrawString(blueprint.DisplayName, left + layout.S(22f), cardY + layout.S(10f),
                         layout.S(UiTheme.FontBody), canAfford ? UiTheme.Title : UiTheme.Meta, alpha, semiBold: true);
-                    ui.DrawString(GetBuildingBlurb(blueprint.Kind), left + layout.S(22f), cardY + layout.S(28f),
+                    string blurb = recommendation.Priority > 0
+                        ? recommendation.Reason
+                        : GetBuildingBlurb(blueprint.Kind);
+                    ui.DrawString(TrimToWidth(ui, blurb, layout.S(UiTheme.FontSmall), cardW - layout.S(220f)),
+                        left + layout.S(22f), cardY + layout.S(28f),
                         layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha);
+                    if (recommendation.Priority > 0)
+                    {
+                        DrawBadge(ui, layout, left + layout.S(170f), cardY + layout.S(12f),
+                            recommendation.Label, canAfford ? UiTheme.Accent : UiTheme.Meta, alpha);
+                    }
+
                     string costs = FormatCosts(blueprint);
                     float costW = ui.MeasureString(costs, layout.S(UiTheme.FontSmall));
                     ui.DrawString(costs, left + layout.S(12f) + cardW - costW - layout.S(12f), cardY + layout.S(18f),
@@ -99,6 +111,96 @@ namespace Autonocraft.UI.VillagePanels
                 cardY += cardH + layout.S(8f);
                 buildIndex++;
             }
+        }
+
+        public static IReadOnlyList<BuildingBlueprint> GetOrderedBlueprints(VillagePanelContext context)
+        {
+            var blueprints = new List<BuildingBlueprint>();
+            foreach (var blueprint in PlayerStructureRegistry.All)
+            {
+                if (blueprint.Id != "town_heart")
+                {
+                    blueprints.Add(blueprint);
+                }
+            }
+
+            blueprints.Sort((a, b) =>
+            {
+                int priority = GetRecommendation(context, b).Priority.CompareTo(GetRecommendation(context, a).Priority);
+                return priority != 0
+                    ? priority
+                    : string.Compare(a.DisplayName, b.DisplayName, StringComparison.OrdinalIgnoreCase);
+            });
+            return blueprints;
+        }
+
+        private static (int Priority, string Label, string Reason) GetRecommendation(
+            VillagePanelContext context,
+            BuildingBlueprint blueprint)
+        {
+            var village = context.Village;
+            var vm = context.ViewModel;
+            int citizens = vm?.Population ?? village.Population;
+
+            if (blueprint.Kind == BuildingKind.House && citizens >= village.PopulationCap)
+            {
+                return (100, "needed", "Housing is full; add beds before more families can join.");
+            }
+
+            if (blueprint.Kind == BuildingKind.FarmPlot &&
+                (vm?.FoodRiskLevel is FoodRiskLevel.Low or FoodRiskLevel.Critical || village.FoodStock <= Math.Max(1, citizens)))
+            {
+                return (95, "food", "Food is tight; farms keep recruiting and families moving.");
+            }
+
+            if (blueprint.Kind == BuildingKind.Market &&
+                citizens >= 3 &&
+                !village.HasBuilding(BuildingKind.Market))
+            {
+                return (80, "trade", "Turns surplus into favor for trades and future agent contracts.");
+            }
+
+            if (blueprint.Kind == BuildingKind.Workshop &&
+                citizens >= 4 &&
+                !village.HasBuilding(BuildingKind.Workshop))
+            {
+                return (78, "agents", "Crafts tools and opens the path to delegated work orders.");
+            }
+
+            if (blueprint.Kind == BuildingKind.Storage && village.Storage.SlotCount <= 9 && citizens >= 3)
+            {
+                return (70, "logistics", "Adds shared storage so large builds and hauling do not jam.");
+            }
+
+            if (blueprint.Kind == BuildingKind.LumberCamp && citizens > 0 && !village.HasBuilding(BuildingKind.LumberCamp))
+            {
+                return (55, "wood", "Useful early: faster planks feed houses, tools, and recruits.");
+            }
+
+            if (blueprint.Kind == BuildingKind.Quarry && citizens >= 2 && !village.HasBuilding(BuildingKind.Quarry))
+            {
+                return (45, "stone", "Secures cobble and stone for bigger civic buildings.");
+            }
+
+            return (0, string.Empty, string.Empty);
+        }
+
+        private static void DrawBadge(
+            UiRenderer ui,
+            UiLayout layout,
+            float x,
+            float y,
+            string label,
+            Color accent,
+            float alpha)
+        {
+            float textW = ui.MeasureString(label, layout.S(UiTheme.FontCaption), semiBold: true);
+            float w = textW + layout.S(16f);
+            float h = layout.S(18f);
+            ui.DrawRoundedRect(x, y, w, h, h * 0.5f, accent * (0.14f * alpha));
+            ui.DrawRoundedRectOutline(x, y, w, h, h * 0.5f, accent * (0.45f * alpha), 1f, alpha);
+            ui.DrawString(label, x + layout.S(8f), y + layout.S(4f), layout.S(UiTheme.FontCaption),
+                accent, alpha, semiBold: true);
         }
 
         private static bool CanAffordBlueprint(VillagePanelContext context, BuildingBlueprint blueprint)
@@ -139,6 +241,26 @@ namespace Autonocraft.UI.VillagePanels
             BuildingKind.Market => "Keeps citizens happy, raises happiness limit by 10%",
             _ => "Expands your settlement"
         };
+
+        private static string TrimToWidth(UiRenderer ui, string text, float fontSize, float maxWidth)
+        {
+            if (ui.MeasureString(text, fontSize) <= maxWidth)
+            {
+                return text;
+            }
+
+            const string ellipsis = "...";
+            for (int len = text.Length - 1; len > 0; len--)
+            {
+                string candidate = text[..len].TrimEnd() + ellipsis;
+                if (ui.MeasureString(candidate, fontSize) <= maxWidth)
+                {
+                    return candidate;
+                }
+            }
+
+            return ellipsis;
+        }
 
         private static string FormatCosts(BuildingBlueprint blueprint)
         {

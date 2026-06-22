@@ -66,6 +66,13 @@ namespace Autonocraft.Ai
                 return contentNode.GetString() ?? string.Empty;
             }
 
+            if (message.TryGetProperty("tool_calls", out var toolCallsNode) &&
+                toolCallsNode.ValueKind == JsonValueKind.Array &&
+                toolCallsNode.GetArrayLength() > 0)
+            {
+                return message.GetRawText();
+            }
+
             return message.GetRawText();
         }
 
@@ -85,7 +92,8 @@ namespace Autonocraft.Ai
             {
                 model = _model,
                 messages = payloadMessages,
-                tools = toolsDoc.RootElement
+                tools = toolsDoc.RootElement,
+                tool_choice = "auto"
             });
         }
 

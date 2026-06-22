@@ -12,8 +12,8 @@ public class ChunkLodTests
     [InlineData(6, 2, ChunkMeshDetail.Full)]
     [InlineData(6, 4, ChunkMeshDetail.Surface)]
     [InlineData(6, 6, ChunkMeshDetail.Shell)]
-    [InlineData(10, 3, ChunkMeshDetail.Surface)]
-    [InlineData(10, 6, ChunkMeshDetail.Shell)]
+    [InlineData(10, 3, ChunkMeshDetail.Full)]
+    [InlineData(10, 6, ChunkMeshDetail.Surface)]
     [InlineData(10, 10, ChunkMeshDetail.Shell)]
     public void SelectDetailMatchesExpectedBands(int renderDistance, int chunkDistance, ChunkMeshDetail expected)
     {
@@ -114,5 +114,20 @@ public class ChunkLodTests
         var shell = ChunkLod.GetFogRange(8, ChunkMeshDetail.Shell);
         Assert.True(shell.end < full.end);
         Assert.True(shell.start < full.start);
+    }
+
+    [Fact]
+    public void FloraBuildsIntoMiddleDistanceForAtmosphere()
+    {
+        Assert.True(ChunkLod.ShouldBuildFlora(chunkDistance: 8, renderDistance: 10));
+        Assert.False(ChunkLod.ShouldBuildFlora(chunkDistance: 9, renderDistance: 10));
+    }
+
+    [Fact]
+    public void FogStartsBeyondImmediateChunkRing()
+    {
+        var fog = ChunkLod.GetFogRange(8, ChunkMeshDetail.Full);
+        Assert.True(fog.start > 40f);
+        Assert.True(fog.end > 140f);
     }
 }

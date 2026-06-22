@@ -13,8 +13,8 @@ namespace Autonocraft.UI
     {
         private const float ButtonWidth = 200f;
         private const float ButtonHeight = 44f;
-        private const float PanelWidth = 560f;
-        private const float PanelHeight = 400f;
+        private const float PanelWidth = 640f;
+        private const float PanelHeight = 430f;
 
         private readonly UiRenderer _ui;
         private readonly MenuBackdrop _backdrop = new MenuBackdrop(28);
@@ -77,7 +77,7 @@ namespace Autonocraft.UI
 
             var createRect = GetButtonRect(metrics.Cx - buttonW / 2f - layout.S(6f), metrics.CreateY, buttonW, buttonH);
             var backRect = GetButtonRect(metrics.Cx + buttonW / 2f + layout.S(6f), metrics.CreateY, buttonW, buttonH);
-            var randomRect = GetButtonRect(metrics.Cx + layout.S(100f), metrics.RandomY, layout.S(120f), layout.S(34f));
+            var randomRect = GetButtonRect(metrics.Cx + layout.S(184f), metrics.RandomY, layout.S(120f), layout.S(34f));
 
             _hoveredButton = -1;
             if (createRect.Contains(mouse.X, mouse.Y)) _hoveredButton = 0;
@@ -118,7 +118,7 @@ namespace Autonocraft.UI
                         }
                     }
 
-                    var seedBox = new Rectangle((int)(metrics.Cx - layout.S(130f)), (int)metrics.SeedY, (int)layout.S(260f), (int)layout.S(36f));
+                    var seedBox = new Rectangle((int)(metrics.Cx - layout.S(150f)), (int)metrics.SeedY, (int)layout.S(300f), (int)layout.S(36f));
                     _seedFocused = seedBox.Contains(mouse.X, mouse.Y);
                 }
             }
@@ -148,13 +148,13 @@ namespace Autonocraft.UI
                     {
                         _seedFocused = false;
                     }
-                    else if (key >= Keys.D0 && key <= Keys.D9 && _seedText.Length < 10)
+                    else
                     {
-                        _seedText += (char)('0' + (key - Keys.D0));
-                    }
-                    else if (key >= Keys.NumPad0 && key <= Keys.NumPad9 && _seedText.Length < 10)
-                    {
-                        _seedText += (char)('0' + (key - Keys.NumPad0));
+                        char? digit = TextInputKeys.ToChar(key, shift: false, TextInputCharacterSet.Digits);
+                        if (digit.HasValue && _seedText.Length < 10)
+                        {
+                            _seedText += digit.Value;
+                        }
                     }
                 }
             }
@@ -231,8 +231,8 @@ namespace Autonocraft.UI
             MenuChrome.DrawTitleBlock(_ui, layout, "New world", "Choose terrain — your steward awaits", 0.085f, alpha, offsetY);
 
             _ui.DrawCard(panelX, metrics.PanelY, panelW, panelH, alpha, UiTheme.RadiusXl);
-            _ui.DrawCenteredTitle("World setup", metrics.PanelY + layout.S(24f), layout.S(UiTheme.FontTitle), UiTheme.Title, alpha);
-            _ui.DrawCenteredText("Choose terrain — your steward awaits", metrics.PanelY + layout.S(54f), layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha * 0.92f);
+            _ui.DrawCenteredTitle("World setup", metrics.PanelY + layout.S(22f), layout.S(UiTheme.FontTitle), UiTheme.Title, alpha);
+            _ui.DrawCenteredText("Choose terrain and seed", metrics.PanelY + layout.S(52f), layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha * 0.92f);
 
             UiTheme.DrawSectionHeader(_ui, "Terrain type", metrics.TypeListX, metrics.TypeY - layout.S(28f), layout, alpha);
 
@@ -240,39 +240,47 @@ namespace Autonocraft.UI
             {
                 bool selected = i == _selectedWorldType;
                 float rowY = metrics.TypeY + i * metrics.TypeRowStep;
+                float rowW = layout.S(480f);
+                Color rowFill = selected ? UiTheme.AccentSoft : UiTheme.PanelBgMuted;
+                _ui.DrawRoundedRect(metrics.TypeListX - layout.S(8f), rowY - layout.S(5f), rowW, metrics.TypeRowHeight,
+                    layout.S(UiTheme.RadiusMd), rowFill * (selected ? 0.92f * alpha : 0.72f * alpha));
                 if (selected)
                 {
-                    _ui.DrawRoundedRect(metrics.TypeListX - layout.S(4f), rowY - layout.S(2f), layout.S(400f), metrics.TypeRowHeight,
-                        layout.S(UiTheme.RadiusMd), UiTheme.AccentSoft * alpha);
-                    _ui.DrawRoundedRectOutline(metrics.TypeListX - layout.S(4f), rowY - layout.S(2f), layout.S(400f), metrics.TypeRowHeight,
+                    _ui.DrawRoundedRectOutline(metrics.TypeListX - layout.S(8f), rowY - layout.S(5f), rowW, metrics.TypeRowHeight,
                         layout.S(UiTheme.RadiusMd), UiTheme.Accent, 2f, 0.85f * alpha);
+                }
+                else
+                {
+                    _ui.DrawRoundedRectOutline(metrics.TypeListX - layout.S(8f), rowY - layout.S(5f), rowW, metrics.TypeRowHeight,
+                        layout.S(UiTheme.RadiusMd), UiTheme.PanelBorder, 1f, 0.45f * alpha);
                 }
 
                 Color color = selected ? UiTheme.Title : UiTheme.Meta;
-                string prefix = selected ? "› " : "  ";
-                string label = prefix + FormatWorldType(WorldTypes[i]);
-                _ui.DrawString(label, metrics.TypeListX, rowY + layout.S(4f), layout.S(UiTheme.FontBody), color, alpha, semiBold: selected);
+                string label = FormatWorldType(WorldTypes[i]);
+                _ui.DrawString(label, metrics.TypeListX + layout.S(8f), rowY + layout.S(1f), layout.S(UiTheme.FontBody), color, alpha, semiBold: selected);
+                _ui.DrawString(DescribeWorldType(WorldTypes[i]), metrics.TypeListX + layout.S(150f), rowY + layout.S(2f),
+                    layout.S(UiTheme.FontSmall), selected ? UiTheme.Subtitle : UiTheme.Hint, alpha * 0.92f);
             }
 
             UiTheme.DrawSectionHeader(_ui, "World seed", metrics.TypeListX, metrics.SeedY - layout.S(28f), layout, alpha);
             _ui.DrawPanel(
-                metrics.Cx - layout.S(130f),
+                metrics.Cx - layout.S(150f),
                 metrics.SeedY,
-                layout.S(260f),
+                layout.S(300f),
                 layout.S(36f),
                 _seedFocused ? UiTheme.PanelBgHighlight : UiTheme.PanelBgMuted,
                 _seedFocused ? UiTheme.Accent : UiTheme.PanelBorder,
                 0.85f,
                 alpha,
                 UiTheme.RadiusMd);
-            _ui.DrawString(_seedText, metrics.Cx - layout.S(120f), metrics.SeedY + layout.S(10f), layout.S(UiTheme.FontBody), UiTheme.Title, alpha);
+            _ui.DrawString(_seedText, metrics.Cx - layout.S(140f), metrics.SeedY + layout.S(10f), layout.S(UiTheme.FontBody), UiTheme.Title, alpha);
 
             if (!string.IsNullOrEmpty(_seedErrorMessage))
             {
                 _ui.DrawCenteredText(_seedErrorMessage, metrics.SeedY + layout.S(44f), layout.S(UiTheme.FontSmall), UiTheme.Danger, alpha);
             }
 
-            DrawButton(metrics.Cx + layout.S(100f), metrics.RandomY, layout.S(120f), layout.S(34f), "Random", 2, UiButtonStyle.Ghost, layout, alpha);
+            DrawButton(metrics.Cx + layout.S(184f), metrics.RandomY, layout.S(120f), layout.S(34f), "Random", 2, UiButtonStyle.Ghost, layout, alpha);
 
             DrawButton(metrics.Cx - buttonW / 2f - layout.S(6f), metrics.CreateY, buttonW, buttonH, "Create world", 0, UiButtonStyle.Primary, layout, alpha);
             DrawButton(metrics.Cx + buttonW / 2f + layout.S(6f), metrics.CreateY, buttonW, buttonH, "Back", 1, UiButtonStyle.Ghost, layout, alpha);
@@ -294,6 +302,15 @@ namespace Autonocraft.UI
             _ => type.ToString()
         };
 
+        private static string DescribeWorldType(WorldType type) => type switch
+        {
+            WorldType.Default => "Balanced biomes and caves",
+            WorldType.Mountains => "Tall ridges and deep valleys",
+            WorldType.Islands => "Water, coasts, and traversal",
+            WorldType.Flat => "Fast building canvas",
+            _ => string.Empty
+        };
+
         private static Rectangle GetButtonRect(float x, float y, float width, float height)
         {
             return new Rectangle((int)x, (int)y, (int)width, (int)height);
@@ -302,13 +319,13 @@ namespace Autonocraft.UI
         private static ScreenLayout ComputeLayout(UiLayout layout, float panelYOffset = 0f)
         {
             float cx = layout.CenterX;
-            float panelY = layout.CenterY - layout.S(PanelHeight / 2f) + panelYOffset;
+            float panelY = layout.CenterY - layout.S(PanelHeight / 2f) + panelYOffset + layout.S(24f);
             float typeY = panelY + layout.S(108f);
             float seedY = typeY + layout.S(108f);
             return new ScreenLayout(
                 cx,
                 panelY,
-                cx - layout.S(200f),
+                cx - layout.S(240f),
                 typeY,
                 layout.S(32f),
                 layout.S(28f),

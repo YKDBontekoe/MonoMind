@@ -20,7 +20,17 @@ namespace Autonocraft.World.Generation.Trees
 
             if (biome.Primary == BiomeType.BorealTaiga)
             {
-                return treeTypeRand < 70 ? TreeSpecies.Pine() : TreeSpecies.Birch();
+                if (treeTypeRand < 72)
+                {
+                    return TreeSpecies.Pine();
+                }
+
+                if (treeTypeRand < 88)
+                {
+                    return TreeSpecies.Birch();
+                }
+
+                return TreeSpecies.Maple();
             }
 
             if (biome.Primary == BiomeType.SnowyPeaks || biome.Temperature < -0.05f)
@@ -30,7 +40,22 @@ namespace Autonocraft.World.Generation.Trees
 
             if (biome.Primary == BiomeType.MushroomForest)
             {
-                return treeTypeRand < 40 ? TreeSpecies.Birch() : TreeSpecies.Oak();
+                if (treeTypeRand < 34)
+                {
+                    return TreeSpecies.Birch();
+                }
+
+                if (treeTypeRand < 66)
+                {
+                    return TreeSpecies.Maple();
+                }
+
+                if (treeTypeRand < 82)
+                {
+                    return TreeSpecies.Cherry();
+                }
+
+                return TreeSpecies.Oak();
             }
 
             if (biome.Primary == BiomeType.Plains && treeTypeRand < 15)

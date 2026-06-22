@@ -124,17 +124,27 @@ namespace Autonocraft.Engine
         private Image ComposeGrassSide(Image dirt, Image grassFringe)
         {
             var result = dirt.Clone();
-            int fringeHeight = Math.Max(1, _tileSize * 45 / 100);
-            for (int y = 0; y < fringeHeight; y++)
+            int baseFringeHeight = Math.Max(1, _tileSize * 43 / 100);
+            for (int x = 0; x < _tileSize; x++)
             {
-                for (int x = 0; x < _tileSize; x++)
+                int overhang = NoiseValue("grass_side_overhang", x / 4, _tileSize, 5) % (_tileSize / 9);
+                int fringeHeight = Math.Clamp(baseFringeHeight + overhang - _tileSize / 18, _tileSize / 5, _tileSize * 3 / 5);
+                for (int y = 0; y < fringeHeight; y++)
                 {
                     int srcY = y * grassFringe.Height / fringeHeight;
                     Color fringeColor = grassFringe.Pixels[srcY * grassFringe.Width + x];
                     if (fringeColor.A > 0)
                     {
-                        result.Pixels[y * _tileSize + x] = fringeColor;
+                        int noise = NoiseValue("grass_side_blend", x, y, 11) % 9 - 4;
+                        result.Pixels[y * _tileSize + x] = Shade(fringeColor, noise);
                     }
+                }
+
+                int shadowY = Math.Min(_tileSize - 1, fringeHeight + 1);
+                for (int sy = shadowY; sy < Math.Min(_tileSize, shadowY + 5); sy++)
+                {
+                    int idx = sy * _tileSize + x;
+                    result.Pixels[idx] = Shade(result.Pixels[idx], -18 + (sy - shadowY) * 3);
                 }
             }
 
@@ -144,17 +154,27 @@ namespace Autonocraft.Engine
         private Image ComposeSnowSide(Image dirt, Image snowFringe)
         {
             var result = dirt.Clone();
-            int fringeHeight = Math.Max(1, _tileSize * 45 / 100);
-            for (int y = 0; y < fringeHeight; y++)
+            int baseFringeHeight = Math.Max(1, _tileSize * 40 / 100);
+            for (int x = 0; x < _tileSize; x++)
             {
-                for (int x = 0; x < _tileSize; x++)
+                int drift = NoiseValue("snow_side_drift", x / 5, _tileSize, 7) % (_tileSize / 7);
+                int fringeHeight = Math.Clamp(baseFringeHeight + drift - _tileSize / 20, _tileSize / 5, _tileSize * 3 / 5);
+                for (int y = 0; y < fringeHeight; y++)
                 {
                     int srcY = y * snowFringe.Height / fringeHeight;
                     Color fringeColor = snowFringe.Pixels[srcY * snowFringe.Width + x];
                     if (fringeColor.A > 0)
                     {
-                        result.Pixels[y * _tileSize + x] = fringeColor;
+                        int glint = NoiseValue("snow_side_glint", x, y, 13) % 10;
+                        result.Pixels[y * _tileSize + x] = Shade(fringeColor, glint == 0 ? 18 : -2);
                     }
+                }
+
+                int shadowY = Math.Min(_tileSize - 1, fringeHeight + 1);
+                for (int sy = shadowY; sy < Math.Min(_tileSize, shadowY + 4); sy++)
+                {
+                    int idx = sy * _tileSize + x;
+                    result.Pixels[idx] = Shade(result.Pixels[idx], -12 + (sy - shadowY) * 3);
                 }
             }
 

@@ -65,7 +65,8 @@ namespace Autonocraft.Ai
 
             string systemPrompt = BuildSystemPrompt(village, target, session);
             var history = _conversation.GetHistory(target);
-            string rawResponse = await _client.CompleteChatAsync(systemPrompt, history).ConfigureAwait(false);
+            string rawResponse = await _client.CompleteChatAsync(systemPrompt, history, VillageAiToolSchemas.Json)
+                .ConfigureAwait(false);
 
             string reply = ExtractReply(rawResponse);
             if (TryParseToolCall(rawResponse, out string? toolName, out string? toolArgs, out string? embeddedReply))
@@ -193,7 +194,7 @@ namespace Autonocraft.Ai
             return $"{persona}\n" +
                 "Village context JSON:\n" +
                 $"{context}\n\n" +
-                "When you need to act, respond with JSON like {{\"tool\":\"assign_job\",\"args\":{{\"villager_id\":1,\"job\":\"Lumber\"}},\"reply\":\"short player-facing text\"}}.\n" +
+                "When you need to act, call exactly one available tool. If the provider does not support tool calling, respond with JSON like {{\"tool\":\"assign_job\",\"args\":{{\"villager_id\":1,\"job\":\"Lumber\"}},\"reply\":\"short player-facing text\"}}.\n" +
                 "Jobs: Idle, Lumber, Mine, Farm, Build, Haul (Gather is an alias for Lumber).\n" +
                 "Available tools: get_village_summary, list_villagers, assign_job, recruit_villager, queue_build, mark_resource, cancel_job, set_village_goal.\n" +
                 "set_village_goal supports kind=stock (block_type, target_count) or kind=build (blueprint_id), or a natural-language description like \"Stock 64 Cobblestone\" or \"Build peasant house\".\n" +
@@ -219,6 +220,16 @@ namespace Autonocraft.Ai
             {
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
+                if (TryParseOpenAiToolCall(root, out toolName, out toolArgs))
+                {
+                    if (root.TryGetProperty("content", out var contentNode) && contentNode.ValueKind == JsonValueKind.String)
+                    {
+                        reply = contentNode.GetString();
+                    }
+
+                    return true;
+                }
+
                 if (!root.TryGetProperty("tool", out var toolNode) || toolNode.ValueKind != JsonValueKind.String)
                 {
                     return false;
@@ -241,6 +252,40 @@ namespace Autonocraft.Ai
             {
                 return false;
             }
+        }
+
+        private static bool TryParseOpenAiToolCall(JsonElement root, out string? toolName, out string? toolArgs)
+        {
+            toolName = null;
+            toolArgs = null;
+
+            if (!root.TryGetProperty("tool_calls", out var toolCalls) ||
+                toolCalls.ValueKind != JsonValueKind.Array ||
+                toolCalls.GetArrayLength() == 0)
+            {
+                return false;
+            }
+
+            var call = toolCalls[0];
+            if (!call.TryGetProperty("function", out var functionNode))
+            {
+                return false;
+            }
+
+            if (functionNode.TryGetProperty("name", out var nameNode) &&
+                nameNode.ValueKind == JsonValueKind.String)
+            {
+                toolName = nameNode.GetString();
+            }
+
+            if (functionNode.TryGetProperty("arguments", out var argsNode))
+            {
+                toolArgs = argsNode.ValueKind == JsonValueKind.String
+                    ? argsNode.GetString()
+                    : argsNode.GetRawText();
+            }
+
+            return !string.IsNullOrWhiteSpace(toolName);
         }
 
         private static string ExtractReply(string raw)

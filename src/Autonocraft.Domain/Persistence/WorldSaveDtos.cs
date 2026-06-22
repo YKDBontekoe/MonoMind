@@ -151,6 +151,8 @@ namespace Autonocraft.Domain.Persistence
         public int AnchorZ { get; set; }
         public int Tier { get; set; }
         public float FoodStock { get; set; }
+        public int Favor { get; set; }
+        public float FamilyGrowthProgress { get; set; }
         public int ConsecutiveDaysWithoutFood { get; set; }
         public float Happiness { get; set; } = 1f;
         public float Radius { get; set; } = 32f;

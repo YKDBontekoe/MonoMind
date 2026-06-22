@@ -82,7 +82,38 @@ namespace Autonocraft.World
                     _treePlacer.TryPlaceTrees(chunk, world, columns, wx, wz, lx, lz, column, previewColumn);
                     _floraPlacer.TryPlaceGroundFlora(chunk, world, wx, wz, lx, lz, column, columnHash);
                     TryPlaceBoulder(chunk, world, wx, wz, lx, lz, column, GenerationBlocks.Hash(wx, wz, _seed, 41));
+                    TryPlaceAtmosphericAccent(chunk, world, wx, wz, lx, lz, column, columnHash);
                 }
+            }
+        }
+
+        private static void TryPlaceAtmosphericAccent(
+            Chunk chunk,
+            VoxelWorld? world,
+            int wx,
+            int wz,
+            int lx,
+            int lz,
+            TerrainColumn column,
+            int hash)
+        {
+            int y = column.SurfaceHeight + 1;
+
+            if (column.Profile.Type == BiomeType.MushroomForest && hash % 11 == 0)
+            {
+                GenerationBlocks.SetBlockIfAir(chunk, world, wx, wz, lx, lz, y, BlockType.Glowshroom);
+                return;
+            }
+
+            if (column.Profile.Type == BiomeType.BorealTaiga && hash % 29 == 0)
+            {
+                GenerationBlocks.SetBlockIfAir(chunk, world, wx, wz, lx, lz, y, BlockType.MossCarpet);
+                return;
+            }
+
+            if (column.Biome.Primary is BiomeType.Mountains or BiomeType.SnowyPeaks && hash % 137 == 0)
+            {
+                GenerationBlocks.SetBlockIfAir(chunk, world, wx, wz, lx, lz, y, BlockType.Lichen);
             }
         }
 

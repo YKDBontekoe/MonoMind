@@ -104,5 +104,22 @@ namespace Autonocraft.Core
                 }
             }
         }
+
+        public bool TryCollectTo(IItemContainer container, Action<SfxKind>? playSfx = null)
+        {
+            if (_pickupDelay > 0f || ReadyForRemoval)
+            {
+                return false;
+            }
+
+            if (!container.AddItem(Item))
+            {
+                return false;
+            }
+
+            ReadyForRemoval = true;
+            playSfx?.Invoke(SfxKind.Pop);
+            return true;
+        }
     }
 }

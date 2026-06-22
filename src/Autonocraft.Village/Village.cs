@@ -42,6 +42,8 @@ namespace Autonocraft.Village
         public float FoodStock { get; set; }
         public float FoodConsumptionPerDay { get; set; } = 1f;
         public float Happiness { get; set; } = 1f;
+        public int Favor { get; set; }
+        public float FamilyGrowthProgress { get; set; }
         public float DayAccumulator { get; set; }
         public float FarmGrowthAccumulator { get; set; }
         public int ConsecutiveDaysWithoutFood { get; set; }
@@ -63,6 +65,7 @@ namespace Autonocraft.Village
         public Vector3 StoragePosition => Center;
 
         public const int RecruitFoodCost = 4;
+        public const float FamilyArrivalFoodCost = 3f;
         public static readonly BlockType RationBlock = BlockType.OakPlank;
 
         public Village(string name, int anchorX, int anchorY, int anchorZ, int storageSlots = 9, int? explicitId = null)
@@ -520,6 +523,7 @@ namespace Autonocraft.Village
             {
                 FoodStock -= need;
                 ConsecutiveDaysWithoutFood = 0;
+                AwardMarketFavor();
             }
             else
             {
@@ -527,6 +531,101 @@ namespace Autonocraft.Village
                 Happiness = MathF.Max(0.1f, Happiness - 0.1f);
                 ConsecutiveDaysWithoutFood++;
             }
+        }
+
+        public bool TrySpendFavor(int amount)
+        {
+            if (amount <= 0)
+            {
+                return true;
+            }
+
+            if (Favor < amount)
+            {
+                return false;
+            }
+
+            Favor -= amount;
+            return true;
+        }
+
+        public void AddFavor(int amount)
+        {
+            if (amount > 0)
+            {
+                Favor += amount;
+            }
+        }
+
+        public bool TryAdvanceFamilyGrowth(int livePopulation)
+        {
+            if (livePopulation <= 0 || livePopulation >= PopulationCap)
+            {
+                FamilyGrowthProgress = MathF.Max(0f, FamilyGrowthProgress - 0.15f);
+                return false;
+            }
+
+            if (ConsecutiveDaysWithoutFood > 0 || Happiness < 0.72f)
+            {
+                FamilyGrowthProgress = MathF.Max(0f, FamilyGrowthProgress - 0.12f);
+                return false;
+            }
+
+            float comfortFood = MathF.Max(4f, livePopulation * 1.5f);
+            if (FoodStock < comfortFood + FamilyArrivalFoodCost)
+            {
+                FamilyGrowthProgress = MathF.Max(0f, FamilyGrowthProgress - 0.08f);
+                return false;
+            }
+
+            float surplus = MathF.Max(0f, FoodStock - comfortFood);
+            float progress = 0.18f + MathF.Min(0.22f, surplus / 18f);
+            if (HasBuilding(BuildingKind.House))
+            {
+                progress += 0.08f;
+            }
+
+            if (HasBuilding(BuildingKind.FarmPlot))
+            {
+                progress += 0.06f;
+            }
+
+            if (HasBuilding(BuildingKind.Market))
+            {
+                progress += 0.05f;
+            }
+
+            if (Happiness >= 0.95f)
+            {
+                progress += 0.04f;
+            }
+
+            FamilyGrowthProgress += progress;
+            if (FamilyGrowthProgress < 1f)
+            {
+                return false;
+            }
+
+            FamilyGrowthProgress = 0f;
+            FoodStock = MathF.Max(0f, FoodStock - FamilyArrivalFoodCost);
+            return true;
+        }
+
+        private void AwardMarketFavor()
+        {
+            if (!HasBuilding(BuildingKind.Market) || Population <= 0)
+            {
+                return;
+            }
+
+            int foodSurplus = Math.Max(0, (int)MathF.Floor(FoodStock - Population));
+            int dailyFavor = Math.Clamp(1 + foodSurplus / 4, 1, 4);
+            if (Happiness >= 0.85f)
+            {
+                dailyFavor++;
+            }
+
+            AddFavor(dailyFavor);
         }
 
         public float GetWorkSpeedMultiplier()

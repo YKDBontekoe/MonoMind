@@ -10,6 +10,19 @@ namespace Autonocraft.Core
     {
         public const float StepsPerBlock = 1.4285714f;
 
+        private static readonly IReadOnlyDictionary<AnimalType, Action<PlayerStatistics>> AnimalKillCounters =
+            new Dictionary<AnimalType, Action<PlayerStatistics>>
+            {
+                [AnimalType.Sheep] = stats => stats.SheepKilled++,
+                [AnimalType.Pig] = stats => stats.PigKilled++,
+                [AnimalType.Chicken] = stats => stats.ChickenKilled++,
+                [AnimalType.Cow] = stats => stats.CowKilled++,
+                [AnimalType.Bear] = stats => stats.BearKilled++,
+                [AnimalType.Fox] = stats => stats.FoxKilled++,
+                [AnimalType.Deer] = stats => stats.DeerKilled++,
+                [AnimalType.Wolf] = stats => stats.WolfKilled++
+            };
+
         public double TotalPlayTimeSeconds { get; set; }
         public int SessionCount { get; set; }
         public float DistanceWalked { get; set; }
@@ -80,32 +93,9 @@ namespace Autonocraft.Core
         {
             AnimalsKilled++;
             DamageDealt += damageDealt;
-            switch (type)
+            if (AnimalKillCounters.TryGetValue(type, out var increment))
             {
-                case AnimalType.Sheep:
-                    SheepKilled++;
-                    break;
-                case AnimalType.Pig:
-                    PigKilled++;
-                    break;
-                case AnimalType.Chicken:
-                    ChickenKilled++;
-                    break;
-                case AnimalType.Cow:
-                    CowKilled++;
-                    break;
-                case AnimalType.Bear:
-                    BearKilled++;
-                    break;
-                case AnimalType.Fox:
-                    FoxKilled++;
-                    break;
-                case AnimalType.Deer:
-                    DeerKilled++;
-                    break;
-                case AnimalType.Wolf:
-                    WolfKilled++;
-                    break;
+                increment(this);
             }
         }
 

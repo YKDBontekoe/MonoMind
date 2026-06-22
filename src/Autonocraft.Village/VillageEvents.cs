@@ -31,6 +31,9 @@ namespace Autonocraft.Village
         public void OnRecruit(Villager villager) =>
             Notify($"{villager.Name} joined the settlement!", "recruit");
 
+        public void OnFamilyArrival(Villager villager) =>
+            Notify($"{villager.Name}'s family settled in!", "recruit");
+
         public void OnAssignFailure(string message)
         {
             if (TownBoardOpen)

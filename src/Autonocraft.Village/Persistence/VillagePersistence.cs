@@ -70,6 +70,8 @@ namespace Autonocraft.Village
                 var village = new Village(entry.Name, entry.AnchorX, entry.AnchorY, entry.AnchorZ, entry.StorageSlots, entry.Id);
                 village.Tier = (VillageTier)entry.Tier;
                 village.FoodStock = entry.FoodStock;
+                village.Favor = entry.Favor;
+                village.FamilyGrowthProgress = entry.FamilyGrowthProgress;
                 village.Happiness = entry.Happiness;
                 village.ConsecutiveDaysWithoutFood = entry.ConsecutiveDaysWithoutFood;
                 village.PopulationCap = entry.PopulationCap > 0 ? entry.PopulationCap : village.PopulationCap;
@@ -197,6 +199,8 @@ namespace Autonocraft.Village
                     AnchorZ = village.AnchorZ,
                     Tier = (int)village.Tier,
                     FoodStock = village.FoodStock,
+                    Favor = village.Favor,
+                    FamilyGrowthProgress = village.FamilyGrowthProgress,
                     ConsecutiveDaysWithoutFood = village.ConsecutiveDaysWithoutFood,
                     Happiness = village.Happiness,
                     Radius = village.Radius,

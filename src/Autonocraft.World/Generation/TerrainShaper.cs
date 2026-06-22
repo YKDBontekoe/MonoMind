@@ -55,7 +55,7 @@ namespace Autonocraft.World
             BiomeSample SampleAt(int x, int z) =>
                 biomeCache != null ? biomeCache.Sample(x, z) : _biomeMap.Sample(x, z);
 
-            const int biomeBlendStep = 5;
+            const int biomeBlendStep = 32;
             var center = SampleAt(wx, wz);
             var north = SampleAt(wx, wz - biomeBlendStep);
             var south = SampleAt(wx, wz + biomeBlendStep);
@@ -68,6 +68,7 @@ namespace Autonocraft.World
             var profile = _biomeMap.BlendProfiles(center, north, south, east, west, northEast, northWest, southEast, southWest);
 
             float broad = _terrainNoise.Fbm(wx * 0.0045f, wz * 0.0045f, 4);
+            float contour = _terrainNoise.Fbm(wx * 0.0020f - 90f, wz * 0.0020f + 90f, 3);
             float detail = _terrainNoise.Fbm(wx * 0.012f, wz * 0.012f, 3);
             float ridge = _terrainNoise.Ridged(wx * 0.009f, wz * 0.009f, 4);
             float ruggedness = SmoothStep(0.1f, 0.55f, center.Erosion) * _params.MountainWeight;
@@ -89,17 +90,17 @@ namespace Autonocraft.World
                 float massifLift = SmoothStep(-0.30f, 0.58f, massif);
                 float foothillLift = ((foothills + 1f) * 0.5f) * massifLift;
 
-                height += massifLift * amp * 0.78f;
-                height += foothillLift * amp * 0.32f;
-                height += peakRidges * massifLift * profile.RidgeWeight * amp * (0.20f + ruggedness * 0.16f);
-                height += detail * amp * 0.12f;
+                height += massifLift * amp * 0.66f;
+                height += foothillLift * amp * 0.26f;
+                height += peakRidges * massifLift * profile.RidgeWeight * amp * (0.16f + ruggedness * 0.11f);
+                height += detail * amp * 0.08f;
 
                 float erosionStrength = SmoothStep(-0.08f, 0.40f, center.Erosion);
-                float valleyCut = erosionStrength * (0.60f - ((valleyNoise + 1f) * 0.5f) * 0.40f) * amp * 0.28f;
+                float valleyCut = erosionStrength * (0.60f - ((valleyNoise + 1f) * 0.5f) * 0.40f) * amp * 0.20f;
                 height -= MathF.Max(0f, valleyCut);
 
                 float cliffStrength = cliffBands * massifLift * SmoothStep(0.18f, 0.72f, peakRidges);
-                height += cliffStrength * amp * 0.13f;
+                height += cliffStrength * amp * 0.08f;
 
                 if (center.Primary == BiomeType.SnowyPeaks)
                 {
@@ -113,16 +114,42 @@ namespace Autonocraft.World
             }
             else
             {
-                height += broad * amp * 0.68f
-                    + detail * amp * (isElevatedTerrain ? (isVolcanic ? 0.14f : 0.18f) : 0.07f)
-                    + ridge * profile.RidgeWeight * amp * (isElevatedTerrain ? (isVolcanic ? 0.42f : (0.35f + ruggedness * 0.3f)) : 0f);
+                height += broad * amp * (isElevatedTerrain ? 0.52f : 0.42f)
+                    + contour * amp * (isElevatedTerrain ? 0.18f : 0.10f)
+                    + detail * amp * (isElevatedTerrain ? (isVolcanic ? 0.14f : 0.18f) : 0.06f)
+                    + ridge * profile.RidgeWeight * amp * (isElevatedTerrain ? (isVolcanic ? 0.28f : (0.25f + ruggedness * 0.18f)) : 0f);
+
+                // Rolling hills overlay for non-elevated, non-flat land biomes.
+                // A low-frequency patch selector masks a higher-frequency hill nose so hills
+                // are clustered naturally rather than uniformly distributed.
+                bool isFlat = center.Primary is BiomeType.Ocean or BiomeType.Beach or BiomeType.Swamp or BiomeType.Mangrove;
+                if (!isFlat && !isElevatedTerrain)
+                {
+                    float hillPatch = _terrainNoise.Fbm(wx * 0.0028f + 200f, wz * 0.0028f - 200f, 3);
+                    float hillMask = SmoothStep(-0.08f, 0.48f, hillPatch);
+
+                    float hillHigh = _terrainNoise.Fbm(wx * 0.0068f + 300f, wz * 0.0068f + 100f, 4);
+                    float hillMid = _terrainNoise.Fbm(wx * 0.0042f - 150f, wz * 0.0042f + 220f, 3);
+
+                    // Combine two scales for natural-looking hills
+                    float hillContrib = (hillHigh * 0.6f + hillMid * 0.4f + 1f) * 0.5f; // remap to [0,1]
+                    hillContrib = SmoothStep(0.20f, 0.85f, hillContrib);
+
+                    // Swamp is not in isFlat check but should have very gentle variation
+                    float swampDamp = center.Primary == BiomeType.Swamp ? 0.25f : 1.0f;
+                    float desertDamp = center.Primary == BiomeType.Desert ? 0.55f : 1.0f;
+
+                    // Hills add up to ~12 blocks for high-amplitude biomes (forest/jungle), ~7 for plains
+                    float hillAmp = amp * 0.18f * hillMask * hillContrib * swampDamp * desertDamp;
+                    height += hillAmp;
+                }
             }
 
             if (isVolcanic)
             {
                 float cone = _terrainNoise.Ridged(wx * 0.018f, wz * 0.018f, 3);
                 float coneMask = SmoothStep(0.35f, 0.85f, cone);
-                height += coneMask * profile.HeightAmplitude * _params.HeightScale * 0.55f;
+                height += coneMask * profile.HeightAmplitude * _params.HeightScale * 0.36f;
             }
 
             if (center.Primary == BiomeType.Ocean)
@@ -160,6 +187,31 @@ namespace Autonocraft.World
             {
                 surface = BlockType.Sand;
                 subsurface = BlockType.Sand;
+            }
+
+            if (center.Primary == BiomeType.MushroomForest)
+            {
+                float mossPatch = _terrainNoise.Fbm(wx * 0.035f + 20f, wz * 0.035f - 20f, 2);
+                surface = mossPatch > 0.10f ? BlockType.MossStone : BlockType.Grass;
+                subsurface = mossPatch > 0.45f ? BlockType.MossStone : BlockType.Dirt;
+            }
+            else if (center.Primary == BiomeType.BorealTaiga && height > WorldConstants.SeaLevel + 5f)
+            {
+                float groundPatch = _terrainNoise.Fbm(wx * 0.030f - 50f, wz * 0.030f + 50f, 2);
+                if (groundPatch > 0.42f)
+                {
+                    surface = BlockType.MossStone;
+                    subsurface = BlockType.Dirt;
+                }
+            }
+            else if (center.Primary == BiomeType.Badlands)
+            {
+                float stratum = _terrainNoise.Fbm(wx * 0.028f, wz * 0.028f, 2);
+                if (stratum > 0.36f)
+                {
+                    surface = BlockType.Sandstone;
+                    subsurface = BlockType.Sandstone;
+                }
             }
 
             if (height > WorldConstants.SeaLevel + WorldConstants.SnowLineOffset && surface != BlockType.Snow && !isVolcanic)

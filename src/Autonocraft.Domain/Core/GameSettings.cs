@@ -9,6 +9,7 @@ namespace Autonocraft.Domain.Core
         public const int StableRenderDistanceCap = 16;
 
         public const string DefaultLlamaCppBaseUrl = "http://127.0.0.1:8080";
+        public const string DefaultOpenRouterModel = "openrouter/free";
 
         public static int GetDefaultRenderDistance() => DefaultRenderDistance;
 
@@ -26,7 +27,7 @@ namespace Autonocraft.Domain.Core
 
         public AiProviderKind AiProvider { get; set; } = AiProviderKind.Mock;
 
-        public string OpenRouterModel { get; set; } = "openai/gpt-4o-mini";
+        public string OpenRouterModel { get; set; } = DefaultOpenRouterModel;
 
         public string? OpenRouterApiKey { get; set; }
 
@@ -55,7 +56,7 @@ namespace Autonocraft.Domain.Core
 
             if (string.IsNullOrWhiteSpace(OpenRouterModel))
             {
-                OpenRouterModel = "openai/gpt-4o-mini";
+                OpenRouterModel = DefaultOpenRouterModel;
             }
         }
     }

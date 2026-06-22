@@ -39,7 +39,11 @@ namespace Autonocraft.Village
                     Kind = BuildingKind.TownHeart,
                     DisplayName = "Town Heart",
                     Template = BuildTownHeart(),
-                    Costs = Array.Empty<BlockCost>(),
+                    Costs = new[]
+                    {
+                        new BlockCost(BlockType.OakPlank, 8),
+                        new BlockCost(BlockType.Cobblestone, 4)
+                    },
                     HousingProvided = 2,
                     PopulationCapBonus = 2,
                     StorageSlots = 9

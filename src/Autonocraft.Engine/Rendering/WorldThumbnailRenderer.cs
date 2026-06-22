@@ -13,9 +13,11 @@ namespace Autonocraft.Engine
     public sealed class WorldThumbnailRenderer : IDisposable
     {
         public const int ThumbnailSize = 64;
+        public const int MapPreviewSize = 96;
 
         private readonly GraphicsDevice _device;
         private readonly Dictionary<int, Texture2D> _cache = new();
+        private readonly Dictionary<MapPreviewKey, Texture2D> _mapCache = new();
 
         public WorldThumbnailRenderer(GraphicsDevice device)
         {
@@ -31,6 +33,19 @@ namespace Autonocraft.Engine
 
             var texture = Generate(seed);
             _cache[seed] = texture;
+            return texture;
+        }
+
+        public Texture2D GetMapPreview(int seed, int centerX, int centerZ, int span = 512)
+        {
+            var key = new MapPreviewKey(seed, centerX / 16, centerZ / 16, span);
+            if (_mapCache.TryGetValue(key, out Texture2D? cached))
+            {
+                return cached;
+            }
+
+            var texture = Generate(seed, MapPreviewSize, centerX - span / 2, centerZ - span / 2, span);
+            _mapCache[key] = texture;
             return texture;
         }
 
@@ -74,6 +89,13 @@ namespace Autonocraft.Engine
             }
 
             _cache.Clear();
+
+            foreach (var texture in _mapCache.Values)
+            {
+                texture.Dispose();
+            }
+
+            _mapCache.Clear();
         }
 
         public void Dispose()
@@ -83,23 +105,28 @@ namespace Autonocraft.Engine
 
         private Texture2D Generate(int seed)
         {
-            var pixels = new Color[ThumbnailSize * ThumbnailSize];
+            var (originX, originZ, span) = GetSampleRegion(seed);
+            return Generate(seed, ThumbnailSize, originX, originZ, span);
+        }
+
+        private Texture2D Generate(int seed, int size, int originX, int originZ, int span)
+        {
+            var pixels = new Color[size * size];
             var biomeMap = new BiomeMap(seed, WorldGenParams.ForType(WorldType.Default));
             var shaper = new TerrainShaper(seed, biomeMap, WorldGenParams.ForType(WorldType.Default));
-            var (originX, originZ, span) = GetSampleRegion(seed);
 
-            var samples = new Sample[ThumbnailSize * ThumbnailSize];
+            var samples = new Sample[size * size];
             float minHeight = float.MaxValue;
             float maxHeight = float.MinValue;
 
-            for (int py = 0; py < ThumbnailSize; py++)
+            for (int py = 0; py < size; py++)
             {
-                for (int px = 0; px < ThumbnailSize; px++)
+                for (int px = 0; px < size; px++)
                 {
-                    int wx = originX + px * span / ThumbnailSize;
-                    int wz = originZ + py * span / ThumbnailSize;
+                    int wx = originX + px * span / size;
+                    int wz = originZ + py * span / size;
                     var (height, column) = shaper.BuildBaseColumn(wx, wz);
-                    int index = py * ThumbnailSize + px;
+                    int index = py * size + px;
                     samples[index] = new Sample(height, column);
                     minHeight = MathF.Min(minHeight, height);
                     maxHeight = MathF.Max(maxHeight, height);
@@ -109,17 +136,17 @@ namespace Autonocraft.Engine
             float heightRange = MathF.Max(8f, maxHeight - minHeight);
             var rng = new Random(seed ^ 0x5F3759DF);
 
-            for (int py = 0; py < ThumbnailSize; py++)
+            for (int py = 0; py < size; py++)
             {
-                for (int px = 0; px < ThumbnailSize; px++)
+                for (int px = 0; px < size; px++)
                 {
-                    int index = py * ThumbnailSize + px;
+                    int index = py * size + px;
                     var sample = samples[index];
-                    pixels[index] = ColorizeSample(sample, px, py, seed, minHeight, heightRange, rng);
+                    pixels[index] = ColorizeSample(sample, px, py, size, seed, minHeight, heightRange, rng);
                 }
             }
 
-            var texture = new Texture2D(_device, ThumbnailSize, ThumbnailSize);
+            var texture = new Texture2D(_device, size, size);
             texture.SetData(pixels);
             return texture;
         }
@@ -132,7 +159,7 @@ namespace Autonocraft.Engine
             return (originX, originZ, 320);
         }
 
-        private static Color ColorizeSample(Sample sample, int px, int py, int seed, float minHeight, float heightRange, Random rng)
+        private static Color ColorizeSample(Sample sample, int px, int py, int size, int seed, float minHeight, float heightRange, Random rng)
         {
             float height = sample.Height;
             var column = sample.Column;
@@ -165,8 +192,8 @@ namespace Autonocraft.Engine
             }
 
             float vignette = 1f - MathF.Sqrt(
-                MathF.Pow((px - (ThumbnailSize - 1) * 0.5f) / (ThumbnailSize * 0.55f), 2f)
-                + MathF.Pow((py - (ThumbnailSize - 1) * 0.5f) / (ThumbnailSize * 0.55f), 2f));
+                MathF.Pow((px - (size - 1) * 0.5f) / (size * 0.62f), 2f)
+                + MathF.Pow((py - (size - 1) * 0.5f) / (size * 0.62f), 2f));
             vignette = Math.Clamp(vignette, 0.82f, 1f);
             return color * vignette;
         }
@@ -213,6 +240,32 @@ namespace Autonocraft.Engine
                 Height = height;
                 Column = column;
             }
+        }
+
+        private readonly struct MapPreviewKey : IEquatable<MapPreviewKey>
+        {
+            private readonly int _seed;
+            private readonly int _centerChunkX;
+            private readonly int _centerChunkZ;
+            private readonly int _span;
+
+            public MapPreviewKey(int seed, int centerChunkX, int centerChunkZ, int span)
+            {
+                _seed = seed;
+                _centerChunkX = centerChunkX;
+                _centerChunkZ = centerChunkZ;
+                _span = span;
+            }
+
+            public bool Equals(MapPreviewKey other) =>
+                _seed == other._seed &&
+                _centerChunkX == other._centerChunkX &&
+                _centerChunkZ == other._centerChunkZ &&
+                _span == other._span;
+
+            public override bool Equals(object? obj) => obj is MapPreviewKey other && Equals(other);
+
+            public override int GetHashCode() => HashCode.Combine(_seed, _centerChunkX, _centerChunkZ, _span);
         }
     }
 }

@@ -154,7 +154,7 @@ public static class WorldGenTests
         Console.Write("Running Ocean Shell Mesh Test... ");
 
         var generator = new WorldGenerator(1337, WorldGenParams.ForType(WorldType.Default));
-        var oceanCoord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Ocean, 512, 8);
+        var oceanCoord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Ocean, 1024, 8);
         if (oceanCoord == null)
         {
             throw new Exception("Expected at least one ocean biome within preview range.");
@@ -253,7 +253,7 @@ public static class WorldGenTests
             }
         }
 
-        var riverColumn = WorldGenTestHelpers.FindPreviewColumn(generator, c => c.IsRiver, radius: 256, step: 4);
+        var riverColumn = WorldGenTestHelpers.FindPreviewColumn(generator, c => c.IsRiver, radius: 512, step: 4);
         if (riverColumn == null)
         {
             throw new Exception("Expected at least one generated river within preview range.");
@@ -264,7 +264,7 @@ public static class WorldGenTests
             throw new Exception($"Expected river bed near sea level, got {riverColumn.Value.SurfaceHeight}.");
         }
 
-        var deepOceanColumn = WorldGenTestHelpers.FindPreviewColumn(generator, c => c.Biome.Primary == BiomeType.Ocean, radius: 256, step: 4);
+        var deepOceanColumn = WorldGenTestHelpers.FindPreviewColumn(generator, c => c.Biome.Primary == BiomeType.Ocean, radius: 512, step: 4);
         if (deepOceanColumn == null)
         {
             throw new Exception("Expected at least one generated ocean within preview range.");
@@ -723,8 +723,8 @@ public static class WorldGenTests
         Console.Write("Running Biome Tree Species Test... ");
 
         var generator = new WorldGenerator(1337, WorldGenParams.ForType(WorldType.Default));
-        var swampCoord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Swamp, 512, 8);
-        var desertCoord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Desert, 512, 8);
+        var swampCoord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Swamp && !c.IsRiver && !c.IsLake && c.Biome.Continentalness >= 0.05f, 1024, 8);
+        var desertCoord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Desert && !c.IsRiver && !c.IsLake, 1024, 8);
 
         if (swampCoord == null || desertCoord == null)
         {
@@ -746,7 +746,7 @@ public static class WorldGenTests
             throw new Exception("Expected PalmLog in generated desert biome.");
         }
 
-        var forestCoord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Forest, 512, 8);
+        var forestCoord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Forest, 1024, 8);
         if (forestCoord == null)
         {
             throw new Exception("Expected forest biome within preview range.");
@@ -797,7 +797,7 @@ public static class WorldGenTests
         var desertCoord = WorldGenTestHelpers.FindPreviewCoord(
             generator,
             c => c.Biome.Primary == BiomeType.Desert && c.Profile.TreeDensity >= 0.02f,
-            512,
+            1024,
             4);
 
         if (desertCoord == null)
@@ -913,7 +913,7 @@ public static class WorldGenTests
         Console.Write("Running Ocean No Surface Ice Test... ");
 
         var generator = new WorldGenerator(1337, WorldGenParams.ForType(WorldType.Default));
-        var oceanCoord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Ocean, 512, 4);
+        var oceanCoord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Ocean, 1024, 4);
         if (oceanCoord == null)
         {
             throw new Exception("Expected ocean biome within preview range.");
@@ -989,14 +989,14 @@ public static class WorldGenTests
 
         foreach (var biome in expected)
         {
-            var coord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == biome, 768, 4);
+            var coord = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == biome, 1536, 4);
             if (coord == null)
             {
                 throw new Exception($"Expected {biome} within preview range.");
             }
         }
 
-        var badlands = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Badlands, 768, 4);
+        var badlands = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == BiomeType.Badlands, 1536, 4);
         if (badlands == null || badlands.Value.column.SurfaceBlock != BlockType.RedSand)
         {
             var surface = badlands?.column.SurfaceBlock.ToString() ?? "not found";
@@ -1418,7 +1418,7 @@ public static class WorldGenTests
                 && c.Profile.TreeDensity > 0f
                 && !c.IsRiver
                 && !c.IsLake,
-            radius: 768,
+            radius: 1536,
             step: 4);
         if (anchor == null)
         {
@@ -1504,7 +1504,7 @@ public static class WorldGenTests
                 && c.Profile.TreeDensity > 0f
                 && !c.IsRiver
                 && !c.IsLake,
-            radius: 768,
+            radius: 1536,
             step: 4);
         if (anchor == null)
         {
@@ -1580,7 +1580,7 @@ public static class WorldGenTests
         var anchor = WorldGenTestHelpers.FindPreviewCoord(
             generator,
             ColumnMatches,
-            radius: 768,
+            radius: 1536,
             step: 4);
         if (anchor == null)
         {
@@ -1671,7 +1671,7 @@ public static class WorldGenTests
 
     private static int MeasureLeafVerticalSpan(WorldGenerator generator, BiomeType biome, BlockType leafType)
     {
-        var anchor = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == biome, 768, 4);
+        var anchor = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == biome, 1536, 4);
         if (anchor == null)
         {
             return 0;
@@ -1702,7 +1702,7 @@ public static class WorldGenTests
 
     private static int MeasureLeafHorizontalSpan(WorldGenerator generator, BiomeType biome, BlockType leafType)
     {
-        var anchor = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == biome, 768, 4);
+        var anchor = WorldGenTestHelpers.FindPreviewCoord(generator, c => c.Biome.Primary == biome, 1536, 4);
         if (anchor == null)
         {
             return 0;

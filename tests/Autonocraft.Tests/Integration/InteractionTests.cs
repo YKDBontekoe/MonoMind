@@ -150,4 +150,80 @@ public static class InteractionTests
         Console.WriteLine("PASSED");
         Console.ResetColor();
     }
+
+    public static void RunLeafDecay(AutonocraftGame game, Player player, VoxelWorld world)
+    {
+        Console.Write("Running Leaf Decay Test... ");
+
+        // Set up a simple vertical log with adjacent leaves
+        int x = 40;
+        int y = 40;
+        int z = 40;
+
+        world.SetBlock(x, y, z, BlockType.OakLog);
+        world.SetBlock(x, y + 1, z, BlockType.OakLeaves);
+        world.SetBlock(x + 1, y + 1, z, BlockType.OakLeaves);
+
+        // Verify they are placed
+        if (world.GetBlock(x, y, z) != BlockType.OakLog ||
+            world.GetBlock(x, y + 1, z) != BlockType.OakLeaves ||
+            world.GetBlock(x + 1, y + 1, z) != BlockType.OakLeaves)
+        {
+            throw new Exception("Failed to set up blocks for leaf decay test.");
+        }
+
+        // Break the log
+        world.SetBlock(x, y, z, BlockType.Air);
+
+        // Verify log is Air
+        if (world.GetBlock(x, y, z) != BlockType.Air)
+        {
+            throw new Exception("Log block did not break.");
+        }
+
+        // Verify leaves decayed
+        if (world.GetBlock(x, y + 1, z) != BlockType.Air ||
+            world.GetBlock(x + 1, y + 1, z) != BlockType.Air)
+        {
+            throw new Exception("Leaves did not decay after log was broken.");
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
+
+    public static void RunSaplingGrowth(AutonocraftGame game, Player player, VoxelWorld world)
+    {
+        Console.Write("Running Sapling Growth Test... ");
+
+        int x = 50;
+        int y = 40;
+        int z = 50;
+
+        // Place grass underneath to be valid surface
+        world.SetBlock(x, y - 1, z, BlockType.Grass);
+        world.SetBlock(x, y, z, BlockType.OakSapling);
+
+        // Verify sapling is placed
+        if (world.GetBlock(x, y, z) != BlockType.OakSapling)
+        {
+            throw new Exception("Sapling block was not placed.");
+        }
+
+        // Trigger updates manually to simulate time passage
+        // We will call UpdateSaplings with 35 seconds of delta time
+        game.Session.UpdateSaplings(35f);
+
+        // Verify that the sapling has grown into an OakLog
+        BlockType grownBlock = world.GetBlock(x, y, z);
+        if (grownBlock != BlockType.OakLog)
+        {
+            throw new Exception($"Expected sapling to grow into an OakLog, but found {grownBlock}");
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
 }

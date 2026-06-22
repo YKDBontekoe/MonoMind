@@ -96,6 +96,29 @@ namespace Autonocraft.UI
             float y = layout.PanelY + layout.S(ContentTop);
             float colLeft = layout.Left + layout.S(16f);
 
+            if (_playWithAi)
+            {
+                float contractY = y + layout.S(56f);
+                int contractIndex = 0;
+                foreach (var _ in VillageAgentContracts.Suggest(_village!, _villagers))
+                {
+                    if (contractIndex >= 3)
+                    {
+                        break;
+                    }
+
+                    HitRect(layout.Left + layout.S(16f) + contractIndex * layout.S(270f),
+                        contractY,
+                        layout.S(254f),
+                        layout.S(64f),
+                        81 + contractIndex,
+                        mouse);
+                    contractIndex++;
+                }
+
+                return;
+            }
+
             for (int i = 0; i < GoalsPanel.GoalBlockTypes.Length; i++)
             {
                 float btnX = colLeft + i * layout.S(70f);

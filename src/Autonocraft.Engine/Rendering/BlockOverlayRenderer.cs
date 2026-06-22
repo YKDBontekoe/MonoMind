@@ -219,7 +219,7 @@ namespace Autonocraft.Engine
 
         private void DrawWireframeCube(Vector3 blockPos, BlockType blockType, Color color)
         {
-            float topY = blockType.IsSlab() ? 0.5f : 1f;
+            float topY = blockType.GetBlockHeight();
             float x0 = blockPos.X + 0.002f;
             float y0 = blockPos.Y + 0.002f;
             float z0 = blockPos.Z + 0.002f;
@@ -270,7 +270,7 @@ namespace Autonocraft.Engine
 
             float offset = 0.002f; // prevent z-fighting
             Vector3 n = Vector3.Normalize(normal);
-            float topY = blockType.IsSlab() ? 0.5f : 1f;
+            float topY = blockType.GetBlockHeight();
 
             Vector3 faceCenterOffset;
             if (n.Y > 0.5f)
@@ -444,7 +444,7 @@ namespace Autonocraft.Engine
 
         private void DrawScaledBlock(Vector3 blockPos, BlockType blockType, float scale, Color tint)
         {
-            float topY = blockType.IsSlab() ? 0.5f : 1f;
+            float topY = blockType.GetBlockHeight();
             float yHalf = topY * 0.5f * scale;
             float xHalf = 0.5f * scale;
             float zHalf = 0.5f * scale;
@@ -642,8 +642,8 @@ namespace Autonocraft.Engine
                 ParticleKind.DustMote => Math.Clamp(lifeRatio * (1f - lifeRatio) * 4f, 0f, 1f) * 0.45f,
                 ParticleKind.Firefly => (0.4f + 0.6f * MathF.Sin(lifeRatio * MathF.PI * 8f)) * Math.Clamp(lifeRatio * (1f - lifeRatio) * 4f, 0f, 1f),
                 ParticleKind.FallingLeaf => lifeRatio * 0.9f,
-                ParticleKind.RainDrop => 0.45f * lifeRatio,
-                ParticleKind.SnowFlake => 0.85f * lifeRatio,
+                ParticleKind.RainDrop => 0.60f * MathF.Min(1f, lifeRatio * 2f),
+                ParticleKind.SnowFlake => 0.90f * MathF.Min(1f, lifeRatio * 2f),
                 _ => lifeRatio
             };
         }

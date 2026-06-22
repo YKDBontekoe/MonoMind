@@ -47,7 +47,9 @@ namespace Autonocraft.Ai
             {
                 AiProviderKind.Disabled => "Disabled",
                 AiProviderKind.Mock => "Mock (offline)",
-                AiProviderKind.OpenRouter => ResolveOpenRouter(settings).IsConfigured ? $"OpenRouter ({settings.OpenRouterModel})" : "OpenRouter (no API key)",
+                AiProviderKind.OpenRouter => ResolveOpenRouter(settings).IsConfigured
+                    ? $"OpenRouter ({settings.OpenRouterModel})"
+                    : $"OpenRouter ({settings.OpenRouterModel}, no API key)",
                 AiProviderKind.LlamaCpp => $"llama.cpp @ {settings.LlamaCppBaseUrl}",
                 _ => "Unknown"
             };

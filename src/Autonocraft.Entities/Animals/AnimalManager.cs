@@ -10,6 +10,97 @@ namespace Autonocraft.Entities
         public const int MaxAnimalsGlobal = 80;
         public const int MaxAnimalsPerChunk = 4;
 
+        private static readonly AnimalType[] CountSummaryOrder =
+        {
+            AnimalType.Sheep,
+            AnimalType.Pig,
+            AnimalType.Chicken,
+            AnimalType.Wolf,
+            AnimalType.Cow,
+            AnimalType.Bear,
+            AnimalType.Fox,
+            AnimalType.Deer
+        };
+
+        private static readonly AnimalSpawnChoice[] ForestSpawns =
+        {
+            new(20, AnimalType.Deer),
+            new(40, AnimalType.Bear),
+            new(60, AnimalType.Fox),
+            new(75, AnimalType.Pig),
+            new(90, AnimalType.Chicken),
+            new(100, AnimalType.Cow)
+        };
+
+        private static readonly AnimalSpawnChoice[] PlainsSpawns =
+        {
+            new(30, AnimalType.Sheep),
+            new(55, AnimalType.Cow),
+            new(75, AnimalType.Deer),
+            new(90, AnimalType.Pig),
+            new(100, AnimalType.Fox)
+        };
+
+        private static readonly AnimalSpawnChoice[] SwampSpawns =
+        {
+            new(40, AnimalType.Pig),
+            new(70, AnimalType.Chicken),
+            new(100, AnimalType.Bear)
+        };
+
+        private static readonly AnimalSpawnChoice[] MountainSpawns =
+        {
+            new(40, AnimalType.Sheep),
+            new(70, AnimalType.Cow),
+            new(100, AnimalType.Bear)
+        };
+
+        private static readonly AnimalSpawnChoice[] SnowyPeakSpawns =
+        {
+            new(50, AnimalType.Fox),
+            new(100, AnimalType.Sheep)
+        };
+
+        private static readonly AnimalSpawnChoice[] BadlandsSpawns =
+        {
+            new(40, AnimalType.Fox),
+            new(70, AnimalType.Pig),
+            new(100, AnimalType.Chicken)
+        };
+
+        private static readonly AnimalSpawnChoice[] MangroveSpawns =
+        {
+            new(45, AnimalType.Pig),
+            new(75, AnimalType.Chicken),
+            new(100, AnimalType.Bear)
+        };
+
+        private static readonly AnimalSpawnChoice[] MushroomForestSpawns =
+        {
+            new(35, AnimalType.Fox),
+            new(65, AnimalType.Bear),
+            new(100, AnimalType.Deer)
+        };
+
+        private static readonly AnimalSpawnChoice[] BorealTaigaSpawns =
+        {
+            new(40, AnimalType.Deer),
+            new(70, AnimalType.Fox),
+            new(100, AnimalType.Sheep)
+        };
+
+        private static readonly AnimalSpawnChoice[] VolcanicSpawns =
+        {
+            new(100, AnimalType.Fox)
+        };
+
+        private static readonly AnimalSpawnChoice[] DefaultSpawns =
+        {
+            new(35, AnimalType.Sheep),
+            new(70, AnimalType.Pig),
+            new(100, AnimalType.Chicken)
+        };
+
         private readonly List<Animal> _animals = new List<Animal>();
         private readonly List<Animal> _rangeScratch = new();
         private readonly HashSet<(int cx, int cz)> _populatedChunks = new HashSet<(int cx, int cz)>();
@@ -216,23 +307,21 @@ namespace Autonocraft.Entities
 
         public string GetCountSummary()
         {
-            int sheep = 0, pig = 0, chicken = 0, wolf = 0, cow = 0, bear = 0, fox = 0, deer = 0;
+            var counts = new Dictionary<AnimalType, int>();
             foreach (var animal in _animals)
             {
-                switch (animal.Type)
-                {
-                    case AnimalType.Sheep: sheep++; break;
-                    case AnimalType.Pig: pig++; break;
-                    case AnimalType.Chicken: chicken++; break;
-                    case AnimalType.Wolf: wolf++; break;
-                    case AnimalType.Cow: cow++; break;
-                    case AnimalType.Bear: bear++; break;
-                    case AnimalType.Fox: fox++; break;
-                    case AnimalType.Deer: deer++; break;
-                }
+                counts.TryGetValue(animal.Type, out int count);
+                counts[animal.Type] = count + 1;
             }
 
-            return $"Animals: {Count} total (Sheep: {sheep}, Pig: {pig}, Chicken: {chicken}, Wolf: {wolf}, Cow: {cow}, Bear: {bear}, Fox: {fox}, Deer: {deer})";
+            var parts = new List<string>(CountSummaryOrder.Length);
+            foreach (var type in CountSummaryOrder)
+            {
+                counts.TryGetValue(type, out int count);
+                parts.Add($"{type}: {count}");
+            }
+
+            return $"Animals: {Count} total ({string.Join(", ", parts)})";
         }
 
         private static int HashChunk(int seed, int cx, int cz)
@@ -277,106 +366,7 @@ namespace Autonocraft.Entities
                     return false;
                 }
             }
-            int typeRoll = rng.Next(100);
-
-            if (biome == BiomeType.Forest || biome == BiomeType.Jungle)
-            {
-                type = typeRoll switch
-                {
-                    < 20 => AnimalType.Deer,
-                    < 40 => AnimalType.Bear,
-                    < 60 => AnimalType.Fox,
-                    < 75 => AnimalType.Pig,
-                    < 90 => AnimalType.Chicken,
-                    _ => AnimalType.Cow
-                };
-            }
-            else if (biome == BiomeType.Plains)
-            {
-                type = typeRoll switch
-                {
-                    < 30 => AnimalType.Sheep,
-                    < 55 => AnimalType.Cow,
-                    < 75 => AnimalType.Deer,
-                    < 90 => AnimalType.Pig,
-                    _ => AnimalType.Fox
-                };
-            }
-            else if (biome == BiomeType.Swamp)
-            {
-                type = typeRoll switch
-                {
-                    < 40 => AnimalType.Pig,
-                    < 70 => AnimalType.Chicken,
-                    _ => AnimalType.Bear
-                };
-            }
-            else if (biome == BiomeType.Mountains)
-            {
-                type = typeRoll switch
-                {
-                    < 40 => AnimalType.Sheep,
-                    < 70 => AnimalType.Cow,
-                    _ => AnimalType.Bear
-                };
-            }
-            else if (biome == BiomeType.SnowyPeaks)
-            {
-                type = typeRoll switch
-                {
-                    < 50 => AnimalType.Fox,
-                    _ => AnimalType.Sheep
-                };
-            }
-            else if (biome == BiomeType.Badlands)
-            {
-                type = typeRoll switch
-                {
-                    < 40 => AnimalType.Fox,
-                    < 70 => AnimalType.Pig,
-                    _ => AnimalType.Chicken
-                };
-            }
-            else if (biome == BiomeType.Mangrove)
-            {
-                type = typeRoll switch
-                {
-                    < 45 => AnimalType.Pig,
-                    < 75 => AnimalType.Chicken,
-                    _ => AnimalType.Bear
-                };
-            }
-            else if (biome == BiomeType.MushroomForest)
-            {
-                type = typeRoll switch
-                {
-                    < 35 => AnimalType.Fox,
-                    < 65 => AnimalType.Bear,
-                    _ => AnimalType.Deer
-                };
-            }
-            else if (biome == BiomeType.BorealTaiga)
-            {
-                type = typeRoll switch
-                {
-                    < 40 => AnimalType.Deer,
-                    < 70 => AnimalType.Fox,
-                    _ => AnimalType.Sheep
-                };
-            }
-            else if (biome == BiomeType.Volcanic)
-            {
-                type = AnimalType.Fox;
-            }
-            else
-            {
-                type = typeRoll switch
-                {
-                    < 35 => AnimalType.Sheep,
-                    < 70 => AnimalType.Pig,
-                    _ => AnimalType.Chicken
-                };
-            }
+            type = PickSpawnType(biome, rng.Next(100));
 
             var stats = AnimalStats.For(type);
             position = new Vector3(wx + 0.5f, surfaceY + 1f, wz + 0.5f);
@@ -395,6 +385,35 @@ namespace Autonocraft.Entities
             };
         }
 
+        private static AnimalType PickSpawnType(BiomeType biome, int roll)
+        {
+            var table = GetSpawnTable(biome);
+            foreach (var choice in table)
+            {
+                if (roll < choice.UpperExclusive)
+                {
+                    return choice.Type;
+                }
+            }
+
+            return table[^1].Type;
+        }
+
+        private static AnimalSpawnChoice[] GetSpawnTable(BiomeType biome) => biome switch
+        {
+            BiomeType.Forest or BiomeType.Jungle => ForestSpawns,
+            BiomeType.Plains => PlainsSpawns,
+            BiomeType.Swamp => SwampSpawns,
+            BiomeType.Mountains => MountainSpawns,
+            BiomeType.SnowyPeaks => SnowyPeakSpawns,
+            BiomeType.Badlands => BadlandsSpawns,
+            BiomeType.Mangrove => MangroveSpawns,
+            BiomeType.MushroomForest => MushroomForestSpawns,
+            BiomeType.BorealTaiga => BorealTaigaSpawns,
+            BiomeType.Volcanic => VolcanicSpawns,
+            _ => DefaultSpawns
+        };
+
         private bool IsOccupied(Vector3 position, float minDistance)
         {
             float minDistSq = minDistance * minDistance;
@@ -407,6 +426,18 @@ namespace Autonocraft.Entities
             }
 
             return false;
+        }
+
+        private readonly struct AnimalSpawnChoice
+        {
+            public AnimalSpawnChoice(int upperExclusive, AnimalType type)
+            {
+                UpperExclusive = upperExclusive;
+                Type = type;
+            }
+
+            public int UpperExclusive { get; }
+            public AnimalType Type { get; }
         }
     }
 }

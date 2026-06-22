@@ -77,7 +77,7 @@ namespace Autonocraft.Core
             float threshold = SurvivalConstants.MaxHunger * SurvivalConstants.RationHungerThresholdFraction;
             if (player.Hunger >= threshold)
             {
-                player.ShowToast?.Invoke("You are not hungry enough for rations.");
+                player.ShowToast?.Invoke("Rations are saved for emergencies. Hunt, cook, or farm while you still can.");
                 return false;
             }
 

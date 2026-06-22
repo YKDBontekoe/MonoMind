@@ -48,6 +48,7 @@ namespace Autonocraft.Engine
         private Vector3 _currentSunColor;
         private Vector3 _currentMoonColor;
         private float _currentFogMultiplier = 1.0f;
+        private float _currentWindIntensity = 0.0f;
         private bool _isLightingInitialized = false;
         private static readonly DepthStencilState WaterDepthState = new()
         {
@@ -124,7 +125,8 @@ namespace Autonocraft.Engine
                 playerBiome,
                 ctx.Weather.RainIntensity,
                 ctx.Weather.CloudIntensity,
-                ctx.Weather.LightningIntensity);
+                ctx.Weather.LightningIntensity,
+                ctx.Weather.WindIntensity);
 
             float dt = (float)_drawStopwatch.Elapsed.TotalSeconds;
             _drawStopwatch.Restart();
@@ -138,6 +140,7 @@ namespace Autonocraft.Engine
                 _currentSunColor = targetLighting.SunColor;
                 _currentMoonColor = targetLighting.MoonColor;
                 _currentFogMultiplier = targetLighting.FogMultiplier;
+                _currentWindIntensity = targetLighting.WindIntensity;
                 _isLightingInitialized = true;
             }
             else
@@ -150,6 +153,7 @@ namespace Autonocraft.Engine
                 _currentSunColor = Vector3.Lerp(_currentSunColor, targetLighting.SunColor, lerpFactor);
                 _currentMoonColor = Vector3.Lerp(_currentMoonColor, targetLighting.MoonColor, lerpFactor);
                 _currentFogMultiplier = MathHelper.Lerp(_currentFogMultiplier, targetLighting.FogMultiplier, lerpFactor);
+                _currentWindIntensity = MathHelper.Lerp(_currentWindIntensity, targetLighting.WindIntensity, lerpFactor);
             }
 
             // Create custom interpolated SceneLighting instance for rendering
@@ -165,7 +169,11 @@ namespace Autonocraft.Engine
                 AmbientColor = _currentAmbientColor,
                 SunColor = _currentSunColor,
                 MoonColor = _currentMoonColor,
-                FogMultiplier = _currentFogMultiplier
+                FogMultiplier = _currentFogMultiplier,
+                CloudIntensity = targetLighting.CloudIntensity,
+                RainIntensity = targetLighting.RainIntensity,
+                LightningIntensity = targetLighting.LightningIntensity,
+                WindIntensity = _currentWindIntensity
             };
 
             var sunDir = lighting.SunDirection;

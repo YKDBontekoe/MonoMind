@@ -141,6 +141,8 @@ namespace Autonocraft.UI.VillagePanels
                     y += layout.S(18f);
                 }
 
+                y = DrawVillagePulse(ui, layout, left, y, panelWidth, viewModel, alpha) + layout.S(10f);
+
                 if (viewModel.NextActionKind != SettlementActionKind.None && viewModel.SuggestedTab.HasValue)
                 {
                     string ctaLabel = viewModel.SuggestedTab switch
@@ -308,6 +310,74 @@ namespace Autonocraft.UI.VillagePanels
             DrawMiniBar(ui, x + layout.S(10f), y + h - layout.S(14f), w - layout.S(20f), layout.S(6f), ratio, barColor, alpha);
         }
 
+        private static float DrawVillagePulse(
+            UiRenderer ui,
+            UiLayout layout,
+            float left,
+            float y,
+            float panelWidth,
+            VillageViewModel viewModel,
+            float alpha)
+        {
+            var pulse = viewModel.Pulse;
+            float w = panelWidth - layout.S(40f);
+            float h = layout.S(104f);
+            ui.DrawPanel(left, y, w, h, UiTheme.PanelBgMuted, UiTheme.Accent, 0.8f, alpha * 0.95f, UiTheme.RadiusMd);
+
+            ui.DrawString(pulse.Mood, left + layout.S(14f), y + layout.S(10f),
+                layout.S(UiTheme.FontBody), UiTheme.Title, alpha, semiBold: true);
+            ui.DrawString(pulse.Focus, left + layout.S(14f), y + layout.S(30f),
+                layout.S(UiTheme.FontSmall), UiTheme.Subtitle, alpha);
+
+            float barX = left + layout.S(14f);
+            float barY = y + layout.S(52f);
+            DrawMiniBar(ui, barX, barY, w - layout.S(28f), layout.S(6f), pulse.Momentum, UiTheme.Accent, alpha);
+
+            float colY = y + layout.S(68f);
+            float colW = (w - layout.S(42f)) / 4f;
+            DrawPulseLine(ui, layout, left + layout.S(14f), colY, colW, "Next", pulse.Opportunity, alpha);
+            DrawPulseLine(ui, layout, left + layout.S(18f) + colW, colY, colW, "Growth", pulse.GrowthHook, alpha);
+            DrawPulseLine(ui, layout, left + layout.S(22f) + colW * 2f, colY, colW, "Trade", pulse.TradeHook, alpha);
+            DrawPulseLine(ui, layout, left + layout.S(26f) + colW * 3f, colY, colW, "Agent", pulse.DelegationHook, alpha);
+
+            return y + h;
+        }
+
+        private static void DrawPulseLine(
+            UiRenderer ui,
+            UiLayout layout,
+            float x,
+            float y,
+            float w,
+            string label,
+            string text,
+            float alpha)
+        {
+            ui.DrawString(label, x, y, layout.S(UiTheme.FontCaption), UiTheme.StatLabel, alpha, semiBold: true);
+            ui.DrawString(TrimToWidth(ui, text, layout.S(UiTheme.FontSmall), w), x, y + layout.S(13f),
+                layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha);
+        }
+
+        private static string TrimToWidth(UiRenderer ui, string text, float fontSize, float maxWidth)
+        {
+            if (ui.MeasureString(text, fontSize) <= maxWidth)
+            {
+                return text;
+            }
+
+            const string ellipsis = "...";
+            for (int len = Math.Max(0, text.Length - 1); len > 0; len--)
+            {
+                string candidate = text[..len].TrimEnd() + ellipsis;
+                if (ui.MeasureString(candidate, fontSize) <= maxWidth)
+                {
+                    return candidate;
+                }
+            }
+
+            return ellipsis;
+        }
+
         private static void DrawStoragePanel(
             VillagePanelContext context,
             float x,
@@ -352,9 +422,13 @@ namespace Autonocraft.UI.VillagePanels
                 ?? (context.PlayerCreative
                     ? "Recruit cost: free in creative"
                     : $"Recruit cost: {VillageEntity.RecruitFoodCost} oak planks ({plankCount} in storage)");
+            string costLine = context.ViewModel != null
+                ? $"{recruitHint}  |  Favor {context.ViewModel.Pulse.FavorBalance}  |  Agent {context.ViewModel.Pulse.AgentWorkOrderCost} favor"
+                : recruitHint;
             ui.DrawHorizontalRule(x + layout.S(10f), recruitY - layout.S(8f), w - layout.S(20f),
                 UiTheme.Rule, 1f, alpha * 0.7f);
-            ui.DrawString(recruitHint, x + layout.S(14f), recruitY, layout.S(UiTheme.FontSmall),
+            ui.DrawString(TrimToWidth(ui, costLine, layout.S(UiTheme.FontSmall), w - layout.S(28f)),
+                x + layout.S(14f), recruitY, layout.S(UiTheme.FontSmall),
                 UiTheme.Meta, alpha);
         }
 

@@ -16,7 +16,7 @@ namespace Autonocraft.Village.Jobs
                 return false;
             }
 
-            if (TryMoveToward(villager, deltaTime, world, target.Value))
+            if (TryMoveDirectToward(villager, deltaTime, world, target.Value))
             {
                 return true;
             }
@@ -26,6 +26,55 @@ namespace Autonocraft.Village.Jobs
         }
 
         public static bool TryMoveToward(Villager villager, float deltaTime, VoxelWorld world, Vector3 target)
+        {
+            var flatGoal = new Vector3(target.X, villager.Position.Y, target.Z);
+            float goalDistSq = Vector3.DistanceSquared(
+                new Vector3(villager.Position.X, 0f, villager.Position.Z),
+                new Vector3(target.X, 0f, target.Z));
+            bool pathGoalChanged = !villager.LastPathGoal.HasValue ||
+                Vector3.DistanceSquared(villager.LastPathGoal.Value, target) > 1.5f;
+
+            if ((villager.HasPath && !pathGoalChanged) ||
+                (goalDistSq > 9f && TryBeginPath(villager, world, target)))
+            {
+                if (TryMoveAlongPath(villager, deltaTime, world))
+                {
+                    TrackStuck(villager, deltaTime, world, target);
+                    return true;
+                }
+            }
+
+            bool moved = TryMoveDirectToward(villager, deltaTime, world, flatGoal);
+            TrackStuck(villager, deltaTime, world, target);
+            return moved;
+        }
+
+        private static bool TryBeginPath(Villager villager, VoxelWorld world, Vector3 target)
+        {
+            if (villager.LastPathGoal.HasValue &&
+                Vector3.DistanceSquared(villager.LastPathGoal.Value, target) <= 1.5f &&
+                villager.HasPath)
+            {
+                return true;
+            }
+
+            int range = Math.Clamp((int)MathF.Ceiling(Vector3.Distance(villager.Position, target)) + 4, 12, 48);
+            if (!VoxelPathfinder.TryFindPath(world, villager.Position, target, range, out var waypoints) || waypoints.Count == 0)
+            {
+                return false;
+            }
+
+            if (waypoints.Count > 1)
+            {
+                waypoints.RemoveAt(0);
+            }
+
+            villager.SetPath(waypoints);
+            villager.LastPathGoal = target;
+            return true;
+        }
+
+        private static bool TryMoveDirectToward(Villager villager, float deltaTime, VoxelWorld world, Vector3 target)
         {
             var flatTarget = new Vector3(target.X, villager.Position.Y, target.Z);
             var toTarget = flatTarget - villager.Position;
@@ -42,6 +91,40 @@ namespace Autonocraft.Village.Jobs
             villager.Yaw = MathF.Atan2(villager.WanderDirection.X, villager.WanderDirection.Z);
             ApplyMovement(villager, deltaTime, world, villager.WanderDirection * Villager.WalkSpeed);
             return true;
+        }
+
+        private static void TrackStuck(Villager villager, float deltaTime, VoxelWorld world, Vector3 target)
+        {
+            var before = villager.LastMovePosition;
+            float movedSq = Vector3.DistanceSquared(
+                new Vector3(before.X, 0f, before.Z),
+                new Vector3(villager.Position.X, 0f, villager.Position.Z));
+            villager.LastMovePosition = villager.Position;
+
+            if (movedSq > 0.0025f || villager.Velocity.LengthSquared() <= 0.01f)
+            {
+                villager.StuckTimer = 0f;
+                return;
+            }
+
+            villager.StuckTimer += deltaTime;
+            if (villager.StuckTimer < 0.55f)
+            {
+                return;
+            }
+
+            villager.ClearPath();
+            villager.StuckTimer = 0f;
+            if (VoxelPathfinder.TryFindPath(world, villager.Position, target, 48, out var waypoints) && waypoints.Count > 0)
+            {
+                if (waypoints.Count > 1)
+                {
+                    waypoints.RemoveAt(0);
+                }
+
+                villager.SetPath(waypoints);
+                villager.LastPathGoal = target;
+            }
         }
 
         public static void UpdateWander(

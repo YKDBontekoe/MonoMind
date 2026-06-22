@@ -1,6 +1,6 @@
 {
   "gridCols": 8,
-  "gridRows": 23,
+  "gridRows": 24,
   "tileSize": 128,
   "tiles": {
     "grass_top": { "col": 0, "row": 0, "file": "grass_top.png" },
@@ -179,7 +179,15 @@
     "tool_relic_pickaxe": { "col": 4, "row": 22, "file": "tool_relic_pickaxe.png" },
     "tool_relic_axe": { "col": 5, "row": 22, "file": "tool_relic_axe.png" },
     "tool_relic_shovel": { "col": 6, "row": 22, "file": "tool_relic_shovel.png" },
-    "tool_relic_sword": { "col": 7, "row": 22, "file": "tool_relic_sword.png" }
+    "tool_relic_sword": { "col": 7, "row": 22, "file": "tool_relic_sword.png" },
+    "oak_sapling": { "col": 0, "row": 23, "file": "oak_sapling.png" },
+    "birch_sapling": { "col": 1, "row": 23, "file": "birch_sapling.png" },
+    "pine_sapling": { "col": 2, "row": 23, "file": "pine_sapling.png" },
+    "willow_sapling": { "col": 3, "row": 23, "file": "willow_sapling.png" },
+    "palm_sapling": { "col": 4, "row": 23, "file": "palm_sapling.png" },
+    "cherry_sapling": { "col": 5, "row": 23, "file": "cherry_sapling.png" },
+    "mahogany_sapling": { "col": 6, "row": 23, "file": "mahogany_sapling.png" },
+    "maple_sapling": { "col": 7, "row": 23, "file": "maple_sapling.png" }
   },
   "blockFaces": {
     "Grass": { "top": "grass_top", "bottom": "dirt", "side": "grass_side" },
@@ -296,7 +304,23 @@
     "RedSand": { "all": "red_sand" },
     "Dripstone": { "all": "dripstone" },
     "Chest": { "all": "chest" },
-    "SnowSide": { "all": "snow_side" }
+    "SnowSide": { "all": "snow_side" },
+    "OakSapling": { "all": "oak_sapling" },
+    "BirchSapling": { "all": "birch_sapling" },
+    "PineSapling": { "all": "pine_sapling" },
+    "WillowSapling": { "all": "willow_sapling" },
+    "PalmSapling": { "all": "palm_sapling" },
+    "CherrySapling": { "all": "cherry_sapling" },
+    "MahoganySapling": { "all": "mahogany_sapling" },
+    "MapleSapling": { "all": "maple_sapling" },
+    "SnowLayer1": { "all": "snow" },
+    "SnowLayer2": { "all": "snow" },
+    "SnowLayer3": { "all": "snow" },
+    "SnowLayer4": { "all": "snow" },
+    "SnowLayer6": { "all": "snow" },
+    "SnowLayer7": { "all": "snow" },
+    "SnowLayer8": { "all": "snow" },
+    "SnowLayer9": { "all": "snow" }
   },
   "animals": {
     "Sheep": { "body": "sheep_body", "head": "sheep_head" },

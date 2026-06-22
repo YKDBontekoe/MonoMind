@@ -9,7 +9,8 @@ namespace Autonocraft.Engine
         Clear,
         Cloudy,
         Rain,
-        Thunderstorm
+        Thunderstorm,
+        Storm
     }
 
     public sealed class WeatherSystem
@@ -26,6 +27,7 @@ namespace Autonocraft.Engine
         // Overall intensity: 0.0 (fully clear) to 1.0 (maximum storm/rain)
         public float RainIntensity { get; private set; } = 0.0f;
         public float CloudIntensity { get; private set; } = 0.0f;
+        public float WindIntensity { get; private set; } = 0.0f;
 
         // Lightning parameters
         public bool LightningActive { get; private set; }
@@ -71,8 +73,13 @@ namespace Autonocraft.Engine
             float targetCloud = GetCloudIntensityFactor(TargetWeather);
             CloudIntensity = MathHelper.Lerp(currentCloud, targetCloud, TransitionProgress);
 
-            // Handle thunderstorm lightning
-            if ((CurrentWeather == WeatherKind.Thunderstorm || TargetWeather == WeatherKind.Thunderstorm) && RainIntensity > 0.5f)
+            float currentWind = GetWindIntensityFactor(CurrentWeather);
+            float targetWind = GetWindIntensityFactor(TargetWeather);
+            WindIntensity = MathHelper.Lerp(currentWind, targetWind, TransitionProgress);
+
+            // Handle thunderstorm/storm lightning
+            if ((CurrentWeather == WeatherKind.Thunderstorm || TargetWeather == WeatherKind.Thunderstorm ||
+                 CurrentWeather == WeatherKind.Storm || TargetWeather == WeatherKind.Storm) && RainIntensity > 0.5f)
             {
                 UpdateLightning(deltaTime);
             }
@@ -115,16 +122,25 @@ namespace Autonocraft.Engine
             else if (CurrentWeather == WeatherKind.Cloudy)
             {
                 if (r < 0.35) next = WeatherKind.Clear;
-                else if (r < 0.85) next = WeatherKind.Rain;
-                else next = WeatherKind.Thunderstorm;
+                else if (r < 0.75) next = WeatherKind.Rain;
+                else if (r < 0.90) next = WeatherKind.Thunderstorm;
+                else next = WeatherKind.Storm;
             }
             else if (CurrentWeather == WeatherKind.Rain)
             {
-                next = r < 0.5 ? WeatherKind.Cloudy : WeatherKind.Thunderstorm;
+                if (r < 0.5) next = WeatherKind.Cloudy;
+                else if (r < 0.8) next = WeatherKind.Thunderstorm;
+                else next = WeatherKind.Storm;
             }
-            else // Thunderstorm
+            else if (CurrentWeather == WeatherKind.Thunderstorm)
             {
-                next = WeatherKind.Rain;
+                if (r < 0.6) next = WeatherKind.Rain;
+                else next = WeatherKind.Storm;
+            }
+            else // Storm
+            {
+                if (r < 0.5) next = WeatherKind.Thunderstorm;
+                else next = WeatherKind.Rain;
             }
 
             TargetWeather = next;
@@ -140,6 +156,7 @@ namespace Autonocraft.Engine
                 WeatherKind.Cloudy => 90f + (float)_random.NextDouble() * 120f,  // 1.5-3.5 minutes
                 WeatherKind.Rain => 60f + (float)_random.NextDouble() * 120f,    // 1-3 minutes
                 WeatherKind.Thunderstorm => 45f + (float)_random.NextDouble() * 60f, // 45s-1.75m
+                WeatherKind.Storm => 30f + (float)_random.NextDouble() * 60f,    // 30s-1.5m
                 _ => 120f
             };
         }
@@ -150,6 +167,7 @@ namespace Autonocraft.Engine
             {
                 WeatherKind.Rain => 0.75f,
                 WeatherKind.Thunderstorm => 1.0f,
+                WeatherKind.Storm => 1.4f, // Increased rainfall!
                 _ => 0.0f
             };
         }
@@ -162,6 +180,20 @@ namespace Autonocraft.Engine
                 WeatherKind.Cloudy => 0.6f,
                 WeatherKind.Rain => 0.85f,
                 WeatherKind.Thunderstorm => 1.0f,
+                WeatherKind.Storm => 1.0f,
+                _ => 0.0f
+            };
+        }
+
+        private static float GetWindIntensityFactor(WeatherKind weather)
+        {
+            return weather switch
+            {
+                WeatherKind.Clear => 0.1f,
+                WeatherKind.Cloudy => 0.2f,
+                WeatherKind.Rain => 0.4f,
+                WeatherKind.Thunderstorm => 0.7f,
+                WeatherKind.Storm => 1.6f, // strong wind!
                 _ => 0.0f
             };
         }
@@ -173,5 +205,7 @@ namespace Autonocraft.Engine
             TransitionProgress = 0.0f;
             _stateTimeRemaining = duration;
         }
+
+        public float TemperatureOffset { get; set; } = 0.0f;
     }
 }

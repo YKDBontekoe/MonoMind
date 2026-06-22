@@ -20,6 +20,7 @@ namespace Autonocraft.Core
     public sealed class GameSession
     {
         private readonly BlockInteractionSystem _blockInteraction = new();
+        private readonly SaplingGrowthSystem _saplingGrowthSystem = new();
         private readonly CombatSystem _combatSystem = new();
         private readonly ParticleSystem _particles = new();
         private readonly WeatherSystem _weather = new();
@@ -28,6 +29,7 @@ namespace Autonocraft.Core
         private readonly HudToast _hudToast = new();
         private readonly NightThreatSpawner _nightThreatSpawner = new();
         private readonly EarlyGameGuide _earlyGameGuide = new();
+        private readonly SnowSystem _snowSystem = new();
         private GameRenderContext? _renderContext;
         private AudioManager? _audio;
         private float _footstepTimer;
@@ -85,6 +87,18 @@ namespace Autonocraft.Core
         private void WireNotifications()
         {
             Player.ShowToast = msg => _hudToast.Show(msg);
+            _saplingGrowthSystem.BindWorld(Grid);
+            Grid.LeafDecayed += (x, y, z, leafType) =>
+            {
+                var rng = new Random(x * 31 + y * 7 + z * 13 + Grid.Seed);
+                if (rng.NextDouble() < 0.10)
+                {
+                    BlockType saplingType = GetSaplingForLeaf(leafType);
+                    SpawnItemDrop(
+                        ItemStack.CreateBlock(saplingType, 1),
+                        new Vector3(x + 0.5f, y + 0.5f, z + 0.5f));
+                }
+            };
             Player.OnItemAdded = stack => RecipeDiscovery.OnItemAcquired(Crafting.Journal, stack);
             _blockInteraction.ShowToast = msg => _hudToast.Show(msg);
             _combatSystem.ShowToast = msg => _hudToast.Show(msg);
@@ -453,11 +467,61 @@ namespace Autonocraft.Core
             {
                 var drop = _itemEntities[i];
                 drop.Update(deltaTime, Grid, Player.Position, Player, kind => _audio?.PlaySfx(kind));
+                TryCollectDropForVillage(drop);
                 if (drop.ReadyForRemoval)
                 {
                     _itemEntities.RemoveAt(i);
                 }
             }
+        }
+
+        private void TryCollectDropForVillage(ItemEntity drop)
+        {
+            if (drop.ReadyForRemoval)
+            {
+                return;
+            }
+
+            const float collectRangeSq = 4.5f * 4.5f;
+            foreach (var villager in Villagers.All)
+            {
+                if (villager.CurrentJob is not (Domain.Village.JobType.Lumber or Domain.Village.JobType.Gather or Domain.Village.JobType.Haul))
+                {
+                    continue;
+                }
+
+                var villagerPickupPos = villager.Position + new Vector3(0f, Villager.Height * 0.45f, 0f);
+                if (MathF.Abs(villagerPickupPos.Y - drop.Position.Y) > 4.5f ||
+                    Vector2.DistanceSquared(
+                        new Vector2(villagerPickupPos.X, villagerPickupPos.Z),
+                        new Vector2(drop.Position.X, drop.Position.Z)) > collectRangeSq)
+                {
+                    continue;
+                }
+
+                var village = Villages.GetVillage(villager.VillageId);
+                if (village == null)
+                {
+                    continue;
+                }
+
+                if (drop.TryCollectTo(village.Storage, kind => _audio?.PlaySfx(kind, volume: 0.35f)))
+                {
+                    VillageEvents.OnFirstResourceDelivery(drop.Item.ToString() ?? "item");
+                }
+
+                return;
+            }
+        }
+
+        public void UpdateSaplings(float deltaTime)
+        {
+            _saplingGrowthSystem.Update(deltaTime, Grid);
+        }
+
+        public void UpdateSnow(float deltaTime, float timeOfDay)
+        {
+            _snowSystem.Update(deltaTime, Grid, Weather, timeOfDay);
         }
 
         public void UpdateSurvival(float deltaTime, float timeOfDay, bool spawnWarmupActive)
@@ -554,6 +618,22 @@ namespace Autonocraft.Core
                 Villagers = Villagers.ExportVillagers(),
                 ClaimedAnchors = Villages.ExportClaimedAnchors(),
                 Player = WorldSaveManager.BuildPlayerSaveData(Player)
+            };
+        }
+
+        private static BlockType GetSaplingForLeaf(BlockType leafType)
+        {
+            return leafType switch
+            {
+                BlockType.OakLeaves => BlockType.OakSapling,
+                BlockType.BirchLeaves => BlockType.BirchSapling,
+                BlockType.PineLeaves => BlockType.PineSapling,
+                BlockType.WillowLeaves => BlockType.WillowSapling,
+                BlockType.PalmLeaves => BlockType.PalmSapling,
+                BlockType.CherryLeaves => BlockType.CherrySapling,
+                BlockType.MahoganyLeaves => BlockType.MahoganySapling,
+                BlockType.MapleLeaves => BlockType.MapleSapling,
+                _ => BlockType.Air
             };
         }
 

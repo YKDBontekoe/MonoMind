@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using Autonocraft.Core;
 using Autonocraft.Domain.Persistence;
 using Autonocraft.Engine;
 using Autonocraft.Engine.Animation;
@@ -34,6 +35,8 @@ namespace Autonocraft.UI
 
         private readonly List<HubAction> _visibleActions = new();
         private SaveSlotInfo? _continueSlot;
+        private PlayerStatistics _lifetimeStats = new();
+        private int _worldCount;
 
         public bool ContinueRequested { get; private set; }
         public bool BrowseSavesRequested { get; private set; }
@@ -52,6 +55,7 @@ namespace Autonocraft.UI
         public void RefreshContinueEligibility()
         {
             _continueSlot = WorldSaveManager.GetMostRecentSaveSlot();
+            (_lifetimeStats, _worldCount) = WorldSaveManager.AggregateLifetimeStatistics();
             RebuildVisibleActions();
             _focus.Reset(_visibleActions.Count);
         }
@@ -96,7 +100,9 @@ namespace Autonocraft.UI
             var rects = BuildButtonRects(metrics, layout);
 
             MenuChrome.DrawBackdrop(_backdrop, _ui, viewport, deltaTime, alpha);
-            MenuChrome.DrawTitleBlock(_ui, layout, "Autonocraft", "A voxel sandbox for builders and explorers", 0.24f, alpha, offsetY);
+
+            DrawHeroPanel(layout, metrics, alpha, offsetY);
+            DrawActionPanel(layout, metrics, alpha, offsetY);
 
             for (int i = 0; i < _visibleActions.Count; i++)
             {
@@ -125,25 +131,29 @@ namespace Autonocraft.UI
                     _buttonHoverT[i]);
             }
 
-            MenuChrome.DrawHintFooter(_ui, layout, "↑↓ or Tab to navigate · Enter to select", alpha);
+            MenuChrome.DrawHintFooter(_ui, layout, "Up/Down or Tab to navigate · Enter to select", alpha);
         }
 
         public static MainMenuLayoutMetrics ComputeLayoutMetrics(int viewportWidth, int viewportHeight, bool hasContinueSave = false)
         {
             var layout = new UiLayout(viewportWidth, viewportHeight);
             int actionCount = hasContinueSave ? 6 : 5;
-            float buttonW = layout.S(ButtonWidth);
+            float shellW = Math.Min(layout.S(560f), layout.Width - layout.S(56f));
+            float shellH = layout.S(500f);
+            float shellX = layout.CenterX - shellW / 2f;
+            float shellY = layout.CenterY - shellH / 2f + layout.S(32f);
+            float buttonW = layout.S(320f);
+            float actionX = layout.CenterX - buttonW / 2f;
+            float actionY = shellY + layout.S(172f);
             float buttonH = layout.S(ButtonHeight);
             float buttonSpacing = layout.S(ButtonSpacing);
-            float cx = layout.CenterX;
-            float startY = layout.CenterY - layout.S(12f);
 
             var buttonRects = new List<Rectangle>();
-            float y = startY;
+            float y = actionY;
             for (int i = 0; i < actionCount; i++)
             {
                 buttonRects.Add(new Rectangle(
-                    (int)(cx - buttonW / 2f),
+                    (int)actionX,
                     (int)y,
                     (int)buttonW,
                     (int)buttonH));
@@ -154,24 +164,29 @@ namespace Autonocraft.UI
             {
                 ViewportWidth = (int)layout.Width,
                 ViewportHeight = (int)layout.Height,
+                ShellRect = new Rectangle((int)shellX, (int)shellY, (int)shellW, (int)shellH),
                 ButtonRects = buttonRects
             };
         }
 
         private MainMenuLayoutMetrics ComputeLayout(UiLayout layout)
         {
-            float buttonW = layout.S(ButtonWidth);
+            float shellW = Math.Min(layout.S(560f), layout.Width - layout.S(56f));
+            float shellH = layout.S(500f);
+            float shellX = layout.CenterX - shellW / 2f;
+            float shellY = layout.CenterY - shellH / 2f + layout.S(32f);
+            float buttonW = layout.S(320f);
+            float actionX = layout.CenterX - buttonW / 2f;
+            float actionY = shellY + layout.S(172f);
             float buttonH = layout.S(ButtonHeight);
             float buttonSpacing = layout.S(ButtonSpacing);
-            float cx = layout.CenterX;
-            float startY = layout.CenterY - layout.S(12f);
 
             var buttonRects = new List<Rectangle>();
-            float y = startY;
+            float y = actionY;
             for (int i = 0; i < _visibleActions.Count; i++)
             {
                 buttonRects.Add(new Rectangle(
-                    (int)(cx - buttonW / 2f),
+                    (int)actionX,
                     (int)y,
                     (int)buttonW,
                     (int)buttonH));
@@ -182,8 +197,48 @@ namespace Autonocraft.UI
             {
                 ViewportWidth = (int)layout.Width,
                 ViewportHeight = (int)layout.Height,
+                ShellRect = new Rectangle((int)shellX, (int)shellY, (int)shellW, (int)shellH),
                 ButtonRects = buttonRects
             };
+        }
+
+        private void DrawHeroPanel(UiLayout layout, MainMenuLayoutMetrics metrics, float alpha, float offsetY)
+        {
+            float y = metrics.ShellRect.Y + offsetY;
+            _ui.DrawCenteredTitle("Autonocraft", y + layout.S(18f), layout.S(52f), UiTheme.Title, alpha);
+            _ui.DrawCenteredText("Survive, build, and grow a settlement", y + layout.S(78f), layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha * 0.9f);
+
+            float chipY = y + layout.S(116f);
+            string worlds = $"{_worldCount} worlds";
+            string time = PlayerStatistics.FormatDuration(_lifetimeStats.TotalPlayTimeSeconds);
+            string last = _continueSlot != null && !_continueSlot.IsCorrupt ? $"Last: {_continueSlot.SlotName}" : "No recent world";
+            float totalW = layout.S(118f) + layout.S(132f) + layout.S(190f) + layout.S(20f);
+            float x = layout.CenterX - totalW / 2f;
+            MenuChrome.DrawMetaChip(_ui, layout, worlds, x, chipY, UiTheme.StatAccentWorld, alpha);
+            MenuChrome.DrawMetaChip(_ui, layout, $"Played {time}", x + layout.S(128f), chipY, UiTheme.StatAccentTime, alpha);
+            MenuChrome.DrawMetaChip(_ui, layout, Truncate(last, 28), x + layout.S(270f), chipY, UiTheme.StatAccentExplore, alpha);
+        }
+
+        private void DrawActionPanel(UiLayout layout, MainMenuLayoutMetrics metrics, float alpha, float offsetY)
+        {
+            if (metrics.ButtonRects.Count == 0)
+            {
+                return;
+            }
+
+            float x = metrics.ButtonRects[0].X;
+            float y = metrics.ButtonRects[0].Y - layout.S(22f) + offsetY;
+            MenuChrome.DrawSectionRule(_ui, layout, x, y, metrics.ButtonRects[0].Width, alpha);
+        }
+
+        private void DrawHubStat(float x, float y, float w, string label, string value, Color accent, UiLayout layout, float alpha)
+        {
+            float h = layout.S(54f);
+            _ui.DrawRoundedRect(x, y, w, h, layout.S(UiTheme.RadiusMd), UiTheme.PanelBgMuted * (0.82f * alpha));
+            _ui.DrawRoundedRectOutline(x, y, w, h, layout.S(UiTheme.RadiusMd), UiTheme.PanelBorder, 1f, 0.5f * alpha);
+            _ui.DrawRoundedRect(x, y, layout.S(3f), h, layout.S(2f), accent * (0.85f * alpha));
+            _ui.DrawLabel(label, x + layout.S(12f), y + layout.S(9f), layout.S(UiTheme.FontCaption), UiTheme.StatLabel, alpha: alpha);
+            _ui.DrawLabel(value, x + layout.S(12f), y + layout.S(26f), layout.S(UiTheme.FontBody), UiTheme.StatValue, semiBold: true, alpha: alpha);
         }
 
         private List<Rectangle> BuildButtonRects(MainMenuLayoutMetrics metrics, UiLayout layout)
@@ -227,6 +282,12 @@ namespace Autonocraft.UI
             };
         }
 
+        private static string Truncate(string value, int maxLength)
+        {
+            if (value.Length <= maxLength) return value;
+            return value[..(maxLength - 3)] + "...";
+        }
+
         private void ActivateAction(int index)
         {
             if (index < 0 || index >= _visibleActions.Count)
@@ -263,6 +324,7 @@ namespace Autonocraft.UI
     {
         public int ViewportWidth { get; init; }
         public int ViewportHeight { get; init; }
+        public Rectangle ShellRect { get; init; }
         public List<Rectangle> ButtonRects { get; init; } = new();
     }
 }

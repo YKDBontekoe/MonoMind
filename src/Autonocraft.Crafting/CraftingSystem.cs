@@ -402,6 +402,11 @@ namespace Autonocraft.Crafting
 
         public bool TryApplyRecipeBookSelection(CraftRecipe recipe, ICraftingPlayer player)
         {
+            if (recipe.RequiresUnlock && !Journal.IsUnlocked(recipe.Id))
+            {
+                return false;
+            }
+
             var inventory = new PlayerInventoryAdapter(player);
             if (InventoryOpen)
             {

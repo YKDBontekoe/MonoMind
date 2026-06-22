@@ -36,6 +36,8 @@ namespace Autonocraft.Core.DevCommands
             Register(new Commands.RecruitCommand());
             Register(new Commands.RationsCommand());
             Register(new Commands.AssignJobCommand());
+            Register(new Commands.TemperatureCommand());
+            Register(new Commands.SnowCommand());
         }
 
         private static void Register(IDevCommand command)

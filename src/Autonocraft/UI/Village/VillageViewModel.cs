@@ -31,6 +31,7 @@ namespace Autonocraft.UI.Village
         public string ActiveWorkSummary { get; init; } = string.Empty;
         public string RecruitHint { get; init; } = string.Empty;
         public string RecruitPreview { get; init; } = string.Empty;
+        public VillagePulseStatus Pulse { get; init; } = new();
         public string? HudContextNote { get; init; }
 
         public static VillageViewModel Build(
@@ -98,6 +99,7 @@ namespace Autonocraft.UI.Village
                             ? "Build a Peasant House to raise housing cap"
                             : $"Need {VillageEntity.RecruitFoodCost} oak planks in village storage",
                 RecruitPreview = BuildRecruitPreview(village, villagers, playerCreative, livePopulation),
+                Pulse = VillagePulse.Read(village, villagers, playerCreative),
                 HudContextNote = hudContextNote
             };
         }

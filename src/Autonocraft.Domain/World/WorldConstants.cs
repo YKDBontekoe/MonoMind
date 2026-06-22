@@ -12,7 +12,7 @@ namespace Autonocraft.Domain.World
         public const int SnowLineOffset = 100;
 
         /// <summary>Elevation band (above sea level) where river spring heads may spawn.</summary>
-        public const int RiverHeadMinOffset = 16;
+        public const int RiverHeadMinOffset = 6;
         public const int RiverHeadMaxOffset = 130;
     }
 }

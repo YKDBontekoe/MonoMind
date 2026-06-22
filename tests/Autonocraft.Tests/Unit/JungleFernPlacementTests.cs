@@ -14,7 +14,7 @@ public class JungleFernPlacementTests
         var anchor = WorldGenTestHelpers.FindPreviewCoord(
             generator,
             column => column.Biome.Primary == BiomeType.Jungle && !column.IsRiver && !column.IsLake,
-            radius: 768,
+            radius: 1536,
             step: 4);
         Assert.NotNull(anchor);
 

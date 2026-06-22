@@ -74,7 +74,7 @@ namespace Autonocraft.Core
 
         private void PrepareNewWorldSettlement()
         {
-            _session.Villages.EnsureStarterSettlement(_session.Grid, _worldSpawnX, _worldSpawnZ);
+            _session.Villages.InitializeStarterSettlement(_session.Grid, _worldSpawnX, _worldSpawnZ);
             _session.PlacePlayerOnSurface(_worldSpawnX, _worldSpawnZ);
             SyncCameraFromPlayer();
             _session.VillageHudHint = "V — Town board · PEOPLE tab assigns jobs";
@@ -584,6 +584,8 @@ namespace Autonocraft.Core
                 _session.UpdateAnimals(deltaTime);
             }
             _session.UpdateItemDrops(deltaTime);
+            _session.UpdateSaplings(deltaTime);
+            _session.UpdateSnow(deltaTime, _timeOfDay);
             swAnimals.Stop();
             PerfCounters.UpdateAnimalsMs = (float)swAnimals.Elapsed.TotalMilliseconds;
 

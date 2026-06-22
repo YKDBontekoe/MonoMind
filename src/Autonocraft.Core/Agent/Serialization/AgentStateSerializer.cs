@@ -57,6 +57,7 @@ internal static class AgentStateSerializer
                 FoodRiskLevel.Low => "low",
                 _ => "ok"
             };
+            var pulse = VillagePulse.Read(village, session.Villagers, player.CreativeMode);
             villageDto = new AgentVillageSummaryDto(
                 village.Id,
                 village.Name,
@@ -69,7 +70,11 @@ internal static class AgentStateSerializer
                 village.AnchorZ,
                 guidance.Detail,
                 idleWorkers,
-                foodRisk);
+                foodRisk,
+                village.Favor,
+                (float)Math.Round(pulse.FamilyGrowthProgress, 2),
+                pulse.GrowthHook,
+                pulse.AgentWorkOrderCost);
 
             foreach (var v in VillageSettlementHealth.EnumerateLiveCitizens(village, session.Villagers))
             {
@@ -202,7 +207,10 @@ internal static class AgentStateSerializer
                 village.Tier.ToString(),
                 village.FoodStock,
                 village.Happiness,
-                village.WorkQueue.Count),
+                village.WorkQueue.Count,
+                village.Favor,
+                (float)Math.Round(village.FamilyGrowthProgress, 2),
+                VillagePulse.Read(village, session.Villagers).AgentWorkOrderCost),
             ExportInventory(village.Storage),
             buildings,
             sites,

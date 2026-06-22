@@ -56,6 +56,9 @@ namespace Autonocraft.Entities
         public float WanderDistanceRemaining;
         public float WorkTimer { get; set; }
         public float BreakProgress { get; set; }
+        public Vector3 LastMovePosition { get; set; }
+        public float StuckTimer { get; set; }
+        public Vector3? LastPathGoal { get; set; }
 
         internal Random JobRandom => _rng;
 
@@ -182,7 +185,11 @@ namespace Autonocraft.Entities
         {
             _path.Clear();
             _pathIndex = 0;
+            LastPathGoal = null;
+            StuckTimer = 0f;
         }
+
+        public bool HasPath => _pathIndex < _path.Count;
 
         public Vector3? GetCurrentPathTarget()
         {

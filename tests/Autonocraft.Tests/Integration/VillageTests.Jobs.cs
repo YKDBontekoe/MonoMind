@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Net.Sockets;
 using System.Numerics;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -711,6 +712,65 @@ public static partial class VillageTests
         Console.WriteLine("PASSED");
     }
 
+    public static void RunVillageAiStructuredToolCalls()
+    {
+        Console.Write("Running Village AI Structured Tool Calls Test... ");
+        var session = new GameSession(5151);
+        session.Grid.UpdateChunksAround(null, session.Player.Position, 2);
+        int ax = (int)MathF.Floor(session.Player.Position.X);
+        int az = (int)MathF.Floor(session.Player.Position.Z);
+        TryFoundTestVillage(session.Villages, session.Grid, "Tool Call Test", ax, az, out var village);
+        if (village == null)
+        {
+            throw new Exception("Village missing.");
+        }
+
+        var client = new ToolCallingClient();
+        var orchestrator = new VillageAiOrchestrator(client);
+        string reply = orchestrator.HandleChatAsync("status", "mayor", session).GetAwaiter().GetResult();
+
+        if (string.IsNullOrWhiteSpace(client.ToolsJson) ||
+            !client.ToolsJson.Contains("get_village_summary", StringComparison.Ordinal))
+        {
+            throw new Exception("Village AI did not pass tool schemas to the model client.");
+        }
+
+        if (!reply.Contains("village", StringComparison.OrdinalIgnoreCase) &&
+            !reply.Contains("food", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new Exception("Structured get_village_summary tool call was not executed.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunOpenRouterModelCatalogFilters()
+    {
+        Console.Write("Running OpenRouter Model Catalog Filters Test... ");
+        const string json = """
+{"data":[
+  {"id":"paid/no-tools","name":"Paid No Tools","context_length":32768,"pricing":{"prompt":"0.000001","completion":"0.000002"},"supported_parameters":["temperature"]},
+  {"id":"free/tools-small","name":"Free Tools Small","context_length":4096,"pricing":{"prompt":"0","completion":"0"},"supported_parameters":["tools"]},
+  {"id":"free/tools-large","name":"Free Tools Large","context_length":200000,"pricing":{"prompt":"0","completion":"0"},"supported_parameters":["tools","tool_choice"]}
+]}
+""";
+        var catalog = new OpenRouterModelCatalog(new HttpClient(new StaticJsonHandler(json)));
+        var models = catalog.FetchModelsAsync(new OpenRouterModelFilter
+        {
+            FreeOnly = true,
+            RequireToolSupport = true,
+            MinContextLength = 8192,
+            Limit = 5
+        }).GetAwaiter().GetResult();
+
+        if (models.Count != 1 || models[0].Id != "free/tools-large" || !models[0].IsFree || !models[0].SupportsTools)
+        {
+            throw new Exception("OpenRouter model filtering did not select the free tool-capable model.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
     public static void RunVillageNumericGoals()
     {
         Console.Write("Running Village Numeric Goals Test... ");
@@ -807,6 +867,39 @@ public static partial class VillageTests
         }
 
         Console.WriteLine("PASSED");
+    }
+
+    private sealed class ToolCallingClient : IOpenRouterClient
+    {
+        public string? ToolsJson { get; private set; }
+
+        public Task<string> CompleteChatAsync(
+            string systemPrompt,
+            IReadOnlyList<(string role, string content)> messages,
+            string? toolsJson = null)
+        {
+            ToolsJson = toolsJson;
+            return Task.FromResult("""
+{"role":"assistant","content":"Reading the ledger.","tool_calls":[{"type":"function","function":{"name":"get_village_summary","arguments":"{}"}}]}
+""");
+        }
+    }
+
+    private sealed class StaticJsonHandler : HttpMessageHandler
+    {
+        private readonly string _json;
+
+        public StaticJsonHandler(string json) => _json = json;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(_json, Encoding.UTF8, "application/json")
+            };
+
+            return Task.FromResult(response);
+        }
     }
 
     public static void RunPlayerWorkQueue()

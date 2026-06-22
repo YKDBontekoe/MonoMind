@@ -1,3 +1,4 @@
+using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -24,18 +25,27 @@ namespace Autonocraft.UI
             }
 
             var layout = new UiLayout(viewport.Width, viewport.Height);
-            float panelW = layout.S(520f);
-            float panelH = layout.S(420f);
+            float panelW = layout.S(720f);
+            float panelH = layout.S(500f);
             float panelX = layout.CenterX - panelW / 2f;
             float panelY = layout.CenterY - panelH / 2f + offsetY;
 
             _ui.DrawFullscreenBackground(UiTheme.OverlayScrim * (0.55f * alpha));
             _ui.DrawCard(panelX, panelY, panelW, panelH, alpha, UiTheme.RadiusXl);
-            _ui.DrawCenteredTitle("Discovery journal", panelY + layout.S(20f), layout.S(UiTheme.FontTitle), UiTheme.Title, alpha);
+            _ui.DrawCenteredTitle("Recipe book", panelY + layout.S(20f), layout.S(UiTheme.FontTitle), UiTheme.Title, alpha);
 
             float y = panelY + layout.S(58f);
             float left = panelX + layout.S(24f);
+            float right = panelX + panelW * 0.50f;
 
+            UiTheme.DrawSectionHeader(_ui, "Getting started", left, y, layout, alpha);
+            y += layout.S(28f);
+            DrawStarterLine("1 log -> planks in your inventory grid", left, ref y, layout, alpha);
+            DrawStarterLine("2 planks vertical -> sticks", left, ref y, layout, alpha);
+            DrawStarterLine("Workbench sigil unlocks 3x3 tools", left, ref y, layout, alpha);
+            DrawStarterLine("Click ready recipes in the recipe book to fill grids", left, ref y, layout, alpha);
+
+            y += layout.S(14f);
             UiTheme.DrawSectionHeader(_ui, "Skills", left, y, layout, alpha);
             y += layout.S(28f);
             DrawSkillLine("Mining", skills.Mining, left, ref y, layout, alpha);
@@ -55,9 +65,8 @@ namespace Autonocraft.UI
                 y += layout.S(22f);
             }
 
-            y += layout.S(14f);
-            UiTheme.DrawSectionHeader(_ui, "Recipes", left, y, layout, alpha);
-            y += layout.S(28f);
+            UiTheme.DrawSectionHeader(_ui, "Recipes", right, panelY + layout.S(58f), layout, alpha);
+            float recipeY = panelY + layout.S(88f);
 
             foreach (var recipe in CraftRecipeRegistry.All)
             {
@@ -66,29 +75,12 @@ namespace Autonocraft.UI
                     continue;
                 }
 
-                bool unlocked = journal.IsUnlocked(recipe.Id);
-
-                if (y > panelY + panelH - layout.S(44f))
+                if (recipeY > panelY + panelH - layout.S(58f))
                 {
                     break;
                 }
 
-                if (recipe.RequiresUnlock && !unlocked)
-                {
-                    _ui.DrawString("???", left + layout.S(12f), y, layout.S(UiTheme.FontBody), UiTheme.Hint, alpha);
-                    y += layout.S(20f);
-                    continue;
-                }
-
-                string line = unlocked ? recipe.DisplayName : "???";
-                Color color = unlocked ? UiTheme.StatValue : UiTheme.Hint;
-                _ui.DrawString(line, left + layout.S(12f), y, layout.S(UiTheme.FontBody), color, alpha);
-                y += layout.S(20f);
-
-                if (y > panelY + panelH - layout.S(44f))
-                {
-                    break;
-                }
+                DrawRecipeReferenceLine(recipe, journal, right, ref recipeY, layout, alpha);
             }
 
             _ui.DrawCenteredText("J or Esc to close", panelY + panelH - layout.S(28f), layout.S(UiTheme.FontSmall), UiTheme.Hint, 0.9f * alpha);
@@ -99,6 +91,37 @@ namespace Autonocraft.UI
             string text = $"{label} L{progress.Level} ({progress.Xp:F0}/{progress.XpForNextLevel():F0} XP)";
             _ui.DrawString(text, left + layout.S(12f), y, layout.S(UiTheme.FontBody), UiTheme.StatValue, alpha);
             y += layout.S(20f);
+        }
+
+        private void DrawStarterLine(string text, float left, ref float y, UiLayout layout, float alpha)
+        {
+            _ui.DrawString(text, left + layout.S(12f), y, layout.S(UiTheme.FontBody), UiTheme.StatValue, alpha);
+            y += layout.S(21f);
+        }
+
+        private void DrawRecipeReferenceLine(CraftRecipe recipe, DiscoveryJournal journal, float left, ref float y, UiLayout layout, float alpha)
+        {
+            bool unlocked = !recipe.RequiresUnlock || journal.IsUnlocked(recipe.Id);
+            Color titleColor = unlocked ? UiTheme.StatValue : UiTheme.Hint;
+            string title = unlocked ? recipe.DisplayName : $"Locked: {recipe.DisplayName}";
+            _ui.DrawString(Truncate(title, 34), left + layout.S(12f), y, layout.S(UiTheme.FontBody), titleColor, alpha, semiBold: unlocked);
+
+            string detail = unlocked
+                ? RecipeBookResolver.GetGuideText(recipe)
+                : RecipeBookResolver.GetUnlockHint(recipe);
+            _ui.DrawString(Truncate(detail, 54), left + layout.S(12f), y + layout.S(18f),
+                layout.S(UiTheme.FontCaption), UiTheme.Hint, alpha);
+            y += layout.S(42f);
+        }
+
+        private static string Truncate(string text, int maxChars)
+        {
+            if (text.Length <= maxChars)
+            {
+                return text;
+            }
+
+            return text.Substring(0, Math.Max(0, maxChars - 3)) + "...";
         }
     }
 }

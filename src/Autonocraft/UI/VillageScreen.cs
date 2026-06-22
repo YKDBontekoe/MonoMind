@@ -205,11 +205,9 @@ namespace Autonocraft.UI
             _selectedGoalCountIndex = 1;
             _isEditingName = false;
             _editingNameBuffer = "";
-            village.ReconcileVillagerRegistry(_villagers.All);
-            _villageManager.SyncCitizensForVillage(village);
-            _viewModel = VillageViewModel.Build(village, villageManager, _villagers, playerCreative, playerPos, guidePlayer);
             _selectedTab = 0;
             _selectedVillagerId = -1;
+            RefreshVillageState();
             foreach (var villager in _villagers.All)
             {
                 if (villager.VillageId == village.Id)
@@ -337,11 +335,12 @@ namespace Autonocraft.UI
 
             if (kb.IsKeyDown(Keys.R) && !prevKb.IsKeyDown(Keys.R))
             {
+                RefreshVillageState();
                 if (CountDisplayedCitizens() > 0)
                 {
                     RecruitRequested = true;
                 }
-                else if (CanSummonSettlers())
+                else
                 {
                     SummonSettlersRequested = true;
                 }
@@ -531,9 +530,10 @@ namespace Autonocraft.UI
 
             float footerY = panelY + panelH - layout.S(FooterHeight);
             string recruitLabel = GetRecruitButtonLabel();
-            bool canRecruit = CountDisplayedCitizens() > 0
+            int displayedCitizens = CountDisplayedCitizens();
+            bool canRecruit = displayedCitizens > 0
                 ? _village.CanRecruit(_villagers, _playerCreative)
-                : CanSummonSettlers();
+                : true;
             DrawStyledButton(left, footerY, buttonW, buttonH, recruitLabel, _hoveredButton == 10,
                 UiButtonStyle.Primary, layout.Ui, alpha, !canRecruit);
 
@@ -573,7 +573,7 @@ namespace Autonocraft.UI
                             ? $"Link nearby settlers — attach {_strandedCitizenCount} villager(s) already in your world"
                             : CanSummonSettlers()
                                 ? "Summon settlers — spawn starter citizens at the Town Heart"
-                                : "Stand on the Town Heart inside your settlement to summon settlers");
+                                : "Click to check the Town Heart and show what blocks summoning");
             }
             else if (_hoveredButton == 12)
             {

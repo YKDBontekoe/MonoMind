@@ -18,13 +18,13 @@ namespace Autonocraft.Engine
 
         public static VillagerBodyLayout Default => new()
         {
-            BodyHalfW = Villager.Width * 0.40f,
-            BodyHalfH = Villager.Height * 0.50f * 0.5f,
-            BodyHalfD = Villager.Width * 0.34f,
-            BodyCenterY = Villager.Height * 0.40f,
-            HeadSize = Villager.Width * 0.24f,
-            HeadCenterY = Villager.Height * 0.78f,
-            HeadForward = Villager.Width * 0.50f
+            BodyHalfW = Villager.Width * 0.34f,
+            BodyHalfH = Villager.Height * 0.46f * 0.5f,
+            BodyHalfD = Villager.Width * 0.28f,
+            BodyCenterY = Villager.Height * 0.38f,
+            HeadSize = Villager.Width * 0.28f,
+            HeadCenterY = Villager.Height * 0.76f,
+            HeadForward = Villager.Width * 0.42f
         };
 
         public float BodyBottomYComputed => BodyCenterY - BodyHalfH;
@@ -83,10 +83,12 @@ namespace Autonocraft.Engine
             float h = Villager.Height;
             float bodyBottomY = layout.BodyBottomYComputed;
             float legSwing = MathF.Sin(walkPhase * 10f) * 0.03f;
+            float action = GetActionMotion(villager);
             var pantsColor = new Color(45, 50, 70);
             var skinColor = new Color(210, 160, 130);
             var hairColor = new Color(60, 40, 20);
             var bootColor = new Color(35, 30, 28);
+            var eyeColor = new Color(25, 22, 20);
 
             float legHalfW = w * 0.085f;
             float legHalfH = bodyBottomY * 0.5f;
@@ -102,11 +104,22 @@ namespace Autonocraft.Engine
             float armY = layout.BodyCenterY - layout.BodyHalfH * 0.05f;
             float armSpread = w * 0.34f;
             float armSwing = -legSwing * 0.85f;
+            float leftArmY = armY;
+            float rightArmY = armY;
+            float leftArmZ = armSwing;
+            float rightArmZ = -armSwing;
+            if (action > 0f)
+            {
+                rightArmY += MathF.Abs(action) * h * 0.08f;
+                rightArmZ += action * w * 0.48f;
+                leftArmZ -= action * w * 0.22f;
+            }
+
             var sleeveColor = GetRoleColor(villager.Role) * 0.75f;
-            drawColored(world, armW, armH * 0.5f, armW, -armSpread, armY, armSwing, sleeveColor);
-            drawColored(world, armW, armH * 0.5f, armW, armSpread, armY, -armSwing, sleeveColor);
-            drawColored(world, armW * 0.65f, armH * 0.20f, armW * 0.55f, -armSpread, armY - armH * 0.38f, armSwing, skinColor);
-            drawColored(world, armW * 0.65f, armH * 0.20f, armW * 0.55f, armSpread, armY - armH * 0.38f, -armSwing, skinColor);
+            drawColored(world, armW, armH * 0.5f, armW, -armSpread, leftArmY, leftArmZ, sleeveColor);
+            drawColored(world, armW, armH * 0.5f, armW, armSpread, rightArmY, rightArmZ, sleeveColor);
+            drawColored(world, armW * 0.65f, armH * 0.20f, armW * 0.55f, -armSpread, leftArmY - armH * 0.38f, leftArmZ, skinColor);
+            drawColored(world, armW * 0.65f, armH * 0.20f, armW * 0.55f, armSpread, rightArmY - armH * 0.38f, rightArmZ, skinColor);
 
             float shoulderPadH = h * 0.035f;
             drawColored(world, armW * 1.4f, shoulderPadH, armW * 1.2f, -armSpread, layout.BodyCenterY + layout.BodyHalfH - shoulderPadH, 0f, sleeveColor);
@@ -120,8 +133,59 @@ namespace Autonocraft.Engine
             }
 
             drawColored(world, layout.HeadSize * 0.92f, layout.HeadSize * 0.32f, layout.HeadSize * 0.82f, 0f, layout.HeadCenterY + layout.HeadSize * 0.52f, layout.HeadForward, hairColor);
+            drawColored(world, layout.HeadSize * 0.09f, layout.HeadSize * 0.07f, layout.HeadSize * 0.04f, -layout.HeadSize * 0.34f, layout.HeadCenterY + layout.HeadSize * 0.10f, layout.HeadForward + layout.HeadSize * 0.86f, eyeColor);
+            drawColored(world, layout.HeadSize * 0.09f, layout.HeadSize * 0.07f, layout.HeadSize * 0.04f, layout.HeadSize * 0.34f, layout.HeadCenterY + layout.HeadSize * 0.10f, layout.HeadForward + layout.HeadSize * 0.86f, eyeColor);
+            drawColored(world, layout.HeadSize * 0.07f, layout.HeadSize * 0.11f, layout.HeadSize * 0.045f, 0f, layout.HeadCenterY - layout.HeadSize * 0.05f, layout.HeadForward + layout.HeadSize * 0.88f, new Color(180, 120, 95));
+            drawColored(world, layout.HeadSize * 0.22f, layout.HeadSize * 0.035f, layout.HeadSize * 0.035f, 0f, layout.HeadCenterY - layout.HeadSize * 0.30f, layout.HeadForward + layout.HeadSize * 0.89f, new Color(95, 45, 35));
+            drawColored(world, layout.BodyHalfW * 0.62f, layout.BodyHalfH * 0.13f, layout.BodyHalfD * 1.08f, 0f, layout.BodyCenterY + layout.BodyHalfH * 0.35f, layout.HeadForward * 0.10f, GetJobIndicatorColor(villager.CurrentJob));
 
-            DrawRoleProps(world, villager, layout, armY, armSwing, drawColored);
+            DrawRoleProps(world, villager, layout, rightArmY, rightArmZ, drawColored);
+            DrawWorkEffect(world, villager, layout, action, drawColored);
+        }
+
+        private static float GetActionMotion(Villager villager)
+        {
+            if (villager.AiPhase != VillagerAiPhase.Working)
+            {
+                return 0f;
+            }
+
+            float progress = villager.BreakProgress > 0f
+                ? villager.BreakProgress
+                : Math.Clamp(villager.WorkTimer / Math.Max(0.01f, Villager.WorkInterval), 0f, 1f);
+            return MathF.Sin(progress * MathF.PI * 2f) * 0.9f;
+        }
+
+        private static void DrawWorkEffect(
+            Matrix world,
+            Villager villager,
+            VillagerBodyLayout layout,
+            float action,
+            Action<Matrix, float, float, float, float, float, float, Color> drawColored)
+        {
+            if (MathF.Abs(action) < 0.05f || villager.AiPhase != VillagerAiPhase.Working)
+            {
+                return;
+            }
+
+            float w = Villager.Width;
+            var flash = villager.CurrentJob switch
+            {
+                JobType.Build => new Color(0.28f, 0.62f, 0.95f, 0.55f),
+                JobType.Mine => new Color(0.82f, 0.82f, 0.78f, 0.55f),
+                JobType.Farm => new Color(0.55f, 0.82f, 0.28f, 0.50f),
+                JobType.Lumber or JobType.Gather => new Color(0.45f, 0.78f, 0.32f, 0.50f),
+                JobType.Craft => new Color(0.92f, 0.78f, 0.22f, 0.50f),
+                _ => Color.Transparent
+            };
+
+            if (flash == Color.Transparent)
+            {
+                return;
+            }
+
+            float pulse = 0.04f + MathF.Abs(action) * 0.035f;
+            drawColored(world, pulse, pulse, pulse, w * 0.40f, layout.BodyCenterY + layout.BodyHalfH * 0.25f, layout.HeadForward * 1.45f, flash);
         }
 
         private static void DrawVillagerLeg(

@@ -20,8 +20,8 @@ namespace Autonocraft.UI
             LlamaCppModel
         }
 
-        private const float PanelWidth = 560f;
-        private const float PanelHeight = 700f;
+        private const float PanelWidth = 820f;
+        private const float PanelHeight = 560f;
         private const float ButtonWidth = 160f;
         private const float ButtonHeight = 38f;
         private const float SliderWidth = 320f;
@@ -128,16 +128,17 @@ namespace Autonocraft.UI
             var layout = new UiLayout(viewport);
             float cx = layout.CenterX;
             float panelW = layout.S(PanelWidth);
-            float panelH = layout.S(PanelHeight);
+            float panelH = Math.Min(layout.S(PanelHeight), layout.Height - layout.S(64f));
             float panelX = cx - panelW / 2f;
-            float panelY = layout.CenterY - panelH / 2f;
-            float left = panelX + layout.S(24f);
+            float panelY = Math.Max(layout.S(24f), layout.CenterY - panelH / 2f);
+            float left = panelX + layout.S(32f);
+            float right = panelX + panelW * 0.52f;
             float buttonW = layout.S(ButtonWidth);
             float buttonH = layout.S(ButtonHeight);
 
-            float y = panelY + layout.S(72f);
             float rowH = layout.S(34f);
-            float renderSliderY = y + rowH * 1.1f;
+            float leftY = panelY + layout.S(86f);
+            float renderSliderY = leftY + rowH * 1.1f;
             float vsyncY = renderSliderY + rowH * 1.8f;
             float lightingY = vsyncY + rowH * 1.0f;
             float audioHeaderY = lightingY + rowH * 1.6f;
@@ -146,24 +147,24 @@ namespace Autonocraft.UI
             float ambientSliderY = sfxSliderY + rowH * 1.2f;
             float musicSliderY = ambientSliderY + rowH * 1.2f;
             float muteY = musicSliderY + rowH * 1.1f;
-            float aiHeaderY = muteY + rowH * 1.6f;
+            float aiHeaderY = panelY + layout.S(86f);
             float toggleY = aiHeaderY + rowH * 1.1f;
             float providerY = toggleY + rowH * 1.2f;
             float fieldStartY = providerY + rowH * 1.4f;
 
-            var playAiRect = new Rectangle((int)left, (int)toggleY, (int)layout.S(220f), (int)layout.S(28f));
-            var providerRect = new Rectangle((int)left, (int)providerY, (int)layout.S(320f), (int)layout.S(28f));
+            var playAiRect = new Rectangle((int)right, (int)toggleY, (int)layout.S(220f), (int)layout.S(28f));
+            var providerRect = new Rectangle((int)right, (int)providerY, (int)layout.S(320f), (int)layout.S(28f));
             var muteRect = new Rectangle((int)left, (int)muteY, (int)layout.S(220f), (int)layout.S(28f));
             var vsyncRect = new Rectangle((int)left, (int)vsyncY, (int)layout.S(260f), (int)layout.S(28f));
             var lightingRect = new Rectangle((int)left, (int)lightingY, (int)layout.S(320f), (int)layout.S(28f));
             var saveRect = GetButtonRect(cx - buttonW - layout.S(8f), panelY + panelH - layout.S(52f), buttonW, buttonH);
             var cancelRect = GetButtonRect(cx + layout.S(8f), panelY + panelH - layout.S(52f), buttonW, buttonH);
 
-            UpdateSettingsSlider(viewport, mouse, prevMouse, renderSliderY, layout, SliderTarget.RenderDistance);
-            UpdateSettingsSlider(viewport, mouse, prevMouse, masterSliderY, layout, SliderTarget.MasterVolume);
-            UpdateSettingsSlider(viewport, mouse, prevMouse, sfxSliderY, layout, SliderTarget.SfxVolume);
-            UpdateSettingsSlider(viewport, mouse, prevMouse, ambientSliderY, layout, SliderTarget.AmbientVolume);
-            UpdateSettingsSlider(viewport, mouse, prevMouse, musicSliderY, layout, SliderTarget.MusicVolume);
+            UpdateSettingsSlider(mouse, prevMouse, left, renderSliderY, layout, SliderTarget.RenderDistance);
+            UpdateSettingsSlider(mouse, prevMouse, left, masterSliderY, layout, SliderTarget.MasterVolume);
+            UpdateSettingsSlider(mouse, prevMouse, left, sfxSliderY, layout, SliderTarget.SfxVolume);
+            UpdateSettingsSlider(mouse, prevMouse, left, ambientSliderY, layout, SliderTarget.AmbientVolume);
+            UpdateSettingsSlider(mouse, prevMouse, left, musicSliderY, layout, SliderTarget.MusicVolume);
 
             bool click = mouse.LeftButton == ButtonState.Pressed && prevMouse.LeftButton == ButtonState.Released;
             _hoveredButton = -1;
@@ -192,19 +193,19 @@ namespace Autonocraft.UI
                 {
                     _working.AiProvider = (AiProviderKind)(((int)_working.AiProvider + 1) % 4);
                 }
-                else if (TryHitField(left, fieldStartY, layout.S(420f), layout.S(26f), mouse, EditField.OpenRouterModel))
+                else if (TryHitField(right, fieldStartY, layout.S(330f), layout.S(26f), mouse, EditField.OpenRouterModel))
                 {
                     _activeField = EditField.OpenRouterModel;
                 }
-                else if (TryHitField(left, fieldStartY + rowH, layout.S(420f), layout.S(26f), mouse, EditField.OpenRouterKey))
+                else if (TryHitField(right, fieldStartY + rowH, layout.S(330f), layout.S(26f), mouse, EditField.OpenRouterKey))
                 {
                     _activeField = EditField.OpenRouterKey;
                 }
-                else if (TryHitField(left, fieldStartY + rowH * 2.2f, layout.S(420f), layout.S(26f), mouse, EditField.LlamaCppUrl))
+                else if (TryHitField(right, fieldStartY + rowH * 2.2f, layout.S(330f), layout.S(26f), mouse, EditField.LlamaCppUrl))
                 {
                     _activeField = EditField.LlamaCppUrl;
                 }
-                else if (TryHitField(left, fieldStartY + rowH * 3.4f, layout.S(420f), layout.S(26f), mouse, EditField.LlamaCppModel))
+                else if (TryHitField(right, fieldStartY + rowH * 3.4f, layout.S(330f), layout.S(26f), mouse, EditField.LlamaCppModel))
                 {
                     _activeField = EditField.LlamaCppModel;
                 }
@@ -237,7 +238,8 @@ namespace Autonocraft.UI
             float panelH = Math.Min(layout.S(PanelHeight), layout.Height - layout.S(80f));
             float panelX = cx - panelW / 2f;
             float panelY = Math.Max(layout.S(24f), layout.CenterY - panelH / 2f) + _transition.OffsetY;
-            float left = panelX + layout.S(24f);
+            float left = panelX + layout.S(32f);
+            float right = panelX + panelW * 0.52f;
             float buttonW = layout.S(ButtonWidth);
             float buttonH = layout.S(ButtonHeight);
             float rowH = layout.S(34f);
@@ -252,10 +254,11 @@ namespace Autonocraft.UI
             }
 
             _ui.DrawCard(panelX, panelY, panelW, panelH, alpha, UiTheme.RadiusXl);
-            _ui.DrawCenteredTitle("Settings", panelY + layout.S(20f), layout.S(UiTheme.FontTitle), UiTheme.Title, alpha);
-            _ui.DrawHorizontalRule(panelX + layout.S(24f), panelY + layout.S(52f), panelW - layout.S(48f), UiTheme.Rule, 1f, alpha * 0.7f);
+            _ui.DrawCenteredTitle("Settings", panelY + layout.S(18f), layout.S(UiTheme.FontTitle), UiTheme.Title, alpha);
+            _ui.DrawHorizontalRule(panelX + layout.S(32f), panelY + layout.S(52f), panelW - layout.S(64f), UiTheme.Rule, 1f, alpha * 0.7f);
+            _ui.DrawFilledRect(panelX + panelW * 0.49f, panelY + layout.S(72f), 1f, panelH - layout.S(142f), UiTheme.Rule * (0.55f * alpha));
 
-            float y = panelY + layout.S(72f);
+            float y = panelY + layout.S(82f);
             UiTheme.DrawSectionHeader(_ui, "Graphics", left, y, layout, alpha);
             y += rowH;
             _ui.DrawString($"Render distance: {_working.RenderDistance}", left, y, layout.S(UiTheme.FontBody), UiTheme.StatValue, alpha);
@@ -278,21 +281,21 @@ namespace Autonocraft.UI
             y += rowH * 1.1f;
             _ui.DrawString($"Mute audio: {(_working.MuteAudio ? "On" : "Off")} (click)", left, y, layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha);
 
-            y += rowH * 1.6f;
-            UiTheme.DrawSectionHeader(_ui, "Village AI", left, y, layout, alpha);
+            y = panelY + layout.S(82f);
+            UiTheme.DrawSectionHeader(_ui, "Village AI", right, y, layout, alpha);
             y += rowH;
-            _ui.DrawString($"Play with AI: {(_working.PlayWithAi ? "On" : "Off")} (click)", left, y, layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha);
+            _ui.DrawString($"Play with AI: {(_working.PlayWithAi ? "On" : "Off")} (click)", right, y, layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha);
             y += rowH * 1.2f;
-            _ui.DrawString($"Provider: {ProviderLabel(_working.AiProvider)} (click)", left, y, layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha);
+            _ui.DrawString($"Provider: {ProviderLabel(_working.AiProvider)} (click)", right, y, layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha);
 
             y += rowH * 1.4f;
-            DrawField(left, y, "OpenRouter model", _openRouterModel, EditField.OpenRouterModel, layout, alpha);
+            DrawField(right, y, "OpenRouter model", _openRouterModel, EditField.OpenRouterModel, layout, alpha);
             y += rowH;
-            DrawField(left, y, "OpenRouter API key", MaskKey(_openRouterKey), EditField.OpenRouterKey, layout, alpha);
+            DrawField(right, y, "OpenRouter API key", MaskKey(_openRouterKey), EditField.OpenRouterKey, layout, alpha);
             y += rowH * 1.2f;
-            DrawField(left, y, "llama.cpp URL", _llamaCppUrl, EditField.LlamaCppUrl, layout, alpha);
+            DrawField(right, y, "llama.cpp URL", _llamaCppUrl, EditField.LlamaCppUrl, layout, alpha);
             y += rowH;
-            DrawField(left, y, "llama.cpp model", _llamaCppModel, EditField.LlamaCppModel, layout, alpha);
+            DrawField(right, y, "llama.cpp model", _llamaCppModel, EditField.LlamaCppModel, layout, alpha);
 
             y = panelY + panelH - layout.S(52f);
             DrawButton(cx - buttonW - layout.S(8f), y, buttonW, buttonH, "Save", _hoveredButton == 0, UiButtonStyle.Primary, layout, alpha, _buttonHoverT[0]);
@@ -311,10 +314,9 @@ namespace Autonocraft.UI
             return _working;
         }
 
-        private void UpdateSettingsSlider(Viewport viewport, MouseState mouse, MouseState prevMouse, float sliderY, UiLayout layout, SliderTarget target)
+        private void UpdateSettingsSlider(MouseState mouse, MouseState prevMouse, float left, float sliderY, UiLayout layout, SliderTarget target)
         {
             float sliderW = layout.S(SliderWidth);
-            float left = layout.CenterX - sliderW / 2f;
             float trackH = layout.S(SliderTrackHeight);
             float thumb = layout.S(SliderThumbSize);
             var trackRect = new Rectangle((int)left, (int)(sliderY - trackH / 2f), (int)sliderW, (int)trackH);
@@ -422,19 +424,7 @@ namespace Autonocraft.UI
                 return;
             }
 
-            foreach (Keys key in Enum.GetValues<Keys>())
-            {
-                if (!kb.IsKeyDown(key) || prevKb.IsKeyDown(key))
-                {
-                    continue;
-                }
-
-                char? ch = KeyToChar(key, kb.IsKeyDown(Keys.LeftShift) || kb.IsKeyDown(Keys.RightShift));
-                if (ch.HasValue && target.Length < 120)
-                {
-                    target += ch.Value;
-                }
-            }
+            TextInputKeys.AppendPressedCharacters(kb, prevKb, ref target, 120, TextInputCharacterSet.Technical);
         }
 
         private ref string GetActiveBuffer()
@@ -476,31 +466,6 @@ namespace Autonocraft.UI
             }
 
             return key.Length <= 4 ? "****" : key[..4] + "…";
-        }
-
-        private static char? KeyToChar(Keys key, bool shift)
-        {
-            if (key >= Keys.A && key <= Keys.Z)
-            {
-                char c = (char)('a' + (key - Keys.A));
-                return shift ? char.ToUpper(c) : c;
-            }
-
-            if (key >= Keys.D0 && key <= Keys.D9)
-            {
-                return (char)('0' + (key - Keys.D0));
-            }
-
-            return key switch
-            {
-                Keys.OemMinus => shift ? '_' : '-',
-                Keys.OemPeriod => '.',
-                Keys.OemQuestion => shift ? '?' : '/',
-                Keys.OemSemicolon => shift ? ':' : ';',
-                Keys.OemPlus => shift ? '+' : '=',
-                Keys.Space => ' ',
-                _ => null
-            };
         }
 
         private void DrawButton(float x, float y, float w, float h, string label, bool hovered, UiButtonStyle style, UiLayout layout, float alpha, float hoverT = 1f)

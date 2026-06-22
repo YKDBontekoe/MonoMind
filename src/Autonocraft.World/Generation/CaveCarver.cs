@@ -7,6 +7,7 @@ namespace Autonocraft.World
         private const int LavaDepthThreshold = 10;
         private readonly PerlinNoise3D _caveNoise;
         private readonly PerlinNoise3D _wormNoise;
+        private readonly PerlinNoise3D _ravineNoise;
         private readonly WorldGenParams _params;
 
         public CaveCarver(int seed, WorldGenParams parameters)
@@ -14,6 +15,7 @@ namespace Autonocraft.World
             _params = parameters;
             _caveNoise = new PerlinNoise3D(seed + 606);
             _wormNoise = new PerlinNoise3D(seed + 707);
+            _ravineNoise = new PerlinNoise3D(seed + 808);
         }
 
         public void CarveChunk(Chunk chunk, TerrainColumn[,] columns)
@@ -98,8 +100,54 @@ namespace Autonocraft.World
                             }
                         }
                     }
+
+                    // Ravine pass: carve deep open-air V-shaped trenches using low-frequency 2D ridged noise.
+                    // Ravines only generate in dry elevated land biomes, not near water or wetlands.
+                    var biome = columns[lx, lz].Biome.Primary;
+                    bool ravineCapable = biome is BiomeType.Plains or BiomeType.Forest or BiomeType.Jungle
+                        or BiomeType.Mountains or BiomeType.SnowyPeaks or BiomeType.BorealTaiga
+                        or BiomeType.MushroomForest or BiomeType.Badlands or BiomeType.Desert;
+
+                    if (ravineCapable && surfaceHeight > WorldConstants.SeaLevel + 6)
+                    {
+                        // Two perpendicular 2D values identify the ravine center-line.
+                        float ra = _ravineNoise.Noise(wx * 0.012f, 0f, wz * 0.012f);
+                        float rb = _ravineNoise.Noise(wx * 0.012f + 50f, 0f, wz * 0.012f + 50f);
+
+                        // Narrow threshold creates sparse winding paths.
+                        float ravineWidth = MathF.Abs(ra) + MathF.Abs(rb);
+                        if (ravineWidth < 0.065f)
+                        {
+                            // Depth of the ravine: 12–26 blocks, modulated by a third noise value.
+                            float depthNoise = _ravineNoise.Noise(wx * 0.008f + 200f, 0f, wz * 0.008f - 150f);
+                            int ravineDepth = (int)(18f + depthNoise * 8f);
+                            ravineDepth = Math.Clamp(ravineDepth, 12, 26);
+
+                            int ravineBottom = Math.Max(surfaceHeight - ravineDepth, WorldConstants.SeaLevel - 2);
+                            int ravineTop = surfaceHeight - 1;
+
+                            for (int y = ravineTop; y >= ravineBottom; y--)
+                            {
+                                // V-shape: the ravine narrows linearly toward the bottom.
+                                float progress = (float)(y - ravineBottom) / Math.Max(ravineTop - ravineBottom, 1);
+                                float halfWidth = ravineWidth / 0.065f * progress; // 0 at bottom → 1 at top
+                                // Only carve within the V-width computed against the raw path strength
+                                float pathStrength = MathF.Abs(ra);
+                                if (pathStrength < 0.032f + halfWidth * 0.033f)
+                                {
+                                    BlockType current = chunk.GetBlockUnchecked(lx, y, lz);
+                                    if (current != BlockType.Air && current != BlockType.Water && current != BlockType.Lava)
+                                    {
+                                        chunk.SetBlockUnchecked(lx, y, lz, BlockType.Air);
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
+
+        private static float Lerp(float a, float b, float t) => a + (b - a) * Math.Clamp(t, 0f, 1f);
     }
 }

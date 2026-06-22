@@ -22,6 +22,7 @@ namespace Autonocraft.World.Generation
             return surface switch
             {
                 BlockType.Grass or BlockType.Dirt or BlockType.Mud or BlockType.Sand or BlockType.RedSand => true,
+                BlockType.MossStone when biome is BiomeType.MushroomForest or BiomeType.BorealTaiga => true,
                 BlockType.Snow when biome is BiomeType.SnowyPeaks => true,
                 _ => false
             };

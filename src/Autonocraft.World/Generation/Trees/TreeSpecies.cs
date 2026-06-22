@@ -30,7 +30,7 @@ namespace Autonocraft.World.Generation.Trees
             MaxHeight = 7,
             BranchAngle = 35f,
             BranchChance = 0.30f,
-            MaxBlocks = 96
+            MaxBlocks = 140
         };
 
         public static TreeSpecies Birch() => new()
@@ -54,7 +54,7 @@ namespace Autonocraft.World.Generation.Trees
             MaxHeight = 9,
             BranchAngle = 45f,
             BranchChance = 0.40f,
-            MaxBlocks = 64
+            MaxBlocks = 96
         };
 
         public static TreeSpecies Willow() => new()

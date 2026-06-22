@@ -2,7 +2,7 @@ namespace Autonocraft.Ai
 {
     public sealed class OpenRouterConfig
     {
-        public const string DefaultModel = "openai/gpt-4o-mini";
+        public const string DefaultModel = GameSettings.DefaultOpenRouterModel;
 
         public string? ApiKey { get; private set; }
         public string Model { get; private set; } = DefaultModel;

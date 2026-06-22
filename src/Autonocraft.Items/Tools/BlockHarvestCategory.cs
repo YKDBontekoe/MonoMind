@@ -13,30 +13,23 @@ namespace Autonocraft.Items
     {
         public static BlockHarvestCategory GetHarvestCategory(this BlockType type)
         {
+            if (type.IsWoodMaterial() || type.IsLeaf() || type == BlockType.BerryBush)
+            {
+                return BlockHarvestCategory.Wood;
+            }
+
+            if (type.IsDecorativeFlora() || type.IsCrop())
+            {
+                return BlockHarvestCategory.Earth;
+            }
+
             return type switch
             {
                 BlockType.Air or BlockType.Water or BlockType.Lava => BlockHarvestCategory.None,
-                BlockType.OakLog or BlockType.BirchLog or BlockType.PineLog
-                    or BlockType.WillowLog or BlockType.PalmLog
-                    or BlockType.CherryLog or BlockType.MahoganyLog or BlockType.MapleLog
-                    or BlockType.OakLeaves or BlockType.BirchLeaves or BlockType.PineLeaves
-                    or BlockType.WillowLeaves or BlockType.PalmLeaves
-                    or BlockType.CherryLeaves or BlockType.MahoganyLeaves or BlockType.MapleLeaves
-                    or BlockType.OakPlank or BlockType.BirchPlank or BlockType.PinePlank
-                    or BlockType.CherryPlank or BlockType.MahoganyPlank or BlockType.MaplePlank
-                    or BlockType.Bamboo or BlockType.BerryBush => BlockHarvestCategory.Wood,
                 BlockType.Dirt or BlockType.Grass or BlockType.Sand or BlockType.RedSand or BlockType.Snow
-                    or BlockType.Gravel or BlockType.Clay or BlockType.TallGrass
-                    or BlockType.Flower or BlockType.Reed or BlockType.Sunflower
-                    or BlockType.Mud or BlockType.HayBale or BlockType.Ice
-                    or BlockType.WheatSprout or BlockType.Wheat
-                    or BlockType.CarrotSprout or BlockType.Carrot
-                    or BlockType.Fern or BlockType.MushroomRed or BlockType.MushroomBrown
-                    or BlockType.DeadBush or BlockType.LilyPad or BlockType.Vine
-                    or BlockType.Seagrass
-                    or BlockType.Shrub or BlockType.Heather or BlockType.Juniper
-                    or BlockType.Glowshroom or BlockType.Lavender or BlockType.Rope
-                    or BlockType.Kelp => BlockHarvestCategory.Earth,
+                    or BlockType.Gravel or BlockType.Clay or BlockType.Mud or BlockType.HayBale or BlockType.Ice
+                    or BlockType.SnowLayer1 or BlockType.SnowLayer2 or BlockType.SnowLayer3 or BlockType.SnowLayer4
+                    or BlockType.SnowLayer6 or BlockType.SnowLayer7 or BlockType.SnowLayer8 or BlockType.SnowLayer9 => BlockHarvestCategory.Earth,
                 BlockType.Cobblestone or BlockType.Brick or BlockType.MossStone or BlockType.Dripstone
                     or BlockType.Marble or BlockType.Basalt or BlockType.Slate
                     or BlockType.Limestone or BlockType.Granite or BlockType.Obsidian

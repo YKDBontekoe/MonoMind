@@ -161,7 +161,7 @@ namespace Autonocraft.UI.VillagePanels
             string talkHint = talkEnabled
                 ? $"Talk to {villager.Name}"
                 : "Enable Play with AI in settings to chat";
-            DrawStyledButton(ui, x + pad, detailY, layout.S(96f), layout.S(ButtonHeight), "Talk", context.HoveredButton == 50,
+            VillagePanelChrome.DrawButton(ui, x + pad, detailY, layout.S(96f), layout.S(ButtonHeight), "Talk", context.HoveredButton == 50,
                 UiButtonStyle.Secondary, layout, alpha, !talkEnabled);
             ui.DrawString(talkHint, x + pad + layout.S(106f), detailY + layout.S(8f), layout.S(UiTheme.FontSmall),
                 UiTheme.Hint, alpha);
@@ -186,25 +186,9 @@ namespace Autonocraft.UI.VillagePanels
                 int col = i % 3;
                 float jobX = x + pad + col * (jobW + jobGap);
                 float jobY = detailY + row * (jobH + jobGap);
-                DrawStyledButton(ui, jobX, jobY, jobW, jobH, AssignableJobs[i].Label, context.HoveredButton == 40 + i,
+                VillagePanelChrome.DrawButton(ui, jobX, jobY, jobW, jobH, AssignableJobs[i].Label, context.HoveredButton == 40 + i,
                     UiButtonStyle.Ghost, layout, alpha);
             }
-        }
-
-        private static void DrawStyledButton(
-            UiRenderer ui,
-            float x,
-            float y,
-            float w,
-            float h,
-            string label,
-            bool hovered,
-            UiButtonStyle style,
-            UiLayout layout,
-            float alpha,
-            bool disabled = false)
-        {
-            ui.DrawButton(x, y, w, h, label, hovered && !disabled, false, style, layout.S(UiTheme.FontBody), alpha, hovered ? 1f : 0f, disabled);
         }
 
         private static int CountDisplayedCitizens(VillageEntity village, VillagerManager villagers)

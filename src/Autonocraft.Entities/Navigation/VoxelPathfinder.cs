@@ -31,11 +31,15 @@ namespace Autonocraft.Entities
                 return false;
             }
 
-            var start = (sx, sy, sz);
-            var goal = (tx, ty, tz);
+            if (!TryFindNearestWalkable(world, sx, sy, sz, 2, out var start) ||
+                !TryFindNearestWalkable(world, tx, ty, tz, 4, out var goal))
+            {
+                return false;
+            }
+
             if (start == goal)
             {
-                waypoints.Add(new Vector3(tx + 0.5f, ty, tz + 0.5f));
+                waypoints.Add(new Vector3(goal.x + 0.5f, goal.y, goal.z + 0.5f));
                 return true;
             }
 
@@ -55,14 +59,18 @@ namespace Autonocraft.Entities
                     return waypoints.Count > 0;
                 }
 
-                for (int i = 0; i < 4; i++)
+                for (int i = 0; i < 8; i++)
                 {
                     int nx = current.x;
                     int nz = current.z;
                     if (i == 0) nx += 1;
                     else if (i == 1) nx -= 1;
                     else if (i == 2) nz += 1;
-                    else nz -= 1;
+                    else if (i == 3) nz -= 1;
+                    else if (i == 4) { nx += 1; nz += 1; }
+                    else if (i == 5) { nx += 1; nz -= 1; }
+                    else if (i == 6) { nx -= 1; nz += 1; }
+                    else { nx -= 1; nz -= 1; }
 
                     for (int step = -MaxStepDown; step <= MaxStepUp; step++)
                     {
@@ -73,7 +81,7 @@ namespace Autonocraft.Entities
                         }
 
                         var neighbor = (nx, ny, nz);
-                        float tentative = gScore[current] + 1f;
+                        float tentative = gScore[current] + (i < 4 ? 1f : 1.41f) + MathF.Abs(step) * 0.15f;
                         if (gScore.TryGetValue(neighbor, out float existing) && tentative >= existing)
                         {
                             continue;
@@ -87,6 +95,51 @@ namespace Autonocraft.Entities
             }
 
             return false;
+        }
+
+        private static bool TryFindNearestWalkable(
+            VoxelWorld world,
+            int x,
+            int y,
+            int z,
+            int radius,
+            out (int x, int y, int z) result)
+        {
+            if (IsWalkable(world, x, y, z))
+            {
+                result = (x, y, z);
+                return true;
+            }
+
+            int bestScore = int.MaxValue;
+            result = default;
+            for (int dy = -MaxStepDown; dy <= MaxStepUp + 2; dy++)
+            {
+                for (int dz = -radius; dz <= radius; dz++)
+                {
+                    for (int dx = -radius; dx <= radius; dx++)
+                    {
+                        int score = Math.Abs(dx) + Math.Abs(dz) + Math.Abs(dy);
+                        if (score >= bestScore)
+                        {
+                            continue;
+                        }
+
+                        int nx = x + dx;
+                        int ny = y + dy;
+                        int nz = z + dz;
+                        if (!IsWalkable(world, nx, ny, nz))
+                        {
+                            continue;
+                        }
+
+                        bestScore = score;
+                        result = (nx, ny, nz);
+                    }
+                }
+            }
+
+            return bestScore < int.MaxValue;
         }
 
         private static float Heuristic((int x, int y, int z) a, (int x, int y, int z) b)

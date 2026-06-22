@@ -113,8 +113,10 @@ namespace Autonocraft.Engine
                 {
                     var source = vertices[i];
                     float phase = source.WindPhase * MathHelper.TwoPi;
+                    float windScale = 0.5f + lighting.WindIntensity * 2.5f;
+                    float swaySpeed = 1.8f * (0.8f + lighting.WindIntensity * 1.5f);
                     float sway = animate
-                        ? MathF.Sin(animTime * 1.8f + phase) * source.HeightFactor * 0.06f
+                        ? MathF.Sin(animTime * swaySpeed + phase) * source.HeightFactor * 0.06f * windScale
                         : 0f;
                     var pos = source.Position;
                     pos.X += sway;

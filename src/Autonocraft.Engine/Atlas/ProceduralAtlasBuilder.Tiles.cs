@@ -154,10 +154,10 @@ namespace Autonocraft.Engine
                         name,
                         new[]
                         {
-                            ShiftColor(new Color(40, 96, 36), seedShift),
-                            ShiftColor(new Color(62, 138, 52), seedShift),
-                            ShiftColor(new Color(32, 84, 30), seedShift),
-                            ShiftColor(new Color(78, 158, 62), seedShift)
+                            ShiftColor(new Color(34, 82, 34), seedShift),
+                            ShiftColor(new Color(50, 112, 46), seedShift),
+                            ShiftColor(new Color(26, 70, 28), seedShift),
+                            ShiftColor(new Color(62, 128, 54), seedShift)
                         }));
                 case "birch_leaves":
                     return FromSynth(ProceduralTextureSynth.Leaves(
@@ -165,10 +165,10 @@ namespace Autonocraft.Engine
                         name,
                         new[]
                         {
-                            ShiftColor(new Color(56, 122, 48), seedShift),
-                            ShiftColor(new Color(84, 158, 68), seedShift),
-                            ShiftColor(new Color(46, 106, 42), seedShift),
-                            ShiftColor(new Color(96, 172, 78), seedShift)
+                            ShiftColor(new Color(48, 106, 42), seedShift),
+                            ShiftColor(new Color(70, 136, 58), seedShift),
+                            ShiftColor(new Color(38, 92, 36), seedShift),
+                            ShiftColor(new Color(82, 148, 68), seedShift)
                         }));
                 case "pine_leaves":
                     return FromSynth(ProceduralTextureSynth.Leaves(
@@ -176,10 +176,10 @@ namespace Autonocraft.Engine
                         name,
                         new[]
                         {
-                            ShiftColor(new Color(22, 74, 36), seedShift),
-                            ShiftColor(new Color(42, 104, 52), seedShift),
-                            ShiftColor(new Color(16, 62, 28), seedShift),
-                            ShiftColor(new Color(54, 118, 58), seedShift)
+                            ShiftColor(new Color(18, 60, 32), seedShift),
+                            ShiftColor(new Color(32, 84, 44), seedShift),
+                            ShiftColor(new Color(12, 50, 26), seedShift),
+                            ShiftColor(new Color(42, 96, 50), seedShift)
                         }));
                 case "water":
                     return FromSynth(ProceduralTextureSynth.Water(_tileSize, name));
@@ -346,6 +346,30 @@ namespace Autonocraft.Engine
                         return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
                             ProceduralTextureSynth.DeadBushSprite(half, $"dead_bush_v{variant}", palette)));
                     }
+                case "oak_sapling":
+                    return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                        ProceduralTextureSynth.SaplingSprite(half, $"oak_sapling_v{variant}", ShiftColor(new Color(118, 86, 52), seedShift), ShiftColor(new Color(50, 114, 42), seedShift))));
+                case "birch_sapling":
+                    return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                        ProceduralTextureSynth.SaplingSprite(half, $"birch_sapling_v{variant}", ShiftColor(new Color(198, 188, 168), seedShift), ShiftColor(new Color(58, 124, 46), seedShift))));
+                case "pine_sapling":
+                    return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                        ProceduralTextureSynth.SaplingSprite(half, $"pine_sapling_v{variant}", ShiftColor(new Color(92, 68, 40), seedShift), ShiftColor(new Color(34, 82, 30), seedShift))));
+                case "willow_sapling":
+                    return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                        ProceduralTextureSynth.SaplingSprite(half, $"willow_sapling_v{variant}", ShiftColor(new Color(110, 80, 50), seedShift), ShiftColor(new Color(46, 106, 40), seedShift))));
+                case "palm_sapling":
+                    return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                        ProceduralTextureSynth.SaplingSprite(half, $"palm_sapling_v{variant}", ShiftColor(new Color(130, 100, 70), seedShift), ShiftColor(new Color(68, 134, 50), seedShift))));
+                case "cherry_sapling":
+                    return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                        ProceduralTextureSynth.SaplingSprite(half, $"cherry_sapling_v{variant}", ShiftColor(new Color(150, 120, 90), seedShift), ShiftColor(new Color(220, 120, 160), seedShift))));
+                case "mahogany_sapling":
+                    return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                        ProceduralTextureSynth.SaplingSprite(half, $"mahogany_sapling_v{variant}", ShiftColor(new Color(92, 68, 42), seedShift), ShiftColor(new Color(34, 82, 30), seedShift))));
+                case "maple_sapling":
+                    return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
+                        ProceduralTextureSynth.SaplingSprite(half, $"maple_sapling_v{variant}", ShiftColor(new Color(128, 96, 58), seedShift), ShiftColor(new Color(180, 60, 40), seedShift))));
                 case "lily_pad":
                     {
                         return FromSynth(ProceduralTextureSynth.PackFloraVariants(_tileSize, (half, variant) =>
@@ -507,10 +531,10 @@ namespace Autonocraft.Engine
                         name,
                         new[]
                         {
-                            ShiftColor(new Color(38, 78, 44), seedShift),
-                            ShiftColor(new Color(62, 112, 58), seedShift),
-                            ShiftColor(new Color(30, 68, 38), seedShift),
-                            ShiftColor(new Color(74, 128, 68), seedShift)
+                            ShiftColor(new Color(32, 68, 40), seedShift),
+                            ShiftColor(new Color(50, 94, 52), seedShift),
+                            ShiftColor(new Color(24, 58, 34), seedShift),
+                            ShiftColor(new Color(60, 108, 60), seedShift)
                         }));
                 case "palm_log":
                     {
@@ -533,10 +557,10 @@ namespace Autonocraft.Engine
                     {
                         var palette = new[]
                         {
-                        ShiftColor(new Color(42, 98, 38), seedShift),
-                        ShiftColor(new Color(58, 118, 48), seedShift),
-                        ShiftColor(new Color(72, 142, 52), seedShift),
-                        ShiftColor(new Color(36, 88, 34), seedShift)
+                        ShiftColor(new Color(34, 82, 34), seedShift),
+                        ShiftColor(new Color(46, 100, 42), seedShift),
+                        ShiftColor(new Color(56, 116, 46), seedShift),
+                        ShiftColor(new Color(28, 72, 30), seedShift)
                     };
                         return FromSynth(ProceduralTextureSynth.PalmLeaves(_tileSize, name, palette));
                     }
@@ -809,9 +833,9 @@ namespace Autonocraft.Engine
                     {
                         var palette = new[]
                         {
-                            ShiftColor(new Color(220, 130, 150), seedShift),
-                            ShiftColor(new Color(255, 190, 210), seedShift),
-                            ShiftColor(new Color(200, 110, 130), seedShift)
+                            ShiftColor(new Color(178, 88, 112), seedShift),
+                            ShiftColor(new Color(216, 132, 154), seedShift),
+                            ShiftColor(new Color(150, 70, 94), seedShift)
                         };
                         return FromSynth(ProceduralTextureSynth.Leaves(_tileSize, name, palette));
                     }
@@ -825,9 +849,9 @@ namespace Autonocraft.Engine
                     {
                         var palette = new[]
                         {
-                            ShiftColor(new Color(20, 55, 30), seedShift),
-                            ShiftColor(new Color(45, 95, 60), seedShift),
-                            ShiftColor(new Color(15, 45, 25), seedShift)
+                            ShiftColor(new Color(16, 48, 28), seedShift),
+                            ShiftColor(new Color(34, 78, 52), seedShift),
+                            ShiftColor(new Color(12, 38, 24), seedShift)
                         };
                         return FromSynth(ProceduralTextureSynth.Leaves(_tileSize, name, palette));
                     }
@@ -841,9 +865,9 @@ namespace Autonocraft.Engine
                     {
                         var palette = new[]
                         {
-                            ShiftColor(new Color(160, 50, 20), seedShift),
-                            ShiftColor(new Color(220, 100, 45), seedShift),
-                            ShiftColor(new Color(130, 35, 15), seedShift)
+                            ShiftColor(new Color(130, 42, 20), seedShift),
+                            ShiftColor(new Color(178, 76, 36), seedShift),
+                            ShiftColor(new Color(100, 30, 16), seedShift)
                         };
                         return FromSynth(ProceduralTextureSynth.Leaves(_tileSize, name, palette));
                     }

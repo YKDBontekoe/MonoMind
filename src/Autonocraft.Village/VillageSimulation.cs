@@ -76,6 +76,8 @@ namespace Autonocraft.Village
                             _villagers.Despawn(starveling.Id);
                         }
                     }
+
+                    TryGrowFamily(village, world);
                 }
                 FarmCropGrowth.Advance(world, village, deltaTime, timeOfDay);
                 village.WorkQueue.SyncWithWorld(world);
@@ -151,6 +153,24 @@ namespace Autonocraft.Village
                 Animals = animalManager,
                 Events = _events
             };
+        }
+
+        private void TryGrowFamily(Village village, VoxelWorld world)
+        {
+            int livePopulation = VillageSettlementHealth.GetLivePopulation(village, _villagers);
+            if (!village.TryAdvanceFamilyGrowth(livePopulation))
+            {
+                return;
+            }
+
+            var spawn = VillageSpawnHelper.FindSpawnPosition(
+                world,
+                village,
+                village.Id * 486187739 ^ livePopulation * 16777619 ^ village.Favor);
+            var villager = _villagers.Spawn(village.Id, spawn, village.Id ^ livePopulation ^ village.PopulationCap);
+            villager.IsGrounded = true;
+            village.RegisterVillager(villager.Id);
+            _events?.OnFamilyArrival(villager);
         }
 
         private static void ApplyBuildingWorkBonuses(Village village, Villager villager)

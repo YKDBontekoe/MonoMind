@@ -47,10 +47,38 @@ namespace Autonocraft.UI.VillagePanels
             if (context.PlayWithAi)
             {
                 UiTheme.DrawSectionHeader(ui, "Steward goals", left + layout.S(12f), y + layout.S(10f), layout, alpha);
-                ui.DrawString("Priority tasks set by the village AI steward", left + layout.S(12f), y + layout.S(32f),
+                ui.DrawString($"Priority tasks set by the steward · Favor {village.Favor}", left + layout.S(12f), y + layout.S(32f),
                     layout.S(UiTheme.FontSmall), UiTheme.Hint, alpha);
 
-                float rowY = y + layout.S(56f);
+                float contractY = y + layout.S(56f);
+                int contractIndex = 0;
+                foreach (var contract in VillageAgentContracts.Suggest(village, context.Villagers))
+                {
+                    if (contractIndex >= 3)
+                    {
+                        break;
+                    }
+
+                    float cardX = left + layout.S(16f) + contractIndex * layout.S(270f);
+                    float cardW = layout.S(254f);
+                    bool hovered = context.HoveredButton == 81 + contractIndex;
+                    ui.DrawPanel(cardX, contractY, cardW, layout.S(64f),
+                        hovered ? UiTheme.PanelBgHighlight : UiTheme.PanelBgMuted,
+                        hovered ? UiTheme.Accent : (contract.CanAccept ? UiTheme.PanelBorder : UiTheme.Rule),
+                        0.8f, alpha, UiTheme.RadiusMd);
+                    ui.DrawString(contract.Label, cardX + layout.S(10f), contractY + layout.S(8f),
+                        layout.S(UiTheme.FontSmall), contract.CanAccept ? UiTheme.Title : UiTheme.Meta, alpha, semiBold: true);
+                    ui.DrawString(TrimToWidth(ui, contract.Description, layout.S(UiTheme.FontCaption), cardW - layout.S(20f)),
+                        cardX + layout.S(10f), contractY + layout.S(26f), layout.S(UiTheme.FontCaption), UiTheme.Meta, alpha);
+                    Color statusColor = contract.AlreadyActive
+                        ? UiTheme.Success
+                        : contract.CanAfford ? UiTheme.Accent : UiTheme.Danger;
+                    ui.DrawString(contract.StatusText, cardX + layout.S(10f), contractY + layout.S(44f),
+                        layout.S(UiTheme.FontCaption), statusColor, alpha, semiBold: true);
+                    contractIndex++;
+                }
+
+                float rowY = y + layout.S(138f);
                 int shown = 0;
                 foreach (var goal in village.Scheduler.Goals)
                 {
@@ -123,7 +151,7 @@ namespace Autonocraft.UI.VillagePanels
                         selected ? UiTheme.Title : UiTheme.Meta, alpha);
                 }
 
-                DrawStyledButton(ui, colLeft, y + layout.S(200f), layout.S(140f), layout.S(32f), "Add goal", context.HoveredButton == 80,
+                VillagePanelChrome.DrawButton(ui, colLeft, y + layout.S(200f), layout.S(140f), layout.S(32f), "Add goal", context.HoveredButton == 80,
                     UiButtonStyle.Primary, layout, alpha);
 
                 float rightLeft = left + layout.S(420f);
@@ -142,7 +170,7 @@ namespace Autonocraft.UI.VillagePanels
 
                     float remW = layout.S(72f);
                     float remH = layout.S(26f);
-                    DrawStyledButton(ui, rightLeft + rightW - remW, rowY - layout.S(2f), remW, remH, "Remove", context.HoveredButton == 100 + goal.Id,
+                    VillagePanelChrome.DrawButton(ui, rightLeft + rightW - remW, rowY - layout.S(2f), remW, remH, "Remove", context.HoveredButton == 100 + goal.Id,
                         UiButtonStyle.Danger, layout, alpha);
 
                     if (!goal.Completed && goal.Kind == VillageGoalKind.Stock && goal.StockBlock.HasValue && goal.TargetCount > 0)
@@ -166,22 +194,6 @@ namespace Autonocraft.UI.VillagePanels
             }
         }
 
-        private static void DrawStyledButton(
-            UiRenderer ui,
-            float x,
-            float y,
-            float w,
-            float h,
-            string label,
-            bool hovered,
-            UiButtonStyle style,
-            UiLayout layout,
-            float alpha,
-            bool disabled = false)
-        {
-            ui.DrawButton(x, y, w, h, label, hovered && !disabled, false, style, layout.S(UiTheme.FontBody), alpha, hovered ? 1f : 0f, disabled);
-        }
-
         private static void DrawMiniBar(UiRenderer ui, float x, float y, float w, float h, float ratio, Color fill, float alpha)
         {
             ratio = Math.Clamp(ratio, 0f, 1f);
@@ -190,6 +202,26 @@ namespace Autonocraft.UI.VillagePanels
             {
                 ui.DrawFilledRect(x, y, w * ratio, h, fill * alpha);
             }
+        }
+
+        private static string TrimToWidth(UiRenderer ui, string text, float fontSize, float maxWidth)
+        {
+            if (ui.MeasureString(text, fontSize) <= maxWidth)
+            {
+                return text;
+            }
+
+            const string ellipsis = "...";
+            for (int len = text.Length - 1; len > 0; len--)
+            {
+                string candidate = text[..len].TrimEnd() + ellipsis;
+                if (ui.MeasureString(candidate, fontSize) <= maxWidth)
+                {
+                    return candidate;
+                }
+            }
+
+            return ellipsis;
         }
     }
 }

@@ -145,9 +145,11 @@ namespace Autonocraft.World.Generation.Flora
         [
             new() { Block = BlockType.MushroomRed, Weight = 30, SampleThreshold = 0.44f, HashMod = 3 },
             new() { Block = BlockType.MushroomBrown, Weight = 28, SampleThreshold = 0.44f, HashMod = 3 },
-            new() { Block = BlockType.Glowshroom, Weight = 12, SampleThreshold = 0.52f, HashMod = 9, UnderstoryOnly = true },
-            new() { Block = BlockType.MossCarpet, Weight = 18, SampleThreshold = 0.42f, HashMod = 2 },
-            new() { Block = BlockType.Fern, Weight = 12, SampleThreshold = 0.48f, HashMod = 4, UnderstoryOnly = true }
+            new() { Block = BlockType.Glowshroom, Weight = 18, SampleThreshold = 0.50f, HashMod = 7, UnderstoryOnly = true },
+            new() { Block = BlockType.MossCarpet, Weight = 24, SampleThreshold = 0.40f, HashMod = 2 },
+            new() { Block = BlockType.Fern, Weight = 14, SampleThreshold = 0.46f, HashMod = 4, UnderstoryOnly = true },
+            new() { Block = BlockType.BlueFlax, Weight = 8, SampleThreshold = 0.52f, HashMod = 7 },
+            new() { Block = BlockType.Lavender, Weight = 8, SampleThreshold = 0.52f, HashMod = 7 }
         ];
 
         private static readonly FloraPlacementEntry[] VolcanicEntries =
@@ -161,7 +163,9 @@ namespace Autonocraft.World.Generation.Flora
             new() { Block = BlockType.Fern, Weight = 20, SampleThreshold = 0.50f, HashMod = 4, UnderstoryOnly = true },
             new() { Block = BlockType.BerryBush, Weight = 18, SampleThreshold = 0.52f, HashMod = 6 },
             new() { Block = BlockType.Shrub, Weight = 22, SampleThreshold = 0.48f, HashMod = 5 },
-            new() { Block = BlockType.MossCarpet, Weight = 16, SampleThreshold = 0.46f, HashMod = 4 }
+            new() { Block = BlockType.MossCarpet, Weight = 18, SampleThreshold = 0.44f, HashMod = 4 },
+            new() { Block = BlockType.Heather, Weight = 10, SampleThreshold = 0.52f, HashMod = 7 },
+            new() { Block = BlockType.Juniper, Weight = 8, SampleThreshold = 0.54f, HashMod = 9 }
         ];
 
         public static bool TryPick(

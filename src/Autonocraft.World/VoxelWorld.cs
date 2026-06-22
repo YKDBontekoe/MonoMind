@@ -157,6 +157,8 @@ namespace Autonocraft.World
 
         public event Action<IReadOnlyList<(int cx, int cz)>>? ChunksLoaded;
         public event Action<IReadOnlyList<(int cx, int cz)>>? ChunksUnloaded;
+        public event Action<int, int, int, BlockType>? LeafDecayed;
+        public event Action<int, int, int, BlockType, BlockType>? BlockChanged;
 
         public VoxelWorld(int seed = WorldConstants.DefaultSeed, WorldGenParams? parameters = null)
         {
@@ -255,10 +257,114 @@ namespace Autonocraft.World
                 {
                     _fluids.NotifyBlockChanged(x, y, z, previous, type);
                 }
+
+                // Invoke BlockChanged event
+                BlockChanged?.Invoke(x, y, z, previous, type);
+
+                // If a log was destroyed, check for leaf decay
+                if (previous.IsLog() && type == BlockType.Air)
+                {
+                    CheckLeafDecay(x, y, z);
+                }
             }
             finally
             {
                 _lock.ExitWriteLock();
+            }
+        }
+
+        private void CheckLeafDecay(int bx, int by, int bz)
+        {
+            int rDecay = 6;
+            int rScan = rDecay + 4; // Scan logs up to 10 blocks out
+
+            var queue = new Queue<(int x, int y, int z, int dist)>();
+            var visited = new HashSet<(int x, int y, int z)>();
+
+            // 1. Scan for logs to use as BFS sources
+            for (int dy = -rScan; dy <= rScan; dy++)
+            {
+                int y = by + dy;
+                if (y < 0 || y >= Chunk.Height) continue;
+                for (int dx = -rScan; dx <= rScan; dx++)
+                {
+                    int x = bx + dx;
+                    for (int dz = -rScan; dz <= rScan; dz++)
+                    {
+                        int z = bz + dz;
+                        BlockType type = GetBlock(x, y, z);
+                        if (type.IsLog())
+                        {
+                            queue.Enqueue((x, y, z, 0));
+                            visited.Add((x, y, z));
+                        }
+                    }
+                }
+            }
+
+            // 2. Collect leaves in decay zone
+            var leavesInDecayZone = new List<(int x, int y, int z, BlockType type)>();
+            for (int dy = -rDecay; dy <= rDecay; dy++)
+            {
+                int y = by + dy;
+                if (y < 0 || y >= Chunk.Height) continue;
+                for (int dx = -rDecay; dx <= rDecay; dx++)
+                {
+                    int x = bx + dx;
+                    for (int dz = -rDecay; dz <= rDecay; dz++)
+                    {
+                        int z = bz + dz;
+                        BlockType type = GetBlock(x, y, z);
+                        if (type.IsLeaf())
+                        {
+                            leavesInDecayZone.Add((x, y, z, type));
+                        }
+                    }
+                }
+            }
+
+            // 3. Run BFS
+            var neighborOffsets = new[]
+            {
+                (1, 0, 0), (-1, 0, 0),
+                (0, 1, 0), (0, -1, 0),
+                (0, 0, 1), (0, 0, -1)
+            };
+
+            while (queue.Count > 0)
+            {
+                var (x, y, z, dist) = queue.Dequeue();
+                if (dist >= 4) continue;
+
+                foreach (var offset in neighborOffsets)
+                {
+                    int nx = x + offset.Item1;
+                    int ny = y + offset.Item2;
+                    int nz = z + offset.Item3;
+
+                    if (ny < 0 || ny >= Chunk.Height) continue;
+
+                    BlockType neighborType = GetBlock(nx, ny, nz);
+                    if (neighborType.IsLeaf())
+                    {
+                        var key = (nx, ny, nz);
+                        if (!visited.Contains(key))
+                        {
+                            visited.Add(key);
+                            queue.Enqueue((nx, ny, nz, dist + 1));
+                        }
+                    }
+                }
+            }
+
+            // 4. Decay unvisited leaves
+            foreach (var leaf in leavesInDecayZone)
+            {
+                if (!visited.Contains((leaf.x, leaf.y, leaf.z)))
+                {
+                    SetBlockInternal(leaf.x, leaf.y, leaf.z, BlockType.Air, null, notifyFluids: true);
+                    LeafDecayed?.Invoke(leaf.x, leaf.y, leaf.z, leaf.type);
+                }
             }
         }
 
@@ -598,6 +704,25 @@ namespace Autonocraft.World
                 if (_chunks.TryGetValue((cx, cz), out var chunk))
                 {
                     return chunk.GetCachedHighestSolidY(lx, lz);
+                }
+            }
+            finally
+            {
+                _lock.ExitReadLock();
+            }
+
+            return _generator.PreviewColumn(x, z).SurfaceHeight;
+        }
+
+        public int GetHighestMeshY(int x, int z)
+        {
+            GetChunkCoords(x, z, out int cx, out int cz, out int lx, out int lz);
+            _lock.EnterReadLock();
+            try
+            {
+                if (_chunks.TryGetValue((cx, cz), out var chunk))
+                {
+                    return chunk.GetCachedHighestMeshY(lx, lz);
                 }
             }
             finally

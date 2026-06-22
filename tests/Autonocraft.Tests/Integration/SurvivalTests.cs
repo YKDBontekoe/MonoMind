@@ -12,6 +12,27 @@ namespace Autonocraft.Tests.Integration;
 
 public static class SurvivalTests
 {
+    public static void RunNewPlayerStartsWithoutStarterItems()
+    {
+        Console.Write("Running New Player Starts Without Starter Items Test... ");
+        var player = new Player(System.Numerics.Vector3.Zero);
+
+        if (player.Hotbar.Any(stack => !stack.IsEmpty))
+        {
+            throw new Exception("Expected new survival player to start with an empty hotbar.");
+        }
+
+        for (int i = 0; i < player.Storage.SlotCount; i++)
+        {
+            if (!player.Storage.GetSlot(i).IsEmpty)
+            {
+                throw new Exception("Expected new survival player storage to start empty.");
+            }
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
     public static void RunHungerDrain(Player player)
     {
         Console.Write("Running Hunger Drain Test... ");

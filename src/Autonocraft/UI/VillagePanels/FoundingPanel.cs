@@ -43,10 +43,10 @@ namespace Autonocraft.UI.VillagePanels
             ui.DrawString("This save has no settlement yet.",
                 left + layout.S(18f), textY, layout.S(UiTheme.FontBody), UiTheme.StatValue, alpha);
             textY += layout.S(28f);
-            ui.DrawString("Place a Town Heart — your first settler joins and helps build it.",
+            ui.DrawString("Gather a small kit, place a Town Heart, then your first settler joins.",
                 left + layout.S(18f), textY, layout.S(UiTheme.FontSmall), UiTheme.Subtitle, alpha);
             textY += layout.S(28f);
-            ui.DrawString("After settlers arrive, open Town Board (V) → People tab to assign jobs.",
+            ui.DrawString("The board grows with the village: jobs first, then trade, then agent contracts.",
                 left + layout.S(18f), textY, layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha);
 
             if (context.CanClaimNearby)
@@ -75,18 +75,18 @@ namespace Autonocraft.UI.VillagePanels
 
             float footerY = panelY + panelH - layout.S(VillageScreen.FooterHeight);
             bool canPlace = CanAffordTownHeart(context);
-            DrawStyledButton(ui, left, footerY, buttonW, buttonH, "Place Town Heart", context.HoveredButton == 14,
+            VillagePanelChrome.DrawButton(ui, left, footerY, buttonW, buttonH, "Place Town Heart", context.HoveredButton == 14,
                 UiButtonStyle.Primary, layout, alpha, !canPlace);
 
             if (context.CanClaimNearby)
             {
-                DrawStyledButton(ui, left + buttonW + layout.S(10f), footerY, buttonW, buttonH, "Claim outpost",
+                VillagePanelChrome.DrawButton(ui, left + buttonW + layout.S(10f), footerY, buttonW, buttonH, "Claim outpost",
                     context.HoveredButton == 12, UiButtonStyle.Secondary, layout, alpha);
             }
 
             float closeX = panelX + panelW - layout.S(20f) - buttonW;
             float closeY = panelY + panelH - layout.S(30f);
-            DrawStyledButton(ui, closeX, closeY, buttonW, buttonH, "Close", context.HoveredButton == 11, UiButtonStyle.Ghost, layout, alpha);
+            VillagePanelChrome.DrawButton(ui, closeX, closeY, buttonW, buttonH, "Close", context.HoveredButton == 11, UiButtonStyle.Ghost, layout, alpha);
 
             ui.DrawCenteredText("Esc close · Enter confirm", panelY + panelH - layout.S(12f), layout.S(UiTheme.FontSmall),
                 UiTheme.Hint, 0.9f * alpha);
@@ -106,22 +106,6 @@ namespace Autonocraft.UI.VillagePanels
 
         private static bool CanAffordTownHeart(FoundingPanelContext context) =>
             CanAffordTownHeart(context.PlayerPayer, context.PlayerCreative);
-
-        private static void DrawStyledButton(
-            UiRenderer ui,
-            float x,
-            float y,
-            float w,
-            float h,
-            string label,
-            bool hovered,
-            UiButtonStyle style,
-            UiLayout layout,
-            float alpha,
-            bool disabled = false)
-        {
-            ui.DrawButton(x, y, w, h, label, hovered && !disabled, false, style, layout.S(UiTheme.FontBody), alpha, hovered ? 1f : 0f, disabled);
-        }
 
         private static string FormatCosts(BuildingBlueprint blueprint)
         {

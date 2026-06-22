@@ -64,15 +64,7 @@ namespace Autonocraft.Village
                 or BlockType.PalmLog
                 or BlockType.CherryLog
                 or BlockType.MahoganyLog
-                or BlockType.MapleLog
-                or BlockType.OakLeaves
-                or BlockType.BirchLeaves
-                or BlockType.PineLeaves
-                or BlockType.WillowLeaves
-                or BlockType.PalmLeaves
-                or BlockType.CherryLeaves
-                or BlockType.MahoganyLeaves
-                or BlockType.MapleLeaves;
+                or BlockType.MapleLog;
         }
 
         private static bool IsMine(BlockType block)

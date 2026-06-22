@@ -10,6 +10,7 @@ namespace Autonocraft.World
         private readonly NoiseStack _erosionNoise;
         private readonly NoiseStack _upliftNoise;
         private readonly NoiseStack _volcanicBeltNoise;
+        private readonly NoiseStack _transitionNoise;
         private readonly WorldGenParams _params;
 
         public BiomeMap(int seed, WorldGenParams parameters)
@@ -21,27 +22,30 @@ namespace Autonocraft.World
             _erosionNoise = new NoiseStack(seed + 404);
             _upliftNoise = new NoiseStack(seed + 515);
             _volcanicBeltNoise = new NoiseStack(seed + 616);
+            _transitionNoise = new NoiseStack(seed + 717);
         }
 
         public BiomeSample Sample(int wx, int wz)
         {
             // Keep continentalness on large, unwarped noise so oceans/beaches form coherent coastlines.
-            float continentalness = _continentNoise.Fbm(wx * 0.0014f, wz * 0.0014f, 4)
+            // Frequencies are tuned low to produce expansive continent/ocean shapes and large biomes.
+            float continentalness = _continentNoise.Fbm(wx * 0.00075f, wz * 0.00075f, 4)
                 + _params.ContinentalnessBias;
 
-            var (warpX, warpZ) = _continentNoise.DomainWarp(wx * 0.0022f, wz * 0.0022f, 2.5f);
+            var (warpX, warpZ) = _continentNoise.DomainWarp(wx * 0.0012f, wz * 0.0012f, 2.5f);
             float temperature = _temperatureNoise.Fbm(warpX + 50f, warpZ + 50f, 4);
             float moisture = _moistureNoise.Fbm(warpX + 150f, warpZ + 150f, 4);
             float erosion = _erosionNoise.Fbm(warpX + 250f, warpZ + 250f, 4);
+            float transition = _transitionNoise.Fbm(wx * 0.00050f + 400f, wz * 0.00050f - 400f, 3);
 
             // Broad FBM domes form wide mountain massifs; ridged arcs are reserved for volcanic belts only.
-            float uplift = _upliftNoise.Fbm(wx * 0.00038f, wz * 0.00038f, 5)
-                + _upliftNoise.Fbm(wx * 0.00022f, wz * 0.00022f, 4) * 0.58f;
+            float uplift = _upliftNoise.Fbm(wx * 0.00020f, wz * 0.00020f, 5)
+                + _upliftNoise.Fbm(wx * 0.00012f, wz * 0.00012f, 4) * 0.58f;
             uplift *= _params.MountainWeight;
 
-            float volcanicArc = _volcanicBeltNoise.Ridged(wx * 0.00050f, wz * 0.00050f, 3);
-            float volcanicBasin = _volcanicBeltNoise.Fbm(wx * 0.0016f, wz * 0.0016f, 3);
-            float volcanicStrength = volcanicArc * 0.74f + volcanicBasin * 0.26f;
+            float volcanicArc = _volcanicBeltNoise.Ridged(wx * 0.00028f, wz * 0.00028f, 3);
+            float volcanicBasin = _volcanicBeltNoise.Fbm(wx * 0.00085f, wz * 0.00085f, 3);
+            float volcanicStrength = volcanicArc * 0.68f + volcanicBasin * 0.22f + transition * 0.10f;
 
             BiomeType biome = Classify(temperature, moisture, continentalness, erosion, uplift, volcanicStrength);
             return new BiomeSample
@@ -91,15 +95,15 @@ namespace Autonocraft.World
                 allowUnderstory |= profile.AllowUnderstory;
             }
 
-            Add(center.Profile, 2f);
-            Add(north.Profile, 1f);
-            Add(south.Profile, 1f);
-            Add(east.Profile, 1f);
-            Add(west.Profile, 1f);
-            Add(northEast.Profile, 0.55f);
-            Add(northWest.Profile, 0.55f);
-            Add(southEast.Profile, 0.55f);
-            Add(southWest.Profile, 0.55f);
+            Add(center.Profile, 3.5f);
+            Add(north.Profile, 1.35f);
+            Add(south.Profile, 1.35f);
+            Add(east.Profile, 1.35f);
+            Add(west.Profile, 1.35f);
+            Add(northEast.Profile, 0.8f);
+            Add(northWest.Profile, 0.8f);
+            Add(southEast.Profile, 0.8f);
+            Add(southWest.Profile, 0.8f);
 
             float inv = totalWeight > 0f ? 1f / totalWeight : 1f;
             return new BiomeProfile
@@ -128,45 +132,60 @@ namespace Autonocraft.World
             float uplift,
             float volcanicStrength)
         {
-            if (continentalness < -0.22f)
+            if (continentalness < -0.24f)
             {
                 return BiomeType.Ocean;
             }
 
-            if (continentalness < -0.08f)
+            if (continentalness < -0.07f)
             {
                 return BiomeType.Beach;
             }
 
-            if (continentalness < 0f && continentalness > -0.18f && moisture > 0.12f && temperature > 0f)
+            if (continentalness < 0.03f && continentalness > -0.18f && moisture > 0.08f && temperature > -0.03f)
             {
                 return BiomeType.Mangrove;
             }
 
             bool inland = continentalness > 0.05f;
-            bool inVolcanicBelt = inland && volcanicStrength > 0.08f;
-            bool inMountainBelt = inland && uplift > 0.0f && !inVolcanicBelt;
-            bool inHighlands = inland && uplift > -0.05f;
-            bool inValley = inland && uplift < -0.10f;
+            bool inVolcanicBelt = inland && volcanicStrength > 0.11f && uplift > -0.04f;
+            bool inMountainBelt = inland && uplift > 0.08f && !inVolcanicBelt;
+            bool inHighlands = inland && uplift > 0.02f;
+            bool inValley = inland && uplift < -0.16f;
 
-            if (inVolcanicBelt && temperature > -0.10f)
+            if (inVolcanicBelt && temperature > -0.10f && moisture < -0.06f && erosion > 0.10f)
+            {
+                return BiomeType.Badlands;
+            }
+
+            if (inVolcanicBelt && temperature > -0.10f && moisture < 0.26f)
             {
                 return BiomeType.Volcanic;
             }
 
-            if (temperature > 0.06f && moisture > 0.14f && uplift < 0.10f && volcanicStrength < 0.08f)
+            if (moisture > 0.08f && temperature > -0.14f && uplift < 0.06f && (inValley || continentalness < 0.36f))
+            {
+                return BiomeType.Swamp;
+            }
+
+            if (temperature > 0.04f && moisture > 0.11f && uplift < 0.16f && volcanicStrength < 0.16f)
             {
                 return BiomeType.Jungle;
             }
 
-            if (moisture > 0.22f && temperature > -0.10f && temperature < 0.24f && uplift < 0.08f)
+            if (moisture > 0.16f && temperature > -0.16f && temperature < 0.24f && uplift < 0.16f)
             {
                 return BiomeType.MushroomForest;
             }
 
+            if (temperature < 0.06f && moisture > -0.26f && uplift < 0.20f)
+            {
+                return BiomeType.BorealTaiga;
+            }
+
             if (inMountainBelt)
             {
-                if (temperature < 0.04f || (temperature < 0.12f && erosion > 0.30f))
+                if (temperature < 0.00f || (temperature < 0.10f && erosion > 0.34f))
                 {
                     return BiomeType.SnowyPeaks;
                 }
@@ -174,9 +193,9 @@ namespace Autonocraft.World
                 return BiomeType.Mountains;
             }
 
-            if (temperature > 0.10f && moisture < -0.02f && uplift < 0.06f)
+            if (temperature > 0.10f && moisture < -0.02f && uplift < 0.08f)
             {
-                if (moisture < -0.10f && erosion > 0.26f)
+                if (moisture < -0.09f && erosion > 0.24f)
                 {
                     return BiomeType.Badlands;
                 }
@@ -184,12 +203,12 @@ namespace Autonocraft.World
                 return BiomeType.Desert;
             }
 
-            if (moisture > 0.10f && temperature > -0.12f && uplift < 0.02f && (inValley || continentalness < 0.28f))
+            if (moisture > 0.10f && temperature > -0.14f && uplift < 0.04f && (inValley || continentalness < 0.30f))
             {
                 return BiomeType.Swamp;
             }
 
-            if (temperature < -0.02f && moisture > -0.20f && uplift < 0.08f)
+            if (temperature < -0.02f && moisture > -0.22f && uplift < 0.14f)
             {
                 return BiomeType.BorealTaiga;
             }

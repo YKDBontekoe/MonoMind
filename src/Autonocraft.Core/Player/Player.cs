@@ -95,13 +95,7 @@ namespace Autonocraft.Core
             Position = spawnPosition;
             Velocity = Vector3.Zero;
 
-            Hotbar[0] = ItemStack.CreateBlock(BlockType.Grass, 24);
-            Hotbar[1] = ItemStack.CreateBlock(BlockType.OakLog, 16);
-            Hotbar[2] = ItemStack.CreateBlock(BlockType.Dirt, 24);
-            Hotbar[3] = ToolRegistry.CreateStack(ToolType.Pickaxe, ToolTier.Wood);
-            Hotbar[4] = ToolRegistry.CreateStack(ToolType.Axe, ToolTier.Wood);
-
-            for (int i = 5; i < 9; i++)
+            for (int i = 0; i < Hotbar.Length; i++)
             {
                 Hotbar[i] = ItemStack.Empty;
             }

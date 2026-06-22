@@ -394,20 +394,28 @@ namespace Autonocraft.World
             Vector3 pos = new Vector3(wx, wy, wz);
             Vector3 color = Vector3.One;
 
-            float topY = type.IsSlab() ? 0.5f : 1f;
+            float topY = type.GetBlockHeight();
 
             static SideFaceCoverage GetSideFaceCoverage(MeshBuildContext context, int wx, int wy, int wz, int nx, int ny, int nz, BlockType type)
             {
                 BlockType neighbor = context.GetBlock(nx, ny, nz);
+                float typeH = type.GetBlockHeight();
+                float neighborH = neighbor.GetBlockHeight();
 
                 if (neighbor.IsTransparent())
                 {
+                    // Same-height snow layers/slabs cull each other
+                    if ((type.IsSlab() || type.IsSnowLayer()) && (neighbor.IsSlab() || neighbor.IsSnowLayer()) && neighborH >= typeH)
+                    {
+                        return SideFaceCoverage.Hidden;
+                    }
+
                     if (type.IsSlab() && neighbor.IsSlab())
                     {
                         return SideFaceCoverage.Hidden;
                     }
 
-                    if (!type.IsSlab() && neighbor.IsSlab())
+                    if (!type.IsSlab() && !type.IsSnowLayer() && (neighbor.IsSlab() || neighbor.IsSnowLayer()))
                     {
                         return SideFaceCoverage.UpperHalf;
                     }
@@ -415,18 +423,19 @@ namespace Autonocraft.World
                     return SideFaceCoverage.Full;
                 }
 
-                if (type.IsSlab())
+                if (type.IsSlab() || type.IsSnowLayer())
                 {
-                    return neighbor.IsSlab() ? SideFaceCoverage.Hidden : SideFaceCoverage.Full;
+                    return (neighbor.IsSlab() || neighbor.IsSnowLayer()) && neighborH >= typeH ? SideFaceCoverage.Hidden : SideFaceCoverage.Full;
                 }
 
-                if (neighbor.IsSlab())
+                if (neighbor.IsSlab() || neighbor.IsSnowLayer())
                 {
                     return SideFaceCoverage.UpperHalf;
                 }
 
-                // Full block against full block: keep the face when a slab above creates a step.
-                if (context.GetBlock(nx, ny + 1, nz).IsSlab() || context.GetBlock(wx, wy + 1, wz).IsSlab())
+                // Full block against full block: keep the face when a slab or snow layer above creates a step.
+                if (context.GetBlock(nx, ny + 1, nz).IsSlab() || context.GetBlock(wx, wy + 1, wz).IsSlab()
+                    || context.GetBlock(nx, ny + 1, nz).IsSnowLayer() || context.GetBlock(wx, wy + 1, wz).IsSnowLayer())
                 {
                     return SideFaceCoverage.Full;
                 }
@@ -440,11 +449,17 @@ namespace Autonocraft.World
                 {
                     return true;
                 }
+                float typeH = type.GetBlockHeight();
+                float neighborH = neighbor.GetBlockHeight();
+                if ((type.IsSlab() || type.IsSnowLayer()) && (neighbor.IsSlab() || neighbor.IsSnowLayer()) && neighborH >= typeH)
+                {
+                    return true;
+                }
                 if (type.IsSlab() && neighbor.IsSlab())
                 {
                     return true;
                 }
-                if (!type.IsSlab() && neighbor.IsSlab())
+                if (!type.IsSlab() && !type.IsSnowLayer() && (neighbor.IsSlab() || neighbor.IsSnowLayer()))
                 {
                     return true;
                 }
@@ -485,7 +500,7 @@ namespace Autonocraft.World
                     {
                         return BlockType.Grass;
                     }
-                    if (above == BlockType.Snow || above == BlockType.SnowSlab)
+                    if (above == BlockType.Snow || above == BlockType.SnowSlab || above.IsSnowLayer())
                     {
                         return BlockType.SnowSide;
                     }

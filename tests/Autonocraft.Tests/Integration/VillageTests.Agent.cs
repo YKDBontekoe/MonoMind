@@ -57,6 +57,14 @@ public static partial class VillageTests
                 throw new Exception("/state did not expose starter citizens.");
             }
 
+            var stateVillage = state.RootElement.GetProperty("village");
+            if (!stateVillage.TryGetProperty("favor", out _) ||
+                !stateVillage.TryGetProperty("familyGrowthProgress", out _) ||
+                !stateVillage.TryGetProperty("agentWorkOrderCost", out _))
+            {
+                throw new Exception("/state did not expose village favor, growth, and agent work-order cost.");
+            }
+
             PostAction(http, "open_village");
             if (!bridge.VillageUiOpen)
             {

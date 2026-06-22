@@ -113,6 +113,37 @@ namespace Autonocraft.Village
             return null;
         }
 
+        public bool HasOpenBuildGoal(string blueprintId)
+        {
+            foreach (var goal in _goals)
+            {
+                if (!goal.Completed &&
+                    goal.Kind == VillageGoalKind.Build &&
+                    string.Equals(goal.BlueprintId, blueprintId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public bool HasOpenStockGoal(BlockType blockType, int targetCount)
+        {
+            foreach (var goal in _goals)
+            {
+                if (!goal.Completed &&
+                    goal.Kind == VillageGoalKind.Stock &&
+                    goal.StockBlock == blockType &&
+                    goal.TargetCount >= targetCount)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public bool HasActiveNumericGoal()
         {
             foreach (var goal in _goals)

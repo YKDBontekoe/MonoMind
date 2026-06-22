@@ -221,6 +221,14 @@ namespace Autonocraft.World
             BlockType.Wheat => "wheat_crop",
             BlockType.CarrotSprout => "carrot_sprout",
             BlockType.Carrot => "carrot_crop",
+            BlockType.OakSapling => "oak_sapling",
+            BlockType.BirchSapling => "birch_sapling",
+            BlockType.PineSapling => "pine_sapling",
+            BlockType.WillowSapling => "willow_sapling",
+            BlockType.PalmSapling => "palm_sapling",
+            BlockType.CherrySapling => "cherry_sapling",
+            BlockType.MahoganySapling => "mahogany_sapling",
+            BlockType.MapleSapling => "maple_sapling",
             _ => "tall_grass"
         };
 

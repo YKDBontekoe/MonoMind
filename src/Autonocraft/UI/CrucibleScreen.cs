@@ -170,7 +170,7 @@ namespace Autonocraft.UI
                     session.StationType,
                     session.GridSize,
                     journal);
-                _recipeBook.Update(bookRect, recipes, player, session.GridSize, mouse, prevMouse);
+                _recipeBook.Update(bookRect, recipes, journal, player, session.GridSize, mouse, prevMouse);
             }
         }
 

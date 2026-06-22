@@ -152,7 +152,7 @@ namespace Autonocraft.Core
             var payer = _hotbarProvider();
             if (!_session.Player.CreativeMode && !blueprint.CanAfford(payer))
             {
-                _showToast("Need cobblestone and oak planks in your hotbar for the Town Heart.");
+                _showToast("Need 8 oak planks and 4 cobblestone in your hotbar for the Town Heart.");
                 return;
             }
 
@@ -164,7 +164,7 @@ namespace Autonocraft.Core
                     out _,
                     BlueprintPreview.AnchorY))
             {
-                _showToast("Need flat open ground for the Town Heart.");
+                _showToast("Town Heart can level natural terrain, but not cliffs or existing structures.");
                 return;
             }
 

@@ -103,7 +103,11 @@ public sealed record AgentVillageSummaryDto(
     [property: JsonPropertyName("anchorZ")] int AnchorZ,
     [property: JsonPropertyName("nextAction")] string? NextAction = null,
     [property: JsonPropertyName("idleWorkers")] int? IdleWorkers = null,
-    [property: JsonPropertyName("foodRisk")] string? FoodRisk = null);
+    [property: JsonPropertyName("foodRisk")] string? FoodRisk = null,
+    [property: JsonPropertyName("favor")] int? Favor = null,
+    [property: JsonPropertyName("familyGrowthProgress")] float? FamilyGrowthProgress = null,
+    [property: JsonPropertyName("growth")] string? Growth = null,
+    [property: JsonPropertyName("agentWorkOrderCost")] int? AgentWorkOrderCost = null);
 
 public sealed record AgentVillagerDto(
     [property: JsonPropertyName("id")] int Id,
@@ -143,7 +147,10 @@ public sealed record AgentVillageDebugSummaryDto(
     [property: JsonPropertyName("tier")] string Tier,
     [property: JsonPropertyName("foodStock")] float FoodStock,
     [property: JsonPropertyName("happiness")] float Happiness,
-    [property: JsonPropertyName("workQueue")] int WorkQueue);
+    [property: JsonPropertyName("workQueue")] int WorkQueue,
+    [property: JsonPropertyName("favor")] int? Favor = null,
+    [property: JsonPropertyName("familyGrowthProgress")] float? FamilyGrowthProgress = null,
+    [property: JsonPropertyName("agentWorkOrderCost")] int? AgentWorkOrderCost = null);
 
 public sealed record AgentInventorySlotDto(
     [property: JsonPropertyName("slot")] int Slot,
@@ -188,4 +195,3 @@ public sealed record AgentVillageDebugVillagerDto(
     [property: JsonPropertyName("workTimer")] float WorkTimer,
     [property: JsonPropertyName("equippedTool")] object EquippedTool,
     [property: JsonPropertyName("inventory")] IReadOnlyList<AgentInventorySlotDto> Inventory);
-

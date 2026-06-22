@@ -13,8 +13,12 @@ using DevCommands = Autonocraft.Core.DevCommands.DevCommandRouter;
 using Autonocraft.Ai;
 using Autonocraft.Domain.Core;
 using Autonocraft.Domain.Village;
+using Autonocraft.Engine;
 using Autonocraft.Entities;
 using Autonocraft.Items;
+using Autonocraft.UI;
+using Autonocraft.UI.Village;
+using Autonocraft.UI.VillagePanels;
 using Autonocraft.Village;
 using VillageEntity = Autonocraft.Village.Village;
 using Autonocraft.World;
@@ -233,6 +237,64 @@ public static partial class VillageTests
         Console.WriteLine("PASSED");
     }
 
+    public static void RunLumberJobsIgnoreLeaves()
+    {
+        Console.Write("Running Lumber Jobs Ignore Leaves Test... ");
+        if (GatherBlockClassifier.GetCategory(BlockType.OakLeaves).HasValue ||
+            GatherBlockClassifier.GetCategory(BlockType.BirchLeaves).HasValue ||
+            GatherBlockClassifier.GetCategory(BlockType.PineLeaves).HasValue)
+        {
+            throw new Exception("Leaves should decay naturally and must not be assigned as lumber targets.");
+        }
+
+        if (GatherBlockClassifier.GetCategory(BlockType.OakLog) != GatherCategory.Lumber)
+        {
+            throw new Exception("Logs should still be valid lumber targets.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunVillagersCollectNearbySaplingDrops()
+    {
+        Console.Write("Running Villager Sapling Drop Collection Test... ");
+        var session = new GameSession(9321);
+        var world = session.Grid;
+        int ax = GameConstants.DefaultSpawnX + 18;
+        int az = GameConstants.DefaultSpawnZ + 18;
+        world.UpdateChunksAround(null, new Vector3(ax + 0.5f, 68f, az + 0.5f), 2);
+
+        if (!TryFoundTestVillage(session.Villages, world, "Drop Pickup", ax, az, out var village) || village == null)
+        {
+            throw new Exception("Village missing.");
+        }
+
+        var worker = session.Villagers.Spawn(village.Id, village.Center + new Vector3(0f, 1f, 0f), 47);
+        worker.Role = VillagerRole.Lumberjack;
+        worker.AssignJob(JobType.Lumber, worker.Position, null);
+        village.RegisterVillager(worker.Id);
+        session.Villagers.Update(0f, world, session.Villages.Villages);
+
+        int before = village.Storage.CountBlock(BlockType.OakSapling);
+        session.SpawnItemDrop(ItemStack.CreateBlock(BlockType.OakSapling, 1), worker.Position + new Vector3(0.15f, 0.45f, 0.15f));
+        for (int i = 0; i < 8; i++)
+        {
+            session.UpdateItemDrops(0.1f);
+        }
+
+        if (village.Storage.CountBlock(BlockType.OakSapling) <= before)
+        {
+            throw new Exception("Nearby working villager did not collect sapling drop into village storage.");
+        }
+
+        if (session.ItemEntities.Count != 0)
+        {
+            throw new Exception("Collected sapling drop should be removed from the world.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
     public static void RunAdoptOrphanedCitizens()
     {
         Console.Write("Running Adopt Orphaned Citizens Test... ");
@@ -436,6 +498,74 @@ public static partial class VillageTests
         Console.WriteLine("PASSED");
     }
 
+    public static void RunVillageOrganicFamilyGrowth()
+    {
+        Console.Write("Running Village Organic Family Growth Test... ");
+        var villagers = new VillagerManager();
+        var village = new VillageEntity("Family Growth", 0, 64, 0);
+        var founder = villagers.Spawn(village.Id, new Vector3(0.5f, 65f, 0.5f), 12);
+        village.RegisterVillager(founder.Id);
+        village.PopulationCap = 3;
+        village.FoodStock = 30f;
+        village.Happiness = 1f;
+        village.RegisterClaimedBuilding(new BuildingBlueprint
+        {
+            Id = "peasant_house",
+            DisplayName = "Peasant House",
+            Kind = BuildingKind.House,
+            PopulationCapBonus = 2
+        }, 2, 64, 0);
+        village.RegisterClaimedBuilding(new BuildingBlueprint
+        {
+            Id = "farm_plot",
+            DisplayName = "Farm Plot",
+            Kind = BuildingKind.FarmPlot
+        }, 4, 64, 0);
+
+        var world = new VoxelWorld(4040);
+        var haulCoordinator = new HaulCoordinator(villagers);
+        var dispatcher = new JobDispatcher(villagers, haulCoordinator);
+        var simulation = new VillageSimulation(villagers, dispatcher, haulCoordinator);
+        string? lastToast = null;
+        simulation.SetVillageEvents(new Autonocraft.Village.VillageEvents { ShowToast = msg => lastToast = msg });
+        var finalizedSites = new HashSet<int>();
+
+        for (int i = 0; i < 4 && VillageSettlementHealth.GetLivePopulation(village, villagers) < 2; i++)
+        {
+            simulation.Update(new[] { village }, finalizedSites, 120f, world, DayNightCycle.Noon, null!);
+        }
+
+        if (VillageSettlementHealth.GetLivePopulation(village, villagers) < 2)
+        {
+            throw new Exception("Expected surplus food and housing to organically attract a new family.");
+        }
+
+        if (village.FoodStock >= 30f)
+        {
+            throw new Exception("Expected family growth to consume food comfort.");
+        }
+
+        if (string.IsNullOrWhiteSpace(lastToast) ||
+            !lastToast.Contains("family", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new Exception("Expected family arrival toast.");
+        }
+
+        village.PopulationCap = VillageSettlementHealth.GetLivePopulation(village, villagers);
+        int cappedPopulation = village.PopulationCap;
+        for (int i = 0; i < 3; i++)
+        {
+            simulation.Update(new[] { village }, finalizedSites, 120f, world, DayNightCycle.Noon, null!);
+        }
+
+        if (VillageSettlementHealth.GetLivePopulation(village, villagers) != cappedPopulation)
+        {
+            throw new Exception("Organic family growth must respect population cap.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
     public static void RunVillageRename()
     {
         Console.Write("Running Village Rename Test... ");
@@ -529,6 +659,265 @@ public static partial class VillageTests
         if (string.IsNullOrWhiteSpace(vm.NextAction))
         {
             throw new Exception("Expected next action text.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunVillagePulseEvolvesDynamically()
+    {
+        Console.Write("Running Village Pulse Dynamic Flow Test... ");
+        var villagers = new VillagerManager();
+        var villages = new VillageManager(villagers);
+        var village = new VillageEntity("Pulse", 20, 64, 20);
+        villages.RegisterVillageForTest(village);
+
+        var empty = Autonocraft.UI.Village.VillageViewModel.Build(village, villages, villagers, false, village.Center);
+        if (!empty.Pulse.Focus.Contains("Town Heart", StringComparison.OrdinalIgnoreCase) ||
+            empty.Pulse.CanTrade ||
+            empty.Pulse.CanDelegate)
+        {
+            throw new Exception("Expected empty village pulse to point at founding without trade/delegation.");
+        }
+
+        for (int i = 0; i < 4; i++)
+        {
+            var villager = villagers.Spawn(village.Id, village.Center + new Vector3(i + 0.5f, 1f, 0.5f), 900 + i);
+            village.RegisterVillager(villager.Id);
+            villager.AssignJob(i == 0 ? JobType.Lumber : JobType.Idle, null, null);
+        }
+
+        village.FoodStock = 14f;
+        village.PopulationCap = 6;
+        village.RegisterClaimedBuilding(new BuildingBlueprint
+        {
+            Id = "peasant_house",
+            DisplayName = "Peasant House",
+            Kind = BuildingKind.House
+        }, 22, 64, 20);
+        village.RegisterClaimedBuilding(new BuildingBlueprint
+        {
+            Id = "farm_plot",
+            DisplayName = "Farm Plot",
+            Kind = BuildingKind.FarmPlot
+        }, 24, 64, 20);
+        village.RegisterClaimedBuilding(new BuildingBlueprint
+        {
+            Id = "market",
+            DisplayName = "Market",
+            Kind = BuildingKind.Market
+        }, 26, 64, 20);
+        village.Favor = 4;
+
+        var trading = Autonocraft.UI.Village.VillageViewModel.Build(village, villages, villagers, false, village.Center);
+        if (!trading.Pulse.CanTrade ||
+            trading.Pulse.CanDelegate ||
+            trading.Pulse.FavorBalance <= 0 ||
+            !trading.Pulse.CanGrowFamily ||
+            !trading.Pulse.GrowthHook.Contains("family", StringComparison.OrdinalIgnoreCase) ||
+            !trading.Pulse.TradeHook.Contains("favor", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new Exception("Expected market village pulse to expose favor trading but not delegation yet.");
+        }
+
+        village.RegisterClaimedBuilding(new BuildingBlueprint
+        {
+            Id = "workshop",
+            DisplayName = "Workshop",
+            Kind = BuildingKind.Workshop
+        }, 28, 64, 20);
+        village.Favor = 20;
+
+        var delegated = Autonocraft.UI.Village.VillageViewModel.Build(village, villages, villagers, false, village.Center);
+        if (!delegated.Pulse.CanDelegate ||
+            delegated.Pulse.AgentWorkOrderCost <= 0 ||
+            !delegated.Pulse.DelegationHook.Contains("favor", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new Exception("Expected workshop village pulse to unlock favor-priced delegation.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunVillageFavorAndContracts()
+    {
+        Console.Write("Running Village Favor and Contracts Test... ");
+        var villagers = new VillagerManager();
+        var village = new VillageEntity("Contracts", 20, 64, 20);
+        for (int i = 0; i < 4; i++)
+        {
+            var villager = villagers.Spawn(village.Id, village.Center + new Vector3(i + 0.5f, 1f, 0.5f), 700 + i);
+            village.RegisterVillager(villager.Id);
+        }
+
+        village.PopulationCap = 4;
+        village.FoodStock = 20f;
+        village.Happiness = 1f;
+        village.RegisterClaimedBuilding(new BuildingBlueprint
+        {
+            Id = "market",
+            DisplayName = "Market",
+            Kind = BuildingKind.Market
+        }, 22, 64, 20);
+
+        int beforeFavor = village.Favor;
+        village.UpdateSimulation(120f, 0.5f);
+        if (village.Favor <= beforeFavor)
+        {
+            throw new Exception("Expected market village to earn favor from daily surplus.");
+        }
+
+        village.Favor = 20;
+        if (!VillageAgentContracts.TryAccept(village, villagers, "housing", out string message))
+        {
+            throw new Exception($"Expected housing contract to be accepted: {message}");
+        }
+
+        if (village.Favor >= 20)
+        {
+            throw new Exception("Expected contract to spend favor.");
+        }
+
+        var goal = village.Scheduler.GetTopOpenGoal();
+        if (goal == null || goal.Kind != VillageGoalKind.Build || goal.BlueprintId != "peasant_house")
+        {
+            throw new Exception("Expected housing contract to create a Peasant House build goal.");
+        }
+
+        int favorAfterAccept = village.Favor;
+        if (VillageAgentContracts.TryAccept(village, villagers, "housing", out message))
+        {
+            throw new Exception("Expected duplicate housing contract to be blocked.");
+        }
+
+        if (village.Favor != favorAfterAccept)
+        {
+            throw new Exception("Duplicate contract should not spend favor.");
+        }
+
+        var housingContract = VillageAgentContracts.Suggest(village, villagers)[0];
+        if (!housingContract.AlreadyActive ||
+            !housingContract.StatusText.Contains("Queued", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new Exception("Expected active housing contract to show queued status.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunVillageFoundingCostIsExplicit()
+    {
+        Console.Write("Running Village Founding Cost Test... ");
+        if (!PlayerStructureRegistry.TryGet("town_heart", out var heart))
+        {
+            throw new Exception("Town Heart blueprint missing.");
+        }
+
+        var empty = new Inventory(9);
+        if (heart.CanAfford(empty))
+        {
+            throw new Exception("Town Heart should require an explicit starter kit.");
+        }
+
+        empty.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 8));
+        empty.AddItem(ItemStack.CreateBlock(BlockType.Cobblestone, 4));
+        if (!heart.CanAfford(empty))
+        {
+            throw new Exception("Town Heart should be affordable with 8 planks and 4 cobblestone.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunBuildCatalogRecommendationsFollowVillageNeeds()
+    {
+        Console.Write("Running Build Catalog Recommendation Test... ");
+        var villagers = new VillagerManager();
+        var villages = new VillageManager(villagers);
+        var village = new VillageEntity("Build Flow", 20, 64, 20);
+        villages.RegisterVillageForTest(village);
+        var worker = villagers.Spawn(village.Id, village.Center + new Vector3(1f, 1f, 0f), 42);
+        village.RegisterVillager(worker.Id);
+        village.PopulationCap = 1;
+        village.FoodStock = 10f;
+
+        var vm = Autonocraft.UI.Village.VillageViewModel.Build(village, villages, villagers, false, village.Center);
+        var context = new VillagePanelContext
+        {
+            Ui = null!,
+            UiLayout = new UiLayout(1280, 720),
+            Village = village,
+            ViewModel = vm,
+            Villagers = villagers,
+            PlayerPosition = village.Center,
+            PlayerCreative = false,
+            PlayWithAi = true
+        };
+
+        var first = BuildPanel.GetOrderedBlueprints(context)[0];
+        if (first.Kind != BuildingKind.House)
+        {
+            throw new Exception($"Expected housing recommendation first at cap, got {first.Id}.");
+        }
+
+        village.PopulationCap = 6;
+        village.FoodStock = 0f;
+        vm = Autonocraft.UI.Village.VillageViewModel.Build(village, villages, villagers, false, village.Center);
+        context = new VillagePanelContext
+        {
+            Ui = null!,
+            UiLayout = new UiLayout(1280, 720),
+            Village = village,
+            ViewModel = vm,
+            Villagers = villagers,
+            PlayerPosition = village.Center,
+            PlayerCreative = false,
+            PlayWithAi = true
+        };
+
+        first = BuildPanel.GetOrderedBlueprints(context)[0];
+        if (first.Kind != BuildingKind.FarmPlot)
+        {
+            throw new Exception($"Expected farm recommendation first when food is low, got {first.Id}.");
+        }
+
+        for (int i = 0; i < 3; i++)
+        {
+            var extra = villagers.Spawn(village.Id, village.Center + new Vector3(i + 2f, 1f, 0f), 100 + i);
+            village.RegisterVillager(extra.Id);
+        }
+
+        village.FoodStock = 20f;
+        village.RegisterClaimedBuilding(new BuildingBlueprint
+        {
+            Id = "market",
+            DisplayName = "Market",
+            Kind = BuildingKind.Market
+        }, 24, 64, 20);
+        village.RegisterClaimedBuilding(new BuildingBlueprint
+        {
+            Id = "workshop",
+            DisplayName = "Workshop",
+            Kind = BuildingKind.Workshop
+        }, 28, 64, 20);
+
+        vm = Autonocraft.UI.Village.VillageViewModel.Build(village, villages, villagers, false, village.Center);
+        context = new VillagePanelContext
+        {
+            Ui = null!,
+            UiLayout = new UiLayout(1280, 720),
+            Village = village,
+            ViewModel = vm,
+            Villagers = villagers,
+            PlayerPosition = village.Center,
+            PlayerCreative = false,
+            PlayWithAi = true
+        };
+
+        first = BuildPanel.GetOrderedBlueprints(context)[0];
+        if (first.Kind == BuildingKind.Market || first.Kind == BuildingKind.Workshop)
+        {
+            throw new Exception("Existing market/workshop should not remain the top recommendation.");
         }
 
         Console.WriteLine("PASSED");
@@ -826,6 +1215,130 @@ public static partial class VillageTests
         if (VillageSettlementHealth.GetLivePopulation(village, villagers) < 2)
         {
             throw new Exception("Expected linked citizens to appear in People tab population.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunVillageScreenOpenRelinksStarterCitizens()
+    {
+        Console.Write("Running Village Screen Open Relinks Starter Citizens Test... ");
+        var villagers = new VillagerManager();
+        var villages = new VillageManager(villagers);
+        var world = new VoxelWorld(6262);
+        villages.InitializeStarterSettlement(world, GameConstants.DefaultSpawnX, GameConstants.DefaultSpawnZ);
+        var village = villages.GetPrimaryVillage() ?? throw new Exception("Starter village missing.");
+
+        foreach (var villager in villagers.All)
+        {
+            villager.VillageId = village.Id + 100;
+        }
+
+        village.ReconcileVillagerRegistry(villagers.All);
+        if (VillageSettlementHealth.GetLivePopulation(village, villagers) != 0)
+        {
+            throw new Exception("Expected starter citizens to be temporarily unlinked before opening the board.");
+        }
+
+        var screen = new VillageScreen(null!, villagers);
+        screen.Open(village, villages, world, village.Center, null, playerCreative: false, playWithAi: true);
+
+        int livePopulation = VillageSettlementHealth.GetLivePopulation(village, villagers);
+        if (livePopulation < 2)
+        {
+            throw new Exception($"Expected board open to relink starter citizens, got {livePopulation}.");
+        }
+
+        var summonField = typeof(VillageScreen).GetField(
+            "_summonLinksNearby",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        if (summonField?.GetValue(screen) is true)
+        {
+            throw new Exception("Board should not show Link nearby settlers after starter citizens are relinked.");
+        }
+
+        var viewModelField = typeof(VillageScreen).GetField(
+            "_viewModel",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        if (viewModelField?.GetValue(screen) is not VillageViewModel vm || vm.Population < 2)
+        {
+            throw new Exception("Expected village screen view model to expose relinked starter citizens.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunStarterSettlementSpawnsAssignedCitizens()
+    {
+        Console.Write("Running Starter Settlement Spawns Assigned Citizens Test... ");
+        var villagers = new VillagerManager();
+        var villages = new VillageManager(villagers);
+        var world = new VoxelWorld(6363);
+        villages.InitializeStarterSettlement(world, GameConstants.DefaultSpawnX, GameConstants.DefaultSpawnZ);
+        var village = villages.GetPrimaryVillage() ?? throw new Exception("Starter village missing.");
+
+        int livePopulation = VillageSettlementHealth.GetLivePopulation(village, villagers);
+        if (livePopulation < 2)
+        {
+            throw new Exception($"Starter settlement should spawn assigned citizens immediately, got {livePopulation}.");
+        }
+
+        foreach (var villager in villagers.All)
+        {
+            if (villager.VillageId != village.Id)
+            {
+                throw new Exception("Starter villager was not assigned to the first village.");
+            }
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunVillagerPathfinderRoutesAroundObstacle()
+    {
+        Console.Write("Running Villager Pathfinder Obstacle Route Test... ");
+        var world = new VoxelWorld(6464);
+        const int y = 65;
+        world.EnsureChunksLoaded(new Vector3(2f, y, 0f), chunkRadius: 2);
+        for (int x = -2; x <= 6; x++)
+        {
+            for (int z = -3; z <= 3; z++)
+            {
+                world.SetBlock(x, y - 1, z, BlockType.Stone);
+                world.SetBlock(x, y, z, BlockType.Air);
+                world.SetBlock(x, y + 1, z, BlockType.Air);
+                world.SetBlock(x, y + 2, z, BlockType.Air);
+            }
+        }
+
+        for (int z = -1; z <= 1; z++)
+        {
+            world.SetBlock(2, y, z, BlockType.Stone);
+            world.SetBlock(2, y + 1, z, BlockType.Stone);
+        }
+
+        var start = new Vector3(0.5f, y, 0.5f);
+        var target = new Vector3(4.5f, y, 0.5f);
+        if (!VoxelPathfinder.TryFindPath(world, start, target, 12, out var waypoints))
+        {
+            throw new Exception("Expected pathfinder to route around a simple wall.");
+        }
+
+        if (waypoints.Count < 3)
+        {
+            throw new Exception("Expected obstacle route to include intermediate waypoints.");
+        }
+
+        foreach (var wp in waypoints)
+        {
+            int wx = (int)MathF.Floor(wp.X);
+            int wy = (int)MathF.Floor(wp.Y);
+            int wz = (int)MathF.Floor(wp.Z);
+            if (world.GetBlock(wx, wy, wz).IsCollidable() ||
+                world.GetBlock(wx, wy + 1, wz).IsCollidable())
+            {
+                throw new Exception($"Pathfinder returned blocked waypoint {wp}.");
+            }
         }
 
         Console.WriteLine("PASSED");

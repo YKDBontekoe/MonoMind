@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Autonocraft.Core;
+using Autonocraft.Domain.Persistence;
 using Autonocraft.Engine;
 using Autonocraft.Engine.Animation;
 using Autonocraft.UI.Menu;
@@ -14,7 +15,7 @@ namespace Autonocraft.UI
     public class SaveSlotScreen
     {
         private const float ShellWidth = 920f;
-        private const float ShellHeight = 640f;
+        private const float ShellHeight = 580f;
         private const float SidebarWidth = 300f;
         private const float SlotRowHeight = 64f;
         private const int MaxVisibleSlots = 6;
@@ -22,14 +23,12 @@ namespace Autonocraft.UI
         // Vertical zones inside the main card (720p reference, scaled via UiLayout)
         private const float LifetimeStatsPadTop = 16f;
         private const float LifetimeStatsHeight = 56f;
-        private const float BodyTopGap = 12f;
-        private const float BodyTopOffset = LifetimeStatsPadTop + LifetimeStatsHeight + BodyTopGap;
+        private const float BodyTopOffset = 64f;
         private const float ActionButtonHeight = 44f;
         private const float ActionButtonGap = 10f;
         private const float FooterLinkHeight = 34f;
         private const float CardBottomPad = 20f;
-        private const float DetailHeroHeight = 108f;
-        private const float DetailStatCardHeight = 50f;
+        private const float DetailHeroHeight = 190f;
         private const float DoubleClickWindow = 0.4f;
         private const int MaxRenameLength = 32;
 
@@ -56,6 +55,7 @@ namespace Autonocraft.UI
         private float _errorFlashT;
         private PlayerStatistics _lifetimeStats = new();
         private PlayerStatistics _selectedWorldStats = new();
+        private WorldSaveData? _selectedSaveData;
         private int _worldCount;
         private bool _renaming;
         private string _renameBuffer = string.Empty;
@@ -124,6 +124,7 @@ namespace Autonocraft.UI
         private void RefreshSelectedWorldStats()
         {
             _selectedWorldStats = new PlayerStatistics();
+            _selectedSaveData = null;
             if (_slots.Count == 0 || _selectedIndex < 0 || _selectedIndex >= _slots.Count)
             {
                 return;
@@ -132,8 +133,9 @@ namespace Autonocraft.UI
             var slot = _slots[_selectedIndex];
             if (!slot.IsCorrupt)
             {
-                WorldSaveManager.TryLoadPlayerStatistics(slot.SlotId, out var stats, out _);
+                WorldSaveManager.TryLoadPlayerStatistics(slot.SlotId, out var stats, out var saveData);
                 _selectedWorldStats = stats;
+                _selectedSaveData = saveData;
             }
         }
 
@@ -367,16 +369,13 @@ namespace Autonocraft.UI
 
             MenuChrome.DrawBackdrop(_backdrop, _ui, viewport, alpha);
 
-            float titleY = layout.S(52f) + offsetY;
-            _ui.DrawCenteredTitle("Autonocraft", titleY, layout.S(UiTheme.FontHero), UiTheme.Title, alpha);
-            _ui.DrawCenteredText("Build, explore, and thrive", titleY + layout.S(46f), layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha * 0.92f);
+            float titleY = layout.S(44f) + offsetY;
+            _ui.DrawCenteredTitle("Worlds", titleY, layout.S(UiTheme.FontHero), UiTheme.Title, alpha);
+            _ui.DrawCenteredText("Pick up where you left off or start something new", titleY + layout.S(44f), layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha * 0.92f);
 
             _ui.DrawCard(metrics.ShellX, metrics.ShellY + offsetY, metrics.ShellW, metrics.ShellH, alpha, UiTheme.RadiusXl);
 
-            DrawLifetimeCards(layout, metrics.LifetimeStatsY + offsetY, alpha);
-
-            float statsRuleY = metrics.ShellY + layout.S(BodyTopOffset - 4f) + offsetY;
-            _ui.DrawFilledRect(metrics.ShellX + layout.S(20f), statsRuleY, metrics.ShellW - layout.S(40f), 1f, UiTheme.Rule * (0.7f * alpha));
+            DrawBrowserHeader(metrics, layout, alpha, offsetY);
 
             float dividerX = metrics.SidebarX + metrics.SidebarW;
             float dividerTop = metrics.ShellY + layout.S(BodyTopOffset) + offsetY;
@@ -400,10 +399,10 @@ namespace Autonocraft.UI
             }
 
             string hint = _slots.Count == 0
-                ? "No saves yet — choose New World from the hub or create one here"
+                ? "No saves yet - create a new world here or return to the hub"
                 : _renaming
                     ? "Enter to save · Esc to cancel"
-                    : "↑↓ select · Enter continue · F2 rename · Double-click load";
+                    : "Up/Down select · Enter continue · F2 rename · Double-click load";
             float hintsY = metrics.ShellY + metrics.ShellH + layout.S(string.IsNullOrEmpty(_loadErrorMessage) ? 28f : 48f) + offsetY;
             _ui.DrawCenteredText(hint, hintsY, layout.S(UiTheme.FontSmall), UiTheme.Hint, 0.85f * alpha);
         }
@@ -420,7 +419,7 @@ namespace Autonocraft.UI
             if (_worldCount == 0)
             {
                 _ui.DrawCard(startX, y, totalW, cardH, alpha * 0.9f, UiTheme.RadiusMd);
-                _ui.DrawCenteredText("No worlds yet — start a new adventure", y + layout.S(20f), layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha);
+                _ui.DrawCenteredText("No worlds yet - start a new adventure", y + layout.S(20f), layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha);
                 return;
             }
 
@@ -466,11 +465,22 @@ namespace Autonocraft.UI
             }
         }
 
+        private void DrawBrowserHeader(MenuMetrics metrics, UiLayout layout, float alpha, float offsetY)
+        {
+            float x = metrics.DetailX + layout.S(24f);
+            float y = metrics.ShellY + layout.S(18f) + offsetY;
+            _ui.DrawLabel("Save browser", x, y, layout.S(UiTheme.FontSection), UiTheme.Title, semiBold: true, alpha: alpha);
+            _ui.DrawLabel($"{_worldCount} worlds · {PlayerStatistics.FormatDuration(_lifetimeStats.TotalPlayTimeSeconds)} total play time",
+                x, y + layout.S(24f), layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha: alpha * 0.9f);
+            MenuChrome.DrawSectionRule(_ui, layout, metrics.ShellX + layout.S(20f), metrics.ShellY + layout.S(58f) + offsetY,
+                metrics.ShellW - layout.S(40f), alpha);
+        }
+
         private void DrawBackLink(MenuMetrics metrics, UiLayout layout, float alpha, float offsetY)
         {
             float x = metrics.ShellX + layout.S(20f);
             float y = metrics.ShellY + layout.S(12f) + offsetY;
-            _ui.DrawLabel("← Back to Main Menu", x, y, layout.S(UiTheme.FontBody), UiTheme.Accent, alpha: alpha);
+            MenuChrome.DrawMetaChip(_ui, layout, "Back to Main Menu", x, y, UiTheme.Accent, alpha);
         }
 
         private bool TryHandleBackClick(MouseState mouse, MouseState prevMouse, MenuMetrics metrics, UiLayout layout, float offsetY)
@@ -504,7 +514,7 @@ namespace Autonocraft.UI
             {
                 float emptyY = listTop + listHeight / 2f - layout.S(20f);
                 _ui.DrawString("No saved worlds", listX, emptyY, layout.S(UiTheme.FontBody), UiTheme.Subtitle, alpha);
-                _ui.DrawString("Create one on the right →", listX, emptyY + layout.S(24f), layout.S(UiTheme.FontSmall), UiTheme.Accent, alpha);
+                _ui.DrawString("Create one from the actions panel", listX, emptyY + layout.S(24f), layout.S(UiTheme.FontSmall), UiTheme.Accent, alpha);
                 return;
             }
 
@@ -611,7 +621,7 @@ namespace Autonocraft.UI
                 _ui.DrawLabel(FormatLastPlayed(slot.SavedAt), panelX, metaY + layout.S(22f), layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha: alpha * 0.95f);
             }
 
-            float heroY = panelY + layout.S(68f);
+            float heroY = panelY + layout.S(82f);
             float heroH = layout.S(DetailHeroHeight);
             if (slot.IsCorrupt)
             {
@@ -621,31 +631,73 @@ namespace Autonocraft.UI
             }
             else
             {
-                var heroTexture = _ui.WorldThumbnails.GetThumbnail(slot.Seed);
-                _ui.DrawTexture(heroTexture, panelX, heroY, panelW, heroH, alpha);
-                _ui.DrawRoundedRectOutline(panelX, heroY, panelW, heroH, layout.S(UiTheme.RadiusMd), UiTheme.PanelBorder, 1.5f, 0.85f * alpha);
-                _ui.DrawFilledRect(panelX, heroY + heroH - layout.S(36f), panelW, layout.S(36f), new Color(0.08f, 0.10f, 0.14f) * (0.35f * alpha));
-                _ui.DrawLabel(biomeSummary, panelX + layout.S(12f), heroY + heroH - layout.S(28f),
-                    layout.S(UiTheme.FontSmall), Color.White, semiBold: true, alpha: alpha * 0.95f);
+                DrawWorldMapPreview(slot, panelX, heroY, panelW, heroH, biomeSummary, layout, alpha);
             }
 
-            float gridY = heroY + heroH + layout.S(14f);
-            float cardGap = layout.S(10f);
-            float cardW = (panelW - cardGap) / 2f;
-            float cardH = layout.S(DetailStatCardHeight);
+            float summaryY = heroY + heroH + layout.S(12f);
+            string summary = $"Played {PlayerStatistics.FormatDuration(_selectedWorldStats.TotalPlayTimeSeconds)}"
+                + $" · Walked {PlayerStatistics.FormatDistance(_selectedWorldStats.DistanceWalked)}"
+                + $" · {PlayerStatistics.FormatCount(_selectedWorldStats.SessionCount)} sessions";
+            _ui.DrawLabel(summary, panelX, summaryY, layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha: alpha * 0.92f);
+        }
 
-            DrawWorldDetailCard(panelX, gridY, cardW, cardH, "Play time",
-                PlayerStatistics.FormatDuration(_selectedWorldStats.TotalPlayTimeSeconds),
-                UiTheme.StatAccentTime, layout, alpha, (float)(_selectedWorldStats.TotalPlayTimeSeconds / Math.Max(1.0, _lifetimeStats.TotalPlayTimeSeconds)));
-            DrawWorldDetailCard(panelX + cardW + cardGap, gridY, cardW, cardH, "Distance",
-                PlayerStatistics.FormatDistance(_selectedWorldStats.DistanceWalked),
-                UiTheme.StatAccentMove, layout, alpha, (float)(_selectedWorldStats.DistanceWalked / Math.Max(1.0, _lifetimeStats.DistanceWalked)));
-            DrawWorldDetailCard(panelX, gridY + cardH + cardGap, cardW, cardH, "Defeated",
-                PlayerStatistics.FormatCount(_selectedWorldStats.AnimalsKilled),
-                UiTheme.StatAccentCombat, layout, alpha, (float)(_selectedWorldStats.AnimalsKilled / Math.Max(1.0, _lifetimeStats.AnimalsKilled)));
-            DrawWorldDetailCard(panelX + cardW + cardGap, gridY + cardH + cardGap, cardW, cardH, "Sessions",
-                PlayerStatistics.FormatCount(_selectedWorldStats.SessionCount),
-                UiTheme.StatAccentWorld, layout, alpha, (float)(_selectedWorldStats.SessionCount / Math.Max(1.0, _lifetimeStats.SessionCount)));
+        private void DrawWorldMapPreview(SaveSlotInfo slot, float x, float y, float w, float h, string biomeSummary, UiLayout layout, float alpha)
+        {
+            const int mapSpan = 384;
+            var save = _selectedSaveData;
+            int centerX = save != null && MathF.Abs(save.Player.PosX) > 0.01f ? (int)MathF.Round(save.Player.PosX) : save?.Spawn.X ?? 16;
+            int centerZ = save != null && MathF.Abs(save.Player.PosZ) > 0.01f ? (int)MathF.Round(save.Player.PosZ) : save?.Spawn.Z ?? 16;
+
+            var map = _ui.WorldThumbnails.GetMapPreview(slot.Seed, centerX, centerZ, mapSpan);
+            _ui.DrawRoundedRect(x, y, w, h, layout.S(UiTheme.RadiusMd), UiTheme.PanelBgMuted * (0.75f * alpha));
+            _ui.DrawTexture(map, x, y, w, h, alpha);
+            _ui.DrawRoundedRectOutline(x, y, w, h, layout.S(UiTheme.RadiusMd), UiTheme.PanelBorder, 1.5f, 0.9f * alpha);
+
+            DrawMapMarker(x, y, w, h, centerX, centerZ, centerX, centerZ, mapSpan, UiTheme.AccentGlow, layout, alpha, primary: true);
+
+            if (save != null)
+            {
+                DrawMapMarker(x, y, w, h, save.Spawn.X, save.Spawn.Z, centerX, centerZ, mapSpan, UiTheme.Success, layout, alpha);
+                foreach (var village in save.Villages)
+                {
+                    DrawMapMarker(x, y, w, h, village.AnchorX, village.AnchorZ, centerX, centerZ, mapSpan, UiTheme.StatAccentWorld, layout, alpha);
+                }
+            }
+
+            string label = $"{biomeSummary} · {centerX}, {centerZ}";
+            _ui.DrawLabel(label, x + layout.S(10f), y + h - layout.S(22f), layout.S(UiTheme.FontCaption), Color.White, alpha: alpha * 0.74f);
+        }
+
+        private void DrawMapMarker(
+            float mapX,
+            float mapY,
+            float mapW,
+            float mapH,
+            int wx,
+            int wz,
+            int centerX,
+            int centerZ,
+            int span,
+            Color color,
+            UiLayout layout,
+            float alpha,
+            bool primary = false)
+        {
+            float tx = 0.5f + (wx - centerX) / (float)span;
+            float ty = 0.5f + (wz - centerZ) / (float)span;
+            if (tx < 0f || tx > 1f || ty < 0f || ty > 1f)
+            {
+                return;
+            }
+
+            float px = mapX + tx * mapW;
+            float py = mapY + ty * mapH;
+            float size = layout.S(primary ? 9f : 6f);
+            _ui.DrawRoundedRect(px - size / 2f, py - size / 2f, size, size, size * 0.5f, color * (0.92f * alpha));
+            if (primary)
+            {
+                _ui.DrawRoundedRectOutline(px - size / 2f - 2f, py - size / 2f - 2f, size + 4f, size + 4f, (size + 4f) * 0.5f, Color.White, 1f, 0.72f * alpha);
+            }
         }
 
         private void DrawMetaChip(float x, float y, string label, Color accent, UiLayout layout, float alpha)
@@ -660,29 +712,15 @@ namespace Autonocraft.UI
             _ui.DrawLabel(label, x + padX, y + padY, layout.S(UiTheme.FontCaption), accent, semiBold: true, alpha: alpha * 0.95f);
         }
 
-        private void DrawWorldDetailCard(float x, float y, float w, float h, string label, string value, Color accent, UiLayout layout, float alpha, float fillT)
-        {
-            _ui.DrawRoundedRect(x, y, w, h, layout.S(UiTheme.RadiusSm), UiTheme.PanelBgMuted * (0.92f * alpha));
-            _ui.DrawRoundedRectOutline(x, y, w, h, layout.S(UiTheme.RadiusSm), UiTheme.PanelBorder, 1f, 0.55f * alpha);
-            _ui.DrawRoundedRect(x, y, layout.S(3f), h, layout.S(2f), accent * (0.9f * alpha));
-            _ui.DrawLabel(label, x + layout.S(12f), y + layout.S(10f), layout.S(UiTheme.FontCaption), UiTheme.StatLabel, alpha: alpha);
-            _ui.DrawLabel(value, x + layout.S(12f), y + layout.S(26f), layout.S(UiTheme.FontBody), UiTheme.StatValue, semiBold: true, alpha: alpha);
-
-            float barY = y + h - layout.S(8f);
-            float barW = w - layout.S(24f);
-            float barH = layout.S(2f);
-            _ui.DrawRoundedRect(x + layout.S(12f), barY, barW, barH, barH, UiTheme.ProgressTrack * alpha);
-            _ui.DrawRoundedRect(x + layout.S(12f), barY, barW * Math.Clamp(fillT, 0.05f, 1f), barH, barH, accent * (0.7f * alpha));
-        }
-
         private void DrawActionButtons(MenuMetrics metrics, UiLayout layout, float alpha, float offsetY)
         {
             bool hasSlots = _slots.Count > 0;
+            bool canLoad = hasSlots && !_slots[_selectedIndex].IsCorrupt;
             string deleteLabel = _confirmingDelete ? "Confirm delete?" : "Delete world";
 
-            DrawStyledButton(metrics.ButtonRects[0], "Continue", 0, layout, alpha, offsetY, UiButtonStyle.Primary, !hasSlots);
+            DrawStyledButton(metrics.ButtonRects[0], canLoad ? "Continue" : "Cannot load this save", 0, layout, alpha, offsetY, UiButtonStyle.Primary, !canLoad);
             DrawStyledButton(metrics.ButtonRects[1], "New world", 1, layout, alpha, offsetY, UiButtonStyle.Secondary);
-            DrawStyledButton(metrics.ButtonRects[6], "Structure Gallery", 6, layout, alpha, offsetY, UiButtonStyle.Secondary);
+            DrawStyledButton(metrics.ButtonRects[6], "Gallery", 6, layout, alpha, offsetY, UiButtonStyle.Secondary);
             DrawStyledButton(metrics.ButtonRects[2], deleteLabel, 2, layout, alpha, offsetY, UiButtonStyle.Danger, !hasSlots);
             DrawStyledButton(metrics.ButtonRects[3], "Statistics", 3, layout, alpha, offsetY, UiButtonStyle.Ghost, !hasSlots);
             DrawStyledButton(metrics.ButtonRects[4], "Settings", 4, layout, alpha, offsetY, UiButtonStyle.Ghost);
@@ -709,9 +747,9 @@ namespace Autonocraft.UI
         private MenuMetrics ComputeLayout(UiLayout layout)
         {
             float shellW = layout.S(ShellWidth);
-            float shellH = layout.S(ShellHeight);
+            float shellH = Math.Min(layout.S(ShellHeight), layout.Height - layout.S(112f));
             float shellX = layout.CenterX - shellW / 2f;
-            float shellY = layout.Height * 0.20f;
+            float shellY = Math.Max(layout.S(108f), layout.CenterY - shellH / 2f + layout.S(28f));
 
             float sidebarW = layout.S(SidebarWidth);
             float sidebarX = shellX;
@@ -725,22 +763,22 @@ namespace Autonocraft.UI
             float footerH = layout.S(FooterLinkHeight);
             float detailPadX = detailX + layout.S(24f);
             float buttonW = detailW - layout.S(48f);
+            float splitButtonW = (buttonW - buttonGap) / 2f;
             float ghostW = (buttonW - buttonGap * 2f) / 3f;
 
             float footerRowY = shellY + shellH - layout.S(CardBottomPad) - footerH;
             float deleteY = footerRowY - buttonGap - buttonH;
-            float sandboxY = deleteY - buttonGap - buttonH;
-            float newWorldY = sandboxY - buttonGap - buttonH;
-            float continueY = newWorldY - buttonGap - buttonH;
+            float secondaryY = deleteY - buttonGap - buttonH;
+            float continueY = secondaryY - buttonGap - buttonH;
 
             var buttons = new Rectangle[7];
             buttons[0] = new Rectangle((int)detailPadX, (int)continueY, (int)buttonW, (int)buttonH);
-            buttons[1] = new Rectangle((int)detailPadX, (int)newWorldY, (int)buttonW, (int)buttonH);
+            buttons[1] = new Rectangle((int)detailPadX, (int)secondaryY, (int)splitButtonW, (int)buttonH);
             buttons[2] = new Rectangle((int)detailPadX, (int)deleteY, (int)buttonW, (int)buttonH);
             buttons[3] = new Rectangle((int)detailPadX, (int)footerRowY, (int)ghostW, (int)footerH);
             buttons[4] = new Rectangle((int)(detailPadX + ghostW + buttonGap), (int)footerRowY, (int)ghostW, (int)footerH);
             buttons[5] = new Rectangle((int)(detailPadX + (ghostW + buttonGap) * 2f), (int)footerRowY, (int)ghostW, (int)footerH);
-            buttons[6] = new Rectangle((int)detailPadX, (int)sandboxY, (int)buttonW, (int)buttonH);
+            buttons[6] = new Rectangle((int)(detailPadX + splitButtonW + buttonGap), (int)secondaryY, (int)splitButtonW, (int)buttonH);
 
             return new MenuMetrics
             {
@@ -787,41 +825,7 @@ namespace Autonocraft.UI
                 return;
             }
 
-            foreach (Keys key in Enum.GetValues<Keys>())
-            {
-                if (!kb.IsKeyDown(key) || prevKb.IsKeyDown(key))
-                {
-                    continue;
-                }
-
-                char? ch = KeyToChar(key, kb.IsKeyDown(Keys.LeftShift) || kb.IsKeyDown(Keys.RightShift));
-                if (ch.HasValue && _renameBuffer.Length < MaxRenameLength)
-                {
-                    _renameBuffer += ch.Value;
-                }
-            }
-        }
-
-        private static char? KeyToChar(Keys key, bool shift)
-        {
-            if (key >= Keys.A && key <= Keys.Z)
-            {
-                char c = (char)('a' + (key - Keys.A));
-                return shift ? char.ToUpper(c) : c;
-            }
-
-            if (key >= Keys.D0 && key <= Keys.D9)
-            {
-                return (char)('0' + (key - Keys.D0));
-            }
-
-            return key switch
-            {
-                Keys.OemMinus => shift ? '_' : '-',
-                Keys.OemPeriod => '.',
-                Keys.Space => ' ',
-                _ => null
-            };
+            TextInputKeys.AppendPressedCharacters(kb, prevKb, ref _renameBuffer, MaxRenameLength, TextInputCharacterSet.Name);
         }
 
         private int GetHoveredSlotIndex(MouseState mouse, MenuMetrics metrics, UiLayout layout, float offsetY)

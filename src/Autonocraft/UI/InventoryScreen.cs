@@ -104,7 +104,7 @@ namespace Autonocraft.UI
                     BlockType.StationBench,
                     CraftGridSize.TwoByTwo,
                     crafting.Journal);
-                _recipeBook.Update(bookRect, recipes, player, CraftGridSize.TwoByTwo, mouse, prevMouse);
+                _recipeBook.Update(bookRect, recipes, crafting.Journal, player, CraftGridSize.TwoByTwo, mouse, prevMouse);
             }
         }
 

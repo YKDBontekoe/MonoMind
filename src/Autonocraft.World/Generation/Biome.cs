@@ -20,6 +20,37 @@ namespace Autonocraft.World
 
     public readonly struct BiomeProfile
     {
+        private static readonly BiomeProfile Default = Create(
+            BiomeType.Plains,
+            WorldConstants.SeaLevel + 6,
+            7f,
+            0f,
+            BlockType.Grass,
+            BlockType.Dirt,
+            BlockType.Stone,
+            0.16f,
+            0.92f,
+            allowTallGrass: true,
+            allowFlowers: true);
+
+        private static readonly BiomeProfile[] Catalog =
+        {
+            Create(BiomeType.Ocean, WorldConstants.SeaLevel - 18, 6f, 0f, BlockType.Sand, BlockType.Sand, BlockType.Stone),
+            Create(BiomeType.Beach, WorldConstants.SeaLevel + 1, 2f, 0f, BlockType.Sand, BlockType.Sand, BlockType.Stone, 0.05f, 0.35f),
+            Default,
+            Create(BiomeType.Forest, WorldConstants.SeaLevel + 8, 10f, 0f, BlockType.Grass, BlockType.Dirt, BlockType.Stone, 0.58f, 0.95f, allowTallGrass: true, allowFlowers: true, allowUnderstory: true),
+            Create(BiomeType.Jungle, WorldConstants.SeaLevel + 7, 12f, 0f, BlockType.Grass, BlockType.Dirt, BlockType.Stone, 0.82f, 1.0f, allowTallGrass: true, allowUnderstory: true),
+            Create(BiomeType.Desert, WorldConstants.SeaLevel + 5, 6f, 0f, BlockType.Sand, BlockType.Sand, BlockType.Stone, 0.03f, 0.45f, allowCactus: true),
+            Create(BiomeType.Mountains, WorldConstants.SeaLevel + 24, 78f, 0.56f, BlockType.Stone, BlockType.Stone, BlockType.Stone, 0.12f, 0.30f),
+            Create(BiomeType.SnowyPeaks, WorldConstants.SeaLevel + 40, 96f, 0.62f, BlockType.Snow, BlockType.Stone, BlockType.Stone, 0.07f, 0.30f),
+            Create(BiomeType.Swamp, WorldConstants.SeaLevel + 2, 3f, 0f, BlockType.Mud, BlockType.Dirt, BlockType.Stone, 0.45f, 0.82f, allowTallGrass: true, allowUnderstory: true),
+            Create(BiomeType.Badlands, WorldConstants.SeaLevel + 9, 11f, 0.26f, BlockType.RedSand, BlockType.Sandstone, BlockType.Stone, 0.02f, 0.38f, allowCactus: true),
+            Create(BiomeType.Mangrove, WorldConstants.SeaLevel + 1, 3f, 0f, BlockType.Mud, BlockType.Clay, BlockType.Stone, 0.38f, 0.82f, allowUnderstory: true),
+            Create(BiomeType.MushroomForest, WorldConstants.SeaLevel + 10, 8f, 0f, BlockType.MossStone, BlockType.Dirt, BlockType.Stone, 0.22f, 1.0f, allowUnderstory: true),
+            Create(BiomeType.Volcanic, WorldConstants.SeaLevel + 24, 42f, 0.48f, BlockType.Basalt, BlockType.Basalt, BlockType.Obsidian, 0f, 0.12f),
+            Create(BiomeType.BorealTaiga, WorldConstants.SeaLevel + 7, 7f, 0f, BlockType.Grass, BlockType.Dirt, BlockType.Stone, 0.55f, 0.76f, allowTallGrass: true)
+        };
+
         public BiomeType Type { get; init; }
         public float BaseHeight { get; init; }
         public float HeightAmplitude { get; init; }
@@ -34,180 +65,44 @@ namespace Autonocraft.World
         public bool AllowCactus { get; init; }
         public bool AllowUnderstory { get; init; }
 
-        public static BiomeProfile For(BiomeType type) => type switch
+        public static BiomeProfile For(BiomeType type)
         {
-            BiomeType.Ocean => new BiomeProfile
+            int index = (int)type;
+            return index >= 0 && index < Catalog.Length ? Catalog[index] : Default;
+        }
+
+        private static BiomeProfile Create(
+            BiomeType type,
+            float baseHeight,
+            float heightAmplitude,
+            float ridgeWeight,
+            BlockType surfaceBlock,
+            BlockType subsurfaceBlock,
+            BlockType fillerBlock,
+            float treeDensity = 0f,
+            float floraDensity = 0f,
+            bool allowTallGrass = false,
+            bool allowFlowers = false,
+            bool allowCactus = false,
+            bool allowUnderstory = false)
+        {
+            return new BiomeProfile
             {
                 Type = type,
-                BaseHeight = WorldConstants.SeaLevel - 18,
-                HeightAmplitude = 6f,
-                SurfaceBlock = BlockType.Sand,
-                SubsurfaceBlock = BlockType.Sand,
-                FillerBlock = BlockType.Stone
-            },
-            BiomeType.Beach => new BiomeProfile
-            {
-                Type = type,
-                BaseHeight = WorldConstants.SeaLevel + 1,
-                HeightAmplitude = 2f,
-                SurfaceBlock = BlockType.Sand,
-                SubsurfaceBlock = BlockType.Sand,
-                FillerBlock = BlockType.Stone,
-                TreeDensity = 0.05f,
-                FloraDensity = 0.35f
-            },
-            BiomeType.Plains => new BiomeProfile
-            {
-                Type = type,
-                BaseHeight = WorldConstants.SeaLevel + 6,
-                HeightAmplitude = 8f,
-                SurfaceBlock = BlockType.Grass,
-                SubsurfaceBlock = BlockType.Dirt,
-                FillerBlock = BlockType.Stone,
-                TreeDensity = 0.12f,
-                FloraDensity = 0.92f,
-                AllowTallGrass = true,
-                AllowFlowers = true
-            },
-            BiomeType.Forest => new BiomeProfile
-            {
-                Type = type,
-                BaseHeight = WorldConstants.SeaLevel + 8,
-                HeightAmplitude = 12f,
-                SurfaceBlock = BlockType.Grass,
-                SubsurfaceBlock = BlockType.Dirt,
-                FillerBlock = BlockType.Stone,
-                TreeDensity = 0.55f,
-                FloraDensity = 0.95f,
-                AllowTallGrass = true,
-                AllowFlowers = true,
-                AllowUnderstory = true
-            },
-            BiomeType.Jungle => new BiomeProfile
-            {
-                Type = type,
-                BaseHeight = WorldConstants.SeaLevel + 7,
-                HeightAmplitude = 14f,
-                SurfaceBlock = BlockType.Grass,
-                SubsurfaceBlock = BlockType.Dirt,
-                FillerBlock = BlockType.Stone,
-                TreeDensity = 0.78f,
-                FloraDensity = 1.0f,
-                AllowTallGrass = true,
-                AllowUnderstory = true
-            },
-            BiomeType.Desert => new BiomeProfile
-            {
-                Type = type,
-                BaseHeight = WorldConstants.SeaLevel + 5,
-                HeightAmplitude = 6f,
-                SurfaceBlock = BlockType.Sand,
-                SubsurfaceBlock = BlockType.Sand,
-                FillerBlock = BlockType.Stone,
-                TreeDensity = 0.03f,
-                FloraDensity = 0.45f,
-                AllowCactus = true
-            },
-            BiomeType.Mountains => new BiomeProfile
-            {
-                Type = type,
-                BaseHeight = WorldConstants.SeaLevel + 28,
-                HeightAmplitude = 95f,
-                RidgeWeight = 0.68f,
-                SurfaceBlock = BlockType.Stone,
-                SubsurfaceBlock = BlockType.Stone,
-                FillerBlock = BlockType.Stone,
-                TreeDensity = 0.08f,
-                FloraDensity = 0.20f
-            },
-            BiomeType.SnowyPeaks => new BiomeProfile
-            {
-                Type = type,
-                BaseHeight = WorldConstants.SeaLevel + 48,
-                HeightAmplitude = 125f,
-                RidgeWeight = 0.78f,
-                SurfaceBlock = BlockType.Snow,
-                SubsurfaceBlock = BlockType.Stone,
-                FillerBlock = BlockType.Stone,
-                TreeDensity = 0.04f,
-                FloraDensity = 0.22f
-            },
-            BiomeType.Swamp => new BiomeProfile
-            {
-                Type = type,
-                BaseHeight = WorldConstants.SeaLevel + 2,
-                HeightAmplitude = 4f,
-                SurfaceBlock = BlockType.Mud,
-                SubsurfaceBlock = BlockType.Dirt,
-                FillerBlock = BlockType.Stone,
-                TreeDensity = 0.2f,
-                FloraDensity = 0.75f,
-                AllowTallGrass = true,
-                AllowUnderstory = true
-            },
-            BiomeType.Badlands => new BiomeProfile
-            {
-                Type = type,
-                BaseHeight = WorldConstants.SeaLevel + 9,
-                HeightAmplitude = 14f,
-                RidgeWeight = 0.35f,
-                SurfaceBlock = BlockType.RedSand,
-                SubsurfaceBlock = BlockType.Sandstone,
-                FillerBlock = BlockType.Stone,
-                TreeDensity = 0.02f,
-                FloraDensity = 0.38f,
-                AllowCactus = true
-            },
-            BiomeType.Mangrove => new BiomeProfile
-            {
-                Type = type,
-                BaseHeight = WorldConstants.SeaLevel + 1,
-                HeightAmplitude = 3f,
-                SurfaceBlock = BlockType.Mud,
-                SubsurfaceBlock = BlockType.Clay,
-                FillerBlock = BlockType.Stone,
-                TreeDensity = 0.38f,
-                FloraDensity = 0.82f,
-                AllowUnderstory = true
-            },
-            BiomeType.MushroomForest => new BiomeProfile
-            {
-                Type = type,
-                BaseHeight = WorldConstants.SeaLevel + 10,
-                HeightAmplitude = 9f,
-                SurfaceBlock = BlockType.MossStone,
-                SubsurfaceBlock = BlockType.Dirt,
-                FillerBlock = BlockType.Stone,
-                TreeDensity = 0.14f,
-                FloraDensity = 0.90f,
-                AllowUnderstory = true
-            },
-            BiomeType.Volcanic => new BiomeProfile
-            {
-                Type = type,
-                BaseHeight = WorldConstants.SeaLevel + 32,
-                HeightAmplitude = 58f,
-                RidgeWeight = 0.70f,
-                SurfaceBlock = BlockType.Basalt,
-                SubsurfaceBlock = BlockType.Basalt,
-                FillerBlock = BlockType.Obsidian,
-                TreeDensity = 0f,
-                FloraDensity = 0.12f
-            },
-            BiomeType.BorealTaiga => new BiomeProfile
-            {
-                Type = type,
-                BaseHeight = WorldConstants.SeaLevel + 7,
-                HeightAmplitude = 11f,
-                SurfaceBlock = BlockType.Grass,
-                SubsurfaceBlock = BlockType.Dirt,
-                FillerBlock = BlockType.Stone,
-                TreeDensity = 0.48f,
-                FloraDensity = 0.68f,
-                AllowTallGrass = true
-            },
-            _ => BiomeProfile.For(BiomeType.Plains)
-        };
+                BaseHeight = baseHeight,
+                HeightAmplitude = heightAmplitude,
+                RidgeWeight = ridgeWeight,
+                SurfaceBlock = surfaceBlock,
+                SubsurfaceBlock = subsurfaceBlock,
+                FillerBlock = fillerBlock,
+                TreeDensity = treeDensity,
+                FloraDensity = floraDensity,
+                AllowTallGrass = allowTallGrass,
+                AllowFlowers = allowFlowers,
+                AllowCactus = allowCactus,
+                AllowUnderstory = allowUnderstory
+            };
+        }
     }
 
     public readonly struct BiomeSample

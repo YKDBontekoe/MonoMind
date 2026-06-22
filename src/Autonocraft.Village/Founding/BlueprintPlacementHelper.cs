@@ -129,6 +129,43 @@ namespace Autonocraft.Village
                 or BlockType.Mud;
         }
 
+        public static bool IsExcavatableTerrainBlock(BlockType current)
+        {
+            if (current == BlockType.Air ||
+                current == BlockType.Lava ||
+                current == BlockType.Lantern ||
+                current.IsGlass())
+            {
+                return false;
+            }
+
+            if (current.IsLog())
+            {
+                return true;
+            }
+
+            if (IsNaturalTerrainBlock(current))
+            {
+                return true;
+            }
+
+            return current is BlockType.Stone
+                or BlockType.Clay
+                or BlockType.Limestone
+                or BlockType.Granite
+                or BlockType.Basalt
+                or BlockType.Slate
+                or BlockType.Marble
+                or BlockType.MossStone
+                or BlockType.RedSand
+                or BlockType.Sandstone
+                or BlockType.GrassSlab
+                or BlockType.DirtSlab
+                or BlockType.StoneSlab
+                or BlockType.SandSlab
+                or BlockType.SnowSlab;
+        }
+
         public static bool HasClearFootprint(
             VoxelWorld world,
             BuildingBlueprint blueprint,
@@ -153,6 +190,110 @@ namespace Autonocraft.Village
             }
 
             return true;
+        }
+
+        public static bool CanExcavateFootprint(
+            VoxelWorld world,
+            BuildingBlueprint blueprint,
+            int anchorX,
+            int anchorY,
+            int anchorZ,
+            int maxTerrainRise = 5,
+            int maxTerrainDrop = 6)
+        {
+            GetWorldBounds(blueprint, anchorX, anchorY, anchorZ, out int minX, out int minY, out int minZ, out int maxX, out int maxY, out int maxZ);
+            for (int x = minX; x <= maxX; x++)
+            {
+                for (int z = minZ; z <= maxZ; z++)
+                {
+                    int surface = world.GetHighestSolidY(x, z);
+                    if (surface < 0)
+                    {
+                        return false;
+                    }
+
+                    int delta = surface - (anchorY - 1);
+                    if (delta > maxTerrainRise || delta < -maxTerrainDrop)
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            int clearMinY = Math.Max(1, Math.Min(anchorY, minY));
+            int clearMaxY = Math.Min(Chunk.Height - 1, maxY + 2);
+            for (int x = minX; x <= maxX; x++)
+            {
+                for (int z = minZ; z <= maxZ; z++)
+                {
+                    for (int y = clearMinY; y <= clearMaxY; y++)
+                    {
+                        var current = world.GetBlock(x, y, z);
+                        if (current == BlockType.Air || IsExcavatableTerrainBlock(current))
+                        {
+                            continue;
+                        }
+
+                        return false;
+                    }
+                }
+            }
+
+            foreach (var block in blueprint.Template.Blocks)
+            {
+                int wx = anchorX + block.Dx;
+                int wy = anchorY + block.Dy;
+                int wz = anchorZ + block.Dz;
+                if (wy <= 0 || wy >= Chunk.Height)
+                {
+                    return false;
+                }
+
+                var current = world.GetBlock(wx, wy, wz);
+                if (current == BlockType.Air || IsExcavatableTerrainBlock(current))
+                {
+                    continue;
+                }
+
+                return false;
+            }
+
+            return true;
+        }
+
+        public static void ExcavateAndLevelFootprint(
+            VoxelWorld world,
+            BuildingBlueprint blueprint,
+            int anchorX,
+            int anchorY,
+            int anchorZ,
+            BlockType fillBlock = BlockType.Dirt)
+        {
+            GetWorldBounds(blueprint, anchorX, anchorY, anchorZ, out int minX, out int minY, out int minZ, out int maxX, out int maxY, out int maxZ);
+            int groundY = anchorY - 1;
+            for (int x = minX; x <= maxX; x++)
+            {
+                for (int z = minZ; z <= maxZ; z++)
+                {
+                    for (int y = Math.Max(1, groundY - 3); y <= groundY; y++)
+                    {
+                        var current = world.GetBlock(x, y, z);
+                        if (current == BlockType.Air || IsExcavatableTerrainBlock(current))
+                        {
+                            world.SetBlock(x, y, z, fillBlock);
+                        }
+                    }
+
+                    for (int y = anchorY; y <= Math.Min(Chunk.Height - 1, maxY + 2); y++)
+                    {
+                        var current = world.GetBlock(x, y, z);
+                        if (IsExcavatableTerrainBlock(current))
+                        {
+                            world.SetBlock(x, y, z, BlockType.Air);
+                        }
+                    }
+                }
+            }
         }
     }
 }

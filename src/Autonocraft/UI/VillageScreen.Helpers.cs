@@ -9,6 +9,7 @@ using Autonocraft.Entities;
 using Autonocraft.Items;
 using Autonocraft.World;
 using Autonocraft.Village;
+using Autonocraft.UI.Menu;
 using Autonocraft.UI.Village;
 using Autonocraft.UI.VillagePanels;
 using VillageEntity = Autonocraft.Village.Village;
@@ -281,41 +282,7 @@ namespace Autonocraft.UI
                 return;
             }
 
-            foreach (Keys key in Enum.GetValues<Keys>())
-            {
-                if (!kb.IsKeyDown(key) || prevKb.IsKeyDown(key))
-                {
-                    continue;
-                }
-
-                char? ch = KeyToChar(key, kb.IsKeyDown(Keys.LeftShift) || kb.IsKeyDown(Keys.RightShift));
-                if (ch.HasValue && _editingNameBuffer.Length < 24)
-                {
-                    _editingNameBuffer += ch.Value;
-                }
-            }
-        }
-
-        private static char? KeyToChar(Keys key, bool shift)
-        {
-            if (key >= Keys.A && key <= Keys.Z)
-            {
-                char c = (char)('a' + (key - Keys.A));
-                return shift ? char.ToUpper(c) : c;
-            }
-
-            if (key >= Keys.D0 && key <= Keys.D9)
-            {
-                return (char)('0' + (key - Keys.D0));
-            }
-
-            return key switch
-            {
-                Keys.OemMinus => shift ? '_' : '-',
-                Keys.OemPeriod => '.',
-                Keys.Space => ' ',
-                _ => null
-            };
+            TextInputKeys.AppendPressedCharacters(kb, prevKb, ref _editingNameBuffer, 24, TextInputCharacterSet.Name);
         }
     }
 }

@@ -162,10 +162,19 @@ namespace Autonocraft.Village
                     bestHarvest = dist;
                     harvestTarget = center;
                 }
-                else if (work == FarmWorkKind.Plant && dist < bestPlant)
+                else if (work == FarmWorkKind.Plant)
                 {
-                    bestPlant = dist;
-                    plantTarget = center;
+                    if (Math.Abs(block.Dx) == blueprint.Template.FootprintRadius
+                        || Math.Abs(block.Dz) == blueprint.Template.FootprintRadius)
+                    {
+                        dist += 100f;
+                    }
+
+                    if (dist < bestPlant)
+                    {
+                        bestPlant = dist;
+                        plantTarget = center;
+                    }
                 }
             }
 

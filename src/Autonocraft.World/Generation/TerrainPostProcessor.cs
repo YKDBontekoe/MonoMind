@@ -68,8 +68,8 @@ namespace Autonocraft.World
                 }
             }
 
-            SmoothLandHeights(heights, drafts, passes: 5, maxSlope: 0.85f);
-            BroadenMountainHeights(heights, drafts, rawHeights, passes: 4, maxSlope: 2.4f);
+            SmoothLandHeights(heights, drafts, passes: 6, maxSlope: 0.75f);
+            BroadenMountainHeights(heights, drafts, rawHeights, passes: 5, maxSlope: 1.8f);
             SmoothCoastalHeights(heights, drafts, passes: 3);
             EnforcePlayableSlope(heights, drafts, maxStep: 1f);
 
@@ -189,7 +189,7 @@ namespace Autonocraft.World
                         float smoothed = heights[x, z] + delta;
 
                         float cliffPreserve = MathF.Abs(rawHeights[x, z] - smoothed);
-                        float blend = cliffPreserve > 2.5f ? 0.62f : 0.28f;
+                        float blend = cliffPreserve > 3.2f ? 0.45f : 0.18f;
                         next[x, z] = Lerp(smoothed, rawHeights[x, z], blend);
 
                         void AccumulateMountainNeighbor(int nx, int nz, ref float sum, ref float w)
@@ -410,8 +410,9 @@ namespace Autonocraft.World
 
                     bool mainChannel = amount >= RiverFlowThreshold;
                     float carveStrength = mainChannel ? 1f : SmoothStep(TributaryFlowThreshold, RiverFlowThreshold, amount);
-                    float bedHeight = WorldConstants.SeaLevel + 0.5f - MathF.Log(amount + 1f) * 0.12f;
-                    bedHeight = MathF.Max(bedHeight, WorldConstants.SeaLevel - 0.25f);
+                    // Carve river bed below sea level so ChunkStorage always fills it with water.
+                    float bedHeight = WorldConstants.SeaLevel - 1.0f - MathF.Log(amount + 1f) * 0.30f;
+                    bedHeight = MathF.Max(bedHeight, WorldConstants.SeaLevel - 4.0f);
 
                     if (mainChannel)
                     {
@@ -457,7 +458,7 @@ namespace Autonocraft.World
                         continue;
                     }
 
-                    float bedHeight = WorldConstants.SeaLevel + 0.5f;
+                    float bedHeight = WorldConstants.SeaLevel - 1.0f;
                     heights[x, z] = MathF.Min(heights[x, z], Lerp(heights[x, z], bedHeight, 0.45f));
                 }
             }
@@ -536,6 +537,8 @@ namespace Autonocraft.World
 
             if (isRiver)
             {
+                // Clamp river terrain below sea level so ChunkStorage fills it with water (same as lake logic).
+                surfaceHeight = Math.Min(surfaceHeight, WorldConstants.SeaLevel - 1);
                 surface = draft.RiverStrength > 0.65f ? BlockType.Gravel : BlockType.Sand;
                 subsurface = surface;
             }
@@ -688,7 +691,10 @@ namespace Autonocraft.World
                 or BiomeType.Jungle
                 or BiomeType.Swamp
                 or BiomeType.Desert
-                or BiomeType.Beach;
+                or BiomeType.Beach
+                or BiomeType.Badlands
+                or BiomeType.BorealTaiga
+                or BiomeType.MushroomForest;
         }
 
         private static bool IsCoastalCell(TerrainColumn column)
@@ -717,7 +723,7 @@ namespace Autonocraft.World
         private static bool IsPlayableLand(TerrainColumn column)
         {
             return column.Biome.Primary is BiomeType.Plains or BiomeType.Forest or BiomeType.Jungle or BiomeType.Swamp
-                or BiomeType.Desert or BiomeType.Badlands or BiomeType.BorealTaiga;
+                or BiomeType.Desert or BiomeType.Badlands or BiomeType.BorealTaiga or BiomeType.MushroomForest;
         }
 
         private static float GetInitialFlow(int wx, int wz, TerrainColumn column, float[,] heights, float[,] rawHeights, int x, int z)
@@ -729,6 +735,14 @@ namespace Autonocraft.World
 
             float height = heights[x, z];
             float flow = 0f;
+
+            // Rainfall: every land cell above sea level contributes flow proportional to elevation.
+            // This ensures valleys accumulate rivers naturally even in flat biomes far from mountains.
+            float elevation = MathF.Max(0f, height - WorldConstants.SeaLevel);
+            if (elevation > 0.5f)
+            {
+                flow += elevation * 0.008f;
+            }
 
             if (column.Biome.Primary is BiomeType.Mountains or BiomeType.SnowyPeaks && height > WorldConstants.SeaLevel + 20f)
             {
@@ -763,7 +777,7 @@ namespace Autonocraft.World
             }
 
             uint hash = HashCoordinates(wx, wz);
-            int sparsityMask = column.Biome.Primary is BiomeType.Mountains or BiomeType.SnowyPeaks ? 0x2F : 0x7F;
+            int sparsityMask = column.Biome.Primary is BiomeType.Mountains or BiomeType.SnowyPeaks ? 0x2F : 0x3F;
             return (hash & sparsityMask) == 0;
         }
 

@@ -377,6 +377,39 @@ public static class CraftingTests
             throw new Exception("Filled grid did not resolve to wood pickaxe recipe.");
         }
 
+        var visible = RecipeBookResolver.GetVisibleRecipes(BlockType.StationBench, CraftGridSize.ThreeByThree, new DiscoveryJournal());
+        if (!visible.Any(r => r.Id == "recipe:stone_pickaxe"))
+        {
+            throw new Exception("Recipe book should show locked stone tools as progression guidance.");
+        }
+
+        for (int i = 0; i < player.Hotbar.Length; i++)
+        {
+            player.Hotbar[i] = ItemStack.Empty;
+        }
+
+        for (int i = 0; i < Player.StorageSlotCount; i++)
+        {
+            player.Storage.SetSlot(i, ItemStack.Empty);
+        }
+
+        player.Hotbar[0] = ItemStack.CreateBlock(BlockType.Cobblestone, 4);
+        player.Hotbar[1] = ItemStack.CreateBlock(BlockType.OakLog, 2);
+
+        var smokerRecipe = CraftRecipeRegistry.All.Single(r => r.Id == "recipe:station_smoker");
+        inventory = new PlayerInventoryAdapter(player);
+        grid.Clear();
+
+        if (!RecipeBookResolver.CanCraftWithInventory(smokerRecipe, CraftGridSize.ThreeByThree, inventory))
+        {
+            throw new Exception("Recipe book should count tag-based wood ingredients.");
+        }
+
+        if (!RecipeBookResolver.TryFillGrid(smokerRecipe, grid, inventory))
+        {
+            throw new Exception("Recipe book failed to fill a shapeless recipe with tag-based wood ingredients.");
+        }
+
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine("PASSED");
         Console.ResetColor();

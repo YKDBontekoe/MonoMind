@@ -384,19 +384,68 @@ namespace Autonocraft.Engine
 
         public static Color[] PalmLeaves(int tileSize, string name, Color[] palette)
         {
-            var image = new TileImage(Leaves(tileSize, name, palette), tileSize);
+            var image = new TileImage(PixelCluster(tileSize, name, Darken(palette[0], 8), palette, 5, 10), tileSize);
             int cx = tileSize / 2;
-            int cy = tileSize / 3;
-            Color frond = Darken(palette[0], 12);
-            for (int angle = 0; angle < 360; angle += 30)
+            int cy = tileSize / 2 - tileSize / 10;
+            Color rib = Darken(palette[0], 24);
+            Color frondDark = Darken(palette[0], 10);
+            Color frondLight = Lighten(palette[1], 8);
+            for (int angle = 0; angle < 360; angle += 24)
             {
                 double rad = angle * Math.PI / 180.0;
-                int x2 = (int)(cx + Math.Cos(rad) * tileSize * 0.38);
-                int y2 = (int)(cy + Math.Sin(rad) * tileSize * 0.28);
-                DrawLine(image, cx, cy, x2, y2, frond, 4);
+                int length = tileSize / 3 + Noise(name, angle, 3, 5) % (tileSize / 8);
+                int x2 = (int)(cx + Math.Cos(rad) * length);
+                int y2 = (int)(cy + Math.Sin(rad) * length * 0.72);
+                DrawLine(image, cx, cy, x2, y2, rib, 2);
+
+                for (int step = 2; step <= 8; step++)
+                {
+                    float t = step / 8f;
+                    int sx = (int)Math.Round(cx + (x2 - cx) * t);
+                    int sy = (int)Math.Round(cy + (y2 - cy) * t);
+                    int blade = Math.Max(3, (int)(tileSize * (0.10f - t * 0.006f)));
+                    double side = rad + Math.PI / 2.0;
+                    Color bladeColor = step % 2 == 0 ? frondLight : frondDark;
+                    int ax = (int)(sx + Math.Cos(side) * blade);
+                    int ay = (int)(sy + Math.Sin(side) * blade * 0.45);
+                    int bx = (int)(sx - Math.Cos(side) * blade);
+                    int by = (int)(sy - Math.Sin(side) * blade * 0.45);
+                    DrawLine(image, sx, sy, ax, ay, bladeColor, 2);
+                    DrawLine(image, sx, sy, bx, by, Darken(bladeColor, 8), 2);
+                }
             }
 
-            FillEllipse(image, cx - 8, cy - 6, cx + 8, cy + 6, Lighten(palette[1], 10));
+            for (int i = 0; i < 20; i++)
+            {
+                int x = Noise(name, i, 11, 13) % tileSize;
+                int y = Noise(name, i, 17, 19) % tileSize;
+                SetPixelWrapped(image, x, y, Lighten(palette[1], 10));
+            }
+
+            FillEllipse(image, cx - 8, cy - 6, cx + 8, cy + 6, Lighten(palette[1], 5));
+            FillEllipse(image, cx - 3, cy - 2, cx + 4, cy + 3, Darken(palette[0], 18));
+            ApplySoftBlockLighting(image, 3, 10);
+            return image.Pixels;
+        }
+
+        public static Color[] SaplingSprite(int tileSize, string name, Color stemColor, Color leafColor)
+        {
+            var image = new TileImage(FillSolid(tileSize, Color.Transparent), tileSize);
+            int cx = tileSize / 2;
+            
+            // Draw a stem
+            int stemTop = tileSize / 2;
+            DrawBlade(image, cx, tileSize - 2, cx, stemTop, stemColor, 2);
+            DrawBlade(image, cx, (tileSize - 2 + stemTop) / 2, cx - tileSize / 6, stemTop + tileSize / 8, stemColor, 1);
+            DrawBlade(image, cx, (tileSize - 2 + stemTop) / 2 + 2, cx + tileSize / 6, stemTop + tileSize / 8, stemColor, 1);
+
+            // Draw leaves on top
+            FillEllipse(image, cx - tileSize / 4, stemTop - tileSize / 4, cx + tileSize / 4, stemTop + tileSize / 8, leafColor);
+            FillEllipse(image, cx - tileSize / 6, stemTop - tileSize / 3, cx + tileSize / 6, stemTop - tileSize / 8, Lighten(leafColor, 15));
+            FillEllipse(image, cx - tileSize / 5, stemTop - tileSize / 6, cx - tileSize / 8, stemTop, Darken(leafColor, 15));
+            FillEllipse(image, cx + tileSize / 8, stemTop - tileSize / 6, cx + tileSize / 5, stemTop, Darken(leafColor, 15));
+
+            ApplySoftBlockLighting(image, 3, 10);
             return image.Pixels;
         }
     }

@@ -70,20 +70,31 @@ public static class IntegrationTestRunner
             RunTimed(nameof(VillageTests.RunBlockActionService), VillageTests.RunBlockActionService);
             RunTimed(nameof(VillageTests.RunClaimWorldStructure), VillageTests.RunClaimWorldStructure);
             RunTimed(nameof(VillageTests.RunImprovedClaimableStructureAccess), VillageTests.RunImprovedClaimableStructureAccess);
+            RunTimed(nameof(VillageTests.RunTownHeartPlacementExcavatesUnevenTerrain), VillageTests.RunTownHeartPlacementExcavatesUnevenTerrain);
+            RunTimed(nameof(VillageTests.RunTownHeartPlacementRejectsBuiltObjects), VillageTests.RunTownHeartPlacementRejectsBuiltObjects);
+            RunTimed(nameof(VillageTests.RunTownHeartFoundingUsesSurfaceAnchor), VillageTests.RunTownHeartFoundingUsesSurfaceAnchor);
             RunTimed(nameof(VillageTests.RunFarmFoodProduction), VillageTests.RunFarmFoodProduction);
             RunTimed(nameof(VillageTests.RunBuildingJobWiring), VillageTests.RunBuildingJobWiring);
             RunTimed(nameof(VillageTests.RunVillagerToolMining), VillageTests.RunVillagerToolMining);
             RunTimed(nameof(VillageTests.RunVillageAiToolsMock), VillageTests.RunVillageAiToolsMock);
+            RunTimed(nameof(VillageTests.RunVillageAiStructuredToolCalls), VillageTests.RunVillageAiStructuredToolCalls);
+            RunTimed(nameof(VillageTests.RunOpenRouterModelCatalogFilters), VillageTests.RunOpenRouterModelCatalogFilters);
             RunTimed(nameof(VillageTests.RunVillageNumericGoals), VillageTests.RunVillageNumericGoals);
             RunTimed(nameof(VillageTests.RunPlayerWorkQueue), VillageTests.RunPlayerWorkQueue);
             RunTimed(nameof(VillageTests.RunRepairMissingCitizens), VillageTests.RunRepairMissingCitizens);
             RunTimed(nameof(VillageTests.RunVillagerLumberChopping), VillageTests.RunVillagerLumberChopping);
+            RunTimed(nameof(VillageTests.RunLumberJobsIgnoreLeaves), VillageTests.RunLumberJobsIgnoreLeaves);
+            RunTimed(nameof(VillageTests.RunVillagersCollectNearbySaplingDrops), VillageTests.RunVillagersCollectNearbySaplingDrops);
             RunTimed(nameof(VillageTests.RunAdoptOrphanedCitizens), VillageTests.RunAdoptOrphanedCitizens);
             RunTimed(nameof(VillageTests.RunRelinkStrandedCitizens), VillageTests.RunRelinkStrandedCitizens);
             RunTimed(nameof(VillageTests.RunVillageRegistryDesyncLiveChop), VillageTests.RunVillageRegistryDesyncLiveChop);
             RunTimed(nameof(VillageTests.RunVillageGuidanceHints), VillageTests.RunVillageGuidanceHints);
             RunTimed(nameof(VillageTests.RunSettlementGuidancePriority), VillageTests.RunSettlementGuidancePriority);
             RunTimed(nameof(VillageTests.RunSettlementDashboardFields), VillageTests.RunSettlementDashboardFields);
+            RunTimed(nameof(VillageTests.RunVillagePulseEvolvesDynamically), VillageTests.RunVillagePulseEvolvesDynamically);
+            RunTimed(nameof(VillageTests.RunVillageFavorAndContracts), VillageTests.RunVillageFavorAndContracts);
+            RunTimed(nameof(VillageTests.RunVillageFoundingCostIsExplicit), VillageTests.RunVillageFoundingCostIsExplicit);
+            RunTimed(nameof(VillageTests.RunBuildCatalogRecommendationsFollowVillageNeeds), VillageTests.RunBuildCatalogRecommendationsFollowVillageNeeds);
             RunTimed(nameof(VillageTests.RunJobAssignmentBlockedReasons), VillageTests.RunJobAssignmentBlockedReasons);
             RunTimed(nameof(VillageTests.RunVillagerActivityTextContext), VillageTests.RunVillagerActivityTextContext);
             RunTimed(nameof(VillageTests.RunRecruitPreviewBlockedReason), VillageTests.RunRecruitPreviewBlockedReason);
@@ -92,7 +103,11 @@ public static class IntegrationTestRunner
             RunTimed(nameof(VillageTests.RunAgentStateGuidanceParity), VillageTests.RunAgentStateGuidanceParity);
             RunTimed(nameof(VillageTests.RunVillageEventsNotifier), VillageTests.RunVillageEventsNotifier);
             RunTimed(nameof(VillageTests.RunStarvationConsequences), VillageTests.RunStarvationConsequences);
+            RunTimed(nameof(VillageTests.RunVillageOrganicFamilyGrowth), VillageTests.RunVillageOrganicFamilyGrowth);
             RunTimed(nameof(VillageTests.RunVillageRename), VillageTests.RunVillageRename);
+            RunTimed(nameof(VillageTests.RunVillageScreenOpenRelinksStarterCitizens), VillageTests.RunVillageScreenOpenRelinksStarterCitizens);
+            RunTimed(nameof(VillageTests.RunStarterSettlementSpawnsAssignedCitizens), VillageTests.RunStarterSettlementSpawnsAssignedCitizens);
+            RunTimed(nameof(VillageTests.RunVillagerPathfinderRoutesAroundObstacle), VillageTests.RunVillagerPathfinderRoutesAroundObstacle);
 
             using (var game = new AutonocraftGame(runTests: true))
             {
@@ -122,6 +137,7 @@ public static class IntegrationTestRunner
                 RunTimed(nameof(AnimalCombatTests.RunPlayerTakeDamage), () => AnimalCombatTests.RunPlayerTakeDamage(player));
                 RunTimed(nameof(AnimalCombatTests.RunEntityRaycast), () => AnimalCombatTests.RunEntityRaycast(world));
                 RunTimed(nameof(AnimalCombatTests.RunMeleeKillAnimal), () => AnimalCombatTests.RunMeleeKillAnimal(game, player, world));
+                RunTimed(nameof(SurvivalTests.RunNewPlayerStartsWithoutStarterItems), SurvivalTests.RunNewPlayerStartsWithoutStarterItems);
                 RunTimed(nameof(SurvivalTests.RunHungerDrain), () => SurvivalTests.RunHungerDrain(player));
                 RunTimed(nameof(SurvivalTests.RunEatFood), () => SurvivalTests.RunEatFood(player));
                 RunTimed(nameof(SurvivalTests.RunAnimalLoot), () => SurvivalTests.RunAnimalLoot(player, game.Animals, world));
@@ -130,6 +146,8 @@ public static class IntegrationTestRunner
                 RunTimed(nameof(SurvivalTests.RunHungerSaveRoundTrip), () => SurvivalTests.RunHungerSaveRoundTrip(game, player, world));
                 RunTimed(nameof(PhysicsTests.RunFallDamage), () => PhysicsTests.RunFallDamage(game, player, world));
                 RunTimed(nameof(InteractionTests.RunClickPriority), () => InteractionTests.RunClickPriority(game, player, world));
+                RunTimed(nameof(InteractionTests.RunLeafDecay), () => InteractionTests.RunLeafDecay(game, player, world));
+                RunTimed(nameof(InteractionTests.RunSaplingGrowth), () => InteractionTests.RunSaplingGrowth(game, player, world));
                 RunTimed(nameof(CraftingTests.RunSigilBenchActivation), () => CraftingTests.RunSigilBenchActivation(game, world));
                 RunTimed(nameof(CraftingTests.RunCruciblePlankRecipe), () => CraftingTests.RunCruciblePlankRecipe(game, player, world));
                 RunTimed(nameof(PhysicsTests.RunPassableBlocks), () => PhysicsTests.RunPassableBlocks(player, world));
@@ -153,6 +171,7 @@ public static class IntegrationTestRunner
                 RunTimed(nameof(VillageTests.RunVillageFoundAndRecruit), () => VillageTests.RunVillageFoundAndRecruit(game));
                 RunTimed(nameof(VillageTests.RunVillageSaveRoundTripV6), () => VillageTests.RunVillageSaveRoundTripV6(game));
                 RunTimed(nameof(VillageTests.RunVillageSaveRoundTripV7), () => VillageTests.RunVillageSaveRoundTripV7(game));
+                RunTimed(nameof(SnowSystemTests.RunSnowAccumulationAndMeltingTests), () => SnowSystemTests.RunSnowAccumulationAndMeltingTests(game.Session, player, world));
             }
 
             RunTimed(nameof(WorldGenTests.RunBiomeTreeSpecies), WorldGenTests.RunBiomeTreeSpecies);

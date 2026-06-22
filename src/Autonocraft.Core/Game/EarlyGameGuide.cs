@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Autonocraft.Domain.Core;
 using Autonocraft.Entities;
+using Autonocraft.Items;
 using Autonocraft.Village;
 
 namespace Autonocraft.Core
@@ -39,11 +40,11 @@ namespace Autonocraft.Core
                 case 0:
                     if (_reminderTimer <= 0f)
                     {
-                        showToast("Gather food or take rations at Town Heart. Press V for the Town Board.");
+                        showToast("Survival start: punch trees for logs, then craft planks and sticks before nightfall.");
                         _reminderTimer = 10f;
                     }
 
-                    if (villageScreenOpen)
+                    if (HasHarvestedWood(player))
                     {
                         player.Stats.EarlyGuideStage = 1;
                         _reminderTimer = 0f;
@@ -55,17 +56,17 @@ namespace Autonocraft.Core
                     {
                         if (player.Hunger < SurvivalConstants.MaxHunger * 0.5f)
                         {
-                            showToast("Hunt animals for raw meat, then cook at a Forge or take rations (V → Overview).");
+                            showToast("Food is the next risk: hunt animals for raw meat, then cook at a Forge when you can.");
                         }
                         else
                         {
-                            showToast("Open PEOPLE tab — assign LUMBER or BUILD so settlers work.");
+                            showToast("Craft a wood axe or sword, then gather food and shelter materials before night.");
                         }
 
                         _reminderTimer = 12f;
                     }
 
-                    if (AnyVillagerWorking(village, villagers))
+                    if (HasBasicSurvivalTool(player) || villageScreenOpen)
                     {
                         player.Stats.EarlyGuideStage = 2;
                         _reminderTimer = 0f;
@@ -75,11 +76,11 @@ namespace Autonocraft.Core
                 case 2:
                     if (_reminderTimer <= 0f)
                     {
-                        showToast("Press I for inventory — craft sticks, then a wood sword at the Bench (B for recipe book).");
+                        showToast("Press V at the Town Heart — assign LUMBER or BUILD so settlers help secure the village.");
                         _reminderTimer = 15f;
                     }
 
-                    if (HasFarmPlotQueued(village))
+                    if (AnyVillagerWorking(village, villagers))
                     {
                         player.Stats.EarlyGuideStage = 3;
                         _reminderTimer = 0f;
@@ -90,12 +91,12 @@ namespace Autonocraft.Core
                     if (!_firstNightToastShown && DayNightCycle.IsNight(timeOfDay))
                     {
                         _firstNightToastShown = true;
-                        showToast("Settlers sleep at night. Your food stock lasts ~6 days — queue a farm.");
+                        showToast("Night is dangerous outside. Build cover, keep food ready, and avoid prowling wolves.");
                     }
 
                     if (_reminderTimer <= 0f)
                     {
-                        showToast("Shift+click trees near your village to mark lumber. Recruit more workers when ready.");
+                        showToast("Queue a farm plot and keep gathering food. Rations are only for emergencies.");
                         _reminderTimer = 15f;
                     }
 
@@ -143,17 +144,22 @@ namespace Autonocraft.Core
             int stage = player.Stats.EarlyGuideStage;
             if (stage <= 0)
             {
-                return "Press V — take rations or open Town Board";
+                return "Punch trees for logs; craft planks, sticks, then tools";
             }
 
             if (player.Hunger < SurvivalConstants.MaxHunger * 0.5f)
             {
-                return "Hunt/cook food or take rations at Town Heart";
+                return "Hunt food; use Town Heart rations only in emergencies";
+            }
+
+            if (stage == 1)
+            {
+                return "Craft a wood axe or sword before nightfall";
             }
 
             if (stage == 2)
             {
-                return "Press I — craft sticks/planks, then tools at Bench";
+                return "Press V — assign settlers to Lumber or Build";
             }
 
             return SettlementGuidance.Compute(village, villagers, player.Position).Headline;
@@ -205,6 +211,65 @@ namespace Autonocraft.Core
             }
 
             return false;
+        }
+
+        private static bool HasHarvestedWood(Player player)
+        {
+            foreach (var stack in player.Hotbar)
+            {
+                if (stack.IsBlock() && IsWoodOrPlank(stack.BlockType))
+                {
+                    return true;
+                }
+            }
+
+            for (int i = 0; i < Player.StorageSlotCount; i++)
+            {
+                var stack = player.Storage.GetSlot(i);
+                if (stack.IsBlock() && IsWoodOrPlank(stack.BlockType))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool HasBasicSurvivalTool(Player player)
+        {
+            foreach (var stack in player.Hotbar)
+            {
+                if (IsBasicSurvivalTool(stack))
+                {
+                    return true;
+                }
+            }
+
+            for (int i = 0; i < Player.StorageSlotCount; i++)
+            {
+                if (IsBasicSurvivalTool(player.Storage.GetSlot(i)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsBasicSurvivalTool(ItemStack stack)
+        {
+            return stack.IsTool() &&
+                (stack.ToolId == ItemId.WoodAxe ||
+                 stack.ToolId == ItemId.WoodSword ||
+                 stack.ToolId == ItemId.WoodPickaxe ||
+                 stack.ToolId == ItemId.StoneAxe ||
+                 stack.ToolId == ItemId.StoneSword ||
+                 stack.ToolId == ItemId.StonePickaxe);
+        }
+
+        private static bool IsWoodOrPlank(BlockType blockType)
+        {
+            return blockType.IsLog() || blockType.IsPlank();
         }
     }
 }

@@ -26,6 +26,7 @@ namespace Autonocraft.Crafting
                 {
                     Id = "recipe:plank",
                     DisplayName = "Timber Split",
+                    GuideText = "Put 1 log in the 2x2 inventory grid to make starter planks.",
                     StationType = BlockType.StationBench,
                     Inputs = new[] { new CraftInput { ExactBlock = BlockType.OakLog, Count = 1 } },
                     Output = BlockType.OakPlank,
@@ -35,6 +36,7 @@ namespace Autonocraft.Crafting
                 {
                     Id = "recipe:sticks",
                     DisplayName = "Sticks",
+                    GuideText = "Stack 2 planks vertically to make sticks for every starter tool.",
                     StationType = BlockType.StationBench,
                     ShapedPattern = new[] { "P", "P" },
                     GridSize = CraftGridSize.TwoByTwo,
@@ -46,6 +48,7 @@ namespace Autonocraft.Crafting
                 {
                     Id = "recipe:sandstone",
                     DisplayName = "Sand Compression",
+                    GuideText = "Combine 3 sand into a sturdier building block.",
                     StationType = BlockType.StationBench,
                     Inputs = new[] { new CraftInput { ExactBlock = BlockType.Sand, Count = 3 } },
                     Output = BlockType.Sandstone,
@@ -71,6 +74,8 @@ namespace Autonocraft.Crafting
                 {
                     Id = "recipe:bread",
                     DisplayName = "Bake Bread",
+                    GuideText = "Craft 2 wheat into bread once farming starts.",
+                    UnlockHint = "Find or grow wheat, then discover stone crafting.",
                     StationType = BlockType.StationBench,
                     Inputs = new[] { new CraftInput { ExactBlock = BlockType.Wheat, Count = 2 } },
                     OutputKind = ItemKind.Food,
@@ -309,6 +314,7 @@ namespace Autonocraft.Crafting
                 {
                     Id = "recipe:station_smoker",
                     DisplayName = "Smoker",
+                    GuideText = "Build a smoker from 4 cobblestone and 2 wood for food work.",
                     StationType = BlockType.StationBench,
                     Inputs = new[]
                     {
@@ -322,6 +328,7 @@ namespace Autonocraft.Crafting
                 {
                     Id = "recipe:station_stonecutter",
                     DisplayName = "Stonecutter",
+                    GuideText = "Build a stonecutter from 3 cobblestone and 1 iron block.",
                     StationType = BlockType.StationBench,
                     Inputs = new[]
                     {
@@ -463,6 +470,8 @@ namespace Autonocraft.Crafting
             {
                 Id = id,
                 DisplayName = displayName,
+                GuideText = DescribeToolGuide(outputItem),
+                UnlockHint = DescribeToolUnlock(outputItem),
                 StationType = station,
                 ShapedPattern = shapedPattern,
                 GridSize = CraftGridSize.ThreeByThree,
@@ -555,6 +564,54 @@ namespace Autonocraft.Crafting
                 RequiresUnlock = requiresUnlock,
                 RequiresHeat = requiresHeat
             };
+        }
+
+        private static string DescribeToolGuide(ItemId outputItem)
+        {
+            string material = outputItem.ToString() switch
+            {
+                var name when name.StartsWith("Wood", StringComparison.Ordinal) => "planks",
+                var name when name.StartsWith("Stone", StringComparison.Ordinal) => "stone",
+                var name when name.StartsWith("Iron", StringComparison.Ordinal) => "iron blocks",
+                var name when name.StartsWith("Copper", StringComparison.Ordinal) => "copper blocks",
+                var name when name.StartsWith("Gold", StringComparison.Ordinal) => "gold blocks",
+                var name when name.StartsWith("Silver", StringComparison.Ordinal) => "silver blocks",
+                var name when name.StartsWith("Diamond", StringComparison.Ordinal) => "diamond blocks",
+                var name when name.StartsWith("Emerald", StringComparison.Ordinal) => "emerald blocks",
+                _ => "materials"
+            };
+
+            string tool = outputItem.ToString() switch
+            {
+                var name when name.EndsWith("Pickaxe", StringComparison.Ordinal) => "pickaxe",
+                var name when name.EndsWith("Axe", StringComparison.Ordinal) => "axe",
+                var name when name.EndsWith("Shovel", StringComparison.Ordinal) => "shovel",
+                var name when name.EndsWith("Sword", StringComparison.Ordinal) => "sword",
+                _ => "tool"
+            };
+
+            return $"Use the shown pattern with {material} and sticks on a crafting bench to make a {tool}.";
+        }
+
+        private static string DescribeToolUnlock(ItemId outputItem)
+        {
+            string name = outputItem.ToString();
+            if (name.StartsWith("Wood", StringComparison.Ordinal))
+            {
+                return string.Empty;
+            }
+
+            if (name.StartsWith("Stone", StringComparison.Ordinal))
+            {
+                return "Discover the workbench sigil to unlock stone tools.";
+            }
+
+            if (name.StartsWith("Iron", StringComparison.Ordinal))
+            {
+                return "Smelt iron ore into an iron block first.";
+            }
+
+            return "Refine the matching ore block first.";
         }
     }
 }

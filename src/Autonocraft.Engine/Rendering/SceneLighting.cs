@@ -18,11 +18,15 @@ namespace Autonocraft.Engine
         public Vector3 SunColor { get; init; }
         public Vector3 MoonColor { get; init; }
         public float FogMultiplier { get; init; }
+        public float CloudIntensity { get; init; }
+        public float RainIntensity { get; init; }
+        public float LightningIntensity { get; init; }
+        public float WindIntensity { get; init; }
 
         public bool SunEnabled => SunDirection.Y > 0.02f;
         public bool MoonEnabled => MoonDirection.Y > 0.02f;
 
-        public static SceneLighting FromTimeOfDay(float timeOfDay, BiomeType biome = BiomeType.Plains, float rainIntensity = 0f, float cloudIntensity = 0f, float lightningIntensity = 0f)
+        public static SceneLighting FromTimeOfDay(float timeOfDay, BiomeType biome = BiomeType.Plains, float rainIntensity = 0f, float cloudIntensity = 0f, float lightningIntensity = 0f, float windIntensity = 0f)
         {
             float sunAngle = DayNightCycle.WarpTimeForSun(timeOfDay) * MathF.PI * 2f;
             var sunDir = new Vector3(0f, MathF.Sin(sunAngle), MathF.Cos(sunAngle));
@@ -178,7 +182,11 @@ namespace Autonocraft.Engine
                 AmbientColor = ambient,
                 SunColor = sunColor,
                 MoonColor = moonColor,
-                FogMultiplier = fogMultiplier
+                FogMultiplier = fogMultiplier,
+                CloudIntensity = cloudIntensity,
+                RainIntensity = rainIntensity,
+                LightningIntensity = lightningIntensity,
+                WindIntensity = windIntensity
             };
         }
 

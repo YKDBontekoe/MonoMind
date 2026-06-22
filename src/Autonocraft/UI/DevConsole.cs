@@ -5,6 +5,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Autonocraft.Core;
 using Autonocraft.Engine;
+using Autonocraft.UI.Menu;
 using DevCommands = Autonocraft.Core.DevCommands.DevCommandRouter;
 
 namespace Autonocraft.UI
@@ -83,17 +84,9 @@ namespace Autonocraft.UI
                 return;
             }
 
-            foreach (Keys key in Enum.GetValues<Keys>())
+            if (TextInputKeys.AppendPressedCharacters(kb, prevKb, ref _input, int.MaxValue, TextInputCharacterSet.Console))
             {
-                if (!kb.IsKeyDown(key) || prevKb.IsKeyDown(key))
-                    continue;
-
-                char? c = KeyToChar(key, kb);
-                if (c.HasValue)
-                {
-                    _input += c.Value;
-                    _historyIndex = -1;
-                }
+                _historyIndex = -1;
             }
         }
 
@@ -175,48 +168,5 @@ namespace Autonocraft.UI
             _input = _historyIndex >= _history.Count ? string.Empty : _history[_historyIndex];
         }
 
-        private static char? KeyToChar(Keys key, KeyboardState kb)
-        {
-            bool shift = kb.IsKeyDown(Keys.LeftShift) || kb.IsKeyDown(Keys.RightShift);
-
-            if (key >= Keys.A && key <= Keys.Z)
-                return (char)((shift ? 'A' : 'a') + (key - Keys.A));
-
-            if (key >= Keys.D0 && key <= Keys.D9)
-            {
-                if (!shift)
-                    return (char)('0' + (key - Keys.D0));
-
-                return key switch
-                {
-                    Keys.D1 => '!',
-                    Keys.D2 => '@',
-                    Keys.D3 => '#',
-                    Keys.D4 => '$',
-                    Keys.D5 => '%',
-                    Keys.D6 => '^',
-                    Keys.D7 => '&',
-                    Keys.D8 => '*',
-                    Keys.D9 => '(',
-                    Keys.D0 => ')',
-                    _ => null
-                };
-            }
-
-            if (key >= Keys.NumPad0 && key <= Keys.NumPad9)
-                return (char)('0' + (key - Keys.NumPad0));
-
-            return key switch
-            {
-                Keys.Space => ' ',
-                Keys.OemPeriod => shift ? '>' : '.',
-                Keys.OemComma => shift ? '<' : ',',
-                Keys.OemMinus => shift ? '_' : '-',
-                Keys.OemPlus => shift ? '+' : '=',
-                Keys.OemQuestion => shift ? '?' : '/',
-                Keys.OemSemicolon => shift ? ':' : ';',
-                _ => null
-            };
-        }
     }
 }

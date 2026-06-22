@@ -12,8 +12,8 @@ namespace Autonocraft.UI
 {
     public sealed class RecipeBookPanel
     {
-        private const float RowHeight = 28f;
-        private const float PanelWidth = 260f;
+        private const float RowHeight = 54f;
+        private const float PanelWidth = 340f;
 
         private readonly UiRenderer _ui;
         private int _hoveredIndex = -1;
@@ -41,6 +41,7 @@ namespace Autonocraft.UI
         public void Update(
             Rectangle panelRect,
             IReadOnlyList<CraftRecipe> recipes,
+            DiscoveryJournal journal,
             Player player,
             CraftGridSize gridSize,
             MouseState mouse,
@@ -92,7 +93,8 @@ namespace Autonocraft.UI
                 }
 
                 _hoveredIndex = recipeIndex;
-                if (mouse.LeftButton == ButtonState.Pressed && prevMouse.LeftButton == ButtonState.Released)
+                bool unlocked = !recipes[recipeIndex].RequiresUnlock || journal.IsUnlocked(recipes[recipeIndex].Id);
+                if (unlocked && mouse.LeftButton == ButtonState.Pressed && prevMouse.LeftButton == ButtonState.Released)
                 {
                     _clickedIndex = recipeIndex;
                     _clickedRecipe = recipes[recipeIndex];
@@ -137,7 +139,7 @@ namespace Autonocraft.UI
                 }
 
                 var recipe = recipes[recipeIndex];
-                bool unlocked = journal.IsUnlocked(recipe.Id);
+                bool unlocked = !recipe.RequiresUnlock || journal.IsUnlocked(recipe.Id);
                 bool craftable = unlocked && RecipeBookResolver.CanCraftWithInventory(recipe, gridSize, inventory);
                 bool hovered = _hoveredIndex == recipeIndex;
 
@@ -169,20 +171,28 @@ namespace Autonocraft.UI
 
                 _ui.DrawPanel(rowX, rowY, rowW, rowH - 2f, rowFill, rowBorder, borderAlpha: 0.85f, alpha: alpha);
 
-                string status = craftable ? "●" : unlocked ? "○" : "?";
+                string status = craftable ? "OK" : unlocked ? "--" : "LOCK";
                 Color statusColor = craftable
                     ? UiTheme.Success
                     : unlocked
                         ? UiTheme.Subtitle
                         : UiTheme.Hint;
-                _ui.DrawString(status, rowX + 8f, rowY + 4f, layout.S(UiTheme.FontBody), statusColor, alpha, semiBold: true);
+                _ui.DrawString(status, rowX + 8f, rowY + 6f, layout.S(UiTheme.FontCaption), statusColor, alpha, semiBold: true);
 
                 string label = unlocked ? recipe.DisplayName : "???";
-                _ui.DrawString(label, rowX + 24f, rowY + 5f, layout.S(UiTheme.FontBody), textColor, alpha,
+                _ui.DrawString(label, rowX + 48f, rowY + 5f, layout.S(UiTheme.FontBody), textColor, alpha,
                     semiBold: craftable);
+
+                string output = RecipeBookResolver.DescribeOutput(recipe);
+                _ui.DrawString(Truncate(output, 30), rowX + rowW - layout.S(120f), rowY + 6f,
+                    layout.S(UiTheme.FontCaption), unlocked ? UiTheme.Subtitle : UiTheme.Hint, alpha);
+
+                string detail = RecipeBookResolver.GetAvailabilityText(recipe, gridSize, journal, inventory);
+                _ui.DrawString(Truncate(detail, 48), rowX + 12f, rowY + 27f,
+                    layout.S(UiTheme.FontCaption), craftable ? UiTheme.Success : UiTheme.Hint, alpha);
             }
 
-            _ui.DrawString("B toggle · click to fill grid", panelRect.X + 14f, panelRect.Bottom - 22f,
+            _ui.DrawString("B toggle | click a ready recipe to fill the grid", panelRect.X + 14f, panelRect.Bottom - 22f,
                 layout.S(UiTheme.FontCaption), UiTheme.Hint, alpha);
         }
 
@@ -198,6 +208,16 @@ namespace Autonocraft.UI
             float y = Math.Clamp(anchorPanelY, layout.Padding, Math.Max(layout.Padding, layout.Height - height - layout.Padding));
             height = Math.Min(height, layout.Height - y - layout.Padding);
             return new Rectangle((int)x, (int)y, (int)width, (int)Math.Max(layout.S(220f), height));
+        }
+
+        private static string Truncate(string text, int maxChars)
+        {
+            if (text.Length <= maxChars)
+            {
+                return text;
+            }
+
+            return text.Substring(0, Math.Max(0, maxChars - 3)) + "...";
         }
     }
 }

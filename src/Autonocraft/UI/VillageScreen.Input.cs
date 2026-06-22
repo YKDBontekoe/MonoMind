@@ -26,13 +26,26 @@ namespace Autonocraft.UI
             float cardW = layout.S(PanelWidth) - layout.S(64f);
             float cardY = y - _buildScroll;
             int buildIndex = 0;
-            foreach (var blueprint in PlayerStructureRegistry.All)
+            if (_village == null)
             {
-                if (blueprint.Id == "town_heart")
-                {
-                    continue;
-                }
+                return;
+            }
 
+            var panelContext = new VillagePanelContext
+            {
+                Ui = _ui,
+                UiLayout = layout.Ui,
+                Village = _village,
+                ViewModel = _viewModel,
+                Villagers = _villagers,
+                PlayerPosition = _playerPos,
+                PlayerCreative = _playerCreative,
+                PlayWithAi = _playWithAi,
+                PlayerPayer = _playerPayer
+            };
+
+            foreach (var blueprint in BuildPanel.GetOrderedBlueprints(panelContext))
+            {
                 HitRect(layout.Left + layout.S(12f), cardY, cardW, cardH, 20 + buildIndex, mouse);
                 cardY += cardH + layout.S(8f);
                 buildIndex++;
@@ -97,15 +110,17 @@ namespace Autonocraft.UI
 
             if (_hoveredButton == 10)
             {
-                if (CountDisplayedCitizens() > 0 && _village!.CanRecruit(_villagers, _playerCreative))
-                {
-                    RecruitRequested = true;
-                }
-                else if (CanSummonSettlers())
+                RefreshVillageState();
+                int citizens = CountDisplayedCitizens();
+                if (citizens <= 0)
                 {
                     SummonSettlersRequested = true;
                 }
-                else if (CountDisplayedCitizens() > 0)
+                else if (_village!.CanRecruit(_villagers, _playerCreative))
+                {
+                    RecruitRequested = true;
+                }
+                else
                 {
                     RecruitRequested = true;
                 }
@@ -147,7 +162,25 @@ namespace Autonocraft.UI
             if (_hoveredButton >= 20)
             {
                 int buildIndex = 0;
-                foreach (var blueprint in PlayerStructureRegistry.All)
+                if (_village == null)
+                {
+                    return;
+                }
+
+                var panelContext = new VillagePanelContext
+                {
+                    Ui = _ui,
+                    UiLayout = new UiLayout(new Viewport()),
+                    Village = _village,
+                    ViewModel = _viewModel,
+                    Villagers = _villagers,
+                    PlayerPosition = _playerPos,
+                    PlayerCreative = _playerCreative,
+                    PlayWithAi = _playWithAi,
+                    PlayerPayer = _playerPayer
+                };
+
+                foreach (var blueprint in BuildPanel.GetOrderedBlueprints(panelContext))
                 {
                     if (blueprint.Id == "town_heart")
                     {
@@ -211,6 +244,25 @@ namespace Autonocraft.UI
                     int goalId = _hoveredButton - 100;
                     _village!.Scheduler.RemoveGoal(goalId);
                     return;
+                }
+            }
+            else if (_hoveredButton >= 81 && _hoveredButton <= 83)
+            {
+                int index = _hoveredButton - 81;
+                int current = 0;
+                foreach (var contract in VillageAgentContracts.Suggest(_village!, _villagers))
+                {
+                    if (current == index)
+                    {
+                        bool success = VillageAgentContracts.TryAccept(_village!, _villagers, contract.Id, out string message);
+                        AssignSuccess = success;
+                        AssignFeedback = message;
+                        _actionFeedbackFrames = 180;
+                        RefreshVillageState();
+                        return;
+                    }
+
+                    current++;
                 }
             }
         }

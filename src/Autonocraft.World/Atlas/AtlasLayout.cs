@@ -124,6 +124,11 @@ namespace Autonocraft.World
             {
                 typeName = typeName.Substring(0, typeName.Length - 4);
             }
+            // SnowLayer1..9 all use the Snow texture
+            if (typeName.StartsWith("SnowLayer"))
+            {
+                typeName = "Snow";
+            }
 
             if (!BlockFaces.TryGetValue(typeName, out var mapping))
             {

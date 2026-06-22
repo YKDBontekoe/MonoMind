@@ -10,6 +10,46 @@ namespace Autonocraft.Engine
     /// </summary>
     internal static partial class ProceduralTextureSynth
     {
+        private static void ApplySoftBlockLighting(TileImage image, int topLight, int bottomShade)
+        {
+            int size = image.Size;
+            for (int y = 0; y < size; y++)
+            {
+                float vertical = y / (float)Math.Max(1, size - 1);
+                int shade = (int)MathF.Round(topLight * (1f - vertical) - bottomShade * vertical);
+                for (int x = 0; x < size; x++)
+                {
+                    float leftEdge = 1f - x / (float)Math.Max(1, size - 1);
+                    int edgeShade = (int)MathF.Round(leftEdge * 4f - (1f - leftEdge) * 5f);
+                    int idx = y * size + x;
+                    image.Pixels[idx] = Lighten(image.Pixels[idx], shade + edgeShade);
+                }
+            }
+        }
+
+        private static void AddFineMaterialNoise(TileImage image, string name, int amount, int salt)
+        {
+            for (int y = 0; y < image.Size; y++)
+            {
+                for (int x = 0; x < image.Size; x++)
+                {
+                    int n = (Noise(name, x, y, salt) % (amount * 2 + 1)) - amount;
+                    int idx = y * image.Size + x;
+                    image.Pixels[idx] = Lighten(image.Pixels[idx], n);
+                }
+            }
+        }
+
+        private static void DrawWrappedLine(TileImage image, int x0, int y0, int x1, int y1, Color color, int width)
+        {
+            int steps = Math.Max(Math.Abs(x1 - x0), Math.Abs(y1 - y0));
+            for (int i = 0; i <= steps; i++)
+            {
+                int x = x0 + (x1 - x0) * i / Math.Max(1, steps);
+                int y = y0 + (y1 - y0) * i / Math.Max(1, steps);
+                FillRectWrapped(image, x, y, width, width, color);
+            }
+        }
 
         public static Color[] Surface(int tileSize, string name, Color[] palette, int scatterCount = 18)
         {
@@ -21,19 +61,44 @@ namespace Autonocraft.Engine
 
         public static Color[] GrassTop(int tileSize, string name, Color[] palette)
         {
-            var grout = new Color(24, 68, 22);
-            var image = new TileImage(Voronoi(tileSize, name, palette, grout, 18, 2.4f), tileSize);
+            var basePalette = new[]
+            {
+                Darken(palette[0], 4),
+                palette[Math.Min(1, palette.Length - 1)],
+                palette[Math.Min(2, palette.Length - 1)],
+                Lighten(palette[Math.Min(3, palette.Length - 1)], 4)
+            };
+            var image = new TileImage(PixelCluster(tileSize, name, basePalette[1], basePalette, 4, 12), tileSize);
 
-            // Scatter lush grass blade clumps
-            for (int i = 0; i < 35; i++)
+            for (int i = 0; i < 16; i++)
+            {
+                int cx = Noise(name, i, 13, 17) % tileSize;
+                int cy = Noise(name, i, 19, 23) % tileSize;
+                int rx = 8 + Noise(name, i, 29, 31) % 12;
+                int ry = 5 + Noise(name, i, 37, 41) % 10;
+                Color tuft = basePalette[Noise(name, i, 43, 47) % basePalette.Length];
+                FillEllipse(image, cx - rx, cy - ry, cx + rx, cy + ry, Darken(tuft, 8));
+                FillEllipse(image, cx - rx + 2, cy - ry + 1, cx + rx - 3, cy + ry - 2, Lighten(tuft, 6));
+            }
+
+            for (int i = 0; i < 70; i++)
             {
                 int cx = Noise(name, i, 3, 7) % tileSize;
                 int cy = Noise(name, i, 5, 9) % tileSize;
                 Color bladeColor = palette[Noise(name, i, 11, 13) % palette.Length];
-                SetPixelWrapped(image, cx, cy, Lighten(bladeColor, 12));
-                SetPixelWrapped(image, cx - 1, cy - 1, bladeColor);
-                SetPixelWrapped(image, cx + 1, cy - 1, bladeColor);
-                SetPixelWrapped(image, cx, cy + 1, Darken(bladeColor, 8));
+                int lean = (Noise(name, i, 53, 59) % 7) - 3;
+                int len = 4 + Noise(name, i, 61, 67) % 8;
+                DrawWrappedLine(image, cx, cy + len / 2, cx + lean, cy - len, Lighten(bladeColor, 10), 1);
+                SetPixelWrapped(image, cx + lean, cy - len, Lighten(bladeColor, 22));
+            }
+
+            for (int i = 0; i < 10; i++)
+            {
+                int x0 = Noise(name, i, 67, 71) % tileSize;
+                int y0 = Noise(name, i, 73, 79) % tileSize;
+                int x1 = x0 + 18 + Noise(name, i, 83, 89) % 26;
+                int y1 = y0 + (Noise(name, i, 97, 101) % 13) - 6;
+                DrawWrappedLine(image, x0, y0, x1, y1, Darken(basePalette[0], 12), 1);
             }
 
             // Scatter small colorful flowers
@@ -52,6 +117,8 @@ namespace Autonocraft.Engine
                 SetPixelWrapped(image, cx, cy + 1, petal);
             }
 
+            AddFineMaterialNoise(image, name, 5, 149);
+            ApplySoftBlockLighting(image, 10, 8);
             return image.Pixels;
         }
 
@@ -107,39 +174,56 @@ namespace Autonocraft.Engine
 
         public static Color[] Dirt(int tileSize, string name, Color[] palette)
         {
-            Color grout = Darken(palette[0], 20);
-            var image = new TileImage(Voronoi(tileSize, name, palette, grout, 18, 2.4f), tileSize);
+            var image = new TileImage(PixelCluster(tileSize, name, palette[1], palette, 4, 14), tileSize);
 
-            // Draw organic dirt clods
-            for (int i = 0; i < 12; i++)
+            for (int band = 0; band < 7; band++)
             {
-                int cx = Noise(name, i, 31, 33) % tileSize;
-                int cy = Noise(name, i, 35, 37) % tileSize;
-                int rx = 4 + Noise(name, i, 39, 41) % 5;
-                int ry = 3 + Noise(name, i, 43, 47) % 4;
-                Color clodColor = Darken(palette[0], 14 + i % 6);
-                FillEllipse(image, cx - rx, cy - ry, cx + rx, cy + ry, clodColor);
-                // Highlight on top of clod
-                for (int hx = cx - rx + 1; hx < cx + rx; hx++)
+                int y = band * tileSize / 7 + (Noise(name, band, 3, 5) % 9) - 4;
+                Color layer = band % 2 == 0 ? Darken(palette[0], 16) : Lighten(palette[Math.Min(2, palette.Length - 1)], 5);
+                int wave = 10 + Noise(name, band, 7, 11) % 18;
+                int lastX = -8;
+                int lastY = y;
+                for (int x = -8; x <= tileSize + 8; x += 8)
                 {
-                    SetPixel(image, hx, cy - ry + 1, Lighten(clodColor, 8));
+                    int yy = y + (int)MathF.Round(MathF.Sin((x + band * 17) / (float)wave) * 3f);
+                    DrawLine(image, lastX, lastY, x, yy, layer, band % 3 == 0 ? 2 : 1);
+                    lastX = x;
+                    lastY = yy;
                 }
             }
 
-            // Scatter some small gray/beige pebbles
-            Color[] pebbleColors = { new Color(140, 135, 130), new Color(165, 155, 145) };
-            for (int i = 0; i < 15; i++)
+            for (int i = 0; i < 14; i++)
+            {
+                int cx = Noise(name, i, 31, 33) % tileSize;
+                int cy = Noise(name, i, 35, 37) % tileSize;
+                int rx = 5 + Noise(name, i, 39, 41) % 9;
+                int ry = 4 + Noise(name, i, 43, 47) % 7;
+                Color clodColor = Darken(palette[Noise(name, i, 49, 51) % palette.Length], 12);
+                FillEllipse(image, cx - rx, cy - ry, cx + rx, cy + ry, Darken(clodColor, 8));
+                FillEllipse(image, cx - rx + 1, cy - ry + 1, cx + rx - 2, cy + ry - 2, Lighten(clodColor, 8));
+            }
+
+            Color[] pebbleColors = { new Color(118, 112, 104), new Color(152, 142, 130), new Color(96, 88, 78) };
+            for (int i = 0; i < 24; i++)
             {
                 int px = Noise(name, i, 53, 59) % (tileSize - 4);
                 int py = Noise(name, i, 61, 67) % (tileSize - 4);
-                Color pebble = pebbleColors[i % 2];
-                // 2x2 pebble with a tiny shadow and highlight
-                SetPixel(image, px, py, pebble);
-                SetPixel(image, px + 1, py, Lighten(pebble, 14));
-                SetPixel(image, px, py + 1, Darken(pebble, 10));
-                SetPixel(image, px + 1, py + 1, Darken(pebble, 16));
+                Color pebble = pebbleColors[Noise(name, i, 69, 71) % pebbleColors.Length];
+                FillEllipse(image, px - 1, py - 1, px + 3, py + 2, Darken(pebble, 20));
+                FillEllipse(image, px, py - 1, px + 2, py + 1, pebble);
+                SetPixel(image, px, py - 1, Lighten(pebble, 18));
             }
 
+            for (int i = 0; i < 11; i++)
+            {
+                int x0 = Noise(name, i, 71, 73) % tileSize;
+                int y0 = Noise(name, i, 79, 83) % tileSize;
+                int len = 10 + Noise(name, i, 89, 97) % 22;
+                DrawLine(image, x0, y0, x0 + len, y0 + (Noise(name, i, 101, 103) % 7) - 3, Darken(palette[0], 34), 1);
+            }
+
+            AddFineMaterialNoise(image, name, 6, 151);
+            ApplySoftBlockLighting(image, 8, 12);
             return image.Pixels;
         }
 
@@ -234,15 +318,40 @@ namespace Autonocraft.Engine
 
         public static Color[] Stone(int tileSize, string name, Color[] palette, Color grout)
         {
-            var image = new TileImage(Voronoi(tileSize, name, palette, grout, 18, 2.4f), tileSize);
-
-            for (int i = 0; i < 8; i++)
+            var image = new TileImage(FillSolid(tileSize, palette[Math.Min(1, palette.Length - 1)]), tileSize);
+            for (int y = 0; y < tileSize; y++)
             {
-                int x0 = Noise(name, i, 3, 17) % (tileSize - 30) + 15;
-                int y0 = Noise(name, i, 7, 19) % (tileSize - 30) + 15;
-                int len = 12 + Noise(name, i, 11, 23) % 16;
+                for (int x = 0; x < tileSize; x++)
+                {
+                    int band = y / Math.Max(1, tileSize / 8);
+                    Color basePx = palette[(band + Noise(name, x / 18, y / 18, 7)) % palette.Length];
+                    int grain = (Noise(name, x / 3, y / 3, 11) % 13) - 6;
+                    image.Pixels[y * tileSize + x] = Lighten(basePx, grain);
+                }
+            }
+
+            for (int band = 1; band < 8; band++)
+            {
+                int y = band * tileSize / 8 + (Noise(name, band, 5, 9) % 11) - 5;
+                int lastX = -6;
+                int lastY = y;
+                for (int x = -6; x <= tileSize + 6; x += 9)
+                {
+                    int yy = y + (Noise(name, x, band, 17) % 7) - 3;
+                    DrawLine(image, lastX, lastY, x, yy, Darken(grout, 10), 2);
+                    DrawLine(image, lastX, lastY - 1, x, yy - 1, Lighten(palette[Math.Min(2, palette.Length - 1)], 16), 1);
+                    lastX = x;
+                    lastY = yy;
+                }
+            }
+
+            for (int i = 0; i < 14; i++)
+            {
+                int x0 = Noise(name, i, 3, 17) % (tileSize - 24) + 12;
+                int y0 = Noise(name, i, 7, 19) % (tileSize - 24) + 12;
+                int len = 9 + Noise(name, i, 11, 23) % 22;
                 int dx = Noise(name, i, 13, 29) % 2 == 0 ? len : -len;
-                int dy = 4 + Noise(name, i, 17, 31) % 8;
+                int dy = 3 + Noise(name, i, 17, 31) % 11;
 
                 Color crackColor = Darken(grout, 36);
                 Color highlightColor = Lighten(palette[2], 24);
@@ -251,6 +360,17 @@ namespace Autonocraft.Engine
                 DrawLine(image, x0, y0 - 1, x0 + dx, y0 + dy - 1, highlightColor, 1);
             }
 
+            for (int i = 0; i < 30; i++)
+            {
+                int x = Noise(name, i, 41, 43) % tileSize;
+                int y = Noise(name, i, 47, 53) % tileSize;
+                Color fleck = palette[Noise(name, i, 59, 61) % palette.Length];
+                FillRect(image, x, y, 1 + Noise(name, i, 67, 71) % 3, 1, Lighten(fleck, 14));
+                SetPixel(image, x + 1, y + 1, Darken(fleck, 18));
+            }
+
+            AddFineMaterialNoise(image, name, 4, 153);
+            ApplySoftBlockLighting(image, 9, 13);
             return image.Pixels;
         }
 
@@ -316,26 +436,83 @@ namespace Autonocraft.Engine
 
         public static Color[] Leaves(int tileSize, string name, Color[] palette)
         {
-            Color grout = Darken(palette[0], 24);
-            var image = new TileImage(Voronoi(tileSize, name, palette, grout, 18, 2.4f), tileSize);
-            ScatterRects(image, name, palette, 90, 5);
-            ScatterRects(image, name + "_hi", palette.Select(c => Lighten(c, 32)).ToArray(), 38, 3);
-            ScatterRects(image, name + "_dk", palette.Select(c => Darken(c, 28)).ToArray(), 22, 4);
+            var basePalette = palette
+                .Concat(palette.Select(c => Darken(c, 18)))
+                .Concat(palette.Select(c => Lighten(c, 6)))
+                .ToArray();
+            var image = new TileImage(PixelCluster(tileSize, name, palette[1], basePalette, 4, 14), tileSize);
+
+            for (int i = 0; i < 54; i++)
+            {
+                int cx = Noise(name, i, 3, 5) % tileSize;
+                int cy = Noise(name, i, 7, 11) % tileSize;
+                int rx = 4 + Noise(name, i, 13, 17) % 9;
+                int ry = 3 + Noise(name, i, 19, 23) % 8;
+                Color leaf = palette[Noise(name, i, 29, 31) % palette.Length];
+                Color shadow = Darken(leaf, 28);
+                Color mid = i % 3 == 0 ? Lighten(leaf, 5) : leaf;
+                FillEllipse(image, cx - rx, cy - ry + 1, cx + rx, cy + ry + 1, shadow);
+                FillEllipse(image, cx - rx + 1, cy - ry, cx + rx - 1, cy + ry - 2, mid);
+
+                int tilt = (Noise(name, i, 37, 41) % 9) - 4;
+                DrawLine(image, cx - rx / 2, cy, cx + rx / 2, cy + tilt / 2, Darken(leaf, 16), 1);
+                if ((Noise(name, i, 43, 47) & 1) == 0)
+                {
+                    DrawLine(image, cx, cy, cx + tilt, cy - ry / 2, Lighten(leaf, 10), 1);
+                }
+
+                SetPixelWrapped(image, cx - rx / 3, cy - ry / 3, Lighten(leaf, 16));
+            }
+
+            for (int i = 0; i < 22; i++)
+            {
+                int x = Noise(name, i, 53, 59) % tileSize;
+                int y = Noise(name, i, 61, 67) % tileSize;
+                Color pocket = Darken(palette[Noise(name, i, 71, 73) % palette.Length], 38);
+                FillEllipse(image, x - 2, y - 1, x + 3, y + 2, pocket);
+                SetPixelWrapped(image, x + 1, y - 1, Lighten(pocket, 18));
+            }
+
+            ScatterRects(image, name + "_shadow", palette.Select(c => Darken(c, 32)).ToArray(), 20, 2);
+            ScatterRects(image, name + "_spark", palette.Select(c => Lighten(c, 14)).ToArray(), 12, 1);
+            AddFineMaterialNoise(image, name, 3, 157);
+            ApplySoftBlockLighting(image, 3, 12);
             return image.Pixels;
         }
 
         public static Color[] Sand(int tileSize, string name, Color[] palette)
         {
-            Color grout = Darken(palette[0], 14);
-            var image = new TileImage(Voronoi(tileSize, name, palette, grout, 22, 1.8f), tileSize);
-            ScatterRects(image, name, palette, 30, 2);
-            for (int i = 0; i < 18; i++)
+            var image = new TileImage(PixelCluster(tileSize, name, palette[1], palette, 4, 8), tileSize);
+            for (int i = 0; i < 12; i++)
             {
-                int x = Noise(name, i, 3, 5) % tileSize;
-                int y = Noise(name, i, 7, 9) % tileSize;
-                SetPixel(image, x, y, Lighten(palette[2], 20));
+                int y = i * tileSize / 12 + (Noise(name, i, 3, 5) % 9) - 4;
+                int amplitude = 3 + Noise(name, i, 7, 11) % 5;
+                int period = 20 + Noise(name, i, 13, 17) % 24;
+                int lastX = -8;
+                int lastY = y;
+                for (int x = -8; x <= tileSize + 8; x += 8)
+                {
+                    int yy = y + (int)MathF.Round(MathF.Sin((x + i * 13) / (float)period) * amplitude);
+                    DrawLine(image, lastX, lastY, x, yy, i % 2 == 0 ? Darken(palette[0], 9) : Lighten(palette[2], 9), 1);
+                    lastX = x;
+                    lastY = yy;
+                }
             }
 
+            for (int i = 0; i < 34; i++)
+            {
+                int x = Noise(name, i, 19, 23) % tileSize;
+                int y = Noise(name, i, 29, 31) % tileSize;
+                Color grain = palette[Noise(name, i, 37, 41) % palette.Length];
+                SetPixel(image, x, y, Lighten(grain, 13));
+                if ((Noise(name, i, 43, 47) & 1) == 0)
+                {
+                    SetPixel(image, x + 1, y, Darken(grain, 9));
+                }
+            }
+
+            AddFineMaterialNoise(image, name, 3, 159);
+            ApplySoftBlockLighting(image, 11, 9);
             return image.Pixels;
         }
 

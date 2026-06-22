@@ -29,8 +29,7 @@ namespace Autonocraft.World.Generation.Trees
                     continue;
                 }
 
-                int startY = node + 2;
-                float angle = species.BranchAngle * (nodeHash % 2 == 0 ? 1f : -1f) * (MathF.PI / 180f);
+                int startY = Math.Max(3, trunkTop - node);
                 int branchLength = 2 + nodeHash % 2;
                 if (species.Shape == TreeShapeKind.Round || species.Shape == TreeShapeKind.MultiTrunk)
                 {
@@ -44,18 +43,34 @@ namespace Autonocraft.World.Generation.Trees
 
                 int dx = 0;
                 int dz = 0;
+                (int x, int z) direction = ResolveDirection(nodeHash);
                 for (int step = 1; step <= branchLength; step++)
                 {
-                    dx += (int)MathF.Round(MathF.Cos(angle));
-                    dz += (int)MathF.Round(MathF.Sin(angle));
+                    dx += direction.x;
+                    dz += direction.z;
                     if (step < branchLength)
                     {
-                        voxels.Add(new TreeVoxel(dx, startY + step / 2, dz, species.Log));
+                        voxels.Add(new TreeVoxel(dx, startY + step / 3, dz, species.Log));
                     }
                 }
 
                 AddLeafCluster(voxels, species, dx, startY + branchLength / 2, dz, scale);
             }
+        }
+
+        private static (int x, int z) ResolveDirection(int hash)
+        {
+            return (hash % 8) switch
+            {
+                0 => (1, 0),
+                1 => (1, 1),
+                2 => (0, 1),
+                3 => (-1, 1),
+                4 => (-1, 0),
+                5 => (-1, -1),
+                6 => (0, -1),
+                _ => (1, -1)
+            };
         }
 
         private static void AddLeafCluster(List<TreeVoxel> voxels, TreeSpecies species, int cx, int cy, int cz, float scale)

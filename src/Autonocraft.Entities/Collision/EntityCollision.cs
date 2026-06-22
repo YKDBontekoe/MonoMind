@@ -34,7 +34,7 @@ namespace Autonocraft.Entities
 
         private static float GetColliderTopY(int blockY, BlockType block)
         {
-            return blockY + (block.IsSlab() ? 0.5f : 1f);
+            return blockY + block.GetBlockHeight();
         }
 
         private static bool IntersectsCollider(

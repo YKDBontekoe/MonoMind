@@ -43,7 +43,7 @@ namespace Autonocraft.Engine
 
     public sealed class ParticleSystem
     {
-        public const int MaxParticles = 512;
+        public const int MaxParticles = 1500;
 
         private readonly Particle[] _particles = new Particle[MaxParticles];
 
@@ -568,31 +568,6 @@ namespace Autonocraft.Engine
 
         private void UpdateAmbientCore(float deltaTime, Vector3 playerPos, VoxelWorld world, float timeOfDay, WeatherSystem weather)
         {
-            if (weather.RainIntensity > 0.01f)
-            {
-                int spawnCount = (int)(weather.RainIntensity * 80f * deltaTime);
-                if (spawnCount < 1 && _ambientRng.NextDouble() < (weather.RainIntensity * 0.8f))
-                {
-                    spawnCount = 1;
-                }
-                for (int i = 0; i < spawnCount; i++)
-                {
-                    SpawnWeatherParticle(playerPos, world, weather.RainIntensity);
-                }
-            }
-
-            _ambientSpawnCooldown -= deltaTime;
-            if (_ambientSpawnCooldown > 0f)
-            {
-                return;
-            }
-
-            _ambientSpawnCooldown = 0.1f;
-
-            var biome = world.SampleBiome((int)playerPos.X, (int)playerPos.Z).Primary;
-            bool isNight = DayNightCycle.IsNight(timeOfDay);
-            bool isDay = DayNightCycle.IsBroadDaytime(timeOfDay);
-
             int px = (int)MathF.Floor(playerPos.X);
             int py = (int)MathF.Floor(playerPos.Y);
             int pz = (int)MathF.Floor(playerPos.Z);
@@ -608,6 +583,47 @@ namespace Autonocraft.Engine
                 }
             }
             isOutdoors = airCount >= 8;
+
+            if (isOutdoors && weather.RainIntensity > 0.01f)
+            {
+                float multiplier = 110f;
+                if (weather.CurrentWeather == WeatherKind.Storm || weather.TargetWeather == WeatherKind.Storm)
+                {
+                    multiplier = 180f;
+                }
+                else if (weather.CurrentWeather == WeatherKind.Thunderstorm || weather.TargetWeather == WeatherKind.Thunderstorm)
+                {
+                    multiplier = 140f;
+                }
+
+                if (GetAmbientTemperature(world, playerPos, timeOfDay, weather) < 0.0f)
+                {
+                    multiplier *= 0.45f;
+                }
+
+                int spawnCount = Math.Min(4, (int)(weather.RainIntensity * multiplier * deltaTime));
+                if (spawnCount < 1 && _ambientRng.NextDouble() < (weather.RainIntensity * 0.75f))
+                {
+                    spawnCount = 1;
+                }
+
+                for (int i = 0; i < spawnCount; i++)
+                {
+                    SpawnWeatherParticle(playerPos, world, weather, timeOfDay);
+                }
+            }
+
+            _ambientSpawnCooldown -= deltaTime;
+            if (_ambientSpawnCooldown > 0f)
+            {
+                return;
+            }
+
+            _ambientSpawnCooldown = 0.1f;
+
+            var biome = world.SampleBiome((int)playerPos.X, (int)playerPos.Z).Primary;
+            bool isNight = DayNightCycle.IsNight(timeOfDay);
+            bool isDay = DayNightCycle.IsBroadDaytime(timeOfDay);
 
             if (!isOutdoors)
             {
@@ -671,16 +687,48 @@ namespace Autonocraft.Engine
             }
         }
 
-        private void SpawnWeatherParticle(Vector3 playerPos, VoxelWorld world, float intensity)
+        private void SpawnWeatherParticle(Vector3 playerPos, VoxelWorld world, WeatherSystem weather, float timeOfDay)
         {
             if (!TryAllocate(out int slot)) return;
 
-            float rx = playerPos.X + ((float)_ambientRng.NextDouble() * 2f - 1f) * 20f;
-            float rz = playerPos.Z + ((float)_ambientRng.NextDouble() * 2f - 1f) * 20f;
+            // Compute sideways wind speed
+            float windX = 0f;
+            float windZ = 0f;
+            if (weather.CurrentWeather == WeatherKind.Storm || weather.TargetWeather == WeatherKind.Storm)
+            {
+                // Storm winds are very high and chaotic
+                windX = 14.0f + (float)_ambientRng.NextDouble() * 5.0f;
+                windZ = 6.0f + (float)_ambientRng.NextDouble() * 4.0f;
+            }
+            else if (weather.CurrentWeather == WeatherKind.Thunderstorm || weather.TargetWeather == WeatherKind.Thunderstorm)
+            {
+                // Thunderstorms have moderate wind
+                windX = 4.0f + (float)_ambientRng.NextDouble() * 3.0f;
+                windZ = 2.0f + (float)_ambientRng.NextDouble() * 2.0f;
+            }
+            else if (weather.CurrentWeather == WeatherKind.Rain || weather.TargetWeather == WeatherKind.Rain)
+            {
+                // Milder wind
+                windX = 1.0f + (float)_ambientRng.NextDouble() * 1.5f;
+                windZ = 0.5f + (float)_ambientRng.NextDouble() * 1.0f;
+            }
+
+            // Spawn particles in a box around the player
+            float rx = playerPos.X + ((float)_ambientRng.NextDouble() * 2f - 1f) * 12f;
+            float rz = playerPos.Z + ((float)_ambientRng.NextDouble() * 2f - 1f) * 12f;
             float ry = playerPos.Y + 14f;
 
-            var biome = world.SampleBiome((int)rx, (int)rz).Primary;
-            bool isSnowy = biome == BiomeType.SnowyPeaks || biome == BiomeType.Mountains;
+            // Determine if it is snowy at this location using exact temperature math
+            float temp = GetAmbientTemperature(world, new Vector3(rx, ry, rz), timeOfDay, weather);
+            bool isSnowy = temp < 0.0f;
+
+            // Offset spawn position upwind so the particles blow onto/around the player.
+            // Particle vertical travel distance is 14f.
+            // Time to fall: fallTime = verticalDistance / averageFallSpeed
+            float averageFallSpeed = isSnowy ? 3.0f : 18.0f;
+            float fallTime = 14f / averageFallSpeed;
+            rx -= windX * fallTime;
+            rz -= windZ * fallTime;
 
             if (isSnowy)
             {
@@ -688,18 +736,18 @@ namespace Autonocraft.Engine
                 {
                     Position = new Vector3(rx, ry, rz),
                     Velocity = new Vector3(
-                        ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.8f,
-                        -1.8f - (float)_ambientRng.NextDouble() * 1.2f,
-                        ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.8f
+                        ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.45f + windX * 0.18f,
+                        -1.2f - (float)_ambientRng.NextDouble() * 1.1f,
+                        ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.45f + windZ * 0.18f
                     ),
-                    Lifetime = 8.0f,
-                    MaxLifetime = 8.0f,
-                    Size = 0.03f + (float)_ambientRng.NextDouble() * 0.03f,
+                    Lifetime = 4.5f + (float)_ambientRng.NextDouble() * 1.5f,
+                    MaxLifetime = 6.0f,
+                    Size = 0.02f + (float)_ambientRng.NextDouble() * 0.02f,
                     Rotation = (float)_ambientRng.NextDouble() * MathF.PI * 2f,
-                    AngularVelocity = ((float)_ambientRng.NextDouble() * 2f - 1f) * 2f,
-                    Gravity = 0f,
-                    Drag = 0.01f,
-                    Color = new Vector3(0.95f, 0.95f, 0.98f),
+                    AngularVelocity = ((float)_ambientRng.NextDouble() * 2f - 1f) * 1.5f,
+                    Gravity = 0.03f,
+                    Drag = 0.018f,
+                    Color = Vector3.Lerp(new Vector3(0.92f, 0.94f, 0.98f), Vector3.One, (float)_ambientRng.NextDouble() * 0.15f),
                     Kind = ParticleKind.SnowFlake,
                     Active = true
                 };
@@ -710,22 +758,33 @@ namespace Autonocraft.Engine
                 {
                     Position = new Vector3(rx, ry, rz),
                     Velocity = new Vector3(
-                        ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.2f,
-                        -16.0f - (float)_ambientRng.NextDouble() * 4.0f,
-                        ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.2f
+                        ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.15f + windX,
+                        -18.0f - (float)_ambientRng.NextDouble() * 4.5f,
+                        ((float)_ambientRng.NextDouble() * 2f - 1f) * 0.15f + windZ
                     ),
-                    Lifetime = 1.2f,
-                    MaxLifetime = 1.2f,
-                    Size = 0.04f + (float)_ambientRng.NextDouble() * 0.02f,
+                    Lifetime = 0.75f + (float)_ambientRng.NextDouble() * 0.25f,
+                    MaxLifetime = 1.0f,
+                    Size = 0.03f + (float)_ambientRng.NextDouble() * 0.015f,
                     Rotation = 0f,
                     AngularVelocity = 0f,
                     Gravity = 0f,
                     Drag = 0f,
-                    Color = new Vector3(0.5f, 0.58f, 0.72f),
+                    Color = new Vector3(0.46f, 0.55f, 0.7f),
                     Kind = ParticleKind.RainDrop,
                     Active = true
                 };
             }
+        }
+
+        private static float GetAmbientTemperature(VoxelWorld world, Vector3 position, float timeOfDay, WeatherSystem weather)
+        {
+            float baseTemp = world.SampleBiome((int)position.X, (int)position.Z).Temperature;
+            float heightDiff = position.Y - WorldConstants.SeaLevel;
+            float altitudeFactor = -0.005f * heightDiff;
+            float diurnalFactor = 0.15f * MathF.Cos((timeOfDay - 0.5f) * 2f * MathF.PI);
+            float weatherFactor = -0.2f * weather.RainIntensity;
+            float offset = weather.TemperatureOffset;
+            return baseTemp + altitudeFactor + diurnalFactor + weatherFactor + offset;
         }
 
         private void SpawnDustMote(Vector3 center)

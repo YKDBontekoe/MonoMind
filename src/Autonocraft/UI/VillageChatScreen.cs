@@ -8,6 +8,7 @@ using Autonocraft.Ai;
 using Autonocraft.Core;
 using Autonocraft.Engine;
 using Autonocraft.Entities;
+using Autonocraft.UI.Menu;
 using Autonocraft.Village;
 using VillageEntity = Autonocraft.Village.Village;
 
@@ -133,19 +134,7 @@ namespace Autonocraft.UI
                 return;
             }
 
-            foreach (Keys key in Enum.GetValues<Keys>())
-            {
-                if (!IsTextKey(key) || !kb.IsKeyDown(key) || prevKb.IsKeyDown(key))
-                {
-                    continue;
-                }
-
-                char ch = KeyToChar(key, kb);
-                if (ch != '\0' && _input.Length < 120)
-                {
-                    _input += ch;
-                }
-            }
+            TextInputKeys.AppendPressedCharacters(kb, prevKb, ref _input, 120, TextInputCharacterSet.Chat);
         }
 
         public void Draw(Viewport viewport, float alpha = 1f, float offsetY = 0f)
@@ -292,37 +281,6 @@ namespace Autonocraft.UI
             {
                 _waitingForReply = false;
             }
-        }
-
-        private static bool IsTextKey(Keys key)
-        {
-            return key is >= Keys.A and <= Keys.Z
-                or >= Keys.D0 and <= Keys.D9
-                or Keys.Space or Keys.OemPeriod or Keys.OemComma or Keys.OemQuestion;
-        }
-
-        private static char KeyToChar(Keys key, KeyboardState kb)
-        {
-            bool shift = kb.IsKeyDown(Keys.LeftShift) || kb.IsKeyDown(Keys.RightShift);
-            if (key >= Keys.A && key <= Keys.Z)
-            {
-                char ch = (char)('a' + (key - Keys.A));
-                return shift ? char.ToUpperInvariant(ch) : ch;
-            }
-
-            if (key >= Keys.D0 && key <= Keys.D9)
-            {
-                return (char)('0' + (key - Keys.D0));
-            }
-
-            return key switch
-            {
-                Keys.Space => ' ',
-                Keys.OemPeriod => '.',
-                Keys.OemComma => ',',
-                Keys.OemQuestion => '?',
-                _ => '\0'
-            };
         }
 
         private static string Truncate(string text, int max)

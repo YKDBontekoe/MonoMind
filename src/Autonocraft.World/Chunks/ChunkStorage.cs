@@ -34,7 +34,7 @@ namespace Autonocraft.World
                     {
                         BlockType type = _blocks[GetIndex(lx, y, lz)];
                         bool solid = type.IsSolidForSpawn();
-                        bool meshBlock = solid || type.IsSlab() || type.IsAlphaCutout() || type.IsWater();
+                        bool meshBlock = solid || type.IsSlab() || type.IsAlphaCutout() || type.IsWater() || type.IsSnowLayer();
 
                         if (highestSolid < 0 && solid)
                         {
@@ -220,7 +220,7 @@ namespace Autonocraft.World
         {
             int idx = lz * Width + lx;
             bool solid = type.IsSolidForSpawn();
-            bool meshBlock = solid || type.IsSlab() || type.IsAlphaCutout() || type.IsWater();
+            bool meshBlock = solid || type.IsSlab() || type.IsAlphaCutout() || type.IsWater() || type.IsSnowLayer();
 
             if (solid)
             {

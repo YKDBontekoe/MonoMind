@@ -124,7 +124,25 @@ namespace Autonocraft.Domain.World
         Lichen = 117,
         RedSand = 118,
         Dripstone = 119,
-        Chest = 120
+        Chest = 120,
+        OakSapling = 121,
+        BirchSapling = 122,
+        PineSapling = 123,
+        WillowSapling = 124,
+        PalmSapling = 125,
+        CherrySapling = 126,
+        MahoganySapling = 127,
+        MapleSapling = 128,
+
+        // Snow layers (1/10 block increments). SnowSlab (105) == 5/10, Snow (12) == 10/10.
+        SnowLayer1 = 129,
+        SnowLayer2 = 130,
+        SnowLayer3 = 131,
+        SnowLayer4 = 132,
+        SnowLayer6 = 133,
+        SnowLayer7 = 134,
+        SnowLayer8 = 135,
+        SnowLayer9 = 136
     }
 
     public static class BlockTypeExtensions
@@ -132,64 +150,24 @@ namespace Autonocraft.Domain.World
         public static bool IsTransparent(this BlockType type)
         {
             return type.IsSlab()
+                || type.IsSnowLayer()
                 || type == BlockType.SnowSide
                 || type == BlockType.Air
-                || type == BlockType.Water
-                || type == BlockType.Lava
+                || type.IsFluid()
                 || type == BlockType.Quicksand
-                || type == BlockType.OakLeaves
-                || type == BlockType.BirchLeaves
-                || type == BlockType.PineLeaves
-                || type == BlockType.WillowLeaves
-                || type == BlockType.PalmLeaves
-                || type == BlockType.CherryLeaves
-                || type == BlockType.MahoganyLeaves
-                || type == BlockType.MapleLeaves
-                || type == BlockType.TallGrass
-                || type == BlockType.Flower
-                || type == BlockType.Reed
-                || type == BlockType.Sunflower
-                || type == BlockType.Cactus
-                || type == BlockType.WheatSprout
-                || type == BlockType.Wheat
-                || type == BlockType.CarrotSprout
-                || type == BlockType.Carrot
-                || type == BlockType.Glass
-                || type == BlockType.RedStainedGlass
-                || type == BlockType.BlueStainedGlass
-                || type == BlockType.Fern
-                || type == BlockType.MushroomRed
-                || type == BlockType.MushroomBrown
-                || type == BlockType.Glowshroom
-                || type == BlockType.Lavender
+                || type.IsLeaf()
+                || type.IsFloraModel()
+                || type.IsGlass()
                 || type == BlockType.Bamboo
-                || type == BlockType.Lantern
-                || type == BlockType.Rope
-                || type == BlockType.Kelp
-                || type == BlockType.Shrub
-                || type == BlockType.Heather
-                || type == BlockType.Juniper
-                || type == BlockType.Poppy
-                || type == BlockType.Daisy
-                || type == BlockType.BlueFlax
-                || type == BlockType.Tulip
-                || type == BlockType.WildRose
-                || type == BlockType.MossCarpet
-                || type == BlockType.Lichen
-                || type == BlockType.DeadBush
-                || type == BlockType.LilyPad
-                || type == BlockType.Vine
-                || type == BlockType.BerryBush
-                || type == BlockType.Seagrass;
+                || type == BlockType.Lantern;
         }
 
         public static bool IsPassable(this BlockType type)
         {
             return type.IsTransparent()
                 && !type.IsSlab()
-                && type is not BlockType.Glass
-                && type is not BlockType.RedStainedGlass
-                && type is not BlockType.BlueStainedGlass
+                && !type.IsSnowLayer()
+                && !type.IsGlass()
                 && type is not BlockType.Cactus
                 && type is not BlockType.Bamboo
                 && type is not BlockType.Lantern;
@@ -215,24 +193,67 @@ namespace Autonocraft.Domain.World
             return type == BlockType.Vine || type == BlockType.Rope;
         }
 
-        public static bool IsFloraModel(this BlockType type)
+        public static bool IsGlass(this BlockType type)
+        {
+            return type is BlockType.Glass or BlockType.RedStainedGlass or BlockType.BlueStainedGlass;
+        }
+
+        public static bool IsLeaf(this BlockType type)
+        {
+            return type is BlockType.OakLeaves or BlockType.BirchLeaves or BlockType.PineLeaves
+                or BlockType.WillowLeaves or BlockType.PalmLeaves or BlockType.CherryLeaves
+                or BlockType.MahoganyLeaves or BlockType.MapleLeaves;
+        }
+
+        public static bool IsLog(this BlockType type)
+        {
+            return type is BlockType.OakLog or BlockType.BirchLog or BlockType.PineLog
+                or BlockType.WillowLog or BlockType.PalmLog or BlockType.CherryLog
+                or BlockType.MahoganyLog or BlockType.MapleLog;
+        }
+
+        public static bool IsPlank(this BlockType type)
+        {
+            return type is BlockType.OakPlank or BlockType.BirchPlank or BlockType.PinePlank
+                or BlockType.CherryPlank or BlockType.MahoganyPlank or BlockType.MaplePlank;
+        }
+
+        public static bool IsWoodMaterial(this BlockType type)
+        {
+            return type.IsLog() || type.IsPlank() || type == BlockType.Bamboo;
+        }
+
+        public static bool IsSapling(this BlockType type)
+        {
+            return type is BlockType.OakSapling or BlockType.BirchSapling or BlockType.PineSapling
+                or BlockType.WillowSapling or BlockType.PalmSapling or BlockType.CherrySapling
+                or BlockType.MahoganySapling or BlockType.MapleSapling;
+        }
+
+        public static bool IsCrop(this BlockType type)
+        {
+            return type is BlockType.WheatSprout or BlockType.Wheat or BlockType.CarrotSprout or BlockType.Carrot;
+        }
+
+        public static bool IsDecorativeFlora(this BlockType type)
         {
             return type is BlockType.TallGrass or BlockType.Sunflower or BlockType.Flower or BlockType.Reed
-                or BlockType.Cactus or BlockType.WheatSprout or BlockType.Wheat
-                or BlockType.CarrotSprout or BlockType.Carrot or BlockType.Fern
-                or BlockType.MushroomRed or BlockType.MushroomBrown or BlockType.DeadBush
-                or BlockType.LilyPad or BlockType.Vine or BlockType.BerryBush
-                or BlockType.Seagrass or BlockType.Glowshroom or BlockType.Lavender
-                or BlockType.Rope or BlockType.Kelp or BlockType.Shrub or BlockType.Heather
-                or BlockType.Juniper or BlockType.Poppy or BlockType.Daisy or BlockType.BlueFlax
-                or BlockType.Tulip or BlockType.WildRose or BlockType.MossCarpet or BlockType.Lichen;
+                or BlockType.Cactus or BlockType.Fern or BlockType.MushroomRed or BlockType.MushroomBrown
+                or BlockType.DeadBush or BlockType.LilyPad or BlockType.Vine or BlockType.BerryBush
+                or BlockType.Seagrass or BlockType.Glowshroom or BlockType.Lavender or BlockType.Rope
+                or BlockType.Kelp or BlockType.Shrub or BlockType.Heather or BlockType.Juniper
+                or BlockType.Poppy or BlockType.Daisy or BlockType.BlueFlax or BlockType.Tulip
+                or BlockType.WildRose or BlockType.MossCarpet or BlockType.Lichen;
+        }
+
+        public static bool IsFloraModel(this BlockType type)
+        {
+            return type.IsDecorativeFlora() || type.IsCrop() || type.IsSapling();
         }
 
         public static bool IsAlphaCutout(this BlockType type)
         {
-            return type is BlockType.OakLeaves or BlockType.BirchLeaves or BlockType.PineLeaves
-                or BlockType.WillowLeaves or BlockType.PalmLeaves
-                or BlockType.CherryLeaves or BlockType.MahoganyLeaves or BlockType.MapleLeaves;
+            return type.IsLeaf();
         }
 
         public static bool IsCollidable(this BlockType type)
@@ -267,7 +288,10 @@ namespace Autonocraft.Domain.World
                     or BlockType.Lavender or BlockType.Rope or BlockType.Kelp
                     or BlockType.Shrub or BlockType.Heather or BlockType.Moss or BlockType.Juniper
                     or BlockType.Poppy or BlockType.Daisy or BlockType.BlueFlax or BlockType.Tulip
-                    or BlockType.WildRose or BlockType.MossCarpet or BlockType.Lichen => 0.1f,
+                    or BlockType.WildRose or BlockType.MossCarpet or BlockType.Lichen
+                    or BlockType.OakSapling or BlockType.BirchSapling or BlockType.PineSapling
+                    or BlockType.WillowSapling or BlockType.PalmSapling or BlockType.CherrySapling
+                    or BlockType.MahoganySapling or BlockType.MapleSapling => 0.1f,
                 BlockType.WheatSprout or BlockType.CarrotSprout => 0.1f,
                 BlockType.Wheat or BlockType.Carrot => 0.15f,
                 BlockType.OakLeaves => 0.15f,
@@ -285,6 +309,8 @@ namespace Autonocraft.Domain.World
                 BlockType.RedSand => 0.35f,
                 BlockType.Quicksand => 0.6f,
                 BlockType.Snow => 0.35f,
+                BlockType.SnowLayer1 or BlockType.SnowLayer2 or BlockType.SnowLayer3 or BlockType.SnowLayer4
+                    or BlockType.SnowLayer6 or BlockType.SnowLayer7 or BlockType.SnowLayer8 or BlockType.SnowLayer9 => 0.1f,
                 BlockType.Grass => 0.5f,
                 BlockType.OakLog => 0.7f,
                 BlockType.BirchLog => 0.7f,
@@ -364,6 +390,69 @@ namespace Autonocraft.Domain.World
             return type is BlockType.GrassSlab or BlockType.DirtSlab or BlockType.StoneSlab or BlockType.SandSlab or BlockType.SnowSlab;
         }
 
+        /// <summary>Returns true for SnowLayer1-4 and SnowLayer6-9 (fractional snow accumulation).</summary>
+        public static bool IsSnowLayer(this BlockType type)
+        {
+            return type is BlockType.SnowLayer1 or BlockType.SnowLayer2 or BlockType.SnowLayer3 or BlockType.SnowLayer4
+                or BlockType.SnowLayer6 or BlockType.SnowLayer7 or BlockType.SnowLayer8 or BlockType.SnowLayer9;
+        }
+
+        /// <summary>
+        /// Returns 1-10 for snow layers (1 = thinnest, 10 = full Snow block).
+        /// SnowLayer1-4 = 1-4, SnowSlab = 5, SnowLayer6-9 = 6-9, Snow = 10.
+        /// Returns 0 for non-snow blocks.
+        /// </summary>
+        public static int GetSnowLevel(this BlockType type)
+        {
+            return type switch
+            {
+                BlockType.SnowLayer1 => 1,
+                BlockType.SnowLayer2 => 2,
+                BlockType.SnowLayer3 => 3,
+                BlockType.SnowLayer4 => 4,
+                BlockType.SnowSlab => 5,
+                BlockType.SnowLayer6 => 6,
+                BlockType.SnowLayer7 => 7,
+                BlockType.SnowLayer8 => 8,
+                BlockType.SnowLayer9 => 9,
+                BlockType.Snow => 10,
+                _ => 0
+            };
+        }
+
+        /// <summary>Returns the BlockType for a given snow level (1-10).</summary>
+        public static BlockType GetSnowBlockTypeForLevel(int level)
+        {
+            return level switch
+            {
+                1 => BlockType.SnowLayer1,
+                2 => BlockType.SnowLayer2,
+                3 => BlockType.SnowLayer3,
+                4 => BlockType.SnowLayer4,
+                5 => BlockType.SnowSlab,
+                6 => BlockType.SnowLayer6,
+                7 => BlockType.SnowLayer7,
+                8 => BlockType.SnowLayer8,
+                9 => BlockType.SnowLayer9,
+                _ => BlockType.Snow
+            };
+        }
+
+        /// <summary>
+        /// Returns the rendered/collision height of a block in the range [0, 1].
+        /// Full blocks = 1.0, slabs = 0.5, snow layers = 0.1 * level.
+        /// </summary>
+        public static float GetBlockHeight(this BlockType type)
+        {
+            if (type.IsSnowLayer())
+                return type.GetSnowLevel() * 0.1f;
+            if (type == BlockType.SnowSlab)
+                return 0.5f;
+            if (type.IsSlab())
+                return 0.5f;
+            return 1.0f;
+        }
+
         public static BlockType GetBaseBlockType(this BlockType type)
         {
             return type switch
@@ -373,6 +462,8 @@ namespace Autonocraft.Domain.World
                 BlockType.StoneSlab => BlockType.Stone,
                 BlockType.SandSlab => BlockType.Sand,
                 BlockType.SnowSlab => BlockType.Snow,
+                BlockType.SnowLayer1 or BlockType.SnowLayer2 or BlockType.SnowLayer3 or BlockType.SnowLayer4
+                    or BlockType.SnowLayer6 or BlockType.SnowLayer7 or BlockType.SnowLayer8 or BlockType.SnowLayer9 => BlockType.Snow,
                 _ => type
             };
         }
