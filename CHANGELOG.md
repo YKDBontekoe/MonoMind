@@ -7,6 +7,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 Releases are created automatically when changes land on `main` (after CI passes).
 
+## [0.2.11] - 2026-06-22
+
+### Other
+- Fix formatting drift
+- Refine village flow and early settlement
+- Bump softprops/action-gh-release from 3.0.0 to 3.0.1
+- Bump actions/checkout from 6 to 7
+
 ## [0.2.10] - 2026-06-19
 
 ### Other
