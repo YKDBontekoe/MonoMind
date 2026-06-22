@@ -93,6 +93,21 @@ public static class PhysicsTests
     {
         Console.Write("Running Jumping Test... ");
 
+        int surfaceY = world.GetHighestSolidY(16, 16);
+        if (surfaceY < 0)
+        {
+            throw new Exception("Expected solid ground for jumping test.");
+        }
+        player.Position = new Vector3(16.5f, surfaceY + 1.001f, 16.5f);
+        player.Velocity = Vector3.Zero;
+        player.CreativeMode = false;
+
+        // Settle player on ground
+        for (int i = 0; i < 30; i++)
+        {
+            player.Update(0.016f, world, Vector3.Zero);
+        }
+
         if (!player.IsGrounded)
         {
             throw new Exception("Player must be grounded to start the jump test.");

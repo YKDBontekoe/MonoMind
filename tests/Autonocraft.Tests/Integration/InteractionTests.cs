@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Numerics;
 using Autonocraft.Core;
 using Autonocraft.Crafting;
@@ -41,7 +42,16 @@ public static class InteractionTests
         game.Camera.Pitch = player.Pitch;
 
         // Mine block below
-        game.SimulateClick(MouseButton.Left);
+        var originalOnSpawnItemDrop = game.Session.BlockInteraction.OnSpawnItemDrop;
+        game.Session.BlockInteraction.OnSpawnItemDrop = null;
+        try
+        {
+            game.SimulateClick(MouseButton.Left);
+        }
+        finally
+        {
+            game.Session.BlockInteraction.OnSpawnItemDrop = originalOnSpawnItemDrop;
+        }
 
         BlockType minedBlock = world.GetBlock(16, targetY, 16);
         if (minedBlock != BlockType.Air)
@@ -64,7 +74,9 @@ public static class InteractionTests
 
         if (!hasStone)
         {
-            throw new Exception("Player did not collect Stone block in inventory after mining.");
+            var hotbarStr = string.Join(", ", player.Hotbar.Select((item, idx) => $"[{idx}]={item.GetDisplayName()}({item.Count})"));
+            var storageStr = string.Join(", ", Enumerable.Range(0, player.Storage.SlotCount).Select(idx => $"[{idx}]={player.Storage.GetSlot(idx).GetDisplayName()}({player.Storage.GetSlot(idx).Count})"));
+            throw new Exception($"Player did not collect Stone block in inventory after mining. PlayerHashCode={player.GetHashCode()}. Hotbar: {hotbarStr}. Storage: {storageStr}");
         }
 
         // Now place the block back on top of the block at Y=39 (which is the terrain grass floor)

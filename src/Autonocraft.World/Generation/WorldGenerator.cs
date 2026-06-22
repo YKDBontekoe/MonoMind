@@ -16,6 +16,7 @@ namespace Autonocraft.World
         private readonly StructurePlacer _structurePlacer;
         private readonly int _seed;
         private readonly WorldGenParams _params;
+        private readonly Dictionary<(int cx, int cz), TerrainColumn[,]> _previewCache = new();
 
         public int Seed => _seed;
         public WorldGenParams Parameters => _params;
@@ -111,6 +112,11 @@ namespace Autonocraft.World
 
         public TerrainColumn[,] PreviewChunkColumns(int chunkX, int chunkZ)
         {
+            if (_previewCache.TryGetValue((chunkX, chunkZ), out var cached))
+            {
+                return cached;
+            }
+
             var columns = new TerrainColumn[Chunk.Width, Chunk.Depth];
 
             if (StructureGallery.IsGalleryWorld(_params.WorldType))
@@ -125,6 +131,7 @@ namespace Autonocraft.World
                     }
                 }
 
+                _previewCache[(chunkX, chunkZ)] = columns;
                 return columns;
             }
 
@@ -137,6 +144,7 @@ namespace Autonocraft.World
                 (x, z) => _terrainShaper.BuildBaseColumn(x, z, biomeCache),
                 _params.EnableRivers);
 
+            _previewCache[(chunkX, chunkZ)] = columns;
             return columns;
         }
     }

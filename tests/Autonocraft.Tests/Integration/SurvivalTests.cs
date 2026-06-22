@@ -118,20 +118,22 @@ public static class SurvivalTests
         Console.WriteLine("PASSED");
     }
 
-    public static void RunVillageRations(Player player, Village.Village village)
+    public static void RunVillageRations(Player player, Village.Village? village = null)
     {
         Console.Write("Running Village Rations Test... ");
         player.CreativeMode = false;
         player.Hunger = 2f;
-        village.FoodStock = 4f;
-        float stockBefore = village.FoodStock;
 
-        if (!FoodConsumption.TryTakeRations(player, village))
+        var targetVillage = village ?? new Village.Village("TestVillage", 0, 0, 0);
+        targetVillage.FoodStock = 4f;
+        float stockBefore = targetVillage.FoodStock;
+
+        if (!FoodConsumption.TryTakeRations(player, targetVillage))
         {
             throw new Exception("Failed to take rations.");
         }
 
-        if (village.FoodStock >= stockBefore)
+        if (targetVillage.FoodStock >= stockBefore)
         {
             throw new Exception("Food stock should decrease after rations.");
         }

@@ -45,6 +45,19 @@ public static class IntegrationTestRunner
             _chunksLoaded = true;
         }
 
+        public void Reset()
+        {
+            if (_game == null)
+            {
+                return;
+            }
+
+            _game.Session.ReplaceWorld(WorldConstants.DefaultSeed, null);
+            _game.Session.ResetPlayer();
+            _game.Session.ResetCrafting();
+            _chunksLoaded = false;
+        }
+
         public void Dispose() => _game?.Dispose();
     }
 
@@ -161,7 +174,7 @@ public static class IntegrationTestRunner
             GameCase(nameof(SurvivalTests), nameof(SurvivalTests.RunNightSpawn), context => SurvivalTests.RunNightSpawn(context.World, context.Player, context.Game.Animals)),
             GameCase(nameof(SurvivalTests), nameof(SurvivalTests.RunDeathPenalty), context => SurvivalTests.RunDeathPenalty(context.Player)),
             GameCase(nameof(SurvivalTests), nameof(SurvivalTests.RunHungerSaveRoundTrip), context => SurvivalTests.RunHungerSaveRoundTrip(context.Game, context.Player, context.World)),
-            GameCase(nameof(SurvivalTests), nameof(SurvivalTests.RunVillageRations), context => SurvivalTests.RunVillageRations(context.Player, context.Game.Session.Villages.GetPrimaryVillage()!)),
+            GameCase(nameof(SurvivalTests), nameof(SurvivalTests.RunVillageRations), context => SurvivalTests.RunVillageRations(context.Player, context.Game.Session.Villages.GetPrimaryVillage())),
 
             GameCase(nameof(CraftingTests), nameof(CraftingTests.RunSigilBenchActivation), context => CraftingTests.RunSigilBenchActivation(context.Game, context.World)),
             GameCase(nameof(CraftingTests), nameof(CraftingTests.RunCruciblePlankRecipe), context => CraftingTests.RunCruciblePlankRecipe(context.Game, context.Player, context.World)),
@@ -272,6 +285,7 @@ public static class IntegrationTestRunner
         }
 
         using var host = new TestHost();
+        using var sharedContext = new IntegrationContext();
 
         try
         {
@@ -285,8 +299,8 @@ public static class IntegrationTestRunner
                         return;
                     }
 
-                    using var context = new IntegrationContext();
-                    testCase.Execute(context);
+                    sharedContext.Reset();
+                    testCase.Execute(sharedContext);
                 });
             }
 
@@ -297,9 +311,10 @@ public static class IntegrationTestRunner
         }
         catch (Exception ex)
         {
+            var realEx = ex.InnerException ?? ex;
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"\nTEST FAILURE: {ex.Message}");
-            Console.WriteLine(ex.StackTrace);
+            Console.WriteLine($"\nTEST FAILURE: {realEx.Message}");
+            Console.WriteLine(realEx.StackTrace);
             Console.ResetColor();
             Console.WriteLine("\n==================================================================");
             Console.WriteLine("TEST SUITE FAILED! (EXIT CODE: 1)");
