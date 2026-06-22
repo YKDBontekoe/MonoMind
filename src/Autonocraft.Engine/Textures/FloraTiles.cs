@@ -432,7 +432,7 @@ namespace Autonocraft.Engine
         {
             var image = new TileImage(FillSolid(tileSize, Color.Transparent), tileSize);
             int cx = tileSize / 2;
-            
+
             // Draw a stem
             int stemTop = tileSize / 2;
             DrawBlade(image, cx, tileSize - 2, cx, stemTop, stemColor, 2);

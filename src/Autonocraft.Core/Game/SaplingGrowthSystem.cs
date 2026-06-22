@@ -46,7 +46,7 @@ namespace Autonocraft.Core
                     {
                         int wx = startX + x;
                         int surfaceY = world.GetHighestSolidY(wx, wz);
-                        
+
                         // Check a small window around surfaceY
                         for (int wy = Math.Max(0, surfaceY - 1); wy <= Math.Min(Chunk.Height - 1, surfaceY + 2); wy++)
                         {
@@ -102,7 +102,7 @@ namespace Autonocraft.Core
         {
             // Grow tree using TreeShapeGenerator
             TreeSpecies species = GetSpeciesForSapling(saplingType);
-            
+
             // Set the sapling itself to Air first
             world.SetBlock(x, y, z, BlockType.Air, null);
 

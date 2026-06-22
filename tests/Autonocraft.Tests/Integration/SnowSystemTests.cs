@@ -110,7 +110,7 @@ namespace Autonocraft.Tests.Integration
             // 4. Test Snow Melting
             // Set temperature to warm
             weather.TemperatureOffset = 15f; // warm
-            
+
             // Melt the layer at y=66 back to air
             attempts = 0;
             while (world.GetBlock(tx, 66, tz) != BlockType.Air && attempts < maxAttempts)
