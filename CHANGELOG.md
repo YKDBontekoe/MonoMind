@@ -7,6 +7,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 Releases are created automatically when changes land on `main` (after CI passes).
 
+## [0.2.12] - 2026-06-22
+
+### Other
+- Split coverage unit test shards
+
 ## [0.2.11] - 2026-06-22
 
 ### Other
