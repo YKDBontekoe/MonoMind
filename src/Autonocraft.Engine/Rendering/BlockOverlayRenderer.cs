@@ -86,7 +86,8 @@ namespace Autonocraft.Engine
                     interaction.TargetBlockPos.Value,
                     interaction.TargetBlockType,
                     interaction.TargetNormal.Value,
-                    interaction.BreakProgress);
+                    interaction.BreakProgress,
+                    animTime);
             }
 
             if (interaction.GhostBlockPos.HasValue && interaction.GhostBlockType != BlockType.Air)
@@ -263,7 +264,7 @@ namespace Autonocraft.Engine
             _overlayEffect.TextureEnabled = true;
         }
 
-        private void DrawCrackOverlay(Vector3 blockPos, BlockType blockType, Vector3 normal, float progress)
+        private void DrawCrackOverlay(Vector3 blockPos, BlockType blockType, Vector3 normal, float progress, float animTime)
         {
             int stage = Math.Clamp((int)(progress * 10f), 0, 9);
             if (stage <= 0) return;
@@ -271,6 +272,8 @@ namespace Autonocraft.Engine
             float offset = 0.002f; // prevent z-fighting
             Vector3 n = Vector3.Normalize(normal);
             float topY = blockType.GetBlockHeight();
+            float pulse = Tween.Pulse(animTime + stage * 0.17f, 7.5f);
+            float pulseEase = 0.5f + 0.5f * MathF.Sin(animTime * 11f + progress * 9f);
 
             Vector3 faceCenterOffset;
             if (n.Y > 0.5f)
@@ -303,48 +306,32 @@ namespace Autonocraft.Engine
 
             float halfH = (MathF.Abs(n.Y) > 0.5f) ? 0.495f : (topY * 0.495f);
             float halfW = 0.495f;
+            float wobble = (pulse - 0.5f) * 0.012f;
+            center += tangent * wobble * 0.6f + bitangent * wobble * 0.4f + n * (pulse - 0.5f) * 0.004f;
+            halfH *= 0.985f + pulse * 0.02f;
+            halfW *= 0.985f + pulse * 0.02f;
 
             var p0 = center - tangent * halfH - bitangent * halfW;
             var p1 = center + tangent * halfH - bitangent * halfW;
             var p2 = center + tangent * halfH + bitangent * halfW;
             var p3 = center - tangent * halfH + bitangent * halfW;
 
-            // Subtle dark background shading representing block fractures
-            float intensity = 0.1f + stage * 0.025f;
-            var col = new Vector3(0.04f, 0.04f, 0.04f) * intensity;
-            var vertices = new Vertex[]
-            {
-                new Vertex(p0, col, n, Vector2.Zero),
-                new Vertex(p1, col, n, Vector2.Zero),
-                new Vertex(p2, col, n, Vector2.Zero),
-                new Vertex(p3, col, n, Vector2.Zero)
-            };
-
-            var indices = new short[] { 0, 1, 2, 0, 2, 3 };
-            _overlayEffect.World = Matrix.Identity;
-            _overlayEffect.TextureEnabled = false;
-
-            _device.BlendState = BlendState.AlphaBlend;
-
-            foreach (var pass in _overlayEffect.CurrentTechnique.Passes)
-            {
-                pass.Apply();
-                _device.DrawUserIndexedPrimitives(PrimitiveType.TriangleList, vertices, 0, 4, indices, 0, 2);
-            }
-
             // Draw organic branching crack lines
-            DrawCrackLines(blockPos, stage, p0, p1, p2, p3);
+            DrawCrackLines(blockPos, blockType, stage, p0, p1, p2, p3, animTime, pulseEase);
 
             _overlayEffect.TextureEnabled = true;
         }
 
         private void DrawCrackLines(
             Vector3 blockPos,
+            BlockType blockType,
             int stage,
             Vector3 p0,
             Vector3 p1,
             Vector3 p2,
-            Vector3 p3)
+            Vector3 p3,
+            float animTime,
+            float pulseEase)
         {
             if (stage <= 0) return;
 
@@ -371,8 +358,12 @@ namespace Autonocraft.Engine
                     float t = s / (float)segmentsInBranch;
                     float currentLen = maxLen * t;
                     float jitterAngle = angle + (float)(rng.NextDouble() - 0.5) * 0.25f;
+                    float shimmer = (pulseEase - 0.5f) * 0.02f;
 
                     var offset = new Vector2(MathF.Cos(jitterAngle), MathF.Sin(jitterAngle)) * currentLen;
+                    offset += new Vector2(
+                        MathF.Sin(animTime * 9f + s * 0.7f + b * 0.9f) * shimmer,
+                        MathF.Cos(animTime * 8f + s * 0.5f + b * 1.1f) * shimmer);
                     var pt = new Vector2(0.5f, 0.5f) + offset;
 
                     pt.X = Math.Clamp(pt.X, 0.02f, 0.98f);
@@ -404,8 +395,15 @@ namespace Autonocraft.Engine
             }
 
             var lineVerts = new VertexPositionColor[segments.Count * 2];
+            var highlightVerts = new VertexPositionColor[segments.Count * 2];
             int vi = 0;
-            var crackColor = new Color(0.04f, 0.04f, 0.04f, 0.70f + stage * 0.03f);
+            int hi = 0;
+            var baseTint = BlockParticleColors.GetColor(blockType);
+            var tintColor = new Color(baseTint.X, baseTint.Y, baseTint.Z);
+            var crackColor = Color.Lerp(tintColor * 0.28f, Color.Black, 0.18f);
+            crackColor.A = (byte)(210 + stage * 4);
+            var crackHighlight = Color.Lerp(tintColor * 0.88f, Color.White, 0.16f);
+            crackHighlight.A = (byte)(70 + stage * 6);
 
             Vector3 Local(Vector2 uv) =>
                 p0 + (p1 - p0) * uv.X + (p3 - p0) * uv.Y;
@@ -414,6 +412,8 @@ namespace Autonocraft.Engine
             {
                 lineVerts[vi++] = new VertexPositionColor(ToMono(Local(points[segment.from])), crackColor);
                 lineVerts[vi++] = new VertexPositionColor(ToMono(Local(points[segment.to])), crackColor);
+                highlightVerts[hi++] = new VertexPositionColor(ToMono(Local(points[segment.from])), crackHighlight);
+                highlightVerts[hi++] = new VertexPositionColor(ToMono(Local(points[segment.to])), crackHighlight);
             }
 
             _overlayEffect.World = Matrix.Identity;
@@ -423,6 +423,7 @@ namespace Autonocraft.Engine
             {
                 pass.Apply();
                 _device.DrawUserPrimitives(PrimitiveType.LineList, lineVerts, 0, segments.Count);
+                _device.DrawUserPrimitives(PrimitiveType.LineList, highlightVerts, 0, segments.Count);
             }
         }
 

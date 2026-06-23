@@ -218,17 +218,26 @@ namespace Autonocraft.Engine
         public static bool UsesAccentBox(AnimalType type) =>
             type is AnimalType.Chicken;
 
-        public static float GetWalkPhase(Animal animal)
+        public static float GetWalkPhase(Animal animal, float animTime)
         {
-            if (!animal.IsPanicking &&
-                animal.WanderDistanceRemaining <= 0f &&
-                MathF.Abs(animal.Velocity.X) < 0.01f &&
-                MathF.Abs(animal.Velocity.Z) < 0.01f)
+            float basePhase = animal.Position.X * 9f + animal.Position.Z * 13f + animal.Id * 0.3f;
+
+            if (animal.IsPanicking)
             {
-                return 0f;
+                return basePhase + animTime * 18f;
             }
 
-            return animal.Position.X * 9f + animal.Position.Z * 13f + animal.Id * 0.3f;
+            bool isMoving = animal.WanderDistanceRemaining > 0f ||
+                MathF.Abs(animal.Velocity.X) > 0.01f ||
+                MathF.Abs(animal.Velocity.Z) > 0.01f;
+
+            if (isMoving)
+            {
+                float pace = animal.IsGrounded ? 6.5f : 3.2f;
+                return basePhase + animTime * pace;
+            }
+
+            return basePhase + animTime * 0.9f + animal.Id * 0.11f;
         }
 
         public static void DrawLegs(
@@ -240,7 +249,10 @@ namespace Autonocraft.Engine
             Action<Matrix, float, float, float, float, float, float, Color> drawColored)
         {
             var layout = AnimalBodyLayout.From(shape, stats);
-            float legSwing = MathF.Sin(walkPhase * 10f) * layout.Height * 0.04f;
+            float stride = MathF.Sin(walkPhase * 10f);
+            float legSwing = stride * layout.Height * 0.04f;
+            float bodyBob = MathF.Sin(walkPhase * 2.1f) * layout.Height * 0.008f;
+            float chestLift = MathF.Sin(walkPhase * 1.7f + 0.5f) * layout.Height * 0.006f;
 
             switch (type)
             {
@@ -248,25 +260,25 @@ namespace Autonocraft.Engine
                     DrawChickenLegs(world, stats, layout, walkPhase, drawColored);
                     break;
                 case AnimalType.Sheep:
-                    DrawQuadrupedLegs(world, layout, stats.BodyColor * 0.9f, new Color(40, 35, 30), legSwing, 1.15f, drawColored);
+                    DrawQuadrupedLegs(world, layout, stats.BodyColor * 0.9f, new Color(40, 35, 30), legSwing + bodyBob, 1.15f, drawColored);
                     break;
                 case AnimalType.Pig:
-                    DrawQuadrupedLegs(world, layout, Darken(stats.BodyColor, 0.10f), new Color(45, 30, 25), legSwing, 1.0f, drawColored);
+                    DrawQuadrupedLegs(world, layout, Darken(stats.BodyColor, 0.10f), new Color(45, 30, 25), legSwing + bodyBob * 0.8f, 1.0f, drawColored);
                     break;
                 case AnimalType.Cow:
-                    DrawQuadrupedLegs(world, layout, new Color(70, 50, 35), new Color(35, 25, 18), legSwing, 1.25f, drawColored);
+                    DrawQuadrupedLegs(world, layout, new Color(70, 50, 35), new Color(35, 25, 18), legSwing + bodyBob * 0.7f, 1.25f, drawColored);
                     break;
                 case AnimalType.Bear:
-                    DrawQuadrupedLegs(world, layout, Darken(stats.BodyColor, 0.14f), new Color(20, 15, 10), legSwing, 1.05f, drawColored);
+                    DrawQuadrupedLegs(world, layout, Darken(stats.BodyColor, 0.14f), new Color(20, 15, 10), legSwing + bodyBob * 0.6f, 1.05f, drawColored);
                     break;
                 case AnimalType.Fox:
-                    DrawQuadrupedLegs(world, layout, Darken(stats.BodyColor, 0.12f), new Color(30, 25, 20), legSwing, 1.0f, drawColored);
+                    DrawQuadrupedLegs(world, layout, Darken(stats.BodyColor, 0.12f), new Color(30, 25, 20), legSwing + bodyBob * 1.2f, 1.0f, drawColored);
                     break;
                 case AnimalType.Deer:
-                    DrawQuadrupedLegs(world, layout, new Color(130, 95, 60), new Color(90, 65, 40), legSwing, 1.45f, drawColored);
+                    DrawQuadrupedLegs(world, layout, new Color(130, 95, 60), new Color(90, 65, 40), legSwing + bodyBob * 0.9f, 1.45f, drawColored);
                     break;
                 case AnimalType.Wolf:
-                    DrawQuadrupedLegs(world, layout, Darken(stats.BodyColor, 0.08f), new Color(25, 22, 20), legSwing, 1.05f, drawColored);
+                    DrawQuadrupedLegs(world, layout, Darken(stats.BodyColor, 0.08f), new Color(25, 22, 20), legSwing + bodyBob * 0.7f, 1.05f, drawColored);
                     break;
             }
         }
@@ -276,6 +288,7 @@ namespace Autonocraft.Engine
             AnimalType type,
             AnimalStats stats,
             AnimalShape shape,
+            float motionPhase,
             Action<Matrix, float, float, float, float, float, float, Color> drawColored)
         {
             if (type == AnimalType.Chicken)
@@ -292,7 +305,10 @@ namespace Autonocraft.Engine
             var neckColor = type is AnimalType.Cow or AnimalType.Deer or AnimalType.Sheep
                 ? stats.HeadColor
                 : stats.BodyColor;
-            drawColored(world, layout.NeckHalfW, layout.NeckHalfH, layout.NeckHalfD, 0f, layout.NeckCenterY, layout.NeckCenterZ, neckColor);
+            float neckBob = MathF.Sin(motionPhase * 1.7f) * stats.Height * 0.007f;
+            float neckTilt = MathF.Sin(motionPhase * 1.2f) * layout.Width * 0.015f;
+            drawColored(world, layout.NeckHalfW, layout.NeckHalfH, layout.NeckHalfD,
+                neckTilt, layout.NeckCenterY + neckBob, layout.NeckCenterZ, neckColor);
         }
 
         public static void DrawFeatures(
@@ -304,6 +320,8 @@ namespace Autonocraft.Engine
             Action<Matrix, float, float, float, float, float, float, Color> drawColored)
         {
             var layout = AnimalBodyLayout.From(shape, stats);
+            float sway = MathF.Sin(walkPhase * 1.75f) * layout.Width * 0.01f;
+            float headLift = MathF.Sin(walkPhase * 1.2f + 0.3f) * layout.Height * 0.004f;
 
             switch (type)
             {
@@ -312,27 +330,27 @@ namespace Autonocraft.Engine
                     break;
                 case AnimalType.Sheep:
                     DrawFloppyEars(world, layout, stats.HeadColor, drawColored);
-                    DrawTail(world, layout.Width, -0.30f, layout.BodyCenterY, 0.05f, 0.06f, 0.04f, stats.BodyColor, drawColored);
+                    DrawTail(world, layout.Width, -0.30f + sway, layout.BodyCenterY + headLift, 0.05f, 0.06f, 0.04f, stats.BodyColor, drawColored);
                     DrawWoolTufts(world, layout, stats.BodyColor, drawColored);
                     DrawColoredSnout(world, layout, stats.HeadColor, drawColored);
                     break;
                 case AnimalType.Pig:
                     DrawFloppyEars(world, layout, stats.HeadColor, drawColored);
                     DrawColoredSnout(world, layout, stats.AccentColor, drawColored);
-                    DrawTail(world, layout.Width, -0.34f, layout.BodyCenterY + layout.Height * 0.02f, 0.04f, 0.05f, 0.04f, stats.AccentColor, drawColored);
+                    DrawTail(world, layout.Width, -0.34f + sway * 0.7f, layout.BodyCenterY + layout.Height * 0.02f + headLift, 0.04f, 0.05f, 0.04f, stats.AccentColor, drawColored);
                     break;
                 case AnimalType.Cow:
                     DrawHorns(world, layout, new Color(200, 195, 175), drawColored);
                     DrawFloppyEars(world, layout, stats.HeadColor, drawColored);
                     DrawColoredSnout(world, layout, stats.HeadColor * 0.85f, drawColored);
                     DrawMuzzle(world, layout, stats.AccentColor, drawColored);
-                    DrawTail(world, layout.Width, -0.38f, layout.BodyCenterY, 0.03f, 0.08f, 0.03f, stats.HeadColor, drawColored);
+                    DrawTail(world, layout.Width, -0.38f + sway * 0.8f, layout.BodyCenterY + headLift, 0.03f, 0.08f, 0.03f, stats.HeadColor, drawColored);
                     DrawUdder(world, layout, stats.AccentColor, drawColored);
                     break;
                 case AnimalType.Bear:
                     DrawRoundEars(world, layout, stats.HeadColor, drawColored);
                     DrawColoredSnout(world, layout, stats.AccentColor, drawColored);
-                    DrawTail(world, layout.Width, -0.32f, layout.BodyCenterY - layout.Height * 0.02f, 0.05f, 0.05f, 0.05f, stats.BodyColor, drawColored);
+                    DrawTail(world, layout.Width, -0.32f + sway * 0.6f, layout.BodyCenterY - layout.Height * 0.02f + headLift, 0.05f, 0.05f, 0.05f, stats.BodyColor, drawColored);
                     break;
                 case AnimalType.Fox:
                     DrawPointyEars(world, layout, stats.BodyColor, drawColored);
@@ -344,7 +362,7 @@ namespace Autonocraft.Engine
                     DrawAntlers(world, layout, new Color(150, 110, 70), drawColored);
                     DrawPointyEars(world, layout, stats.HeadColor, drawColored);
                     DrawColoredSnout(world, layout, stats.HeadColor * 0.9f, drawColored);
-                    DrawTail(world, layout.Width, -0.36f, layout.BodyCenterY + layout.Height * 0.04f, 0.04f, 0.06f, 0.03f, stats.AccentColor, drawColored);
+                    DrawTail(world, layout.Width, -0.36f + sway * 0.7f, layout.BodyCenterY + layout.Height * 0.04f + headLift, 0.04f, 0.06f, 0.03f, stats.AccentColor, drawColored);
                     break;
                 case AnimalType.Wolf:
                     DrawPointyEars(world, layout, stats.HeadColor, drawColored);
