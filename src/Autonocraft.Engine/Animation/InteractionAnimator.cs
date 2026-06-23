@@ -34,7 +34,6 @@ namespace Autonocraft.Engine.Animation
         private float _meleeCrosshairTimer;
         private float _animTime;
         private float _damageShakeSeed;
-        private float _lastSwingPhase;
 
         public float AnimTime => _animTime;
         public bool SwingActive => _swingTimer > 0f;
@@ -177,6 +176,9 @@ namespace Autonocraft.Engine.Animation
             HotbarWiggleScale = Tween.SmoothDamp(HotbarWiggleScale, 1f, 14f, deltaTime);
 
             float horizontalSpeed = MathF.Sqrt(player.Velocity.X * player.Velocity.X + player.Velocity.Z * player.Velocity.Z);
+            float motionPulse = player.IsGrounded && !player.CreativeMode
+                ? Tween.Pulse(_animTime + horizontalSpeed * 0.08f, Math.Max(1.1f, horizontalSpeed * 0.75f))
+                : 0f;
             if (player.IsGrounded && !player.CreativeMode && horizontalSpeed > 0.5f)
             {
                 _walkBobPhase += deltaTime * 4f * MathF.PI * 2f;
@@ -184,7 +186,7 @@ namespace Autonocraft.Engine.Animation
             }
             else
             {
-                WalkBobOffsetY = Tween.SmoothDamp(WalkBobOffsetY, 0f, 8f, deltaTime);
+                WalkBobOffsetY = Tween.SmoothDamp(WalkBobOffsetY, motionPulse * 0.01f, 8f, deltaTime);
             }
 
             float landOffset = 0f;
@@ -204,10 +206,20 @@ namespace Autonocraft.Engine.Animation
                 shakeY = MathF.Cos((_animTime - _damageShakeSeed) * 65f) * amp * 0.6f;
             }
 
+            float swingPulse = GetSwingPulse();
             float miningBob = _isMining ? MathF.Sin(_animTime * 10f) * 0.008f : 0f;
+            float swingLeanX = swingPulse * GetSwingLeanX();
+            float swingLeanZ = swingPulse * GetSwingLeanZ();
+            float swingLeanY = swingPulse * GetSwingLeanY();
+            if (_invalidShakeTimer > 0f)
+            {
+                swingLeanX += InvalidShakePhase * 0.02f;
+            }
 
-            PositionOffset = new Vector3(shakeX, WalkBobOffsetY + landOffset + miningBob, 0f);
-            _lastSwingPhase = newSwingPhase;
+            PositionOffset = new Vector3(
+                shakeX + swingLeanX,
+                WalkBobOffsetY + landOffset + miningBob + swingLeanY + shakeY,
+                swingLeanZ);
         }
 
         public float GetHeldItemSwingDegrees()
@@ -217,18 +229,174 @@ namespace Autonocraft.Engine.Animation
                 return _isMining ? MathF.Sin(_animTime * 10f) * 3f : 0f;
             }
 
-            float t = 1f - SwingPhase;
-            return -35f * Tween.EaseOut(t);
+            float t = SwingPhase;
+            float arc = Tween.EaseOut(t);
+            return CurrentSwingKind switch
+            {
+                SwingKind.Melee => -82f * arc + MathF.Sin(t * MathF.PI) * 10f,
+                SwingKind.Mine => -48f * arc + MathF.Sin(t * MathF.PI * 2f) * 6f,
+                SwingKind.Place => -30f * arc + MathF.Sin(t * MathF.PI) * 4f,
+                _ => -35f * arc
+            };
         }
 
         public float GetHeldItemOffsetY()
         {
-            if (_isMining)
+            if (!SwingActive)
             {
-                return MathF.Sin(_animTime * 10f) * 4f;
+                return _isMining ? MathF.Sin(_animTime * 10f) * 4f : 0f;
             }
 
-            return 0f;
+            float t = SwingPhase;
+            float arc = MathF.Sin(t * MathF.PI);
+            return CurrentSwingKind switch
+            {
+                SwingKind.Melee => -10f * arc - 3f * arc * arc,
+                SwingKind.Mine => -6f * arc,
+                SwingKind.Place => -3f * arc + MathF.Sin(t * MathF.PI * 2f) * 1.5f,
+                _ => -4f * arc
+            };
+        }
+
+        public float GetHeldItemOffsetX()
+        {
+            if (!SwingActive)
+            {
+                return 0f;
+            }
+
+            float t = SwingPhase;
+            float arc = MathF.Sin(t * MathF.PI);
+            return CurrentSwingKind switch
+            {
+                SwingKind.Melee => 0.15f - 0.35f * arc,
+                SwingKind.Mine => 0.05f - 0.18f * arc,
+                SwingKind.Place => 0.08f - 0.12f * arc,
+                _ => 0f
+            };
+        }
+
+        public float GetHeldItemOffsetZ()
+        {
+            if (!SwingActive)
+            {
+                return 0f;
+            }
+
+            float t = SwingPhase;
+            float arc = MathF.Sin(t * MathF.PI);
+            return CurrentSwingKind switch
+            {
+                SwingKind.Melee => 0.28f * arc,
+                SwingKind.Mine => 0.16f * arc,
+                SwingKind.Place => 0.10f * arc,
+                _ => 0f
+            };
+        }
+
+        public float GetHeldItemRollDegrees()
+        {
+            if (!SwingActive)
+            {
+                return 0f;
+            }
+
+            float t = SwingPhase;
+            float arc = MathF.Sin(t * MathF.PI);
+            return CurrentSwingKind switch
+            {
+                SwingKind.Melee => -22f * arc,
+                SwingKind.Mine => -10f * arc,
+                SwingKind.Place => -6f * arc,
+                _ => 0f
+            };
+        }
+
+        public float GetHeldItemPitchDegrees()
+        {
+            if (!SwingActive)
+            {
+                return 0f;
+            }
+
+            float t = SwingPhase;
+            float arc = MathF.Sin(t * MathF.PI);
+            return CurrentSwingKind switch
+            {
+                SwingKind.Melee => 18f * arc,
+                SwingKind.Mine => 12f * arc,
+                SwingKind.Place => 8f * arc,
+                _ => 0f
+            };
+        }
+
+        private float GetSwingPulse()
+        {
+            if (!SwingActive)
+            {
+                return 0f;
+            }
+
+            float t = SwingPhase;
+            if (CurrentSwingKind == SwingKind.Melee)
+            {
+                return MathF.Sin(t * MathF.PI) * (0.6f + 0.4f * MathF.Sin(t * MathF.PI * 0.5f));
+            }
+
+            if (CurrentSwingKind == SwingKind.Mine)
+            {
+                return MathF.Sin(t * MathF.PI) * 0.7f;
+            }
+
+            return MathF.Sin(t * MathF.PI) * 0.45f;
+        }
+
+        private float GetSwingLeanX()
+        {
+            if (!SwingActive)
+            {
+                return 0f;
+            }
+
+            return CurrentSwingKind switch
+            {
+                SwingKind.Melee => -0.03f,
+                SwingKind.Mine => -0.012f,
+                SwingKind.Place => -0.01f,
+                _ => 0f
+            };
+        }
+
+        private float GetSwingLeanY()
+        {
+            if (!SwingActive)
+            {
+                return 0f;
+            }
+
+            return CurrentSwingKind switch
+            {
+                SwingKind.Melee => -0.015f,
+                SwingKind.Mine => -0.01f,
+                SwingKind.Place => -0.005f,
+                _ => 0f
+            };
+        }
+
+        private float GetSwingLeanZ()
+        {
+            if (!SwingActive)
+            {
+                return 0f;
+            }
+
+            return CurrentSwingKind switch
+            {
+                SwingKind.Melee => 0.02f,
+                SwingKind.Mine => 0.01f,
+                SwingKind.Place => 0.008f,
+                _ => 0f
+            };
         }
     }
 }

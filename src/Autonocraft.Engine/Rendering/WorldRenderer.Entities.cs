@@ -17,6 +17,7 @@ namespace Autonocraft.Engine
         private void DrawAnimals(GameRenderContext ctx, Matrix view, Matrix proj, int renderDistance, SceneLighting lighting)
         {
             var cameraPos = ctx.Camera.Position;
+            float animTime = ctx.InteractionAnimator.AnimTime;
             var animals = ctx.Animals.GetAnimalsInRange(cameraPos, ChunkLod.GetAnimalCullRadius(renderDistance));
             if (animals.Count == 0)
             {
@@ -75,7 +76,7 @@ namespace Autonocraft.Engine
 
                 var shape = AnimalVisuals.GetShape(animal.Type);
                 var layout = AnimalBodyLayout.From(shape, stats);
-                float walkPhase = AnimalVisuals.GetWalkPhase(animal);
+                float walkPhase = AnimalVisuals.GetWalkPhase(animal, animTime);
 
                 _worldEffect.TextureEnabled = false;
                 AnimalVisuals.DrawLegs(animalWorld, animal.Type, stats, shape, walkPhase, DrawColoredBox);
@@ -84,7 +85,7 @@ namespace Autonocraft.Engine
                 DrawTexturedBox(animalWorld, layout.BodyHalfW, layout.BodyHalfH, layout.BodyHalfD, 0f, layout.BodyCenterY, 0f, bodyUV, bodyUV);
 
                 _worldEffect.TextureEnabled = false;
-                AnimalVisuals.DrawNeck(animalWorld, animal.Type, stats, shape, DrawColoredBox);
+                AnimalVisuals.DrawNeck(animalWorld, animal.Type, stats, shape, walkPhase, DrawColoredBox);
                 _worldEffect.TextureEnabled = true;
 
                 DrawTexturedBox(animalWorld, layout.HeadHalfW, layout.HeadHalfH, layout.HeadHalfD, 0f, layout.HeadCenterY, layout.HeadForward, bodyUV, headUV);
@@ -116,6 +117,7 @@ namespace Autonocraft.Engine
         private void DrawVillagers(GameRenderContext ctx, Matrix view, Matrix proj, int renderDistance, SceneLighting lighting)
         {
             var cameraPos = ctx.Camera.Position;
+            float animTime = ctx.InteractionAnimator.AnimTime;
             var villagers = ctx.Villagers.GetVillagersInRange(cameraPos, ChunkLod.GetAnimalCullRadius(renderDistance));
             if (villagers.Count == 0)
             {
@@ -163,8 +165,8 @@ namespace Autonocraft.Engine
                 var layout = VillagerBodyLayout.Default;
                 var roleColor = VillagerVisuals.GetRoleColor(villager.Role);
                 _worldEffect.TextureEnabled = false;
-                float walkPhase = VillagerVisuals.GetWalkPhase(villager);
-                VillagerVisuals.DrawModelExtras(villagerWorld, villager, layout, walkPhase, DrawColoredBox);
+                float walkPhase = VillagerVisuals.GetWalkPhase(villager, animTime);
+                VillagerVisuals.DrawModelExtras(villagerWorld, villager, layout, walkPhase, animTime, DrawColoredBox);
                 _worldEffect.TextureEnabled = true;
 
                 DrawTexturedBox(villagerWorld, layout.BodyHalfW, layout.BodyHalfH, layout.BodyHalfD, 0f, layout.BodyCenterY, 0f, bodyUV, bodyUV);
@@ -302,10 +304,6 @@ namespace Autonocraft.Engine
             var player = ctx.Player;
             var animator = ctx.InteractionAnimator;
             var stack = player.GetSelectedStack();
-            if (stack.IsEmpty)
-            {
-                return;
-            }
 
             // Clear the depth buffer so the held item is always drawn on top of the world
             _device.Clear(ClearOptions.DepthBuffer, Microsoft.Xna.Framework.Color.Transparent, 1.0f, 0);
@@ -313,6 +311,10 @@ namespace Autonocraft.Engine
             // Calculate swing rotations and offsets
             float swingDeg = animator.GetHeldItemSwingDegrees();
             float offsetY = animator.GetHeldItemOffsetY();
+            float offsetX = animator.GetHeldItemOffsetX();
+            float offsetZ = animator.GetHeldItemOffsetZ();
+            float rollDeg = animator.GetHeldItemRollDegrees();
+            float pitchDeg = animator.GetHeldItemPitchDegrees();
 
             var camera = ctx.Camera;
             Vector3 front = camera.Front;
@@ -320,9 +322,16 @@ namespace Autonocraft.Engine
             Vector3 up = camera.Up;
 
             // Base position offset from camera eye in local coordinates
-            float baseForward = 0.35f;
-            float baseRight = 0.18f;
+            float baseForward = 0.35f + offsetZ;
+            float baseRight = 0.18f + offsetX;
             float baseUp = -0.16f + offsetY * 0.05f;
+
+            if (stack.IsEmpty)
+            {
+                baseForward = 0.30f + offsetZ * 0.80f;
+                baseRight = 0.35f + offsetX * 0.80f;
+                baseUp = -0.22f + offsetY * 0.045f;
+            }
 
             // Apply swing translation offset
             float swingRad = MathHelper.ToRadians(swingDeg);
@@ -343,13 +352,19 @@ namespace Autonocraft.Engine
             {
                 itemRot = Matrix.CreateRotationY(MathHelper.ToRadians(45f)) * Matrix.CreateRotationX(MathHelper.ToRadians(-15f));
             }
+            else if (stack.IsEmpty)
+            {
+                itemRot = Matrix.CreateRotationY(MathHelper.ToRadians(64f)) * Matrix.CreateRotationX(MathHelper.ToRadians(-34f)) * Matrix.CreateRotationZ(MathHelper.ToRadians(-18f));
+            }
             else
             {
                 itemRot = Matrix.CreateRotationY(MathHelper.ToRadians(45f)) * Matrix.CreateRotationX(MathHelper.ToRadians(-25f)) * Matrix.CreateRotationZ(MathHelper.ToRadians(-10f));
             }
 
             // Swing rotation around local X/Z axis
-            Matrix swingRot = Matrix.CreateRotationX(MathHelper.ToRadians(-swingDeg * 1.2f)) * Matrix.CreateRotationZ(MathHelper.ToRadians(swingDeg * 0.8f));
+            Matrix swingRot = Matrix.CreateRotationX(MathHelper.ToRadians(-swingDeg * 1.2f + pitchDeg))
+                * Matrix.CreateRotationY(MathHelper.ToRadians(offsetX * 18f))
+                * Matrix.CreateRotationZ(MathHelper.ToRadians(swingDeg * 0.8f + rollDeg));
 
             Matrix finalWorld = itemRot * swingRot * camRot * Matrix.CreateTranslation(itemPos.X, itemPos.Y, itemPos.Z);
 
@@ -365,7 +380,11 @@ namespace Autonocraft.Engine
             _worldEffect.DirectionalLight0.DiffuseColor = lighting.ToMono(lighting.SunColor);
             _worldEffect.FogEnabled = false;
 
-            if (stack.IsBlock())
+            if (stack.IsEmpty)
+            {
+                DrawEmptyHand(finalWorld);
+            }
+            else if (stack.IsBlock())
             {
                 var type = stack.BlockType;
                 var uvTop = BlockAtlas.GetFaceUVs(type, new System.Numerics.Vector3(0f, 1f, 0f));
@@ -379,6 +398,27 @@ namespace Autonocraft.Engine
             }
 
             _worldEffect.TextureEnabled = prevTextureEnabled;
+        }
+
+        private void DrawEmptyHand(Matrix finalWorld)
+        {
+            _worldEffect.TextureEnabled = false;
+
+            var handWorld = Matrix.CreateScale(0.82f) * Matrix.CreateTranslation(0.10f, -0.02f, 0.03f) * finalWorld;
+
+            var sleeveBase = BlockParticleColors.GetColor(BlockType.OakPlank);
+            var skinBase = BlockParticleColors.GetColor(BlockType.Sand);
+            var sleeveColor = new Color(sleeveBase.X, sleeveBase.Y, sleeveBase.Z) * 0.92f;
+            var sleeveShadow = new Color(sleeveBase.X, sleeveBase.Y, sleeveBase.Z) * 0.72f;
+            var skinColor = new Color(skinBase.X, skinBase.Y, skinBase.Z) * 0.88f;
+            var skinShadow = new Color(skinBase.X, skinBase.Y, skinBase.Z) * 0.76f;
+
+            DrawColoredBox(handWorld, 0.050f, 0.095f, 0.050f, 0.02f, -0.04f, -0.02f, sleeveShadow);
+            DrawColoredBox(handWorld, 0.044f, 0.108f, 0.044f, 0.02f, 0.06f, -0.01f, sleeveColor);
+            DrawColoredBox(handWorld, 0.040f, 0.086f, 0.048f, 0.025f, 0.18f, 0.01f, skinColor);
+            DrawColoredBox(handWorld, 0.032f, 0.022f, 0.032f, 0.040f, 0.23f, 0.02f, skinShadow);
+
+            _worldEffect.TextureEnabled = true;
         }
     }
 }
