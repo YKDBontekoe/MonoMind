@@ -78,8 +78,28 @@ jobs:
           dotnet publish src/Autonocraft
           --configuration Release
           --runtime ${{ matrix.rid }}
-          --self-contained false
+          --self-contained true
           --output publish/${{ matrix.rid }}
+
+      - name: Package macOS app bundle
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          PACKAGE_ROOT="publish/${{ matrix.rid }}-app"
+          APP_DIR="$PACKAGE_ROOT/Autonocraft.app"
+          CONTENTS_DIR="$APP_DIR/Contents"
+          MACOS_DIR="$CONTENTS_DIR/MacOS"
+          mkdir -p "$MACOS_DIR"
+          cp -R publish/${{ matrix.rid }}/. "$MACOS_DIR/"
+          cp release/macos/Info.plist "$CONTENTS_DIR/Info.plist"
+          chmod +x "$MACOS_DIR/Autonocraft"
+
+      - name: Add Linux desktop launcher
+        if: matrix.rid == 'linux-x64'
+        shell: bash
+        run: |
+          cp release/linux/Autonocraft.desktop publish/${{ matrix.rid }}/Autonocraft.desktop
+          chmod +x publish/${{ matrix.rid }}/Autonocraft.desktop
 
       - name: Run headless integration tests on published build
         shell: bash
@@ -95,8 +115,13 @@ jobs:
       - name: Create archive (Unix)
         if: runner.os != 'Windows'
         run: |
-          cd publish/${{ matrix.rid }}
-          zip -r "../../Autonocraft-${{ steps.version.outputs.version }}-${{ matrix.os_name }}-${{ matrix.arch }}.zip" .
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            cd publish/${{ matrix.rid }}-app
+            zip -r "../../Autonocraft-${{ steps.version.outputs.version }}-${{ matrix.os_name }}-${{ matrix.arch }}.zip" Autonocraft.app
+          else
+            cd publish/${{ matrix.rid }}
+            zip -r "../../Autonocraft-${{ steps.version.outputs.version }}-${{ matrix.os_name }}-${{ matrix.arch }}.zip" .
+          fi
 
       - name: Create archive (Windows)
         if: runner.os == 'Windows'
