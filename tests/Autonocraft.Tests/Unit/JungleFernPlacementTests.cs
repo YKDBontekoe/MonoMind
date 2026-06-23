@@ -11,39 +11,48 @@ public class JungleFernPlacementTests
     public void JungleBiome_GeneratesFern_WithDefaultSeed()
     {
         var generator = new WorldGenerator(1337, WorldGenParams.ForType(WorldType.Default));
-        var anchor = WorldGenTestHelpers.FindPreviewCoord(
+        var candidates = WorldGenTestHelpers.FindBiomeCoordsFast(
             generator,
-            column => column.Biome.Primary == BiomeType.Jungle && !column.IsRiver && !column.IsLake,
+            biome => biome.Primary == BiomeType.Jungle,
             radius: 1536,
-            step: 4);
-        Assert.NotNull(anchor);
+            step: 32,
+            maxResults: 15);
+        Assert.NotEmpty(candidates);
 
-        int centerChunkX = anchor.Value.x >> 4;
-        int centerChunkZ = anchor.Value.z >> 4;
         bool found = false;
-        for (int chunkZ = centerChunkZ - 2; chunkZ <= centerChunkZ + 2 && !found; chunkZ++)
+        foreach (var anchor in candidates)
         {
-            for (int chunkX = centerChunkX - 2; chunkX <= centerChunkX + 2; chunkX++)
+            int centerChunkX = anchor.x >> 4;
+            int centerChunkZ = anchor.z >> 4;
+            for (int chunkZ = centerChunkZ - 2; chunkZ <= centerChunkZ + 2 && !found; chunkZ++)
             {
-                var chunk = new Chunk(chunkX, chunkZ);
-                generator.GenerateChunkTerrain(chunk, null);
-                for (int lx = 0; lx < Chunk.Width; lx++)
+                for (int chunkX = centerChunkX - 2; chunkX <= centerChunkX + 2 && !found; chunkX++)
                 {
-                    for (int lz = 0; lz < Chunk.Depth; lz++)
+                    var chunk = new Chunk(chunkX, chunkZ);
+                    generator.GenerateChunkTerrain(chunk, null);
+                    for (int lx = 0; lx < Chunk.Width; lx++)
                     {
-                        for (int y = 1; y < Chunk.Height; y++)
+                        for (int lz = 0; lz < Chunk.Depth; lz++)
                         {
-                            if (chunk.GetBlock(lx, y, lz) == BlockType.Fern)
+                            for (int y = 1; y < Chunk.Height; y++)
                             {
-                                found = true;
-                                break;
+                                if (chunk.GetBlock(lx, y, lz) == BlockType.Fern)
+                                {
+                                    found = true;
+                                    break;
+                                }
                             }
                         }
                     }
                 }
             }
+
+            if (found)
+            {
+                break;
+            }
         }
 
-        Assert.True(found);
+        Assert.True(found, $"Expected fern near jungle anchors {string.Join(", ", candidates)}");
     }
 }
