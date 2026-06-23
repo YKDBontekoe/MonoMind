@@ -7,6 +7,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 Releases are created automatically when changes land on `main` (after CI passes).
 
+## [0.2.15] - 2026-06-23
+
+### Other
+- Tighten world gen mesh streaming assertions
+- Package native release archives for all platforms
+
 ## [0.2.14] - 2026-06-23
 
 ### Other
