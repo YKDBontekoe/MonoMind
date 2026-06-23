@@ -7,6 +7,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 Releases are created automatically when changes land on `main` (after CI passes).
 
+## [0.2.14] - 2026-06-23
+
+### Other
+- Expand jungle fern placement test coverage
+- Refine swing and crack overlay animations
+
 ## [0.2.13] - 2026-06-22
 
 ### Changed
