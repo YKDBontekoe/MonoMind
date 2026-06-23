@@ -10,7 +10,7 @@ A 3D voxel sandbox built with **MonoGame** (DesktopGL) on **.NET 10**. Explore p
 ## Requirements
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- **macOS (optional):** Homebrew OpenGL libs; `run.sh` and `start.command` set `DYLD_LIBRARY_PATH=/opt/homebrew/lib`
+- **macOS (optional):** Homebrew OpenGL libs for local `dotnet run` use
 - **Python 3** (optional) — for `tests/interact.py` and E2E scripts
 
 ## Quick Start
@@ -29,7 +29,9 @@ dotnet run --project src/Autonocraft -- --skip-menu
 dotnet run --project src/Autonocraft -- --test
 ```
 
-On macOS you can also double-click `start.command` or run `./run.sh`.
+On Windows, macOS, and Linux release archives include a native starter:
+`Autonocraft.exe` on Windows, `Autonocraft.app` on macOS, and
+`Autonocraft.desktop` on Linux.
 
 ## Controls (in-game)
 
@@ -115,6 +117,8 @@ Pushes to `main` trigger an automated release pipeline after CI passes:
 
 1. **Version** — bumps `VERSION` (semver from conventional commits: `feat` → minor, `fix` → patch, `!`/`BREAKING CHANGE` → major), prepends [CHANGELOG.md](CHANGELOG.md), commits `chore(release): vX.Y.Z`, and pushes tag `vX.Y.Z`.
 2. **Release** — builds and publishes zip assets for Linux, Windows, and macOS (x64 + arm64) to [GitHub Releases](https://github.com/YKDBontekoe/MonoMind/releases).
+   Windows ships `Autonocraft.exe`; macOS ships `Autonocraft.app`; Linux ships
+   `Autonocraft.desktop` alongside the native executable.
 
 Manual releases are still supported via **Actions → Release → Run workflow** (creates a draft).
 
