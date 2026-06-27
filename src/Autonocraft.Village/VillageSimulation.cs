@@ -15,6 +15,7 @@ namespace Autonocraft.Village
         private bool _wasNight;
 
         public bool CreativeMode { get; set; }
+        public bool IsTestMode { get; set; } = false;
 
         public VillageSimulation(
             VillagerManager villagers,
@@ -34,7 +35,8 @@ namespace Autonocraft.Village
             float deltaTime,
             VoxelWorld world,
             float timeOfDay,
-            AnimalManager animalManager)
+            AnimalManager animalManager,
+            float timeScale = DayNightCycle.DefaultTimeScale)
         {
             bool isNight = DayNightCycle.IsNight(timeOfDay);
             bool morning = _wasNight && !isNight;
@@ -78,26 +80,18 @@ namespace Autonocraft.Village
                     }
 
                     TryGrowFamily(village, world);
+                    AutoDelegate(village);
                 }
-                FarmCropGrowth.Advance(world, village, deltaTime, timeOfDay);
-                village.WorkQueue.SyncWithWorld(world);
+                FarmCropGrowth.Advance(world, village, deltaTime, timeOfDay, timeScale);
+                village.WorkQueue.SyncWithWorld(world, village);
                 FinalizeCompletedSites(village, world, finalizedSites);
                 _haulCoordinator.TryAssignHaulers(village);
                 village.Scheduler.CheckGoalProgress(village);
+                VillageGrowthPlanner.EnsureOrganicGrowthPlan(village, _villagers);
 
-                if (morning || village.Scheduler.HasActiveNumericGoal())
-                {
-                    _dispatcher.AutoAssignIdleWorkers(village, world);
-                }
-
-                var context = BuildContext(village, animalManager);
-
+                // Wake up or put to sleep BEFORE auto-assigning jobs
                 foreach (var villager in VillageSettlementHealth.EnumerateLiveCitizens(village, _villagers))
                 {
-                    VillagerNeedsTracker.ApplyNeeds(villager, villager.Needs, deltaTime, isNight);
-                    villager.DriftHappinessToward(village.Happiness, deltaTime);
-                    villager.RefreshWorkSpeed(village.GetWorkSpeedMultiplier());
-                    ApplyBuildingWorkBonuses(village, villager);
                     if (isNight && villager.CurrentJob != JobType.Build)
                     {
                         if (villager.CurrentJob != JobType.Sleep)
@@ -107,9 +101,21 @@ namespace Autonocraft.Village
                     }
                     else if (villager.CurrentJob == JobType.Sleep && !isNight)
                     {
-                        villager.AssignJob(JobType.Idle, null, null);
+                        villager.WakeFromSleep();
                     }
+                }
 
+                // Auto-assign ALL idle workers every tick — not just on morning
+                _dispatcher.AutoAssignIdleWorkers(village, world);
+
+                var context = BuildContext(village, animalManager);
+
+                foreach (var villager in VillageSettlementHealth.EnumerateLiveCitizens(village, _villagers))
+                {
+                    VillagerNeedsTracker.ApplyNeeds(villager, villager.Needs, deltaTime, isNight);
+                    villager.DriftHappinessToward(village.Happiness, deltaTime);
+                    villager.RefreshWorkSpeed(village.GetWorkSpeedMultiplier());
+                    ApplyBuildingWorkBonuses(village, villager);
                     villager.Update(deltaTime, world, context);
                 }
             }
@@ -119,8 +125,16 @@ namespace Autonocraft.Village
 
         private void FinalizeCompletedSites(Village village, VoxelWorld world, HashSet<int> finalizedSites)
         {
+            var completedSiteIds = new List<int>();
             foreach (var site in village.BuildingSites)
             {
+                if (village.HasCompletedBuildingAt(site.BlueprintId, site.AnchorX, site.AnchorY, site.AnchorZ))
+                {
+                    completedSiteIds.Add(site.Id);
+                    finalizedSites.Add(site.Id);
+                    continue;
+                }
+
                 site.SyncWithWorld(world);
                 if (!site.IsComplete || finalizedSites.Contains(site.Id))
                 {
@@ -131,9 +145,15 @@ namespace Autonocraft.Village
                 {
                     village.CompleteBuilding(blueprint, site);
                     finalizedSites.Add(site.Id);
+                    completedSiteIds.Add(site.Id);
                     _events?.OnBuildingCompleted(blueprint.DisplayName);
                     _events?.CheckTierChange(village);
                 }
+            }
+
+            foreach (int siteId in completedSiteIds)
+            {
+                village.RemoveBuildingSite(siteId);
             }
         }
 
@@ -143,6 +163,7 @@ namespace Autonocraft.Village
             {
                 Village = village,
                 CreativeMode = CreativeMode,
+                IsTestMode = IsTestMode,
                 VillageCenter = village.Center,
                 VillageRadius = village.Radius,
                 StoragePosition = village.StoragePosition,
@@ -171,6 +192,38 @@ namespace Autonocraft.Village
             villager.IsGrounded = true;
             village.RegisterVillager(villager.Id);
             _events?.OnFamilyArrival(villager);
+        }
+
+        private void AutoDelegate(Village village)
+        {
+            var contracts = VillageAgentContracts.Suggest(village, _villagers);
+
+            // First, automatically accept all profitable Trade contracts (cost 0)
+            foreach (var contract in contracts)
+            {
+                if (!contract.AlreadyActive && contract.CanAfford && contract.FavorCost == 0)
+                {
+                    if (contract.Apply != null)
+                    {
+                        contract.Apply(village);
+                        _events?.ShowToast?.Invoke($"Steward completed contract: {contract.Label}");
+                    }
+                }
+            }
+
+            // Then, if we have a lot of favor, accept ONE building/stock contract per day
+            foreach (var contract in contracts)
+            {
+                if (!contract.AlreadyActive && contract.CanAfford && contract.FavorCost > 0)
+                {
+                    if (contract.Apply != null && village.TrySpendFavor(contract.FavorCost))
+                    {
+                        contract.Apply(village);
+                        _events?.ShowToast?.Invoke($"Steward commissioned: {contract.Label}");
+                        break;
+                    }
+                }
+            }
         }
 
         private static void ApplyBuildingWorkBonuses(Village village, Villager villager)

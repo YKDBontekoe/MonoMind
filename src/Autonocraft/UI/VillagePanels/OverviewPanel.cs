@@ -36,32 +36,7 @@ namespace Autonocraft.UI.VillagePanels
                 return false;
             }
 
-            float y = panelY + contentTop;
-            y += layout.S(4f);
-            y += layout.S(20f);
-
-            if (!string.IsNullOrEmpty(viewModel.HudContextNote))
-            {
-                y += layout.S(28f) + layout.S(8f);
-            }
-
-            if (viewModel.FoodRiskLevel is FoodRiskLevel.Low or FoodRiskLevel.Critical ||
-                viewModel.IdleWorkerCount > 0)
-            {
-                y = GetWellBeingBannerBottomY(y, layout, viewModel) + layout.S(6f);
-            }
-
-            if (viewModel.IdleWorkerCount > 0 || viewModel.FoodRiskLevel != FoodRiskLevel.Ok)
-            {
-                y += layout.S(28f);
-            }
-
-            if (!string.IsNullOrEmpty(viewModel.ActiveWorkSummary))
-            {
-                y += layout.S(18f);
-            }
-
-            ctaY = y;
+            ctaY = panelY + contentTop + layout.S(104f) + layout.S(10f);
             return true;
         }
 
@@ -71,168 +46,184 @@ namespace Autonocraft.UI.VillagePanels
             var layout = context.UiLayout;
 
             float left = context.ContentLeft;
-            float y = context.PanelY + context.ContentTop;
-            float height = context.ContentHeight;
+            float yStart = context.PanelY + context.ContentTop;
+            float panelH = layout.S(VillageScreen.PanelHeight);
             float panelWidth = context.PanelWidth;
             float alpha = context.Alpha;
             Color accent = context.Accent;
+            var village = context.Village;
+            int citizens = CountDisplayedCitizens(village, context.Villagers);
 
-            float cardW = layout.S(198f);
-            float cardH = layout.S(68f);
-            float gap = layout.S(10f);
-            float x = left;
+            float colW = (panelWidth - layout.S(40f) - layout.S(20f)) / 2f;
+            float rightColX = left + colW + layout.S(20f);
+            float bottomY = context.PanelY + panelH - layout.S(VillageScreen.FooterHeight) - layout.S(10f);
 
             var viewModel = context.ViewModel;
+            bool emptyRoster = citizens == 0;
+
+            // ------------------ LEFT COLUMN ------------------
+            float leftY = yStart;
+
             if (viewModel != null)
             {
-                y += layout.S(4f);
-                ui.DrawString("Next: " + viewModel.NextAction, left, y, layout.S(UiTheme.FontSmall),
-                    UiTheme.Hint, alpha);
-                y += layout.S(20f);
+                // 1. Priority Card
+                leftY = DrawPriorityCard(context, left, leftY + layout.S(2f), colW, viewModel, emptyRoster) + layout.S(10f);
 
+                // 2. Hud Context Note (if present)
                 if (!string.IsNullOrEmpty(viewModel.HudContextNote))
                 {
-                    float noteH = layout.S(28f);
-                    ui.DrawPanel(left, y, panelWidth - layout.S(40f), noteH, UiTheme.AccentSoft, UiTheme.Accent, 0.55f, alpha, UiTheme.RadiusSm);
-                    ui.DrawString(viewModel.HudContextNote, left + layout.S(10f), y + layout.S(8f),
+                    float noteH = layout.S(32f);
+                    ui.DrawPanel(left, leftY, colW, noteH, UiTheme.AccentSoft, UiTheme.Accent, 0.55f, alpha, UiTheme.RadiusSm);
+                    ui.DrawString(viewModel.HudContextNote, left + layout.S(10f), leftY + layout.S(8f),
                         layout.S(UiTheme.FontSmall), UiTheme.Hint, alpha);
-                    y += noteH + layout.S(8f);
+                    leftY += noteH + layout.S(8f);
                 }
 
-                if (viewModel.FoodRiskLevel is FoodRiskLevel.Low or FoodRiskLevel.Critical ||
-                    viewModel.IdleWorkerCount > 0)
+                // 3. Well-Being Banner (if present and not empty roster)
+                if (!emptyRoster &&
+                    (viewModel.FoodRiskLevel is FoodRiskLevel.Low or FoodRiskLevel.Critical ||
+                    viewModel.IdleWorkerCount > 0))
                 {
-                    y = DrawWellBeingBanner(ui, layout, left, y, panelWidth, viewModel, alpha) + layout.S(6f);
-                }
-
-                if (viewModel.IdleWorkerCount > 0)
-                {
-                    float badgeH = layout.S(22f);
-                    ui.DrawPanel(left, y, layout.S(120f), badgeH, UiTheme.AccentSoft, UiTheme.Accent, 0.8f, alpha, UiTheme.RadiusSm);
-                    ui.DrawString($"{viewModel.IdleWorkerCount} idle", left + layout.S(10f), y + layout.S(4f),
-                        layout.S(UiTheme.FontSmall), UiTheme.Accent, alpha, semiBold: true);
-                    x = left + layout.S(130f);
-                }
-
-                if (viewModel.FoodRiskLevel != FoodRiskLevel.Ok)
-                {
-                    var foodColor = viewModel.FoodRiskLevel == FoodRiskLevel.Critical
-                        ? UiTheme.Danger
-                        : new Color(0.92f, 0.72f, 0.28f);
-                    float badgeW = layout.S(viewModel.IdleWorkerCount > 0 ? 100f : 120f);
-                    float badgeH = layout.S(22f);
-                    float badgeX = viewModel.IdleWorkerCount > 0 ? left + layout.S(130f) : left;
-                    ui.DrawPanel(badgeX, y, badgeW, badgeH, UiTheme.DangerSoft, foodColor, 0.8f, alpha, UiTheme.RadiusSm);
-                    string foodLabel = viewModel.FoodRiskLevel == FoodRiskLevel.Critical ? "Food critical" : "Food low";
-                    ui.DrawString(foodLabel, badgeX + layout.S(10f), y + layout.S(4f),
-                        layout.S(UiTheme.FontSmall), foodColor, alpha, semiBold: true);
-                }
-
-                if (viewModel.IdleWorkerCount > 0 || viewModel.FoodRiskLevel != FoodRiskLevel.Ok)
-                {
-                    y += layout.S(28f);
-                    x = left;
-                }
-
-                if (!string.IsNullOrEmpty(viewModel.ActiveWorkSummary))
-                {
-                    ui.DrawString("Active: " + viewModel.ActiveWorkSummary, left, y, layout.S(UiTheme.FontSmall),
-                        UiTheme.Meta, alpha);
-                    y += layout.S(18f);
-                }
-
-                y = DrawVillagePulse(ui, layout, left, y, panelWidth, viewModel, alpha) + layout.S(10f);
-
-                if (viewModel.NextActionKind != SettlementActionKind.None && viewModel.SuggestedTab.HasValue)
-                {
-                    string ctaLabel = viewModel.SuggestedTab switch
-                    {
-                        SettlementTab.People => "Go to People →",
-                        SettlementTab.Build => "Go to Build →",
-                        _ => "View details →"
-                    };
-                    float ctaW = layout.S(140f);
-                    float ctaH = layout.S(28f);
-                    bool hovered = context.HoveredButton == 15;
-                    ui.DrawButton(left, y, ctaW, ctaH, ctaLabel, hovered, false, UiButtonStyle.Secondary,
-                        layout.S(UiTheme.FontSmall), alpha, hovered ? 1f : 0f);
-                    y += ctaH + layout.S(8f);
+                    leftY = DrawWellBeingBanner(ui, layout, left, leftY, colW, viewModel, alpha) + layout.S(8f);
                 }
             }
 
-            var village = context.Village;
-            int citizens = CountDisplayedCitizens(village, context.Villagers);
+            // 4. Stranded Citizens Banner (if empty roster and stranded > 0)
             int stranded = VillageSettlementHealth.CountStrandedCitizens(village, context.Villagers);
             if (citizens == 0 && stranded > 0)
             {
                 float bannerH = layout.S(54f);
                 var warningColor = new Color(0.92f, 0.72f, 0.28f);
-                ui.DrawPanel(left, y, panelWidth - layout.S(40f), bannerH,
+                ui.DrawPanel(left, leftY, colW, bannerH,
                     UiTheme.AccentSoft, warningColor, 0.85f, alpha, UiTheme.RadiusMd);
-                ui.DrawString($"{stranded} settler(s) nearby are not linked to this town",
-                    left + layout.S(14f), y + layout.S(10f), layout.S(UiTheme.FontBody), warningColor, alpha, semiBold: true);
-                ui.DrawString("Click Link nearby settlers in the footer — they are already walking around.",
-                    left + layout.S(14f), y + layout.S(30f), layout.S(UiTheme.FontSmall), UiTheme.Subtitle, alpha);
-                y += bannerH + layout.S(10f);
+                ui.DrawString($"{stranded} villager(s) nearby are not linked",
+                    left + layout.S(10f), leftY + layout.S(10f), layout.S(UiTheme.FontBody), warningColor, alpha, semiBold: true);
+                ui.DrawString("Close and reopen board to relink them.",
+                    left + layout.S(10f), leftY + layout.S(30f), layout.S(UiTheme.FontSmall), UiTheme.Subtitle, alpha);
+                leftY += bannerH + layout.S(10f);
             }
 
-            bool showMissingSettlersBanner = citizens == 0 && stranded == 0 &&
-                viewModel?.NextActionKind != SettlementActionKind.SummonSettlers;
+            // 5. Empty Roster Banner
+            bool showMissingSettlersBanner = citizens == 0 && stranded == 0;
             if (showMissingSettlersBanner)
             {
                 float bannerH = layout.S(54f);
-                ui.DrawPanel(left, y, panelWidth - layout.S(40f), bannerH,
+                ui.DrawPanel(left, leftY, colW, bannerH,
                     UiTheme.DangerSoft, UiTheme.Danger, 0.85f, alpha, UiTheme.RadiusMd);
-                string bannerTitle = VillageSettlementHealth.IsPlayerNearTownHeart(village, context.PlayerPosition)
-                    ? "No settlers in village"
-                    : "No settlers nearby";
-                ui.DrawString(bannerTitle, left + layout.S(14f), y + layout.S(10f), layout.S(UiTheme.FontBody),
+                ui.DrawString("Village roster is empty", left + layout.S(10f), leftY + layout.S(10f), layout.S(UiTheme.FontBody),
                     UiTheme.Title, alpha, semiBold: true);
-                ui.DrawString(VillageGuidance.GetQuickStartSteps(village, context.Villagers, context.PlayerPosition),
-                    left + layout.S(14f), y + layout.S(30f), layout.S(UiTheme.FontSmall), UiTheme.Subtitle, alpha);
-                y += bannerH + layout.S(10f);
+                ui.DrawString("Close and reopen board to repair starter villagers.",
+                    left + layout.S(10f), leftY + layout.S(30f), layout.S(UiTheme.FontSmall), UiTheme.Subtitle, alpha);
+                leftY += bannerH + layout.S(10f);
             }
             else if (citizens > 0 && citizens <= 2)
             {
+                // Quick start banner
                 float bannerH = layout.S(40f);
-                ui.DrawPanel(left, y, panelWidth - layout.S(40f), bannerH,
+                ui.DrawPanel(left, leftY, colW, bannerH,
                     UiTheme.AccentSoft, UiTheme.Accent, 0.75f, alpha, UiTheme.RadiusMd);
                 ui.DrawString("Quick start: " + VillageGuidance.GetQuickStartSteps(village, context.Villagers, context.PlayerPosition),
-                    left + layout.S(14f), y + layout.S(12f), layout.S(UiTheme.FontSmall), UiTheme.Subtitle, alpha);
-                y += bannerH + layout.S(10f);
+                    left + layout.S(10f), leftY + layout.S(12f), layout.S(UiTheme.FontSmall), UiTheme.Subtitle, alpha);
+                leftY += bannerH + layout.S(10f);
             }
 
-            x = left;
-            DrawStatCard(ui, layout, x, y, cardW, cardH, "Population", $"{citizens}/{village.PopulationCap}",
+            // 6. Stat Cards (2x2 Grid)
+            float cardW = (colW - layout.S(10f)) / 2f;
+            float cardH = layout.S(62f);
+            float cardGap = layout.S(10f);
+
+            // Row 0
+            DrawStatCard(ui, layout, left, leftY, cardW, cardH, "Population", $"{citizens}/{village.PopulationCap}",
                 (float)citizens / Math.Max(1, village.PopulationCap), new Color(0.45f, 0.78f, 0.55f), alpha, accent);
-            x += cardW + gap;
-            DrawStatCard(ui, layout, x, y, cardW, cardH, "Food", $"{village.FoodStock:F0}",
+
+            DrawStatCard(ui, layout, left + cardW + cardGap, leftY, cardW, cardH, "Food", $"{village.FoodStock:F0}",
                 Math.Clamp(village.FoodStock / Math.Max(1f, Math.Max(1, citizens) * 2f), 0f, 1f),
                 new Color(0.92f, 0.72f, 0.28f), alpha, accent);
-            x += cardW + gap;
-            DrawStatCard(ui, layout, x, y, cardW, cardH, "Happiness", $"{village.Happiness:P0}", village.Happiness,
+
+            leftY += cardH + cardGap;
+
+            // Row 1
+            DrawStatCard(ui, layout, left, leftY, cardW, cardH, "Happiness", $"{village.Happiness:P0}", village.Happiness,
                 new Color(0.55f, 0.82f, 0.95f), alpha, accent);
-            x += cardW + gap;
-            DrawStatCard(ui, layout, x, y, cardW, cardH, "Housing", $"{citizens}/{Math.Max(1, village.HousingCapacity)}",
+
+            DrawStatCard(ui, layout, left + cardW + cardGap, leftY, cardW, cardH, "Housing", $"{citizens}/{Math.Max(1, village.HousingCapacity)}",
                 Math.Clamp((float)citizens / Math.Max(1, village.HousingCapacity), 0f, 1f),
                 new Color(0.78f, 0.58f, 0.92f), alpha, accent);
 
-            y += cardH + layout.S(14f);
+            leftY += cardH + layout.S(14f);
 
-            if (!string.IsNullOrWhiteSpace(context.OpeningNote))
+            // 7. Storage Panel (fills remaining space)
+            float storageH = Math.Max(layout.S(78f), bottomY - leftY);
+            DrawStoragePanel(context, left, leftY, colW, storageH, alpha, accent);
+
+
+            // ------------------ RIGHT COLUMN ------------------
+            float rightY = yStart;
+
+            // 1. Village Pulse (if not empty roster)
+            if (viewModel != null && !emptyRoster)
             {
-                float bannerH = layout.S(42f);
-                ui.DrawPanel(left, y, panelWidth - layout.S(40f), bannerH,
-                    UiTheme.AccentSoft, UiTheme.Accent, 0.75f, alpha, UiTheme.RadiusMd);
-                ui.DrawString(context.OpeningNote!, left + layout.S(14f), y + layout.S(12f), layout.S(UiTheme.FontSmall),
-                    UiTheme.Subtitle, alpha);
-                y += bannerH + layout.S(10f);
+                rightY = DrawVillagePulse(ui, layout, rightColX, rightY, colW, viewModel, alpha) + layout.S(10f);
             }
 
-            float colW = (panelWidth - layout.S(40f) - layout.S(12f)) / 2f;
-            float colH = height - (y - (context.PanelY + context.ContentTop)) - layout.S(8f);
-            DrawStoragePanel(context, left, y, colW, colH, alpha, accent);
-            DrawActivityPanel(context, left + colW + layout.S(12f), y, colW, colH, alpha, accent);
+            // 2. CTA Button (if not empty roster and CTA is present)
+            if (viewModel != null && !emptyRoster && viewModel.NextActionKind != SettlementActionKind.None && viewModel.SuggestedTab.HasValue)
+            {
+                string ctaLabel = viewModel.SuggestedTab switch
+                {
+                    SettlementTab.People => "Go to People →",
+                    SettlementTab.Build => "Go to Build →",
+                    _ => "View details →"
+                };
+                float ctaW = layout.S(140f);
+                float ctaH = layout.S(28f);
+                bool hovered = context.HoveredButton == 15;
+                ui.DrawButton(rightColX, rightY, ctaW, ctaH, ctaLabel, hovered, false, UiButtonStyle.Secondary,
+                    layout.S(UiTheme.FontSmall), alpha, hovered ? 1f : 0f);
+                rightY += ctaH + layout.S(10f);
+            }
+
+            // 3. Activity Panel (fills remaining space in right column)
+            float activityH = Math.Max(layout.S(78f), bottomY - rightY);
+            DrawActivityPanel(context, rightColX, rightY, colW, activityH, alpha, accent);
+        }
+
+        private static float DrawPriorityCard(
+            VillagePanelContext context,
+            float left,
+            float y,
+            float width,
+            VillageViewModel viewModel,
+            bool emptyRoster)
+        {
+            var ui = context.Ui;
+            var layout = context.UiLayout;
+            float w = width;
+            float h = layout.S(72f);
+            Color border = viewModel.IsBlocked ? UiTheme.Danger : UiTheme.Accent;
+            Color fill = viewModel.IsBlocked ? UiTheme.DangerSoft : UiTheme.AccentSoft;
+
+            ui.DrawPanel(left, y, w, h, fill, border, 0.9f, context.Alpha, UiTheme.RadiusMd);
+
+            string eyebrow = emptyRoster ? "Village status" : "Next priority";
+            ui.DrawString(eyebrow, left + layout.S(16f), y + layout.S(12f), layout.S(UiTheme.FontCaption),
+                UiTheme.StatLabel, context.Alpha, semiBold: true);
+
+            string title = string.IsNullOrWhiteSpace(viewModel.StarterStep)
+                ? "Manage settlement"
+                : viewModel.StarterStep;
+            ui.DrawString(title, left + layout.S(16f), y + layout.S(30f), layout.S(UiTheme.FontBody),
+                viewModel.IsBlocked ? UiTheme.Danger : UiTheme.Title, context.Alpha, semiBold: true);
+
+            string detail = viewModel.IsBlocked
+                ? string.IsNullOrWhiteSpace(viewModel.Remediation)
+                    ? viewModel.BlockedReason
+                    : $"{viewModel.BlockedReason} {viewModel.Remediation}"
+                : viewModel.NextAction;
+            ui.DrawString(TrimToWidth(ui, detail, layout.S(UiTheme.FontSmall), w - layout.S(32f)),
+                left + layout.S(16f), y + layout.S(54f), layout.S(UiTheme.FontSmall), UiTheme.Subtitle, context.Alpha);
+
+            return y + h;
         }
 
         private static float GetWellBeingBannerBottomY(float y, UiLayout layout, VillageViewModel viewModel)
@@ -252,14 +243,15 @@ namespace Autonocraft.UI.VillagePanels
             UiLayout layout,
             float left,
             float y,
-            float panelWidth,
+            float width,
             VillageViewModel viewModel,
             float alpha)
         {
+            float w = width;
             if (viewModel.FoodRiskLevel == FoodRiskLevel.Critical)
             {
                 float bannerH = layout.S(36f);
-                ui.DrawPanel(left, y, panelWidth - layout.S(40f), bannerH,
+                ui.DrawPanel(left, y, w, bannerH,
                     UiTheme.DangerSoft, UiTheme.Danger, 0.85f, alpha, UiTheme.RadiusMd);
                 ui.DrawString("Food crisis — assign Farm jobs or queue a farm plot",
                     left + layout.S(14f), y + layout.S(10f), layout.S(UiTheme.FontSmall), UiTheme.Danger, alpha);
@@ -270,7 +262,7 @@ namespace Autonocraft.UI.VillagePanels
             {
                 var warningColor = new Color(0.92f, 0.72f, 0.28f);
                 float bannerH = layout.S(36f);
-                ui.DrawPanel(left, y, panelWidth - layout.S(40f), bannerH,
+                ui.DrawPanel(left, y, w, bannerH,
                     UiTheme.AccentSoft, warningColor, 0.75f, alpha, UiTheme.RadiusMd);
                 ui.DrawString("Food running low — grow crops or take rations",
                     left + layout.S(14f), y + layout.S(10f), layout.S(UiTheme.FontSmall), warningColor, alpha);
@@ -280,7 +272,7 @@ namespace Autonocraft.UI.VillagePanels
             if (viewModel.IdleWorkerCount >= 2)
             {
                 float bannerH = layout.S(36f);
-                ui.DrawPanel(left, y, panelWidth - layout.S(40f), bannerH,
+                ui.DrawPanel(left, y, w, bannerH,
                     UiTheme.AccentSoft, UiTheme.Accent, 0.75f, alpha, UiTheme.RadiusMd);
                 ui.DrawString($"{viewModel.IdleWorkerCount} idle workers — assign jobs on People tab",
                     left + layout.S(14f), y + layout.S(10f), layout.S(UiTheme.FontSmall), UiTheme.Accent, alpha);
@@ -315,12 +307,12 @@ namespace Autonocraft.UI.VillagePanels
             UiLayout layout,
             float left,
             float y,
-            float panelWidth,
+            float width,
             VillageViewModel viewModel,
             float alpha)
         {
             var pulse = viewModel.Pulse;
-            float w = panelWidth - layout.S(40f);
+            float w = width;
             float h = layout.S(104f);
             ui.DrawPanel(left, y, w, h, UiTheme.PanelBgMuted, UiTheme.Accent, 0.8f, alpha * 0.95f, UiTheme.RadiusMd);
 
@@ -395,12 +387,21 @@ namespace Autonocraft.UI.VillagePanels
             UiTheme.DrawSectionHeader(ui, "Village storage", x + layout.S(12f), y + layout.S(10f), layout, alpha);
 
             float rowY = y + layout.S(32f);
+            float footerReserve = layout.S(44f);
+            float rowBottom = y + h - footerReserve;
             int shown = 0;
+            int hidden = 0;
             for (int i = 0; i < village.Storage.SlotCount && shown < 10; i++)
             {
                 var stack = village.Storage.GetSlot(i);
                 if (stack.IsEmpty)
                 {
+                    continue;
+                }
+
+                if (rowY > rowBottom)
+                {
+                    hidden++;
                     continue;
                 }
 
@@ -414,6 +415,11 @@ namespace Autonocraft.UI.VillagePanels
             {
                 ui.DrawString("Empty — haulers deliver here", x + layout.S(14f), rowY, layout.S(UiTheme.FontSmall),
                     UiTheme.Hint, alpha);
+            }
+            else if (hidden > 0)
+            {
+                ui.DrawString($"+{hidden} more", x + layout.S(14f), Math.Min(rowY, rowBottom - layout.S(16f)),
+                    layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha);
             }
 
             int plankCount = village.Storage.CountBlock(VillageEntity.RationBlock);

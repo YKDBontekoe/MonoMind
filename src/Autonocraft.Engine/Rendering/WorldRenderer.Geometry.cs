@@ -125,6 +125,39 @@ namespace Autonocraft.Engine
             }
         }
 
+        private void DrawLocalTransformBox(
+            Matrix animalWorld,
+            float halfWidth,
+            float halfHeight,
+            float halfDepth,
+            Matrix localTransform,
+            Color color)
+        {
+            _worldEffect.World = localTransform * animalWorld;
+
+            float x0 = -halfWidth;
+            float x1 = halfWidth;
+            float y0 = -halfHeight;
+            float y1 = halfHeight;
+            float z0 = -halfDepth;
+            float z1 = halfDepth;
+
+            ColoredBoxVertices[0] = new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x0, y0, z1), color);
+            ColoredBoxVertices[1] = new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x1, y0, z1), color);
+            ColoredBoxVertices[2] = new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x1, y1, z1), color);
+            ColoredBoxVertices[3] = new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x0, y1, z1), color);
+            ColoredBoxVertices[4] = new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x0, y0, z0), color);
+            ColoredBoxVertices[5] = new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x1, y0, z0), color);
+            ColoredBoxVertices[6] = new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x1, y1, z0), color);
+            ColoredBoxVertices[7] = new VertexPositionColor(new Microsoft.Xna.Framework.Vector3(x0, y1, z0), color);
+
+            foreach (var pass in _worldEffect.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                _device.DrawUserIndexedPrimitives(PrimitiveType.TriangleList, ColoredBoxVertices, 0, 8, ColoredBoxIndices, 0, 12);
+            }
+        }
+
         private static short[] BuildBoxIndices()
         {
             var indices = new short[36];

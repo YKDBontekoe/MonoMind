@@ -43,7 +43,9 @@ namespace Autonocraft.Core.DevCommands.Commands
             }
 
             var recruitResult = session.Villages.TryRecruit(village!, session.Grid);
-            return recruitResult.PlayerMessage;
+            return recruitResult.Success || string.IsNullOrEmpty(recruitResult.Remediation)
+                ? recruitResult.PlayerMessage
+                : $"{recruitResult.PlayerMessage} {recruitResult.Remediation}";
         }
     }
 
@@ -109,4 +111,3 @@ namespace Autonocraft.Core.DevCommands.Commands
         }
     }
 }
-

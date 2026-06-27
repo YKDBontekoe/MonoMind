@@ -14,6 +14,7 @@ namespace Autonocraft.Village
         private const float StarterFoodStock = 3f;
         private const int StarterPlankCount = 8;
         private const int StarterSettlementPlankCount = 16;
+        private const int StarterSettlementDirtCount = 16;
         private const int StarterSettlementCobblestoneCount = 8;
         private const int StarterSettlementCookedMeatCount = 2;
 
@@ -50,6 +51,7 @@ namespace Autonocraft.Village
 
             ClearFootprint(world, blueprint, heartX, heartY, heartZ);
             PlaceBlueprintBlocks(world, blueprint, heartX, heartY, heartZ);
+            CurateStarterArea(world, nearX, nearZ, heartX, heartY, heartZ);
 
             var village = new Village(villageName, heartX, heartY, heartZ, blueprint.StorageSlots);
             villages.Add(village);
@@ -69,6 +71,10 @@ namespace Autonocraft.Village
                 int farmZ = village.AnchorZ + 4;
                 int farmY = StructureFingerprint.FindSurfaceAnchorY(world, farmX, farmZ);
                 village.QueueBuild(farmBlueprint, farmX, farmY, farmZ);
+                if (!village.Scheduler.HasOpenBuildGoal("farm_plot"))
+                {
+                    village.Scheduler.AddBuildGoal("farm_plot", 26, "Starter plan: establish Farm Plot");
+                }
             }
 
             dispatcher.AutoAssignIdleWorkers(village, world);
@@ -360,6 +366,7 @@ namespace Autonocraft.Village
         {
             village.FoodStock = StarterFoodStock;
             village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, StarterSettlementPlankCount));
+            village.Storage.AddItem(ItemStack.CreateBlock(BlockType.Dirt, StarterSettlementDirtCount));
             village.Storage.AddItem(ItemStack.CreateBlock(BlockType.Cobblestone, StarterSettlementCobblestoneCount));
             village.Storage.AddItem(ItemStack.CreateFood(ItemId.CookedMeat, StarterSettlementCookedMeatCount));
             village.Storage.AddItem(ToolRegistry.CreateStack(ToolType.Axe, ToolTier.Wood));
@@ -417,6 +424,79 @@ namespace Autonocraft.Village
                 int wz = anchorZ + block.Dz;
                 world.SetBlock(wx, wy, wz, block.Type);
             }
+        }
+
+        private static void CurateStarterArea(VoxelWorld world, int spawnX, int spawnZ, int heartX, int heartY, int heartZ)
+        {
+            int pathEndX = heartX > spawnX ? heartX - 2 : heartX + 2;
+            for (int x = Math.Min(spawnX, pathEndX); x <= Math.Max(spawnX, pathEndX); x++)
+            {
+                PlacePathTile(world, x, spawnZ, BlockType.OakPlank);
+            }
+
+            int pathEndZ = heartZ > spawnZ ? heartZ - 2 : heartZ < spawnZ ? heartZ + 2 : spawnZ;
+            for (int z = Math.Min(spawnZ, pathEndZ); z <= Math.Max(spawnZ, pathEndZ); z++)
+            {
+                PlacePathTile(world, pathEndX, z, BlockType.OakPlank);
+            }
+
+            int markerX = heartX - 3;
+            int markerZ = heartZ - 2;
+            int markerY = StructureFingerprint.FindSurfaceAnchorY(world, markerX, markerZ);
+            world.SetBlock(markerX, markerY, markerZ, BlockType.Cobblestone);
+            world.SetBlock(markerX, markerY + 1, markerZ, BlockType.OakLog);
+            world.SetBlock(markerX, markerY + 2, markerZ, BlockType.Lantern);
+
+            for (int x = heartX - 5; x <= heartX + 5; x++)
+            {
+                PlacePathTile(world, x, heartZ - 5, BlockType.OakPlank);
+            }
+
+            for (int z = heartZ - 5; z <= heartZ + 4; z++)
+            {
+                PlacePathTile(world, heartX + 5, z, BlockType.OakPlank);
+            }
+
+            for (int x = heartX + 5; x <= heartX + 8; x++)
+            {
+                PlacePathTile(world, x, heartZ + 4, BlockType.OakPlank);
+            }
+
+            PlaceLanternMarker(world, heartX - 5, heartZ - 4);
+            PlaceLanternMarker(world, heartX + 5, heartZ - 4);
+            PlaceLanternMarker(world, heartX + 8, heartZ + 4);
+
+            PlaceStarterResourceStump(world, heartX + 7, heartZ - 3);
+        }
+
+        private static void PlacePathTile(VoxelWorld world, int x, int z, BlockType blockType)
+        {
+            int y = StructureFingerprint.FindSurfaceAnchorY(world, x, z);
+            world.SetBlock(x, y, z, blockType);
+            world.SetBlock(x, y + 1, z, BlockType.Air);
+            world.SetBlock(x, y + 2, z, BlockType.Air);
+        }
+
+        private static void PlaceLanternMarker(VoxelWorld world, int x, int z)
+        {
+            int y = StructureFingerprint.FindSurfaceAnchorY(world, x, z);
+            world.SetBlock(x, y, z, BlockType.Cobblestone);
+            world.SetBlock(x, y + 1, z, BlockType.OakLog);
+            world.SetBlock(x, y + 2, z, BlockType.Lantern);
+        }
+
+        private static void PlaceStarterResourceStump(VoxelWorld world, int x, int z)
+        {
+            int y = StructureFingerprint.FindSurfaceAnchorY(world, x, z);
+            for (int dy = 0; dy < 3; dy++)
+            {
+                world.SetBlock(x, y + dy, z, BlockType.OakLog);
+            }
+
+            world.SetBlock(x + 1, y, z, BlockType.OakLog);
+            world.SetBlock(x - 1, y, z, BlockType.OakLog);
+            world.SetBlock(x, y, z + 1, BlockType.OakLog);
+            world.SetBlock(x, y, z - 1, BlockType.OakLog);
         }
 
         private static bool TryResolveClaimableMatch(

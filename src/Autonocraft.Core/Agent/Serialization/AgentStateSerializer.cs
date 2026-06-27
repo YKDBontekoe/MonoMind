@@ -58,6 +58,11 @@ internal static class AgentStateSerializer
                 _ => "ok"
             };
             var pulse = VillagePulse.Read(village, session.Villagers, player.CreativeMode);
+            var starterState = SettlementGuidance.ComputeOnboardingState(
+                village,
+                session.Villagers,
+                player.CreativeMode,
+                player.Position);
             villageDto = new AgentVillageSummaryDto(
                 village.Id,
                 village.Name,
@@ -69,6 +74,9 @@ internal static class AgentStateSerializer
                 village.AnchorX,
                 village.AnchorZ,
                 guidance.Detail,
+                guidance.NextActionKind.ToString(),
+                string.IsNullOrWhiteSpace(starterState.BlockedReason) ? null : starterState.BlockedReason,
+                string.IsNullOrWhiteSpace(starterState.Remediation) ? null : starterState.Remediation,
                 idleWorkers,
                 foodRisk,
                 village.Favor,
@@ -261,6 +269,28 @@ internal static class AgentStateSerializer
                 itemId = stack.ToolId.ToString(),
                 name = stack.GetDisplayName(),
                 filled = stack.IsWaterBucket()
+            };
+        }
+
+        if (stack.IsFood())
+        {
+            return new
+            {
+                kind = "food",
+                itemId = stack.FoodId.ToString(),
+                name = stack.GetDisplayName(),
+                count = stack.Count
+            };
+        }
+
+        if (stack.IsMaterial())
+        {
+            return new
+            {
+                kind = "material",
+                itemId = stack.MaterialId.ToString(),
+                name = stack.GetDisplayName(),
+                count = stack.Count
             };
         }
 

@@ -29,7 +29,7 @@ namespace Autonocraft.Village.Jobs
             villager.SetJobTarget(target);
             if (villager.AiPhase == VillagerAiPhase.PathTo)
             {
-                if (!context.CreativeMode && VillagerMovementHelper.TryMoveToward(villager, deltaTime, world, target))
+                if (!(context.CreativeMode && context.IsTestMode) && VillagerMovementHelper.TryMoveToward(villager, deltaTime, world, target))
                 {
                     return;
                 }
@@ -120,7 +120,7 @@ namespace Autonocraft.Village.Jobs
             villager.SetJobTarget(target);
             if (villager.AiPhase == VillagerAiPhase.PathTo)
             {
-                if (!context.CreativeMode && VillagerMovementHelper.TryMoveToward(villager, deltaTime, world, target))
+                if (!(context.CreativeMode && context.IsTestMode) && VillagerMovementHelper.TryMoveToward(villager, deltaTime, world, target))
                 {
                     return;
                 }

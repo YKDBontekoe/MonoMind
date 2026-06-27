@@ -33,7 +33,13 @@ namespace Autonocraft.World
 
         public static (float uMin, float vMin, float uMax, float vMax) GetToolUVs(ItemId toolId)
         {
-            return Layout.GetTileUvs(ToolRegistry.GetAtlasTileId(toolId));
+            string tileId = ToolRegistry.GetAtlasTileId(toolId);
+            if (Layout.Tiles.ContainsKey(tileId))
+            {
+                return Layout.GetTileUvs(tileId);
+            }
+
+            return Layout.GetTileUvs("tool_wood_pickaxe");
         }
 
         public static (float uMin, float vMin, float uMax, float vMax) GetWaterTileUvs()

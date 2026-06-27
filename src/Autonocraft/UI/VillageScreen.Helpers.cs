@@ -23,7 +23,6 @@ namespace Autonocraft.UI
         private void ResetRequests()
         {
             RecruitRequested = false;
-            SummonSettlersRequested = false;
             ClaimRequested = false;
             PlaceTownHeartRequested = false;
             CloseRequested = false;
@@ -44,7 +43,6 @@ namespace Autonocraft.UI
 
             _villageManager.SyncCitizensForVillage(_village);
             _strandedCitizenCount = VillageSettlementHealth.CountStrandedCitizens(_village, _villagers);
-            _summonLinksNearby = CountDisplayedCitizens() == 0 && _strandedCitizenCount > 0;
             _viewModel = VillageViewModel.Build(_village, _villageManager, _villagers, _playerCreative, _playerPos, _guidePlayer);
 
             if (_selectedVillagerId < 0 || !CitizenExists(_selectedVillagerId))
@@ -80,17 +78,10 @@ namespace Autonocraft.UI
             int citizens = CountDisplayedCitizens();
             if (citizens == 0)
             {
-                if (_summonLinksNearby)
-                {
-                    return $"Link nearby settlers ({_strandedCitizenCount})";
-                }
-
-                return CanSummonSettlers()
-                    ? "Summon settlers"
-                    : "Summon settlers (stand at Town Heart)";
+                return "Repair village";
             }
 
-            if (citizens >= _village.PopulationCap)
+            if (citizens >= _village.EffectiveRecruitmentCap)
             {
                 return "Recruit (build house)";
             }
@@ -129,31 +120,6 @@ namespace Autonocraft.UI
             }
 
             return false;
-        }
-
-        private bool CanSummonSettlers()
-        {
-            if (_village == null || _villageManager == null || _world == null)
-            {
-                return false;
-            }
-
-            if (CountDisplayedCitizens() > 0)
-            {
-                return false;
-            }
-
-            if (!VillageSettlementHealth.HasEstablishedSettlement(_village))
-            {
-                return false;
-            }
-
-            if (_strandedCitizenCount > 0)
-            {
-                return VillageSettlementHealth.IsPlayerManagingSettlement(_village, _playerPos);
-            }
-
-            return VillageSettlementHealth.IsPlayerManagingSettlement(_village, _playerPos);
         }
 
         private int CountDisplayedCitizens()

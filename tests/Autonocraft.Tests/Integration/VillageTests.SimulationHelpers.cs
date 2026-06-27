@@ -24,6 +24,59 @@ namespace Autonocraft.Tests.Integration;
 
 public static partial class VillageTests
 {
+    private static (VillagerManager Villagers, VillageManager Villages, VoxelWorld World, VillageEntity Village)
+        CreateOnboardingVillage(string name, int seed = 7070)
+    {
+        var villagers = new VillagerManager();
+        var villages = new VillageManager(villagers);
+        var world = new VoxelWorld(seed);
+        var village = new VillageEntity(name, 40, 64, 40);
+        villages.RegisterVillageForTest(village);
+        return (villagers, villages, world, village);
+    }
+
+    private static Villager SpawnOnboardingVillager(
+        VillagerManager villagers,
+        VillageEntity village,
+        int seed = 1,
+        JobType job = JobType.Idle)
+    {
+        var villager = villagers.Spawn(village.Id, village.Center + new Vector3(seed * 0.25f, 1f, 0f), seed);
+        villager.AssignJob(job, null, null);
+        village.RegisterVillager(villager.Id);
+        return villager;
+    }
+
+    private static void AssertOnboardingState(
+        Autonocraft.UI.Village.VillageViewModel vm,
+        string expectedStep,
+        bool expectedBlocked)
+    {
+        if (!vm.StarterStep.Contains(expectedStep, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new Exception($"Expected starter step to contain '{expectedStep}', got '{vm.StarterStep}'.");
+        }
+
+        if (vm.IsBlocked != expectedBlocked)
+        {
+            throw new Exception($"Expected IsBlocked={expectedBlocked}, got {vm.IsBlocked}.");
+        }
+
+        if (expectedBlocked && (string.IsNullOrWhiteSpace(vm.BlockedReason) || string.IsNullOrWhiteSpace(vm.Remediation)))
+        {
+            throw new Exception("Blocked onboarding state must include reason and remediation.");
+        }
+    }
+
+    private static Autonocraft.UI.Village.VillageViewModel ReadVillageScreenViewModel(Autonocraft.UI.VillageScreen screen)
+    {
+        var viewModelField = typeof(Autonocraft.UI.VillageScreen).GetField(
+            "_viewModel",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        return viewModelField?.GetValue(screen) as Autonocraft.UI.Village.VillageViewModel
+            ?? throw new Exception("Village screen view model was not available.");
+    }
+
     private static void BuildHouseThroughSimulation(
         VillageManager villages,
         VillagerManager villagers,
@@ -31,17 +84,70 @@ public static partial class VillageTests
         AnimalManager animals,
         VillageEntity village)
     {
-        int houseX = village.AnchorX + 7;
-        int houseZ = village.AnchorZ;
-        int houseY = village.AnchorY;
+        if (!PlayerStructureRegistry.TryGet("peasant_house", out var houseBlueprint))
+        {
+            throw new Exception("Peasant house blueprint missing.");
+        }
+
+        int houseX = 0;
+        int houseZ = 0;
+        int houseY = 0;
+        bool foundHouseSpot = false;
+        for (int radius = 8; radius <= 28 && !foundHouseSpot; radius += 2)
+        {
+            for (int dx = -radius; dx <= radius && !foundHouseSpot; dx++)
+            {
+                for (int dz = -radius; dz <= radius; dz++)
+                {
+                    if (Math.Max(Math.Abs(dx), Math.Abs(dz)) > radius)
+                    {
+                        continue;
+                    }
+
+                    int candidateX = village.AnchorX + dx;
+                    int candidateZ = village.AnchorZ + dz;
+                    int candidateY = StructureFingerprint.FindSurfaceAnchorY(world, candidateX, candidateZ);
+                    ClearBlueprintArea(world, "peasant_house", candidateX, candidateY, candidateZ);
+                    if (!villages.CanPlaceBlueprint(world, village, houseBlueprint, candidateX, candidateZ, village.Storage, candidateY))
+                    {
+                        continue;
+                    }
+
+                    houseX = candidateX;
+                    houseY = candidateY;
+                    houseZ = candidateZ;
+                    foundHouseSpot = true;
+                    break;
+                }
+            }
+        }
+
+        if (!foundHouseSpot)
+        {
+            throw new Exception("Could not find valid peasant house anchor.");
+        }
+
         ClearBlueprintArea(world, "peasant_house", houseX, houseY, houseZ);
         if (!villages.TryQueueBlueprint(world, village, "peasant_house", houseX, houseZ, village.Storage, houseY))
         {
             throw new Exception("Could not queue peasant house.");
         }
 
-        var site = village.GetNearestPendingSite(village.Center);
-        if (site == null || site.BlueprintId != "peasant_house")
+        BuildingSite? site = null;
+        foreach (var pending in village.BuildingSites)
+        {
+            if (!pending.IsComplete &&
+                pending.BlueprintId == "peasant_house" &&
+                pending.AnchorX == houseX &&
+                pending.AnchorY == houseY &&
+                pending.AnchorZ == houseZ)
+            {
+                site = pending;
+                break;
+            }
+        }
+
+        if (site == null)
         {
             throw new Exception("Peasant house site not queued.");
         }
@@ -83,7 +189,7 @@ public static partial class VillageTests
     {
         var farm = AddCompletedBuilding(village, "farm_plot", BuildingKind.FarmPlot, 201, village.AnchorX, village.AnchorY, village.AnchorZ + 8);
         PlaceFarmBlocks(world, farm);
-        world.SetBlock(farm.AnchorX, farm.AnchorY, farm.AnchorZ, BlockType.Wheat);
+        world.SetBlock(farm.AnchorX + 1, farm.AnchorY, farm.AnchorZ, BlockType.Wheat);
 
         var farmer = villagers.Spawn(village.Id, new Vector3(farm.AnchorX + 1.5f, farm.AnchorY + 1f, farm.AnchorZ + 1.5f), 7201);
         farmer.Role = VillagerRole.Farmer;
@@ -301,8 +407,24 @@ public static partial class VillageTests
             throw new Exception("Cook did not convert ingredients into food stock.");
         }
 
-        var sheepPos = village.Center + new Vector3(3f, 1f, 3f);
-        var sheep = animals.SpawnAt(AnimalType.Sheep, sheepPos, world);
+        Animal? sheep = null;
+        Vector3 sheepPos = village.Center + new Vector3(3f, 1f, 3f);
+        for (int radius = 3; radius <= 10 && sheep == null; radius += 2)
+        {
+            for (int dx = -radius; dx <= radius && sheep == null; dx += 2)
+            {
+                for (int dz = -radius; dz <= radius; dz += 2)
+                {
+                    sheepPos = village.Center + new Vector3(dx, 1f, dz);
+                    sheep = animals.SpawnAt(AnimalType.Sheep, sheepPos, world);
+                    if (sheep != null)
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+
         if (sheep == null)
         {
             throw new Exception("Could not spawn animal for hunter.");

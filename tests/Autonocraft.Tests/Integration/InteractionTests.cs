@@ -163,6 +163,63 @@ public static class InteractionTests
         Console.ResetColor();
     }
 
+    public static void RunSwordMissDoesNotMineBlock(AutonocraftGame game, Player player, VoxelWorld world)
+    {
+        Console.Write("Running Sword Miss Does Not Mine Block Test... ");
+
+        const int targetY = 30;
+        for (int y = targetY + 1; y <= targetY + 3; y++)
+        {
+            world.SetBlock(16, y, 16, BlockType.Air);
+            world.SetBlock(16, y, 17, BlockType.Air);
+            world.SetBlock(16, y, 18, BlockType.Air);
+            world.SetBlock(16, y, 19, BlockType.Air);
+            world.SetBlock(16, y, 20, BlockType.Air);
+            world.SetBlock(16, y, 21, BlockType.Air);
+        }
+
+        player.CreativeMode = false;
+        player.Position = new Vector3(16.5f, targetY + 1.2f, 16.5f);
+        player.Velocity = Vector3.Zero;
+
+        world.SetBlock(16, targetY, 22, BlockType.Stone);
+
+        player.Hotbar[0] = ToolRegistry.CreateStack(ItemId.WoodSword);
+        player.SelectedSlot = 0;
+
+        var sheep = game.Animals.SpawnAt(AnimalType.Sheep, new Vector3(16.5f, targetY + 1f, 20.2f), world);
+        if (sheep == null)
+        {
+            throw new Exception("Failed to spawn sheep for sword miss test.");
+        }
+
+        IntegrationTestHelpers.AimAt(player, sheep.Position + new Vector3(0f, sheep.Stats.Height * 0.5f, 0f));
+        IntegrationTestHelpers.SyncCamera(game, player);
+
+        int durabilityBefore = player.Hotbar[0].Durability;
+        float sheepHealthBefore = sheep.Health;
+        game.SimulateClick(MouseButton.Left);
+
+        if (world.GetBlock(16, targetY, 22) != BlockType.Stone)
+        {
+            throw new Exception("Sword miss mined the block behind the animal.");
+        }
+
+        if (MathF.Abs(sheep.Health - sheepHealthBefore) > 0.001f)
+        {
+            throw new Exception($"Expected out-of-range sheep to take no damage. Health: {sheepHealthBefore} -> {sheep.Health}");
+        }
+
+        if (player.Hotbar[0].Durability != durabilityBefore)
+        {
+            throw new Exception($"Sword miss should not spend durability. Durability: {durabilityBefore} -> {player.Hotbar[0].Durability}");
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("PASSED");
+        Console.ResetColor();
+    }
+
     public static void RunLeafDecay(AutonocraftGame game, Player player, VoxelWorld world)
     {
         Console.Write("Running Leaf Decay Test... ");

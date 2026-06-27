@@ -17,6 +17,7 @@ namespace Autonocraft.Village
         public BlockType? StockBlock { get; set; }
         public int TargetCount { get; set; }
         public string? BlueprintId { get; set; }
+        public int BuildCountTarget { get; set; } = 1;
         public bool BuildQueued { get; set; }
     }
 
@@ -61,7 +62,7 @@ namespace Autonocraft.Village
             return goal.Id;
         }
 
-        public int AddBuildGoal(string blueprintId, int priority = 0, string? description = null)
+        public int AddBuildGoal(string blueprintId, int priority = 0, string? description = null, int buildCountTarget = 1)
         {
             string label = description ?? $"Build {blueprintId}";
             if (PlayerStructureRegistry.TryGet(blueprintId, out var blueprint))
@@ -75,7 +76,8 @@ namespace Autonocraft.Village
                 Kind = VillageGoalKind.Build,
                 Description = label,
                 Priority = priority,
-                BlueprintId = blueprintId
+                BlueprintId = blueprintId,
+                BuildCountTarget = Math.Max(1, buildCountTarget)
             };
             InsertGoal(goal);
             return goal.Id;
@@ -176,7 +178,7 @@ namespace Autonocraft.Village
 
                         break;
                     case VillageGoalKind.Build when !string.IsNullOrEmpty(goal.BlueprintId):
-                        if (village.HasCompletedBuilding(goal.BlueprintId))
+                        if (village.CountCompletedBuildings(goal.BlueprintId) >= Math.Max(1, goal.BuildCountTarget))
                         {
                             goal.Completed = true;
                         }
@@ -265,7 +267,7 @@ namespace Autonocraft.Village
 
                     return assignment.TryAssignStockGoalWorker(village, world, villager, goal.StockBlock.Value);
                 case VillageGoalKind.Build:
-                    var site = village.GetNearestPendingSite(villager.Position);
+                    var site = village.GetLatestPendingSite(goal.BlueprintId);
                     if (site != null &&
                         !string.IsNullOrEmpty(goal.BlueprintId) &&
                         string.Equals(site.BlueprintId, goal.BlueprintId, StringComparison.OrdinalIgnoreCase))
@@ -286,14 +288,16 @@ namespace Autonocraft.Village
 
         private bool TryApplyBuildGoal(Village village, VoxelWorld world, IJobAssignment assignment, VillageGoal goal)
         {
-            if (goal.BuildQueued || string.IsNullOrEmpty(goal.BlueprintId))
+            if (string.IsNullOrEmpty(goal.BlueprintId))
             {
                 return false;
             }
 
-            if (village.HasPendingOrCompleteBuilding(goal.BlueprintId))
+            int completedCount = village.CountCompletedBuildings(goal.BlueprintId);
+            int pendingCount = village.CountPendingSites(goal.BlueprintId);
+            goal.BuildQueued = pendingCount > 0;
+            if (completedCount + pendingCount >= Math.Max(1, goal.BuildCountTarget))
             {
-                goal.BuildQueued = true;
                 return false;
             }
 
@@ -302,23 +306,22 @@ namespace Autonocraft.Village
                 return false;
             }
 
-            int[] offsets = { 3, 6, -3, -6, 9, -9, 12, -12 };
-            foreach (int dx in offsets)
+            foreach (var candidate in VillageLayoutPlanner.EnumerateCandidateAnchors(village, blueprint))
             {
-                foreach (int dz in offsets)
+                int anchorY = candidate.PreferVillageAnchorY
+                    ? village.AnchorY
+                    : -1;
+                if (assignment.TryQueueBlueprint(
+                        world,
+                        village,
+                        goal.BlueprintId,
+                        candidate.AnchorX,
+                        candidate.AnchorZ,
+                        village.Storage,
+                        anchorY))
                 {
-                    int ax = village.AnchorX + dx;
-                    int az = village.AnchorZ + dz;
-                    const int anchoredOffsetMax = 9;
-                    int anchorY =
-                        Math.Abs(dx) <= anchoredOffsetMax && Math.Abs(dz) <= anchoredOffsetMax
-                            ? village.AnchorY
-                            : -1;
-                    if (assignment.TryQueueBlueprint(world, village, goal.BlueprintId, ax, az, village.Storage, anchorY))
-                    {
-                        goal.BuildQueued = true;
-                        return true;
-                    }
+                    goal.BuildQueued = true;
+                    return true;
                 }
             }
 

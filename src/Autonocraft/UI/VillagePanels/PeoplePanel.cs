@@ -4,32 +4,81 @@ using Autonocraft.Engine;
 using Autonocraft.Entities;
 using Autonocraft.Village;
 using VillageEntity = Autonocraft.Village.Village;
-using Vector3 = System.Numerics.Vector3;
 
 namespace Autonocraft.UI.VillagePanels
 {
     /// <summary>
-    /// People tab: citizen list and job assignment detail.
+    /// People tab: citizen list on the left, villager detail + job assignment on the right.
     /// </summary>
     public sealed class PeoplePanel : IVillagePanel
     {
-        private const float PanelWidth = 900f;
-        private const float ButtonHeight = 34f;
+        internal const float ListWidth = 300f;
+        internal const float ButtonHeight = 34f;
 
-        private static readonly (string Label, JobType Job)[] AssignableJobs =
+        internal static readonly (string Label, JobType Job)[] AssignableJobs =
         {
-            ("Idle", JobType.Idle),
+            ("Idle",   JobType.Idle),
             ("Lumber", JobType.Lumber),
-            ("Mine", JobType.Mine),
-            ("Farm", JobType.Farm),
-            ("Build", JobType.Build),
-            ("Haul", JobType.Haul),
+            ("Mine",   JobType.Mine),
+            ("Farm",   JobType.Farm),
+            ("Build",  JobType.Build),
+            ("Haul",   JobType.Haul),
         };
 
         public int TabIndex => 2;
         public string Label => "People";
-
         public bool IsVisible(VillagePanelContext context) => true;
+
+        // ---------------------------------------------------------------
+        // Shared layout helper
+        //
+        // Returns the ABSOLUTE screen-Y coordinates of the Talk button and
+        // the job-button grid so both Draw and HitPeopleTab use exactly the
+        // same positions — no more dual-maintenance drift.
+        // ---------------------------------------------------------------
+
+        /// <summary>
+        /// Computes the Y-positions of the interactive buttons in the detail
+        /// pane for <paramref name="villager"/>.  All coordinates are absolute
+        /// screen pixels (not relative to any sub-rect).
+        /// </summary>
+        internal static void GetDetailButtonYs(
+            UiLayout layout,
+            float panelY,
+            Villager villager,
+            VillageEntity village,
+            bool hasFeedback,
+            out float talkButtonY,
+            out float jobGridY)
+        {
+            float dy = panelY + layout.S(VillageScreen.ContentTop) + layout.S(16f); // y + pad
+
+            dy += layout.S(28f);   // name (title)
+            dy += layout.S(22f);   // role · job
+            dy += layout.S(18f);   // activity
+
+            if (!string.IsNullOrEmpty(VillagerActivityText.DescribeProgress(villager, village)))
+                dy += layout.S(18f);   // progress
+
+            dy += layout.S(4f);    // gap before trait
+            dy += layout.S(22f);   // trait
+            dy += layout.S(28f);   // skills
+            dy += layout.S(52f);   // morale bar (bar 12 + label + gaps)
+
+            talkButtonY = dy;
+            dy += layout.S(48f);   // talk button (34) + gap (14)
+
+            if (hasFeedback)
+                dy += layout.S(22f);   // feedback text
+
+            dy += layout.S(24f);   // "Assign job" section header
+
+            jobGridY = dy;
+        }
+
+        // ---------------------------------------------------------------
+        // Draw
+        // ---------------------------------------------------------------
 
         public void Draw(VillagePanelContext context)
         {
@@ -37,184 +86,248 @@ namespace Autonocraft.UI.VillagePanels
             var layout = context.UiLayout;
             float left = context.ContentLeft;
             float y = context.PanelY + layout.S(VillageScreen.ContentTop);
-            float height = context.ContentHeight;
+            float h = context.ContentHeight;
             float alpha = context.Alpha;
             Color accent = context.Accent;
             var village = context.Village;
 
-            float listW = layout.S(300f);
+            float listW = layout.S(ListWidth);
             float detailX = left + listW + layout.S(14f);
-            float detailW = layout.S(PanelWidth) - layout.S(40f) - listW - layout.S(14f);
+            float detailW = layout.S(VillageScreen.PanelWidth) - layout.S(40f) - listW - layout.S(14f);
 
-            ui.DrawPanel(left, y, listW, height, UiTheme.PanelBgMuted, accent, 0.75f, alpha * 0.95f, UiTheme.RadiusMd);
-            int citizenCount = CountDisplayedCitizens(village, context.Villagers);
+            // ---- Left column: citizen list ----
+            ui.DrawPanel(left, y, listW, h, UiTheme.PanelBgMuted, accent, 0.75f, alpha * 0.95f, UiTheme.RadiusMd);
+
+            int citizenCount = VillageSettlementHealth.CountLiveCitizens(village, context.Villagers);
             UiTheme.DrawSectionHeader(ui, $"Citizens ({citizenCount})", left + layout.S(12f), y + layout.S(10f), layout, alpha);
 
             float rowY = y + layout.S(32f) - context.PeopleScroll;
             float rowH = layout.S(42f);
+
+            bool anyRow = false;
             foreach (var villager in EnumerateCitizens(village, context.Villagers))
             {
-                int villagerId = villager.Id;
-                bool isSelected = villagerId == context.SelectedVillagerId;
-                bool hovered = context.HoveredButton == 30 + villagerId;
-                bool needsAttention = VillagerActivityText.NeedsAttention(villager, village);
-                if (rowY + rowH >= y + layout.S(28f) && rowY <= y + height - layout.S(6f))
+                anyRow = true;
+                int vid = villager.Id;
+                bool isSelected = vid == context.SelectedVillagerId;
+                bool hovered = context.HoveredButton == VillageScreen.VillagerRowButtonBase + vid;
+                bool needsAttn = VillagerActivityText.NeedsAttention(villager, village);
+
+                if (rowY + rowH >= y + layout.S(28f) && rowY <= y + h - layout.S(6f))
                 {
+                    // Row background
                     if (isSelected || hovered)
                     {
-                        ui.DrawFilledRect(left + layout.S(8f), rowY, listW - layout.S(16f), rowH,
-                            (isSelected ? UiTheme.PanelBgHighlight : new Color(0.08f, 0.12f, 0.15f)) * alpha);
+                        Color hlColor = isSelected
+                            ? UiTheme.PanelBgHighlight
+                            : new Color(0.08f, 0.12f, 0.15f);
+                        ui.DrawFilledRect(left + layout.S(8f), rowY, listW - layout.S(16f), rowH, hlColor * alpha);
                     }
 
-                    var roleColor = VillagerVisuals.GetRoleColor(villager.Role);
-                    ui.DrawRoundedRect(left + layout.S(14f), rowY + layout.S(12f), layout.S(10f), layout.S(10f), layout.S(3f), roleColor * alpha);
-                    if (needsAttention)
+                    // Attention stripe
+                    if (needsAttn)
                     {
-                        ui.DrawRoundedRect(left + layout.S(8f), rowY + layout.S(8f), layout.S(4f), rowH - layout.S(16f),
-                            layout.S(2f), UiTheme.Danger * alpha);
+                        ui.DrawRoundedRect(left + layout.S(8f), rowY + layout.S(8f),
+                            layout.S(4f), rowH - layout.S(16f), layout.S(2f), UiTheme.Danger * alpha);
                     }
 
+                    // Role colour dot
+                    var roleColor = VillagerVisuals.GetRoleColor(villager.Role);
+                    ui.DrawRoundedRect(left + layout.S(14f), rowY + layout.S(13f),
+                        layout.S(10f), layout.S(10f), layout.S(3f), roleColor * alpha);
+
+                    // Name
                     ui.DrawString(villager.Name, left + layout.S(30f), rowY + layout.S(6f),
-                        layout.S(UiTheme.FontBody), isSelected ? UiTheme.Title : UiTheme.StatValue, alpha, semiBold: isSelected);
+                        layout.S(UiTheme.FontBody),
+                        isSelected ? UiTheme.Title : UiTheme.StatValue, alpha, semiBold: isSelected);
+
+                    // Status line
                     string activity = VillagerActivityText.Describe(villager, village, null);
                     string progress = VillagerActivityText.DescribeProgress(villager, village);
-                    string statusText = string.IsNullOrEmpty(progress) ? activity : $"{activity} · {progress}";
-                    Color textCol = needsAttention ? UiTheme.Danger : roleColor;
-                    ui.DrawString(statusText, left + layout.S(30f),
-                        rowY + layout.S(24f), layout.S(UiTheme.FontSmall), textCol, alpha);
+                    string statusLine = string.IsNullOrEmpty(progress) ? activity : $"{activity} · {progress}";
+                    Color statusCol = needsAttn ? UiTheme.Danger : roleColor;
+                    ui.DrawString(
+                        TrimToWidth(ui, statusLine, layout.S(UiTheme.FontSmall), listW - layout.S(44f)),
+                        left + layout.S(30f), rowY + layout.S(24f),
+                        layout.S(UiTheme.FontSmall), statusCol, alpha);
                 }
 
                 rowY += rowH + layout.S(4f);
             }
 
-            if (!HasDisplayedCitizens(village, context.Villagers))
+            if (!anyRow)
             {
                 int stranded = VillageSettlementHealth.CountStrandedCitizens(village, context.Villagers);
-                string emptyHint = stranded > 0
-                    ? $"{stranded} settler(s) nearby — go to Overview and click Link nearby settlers"
-                    : VillageSettlementHealth.IsPlayerManagingSettlement(village, context.PlayerPosition)
-                        ? "No villagers linked — click Summon settlers on Overview"
-                        : "No villagers linked — stand at the Town Heart, then summon settlers";
-                ui.DrawString(emptyHint, left + layout.S(14f), y + layout.S(40f), layout.S(UiTheme.FontSmall),
-                    UiTheme.Hint, alpha);
+                string hint = stranded > 0
+                    ? $"{stranded} villager(s) nearby — close and reopen the board to relink them"
+                    : "No villagers linked — close and reopen the Town Board to repair this village";
+                ui.DrawString(hint, left + layout.S(14f), y + layout.S(40f),
+                    layout.S(UiTheme.FontSmall), UiTheme.Hint, alpha);
             }
 
-            ui.DrawPanel(detailX, y, detailW, height, UiTheme.PanelBgMuted, accent, 0.75f, alpha * 0.95f, UiTheme.RadiusMd);
-            if (context.SelectedVillagerId >= 0 && context.Villagers.TryGet(context.SelectedVillagerId, out var selected))
+            // ---- Right column: detail pane ----
+            ui.DrawPanel(detailX, y, detailW, h, UiTheme.PanelBgMuted, accent, 0.75f, alpha * 0.95f, UiTheme.RadiusMd);
+
+            if (context.SelectedVillagerId >= 0 &&
+                context.Villagers.TryGet(context.SelectedVillagerId, out var selected))
             {
-                DrawVillagerDetail(context, detailX, y, detailW, height, selected, alpha, accent);
+                DrawVillagerDetail(context, detailX, y, detailW, selected, alpha);
             }
             else
             {
-                ui.DrawString("Select a citizen", detailX + layout.S(16f), y + layout.S(40f), layout.S(UiTheme.FontBody),
-                    UiTheme.Hint, alpha);
+                ui.DrawString("← Select a citizen to manage them",
+                    detailX + layout.S(16f), y + layout.S(40f),
+                    layout.S(UiTheme.FontBody), UiTheme.Hint, alpha);
             }
         }
 
+        // ---------------------------------------------------------------
+        // Villager detail
+        // ---------------------------------------------------------------
+
         private static void DrawVillagerDetail(
             VillagePanelContext context,
-            float x,
-            float y,
-            float w,
-            float h,
+            float x, float y, float w,
             Villager villager,
-            float alpha,
-            Color accent)
+            float alpha)
         {
             var ui = context.Ui;
             var layout = context.UiLayout;
             var village = context.Village;
             float pad = layout.S(16f);
-            float detailY = y + pad;
+
+            bool hasFeedback = !string.IsNullOrEmpty(context.AssignFeedback);
+
+            // Get the canonical button Y positions from the shared calculator
+            GetDetailButtonYs(
+                layout, context.PanelY, villager, village, hasFeedback,
+                out float talkButtonY, out float jobGridY);
+
             var roleColor = VillagerVisuals.GetRoleColor(villager.Role);
 
-            ui.DrawString(villager.Name, x + pad, detailY, layout.S(UiTheme.FontTitle),
-                UiTheme.Title, alpha, semiBold: true);
+            // ---- Walk detailY from the top, same increments as GetDetailButtonYs ----
+            float detailY = y + pad;
+
+            // Name with role-colour dot
+            ui.DrawRoundedRect(x + pad, detailY + layout.S(6f),
+                layout.S(10f), layout.S(10f), layout.S(3f), roleColor * alpha);
+            ui.DrawString(villager.Name, x + pad + layout.S(16f), detailY,
+                layout.S(UiTheme.FontTitle), UiTheme.Title, alpha, semiBold: true);
             detailY += layout.S(28f);
+
+            // Role · Current job
             ui.DrawString($"{villager.Role} · {villager.CurrentJob}", x + pad, detailY,
                 layout.S(UiTheme.FontBody), roleColor, alpha);
             detailY += layout.S(22f);
 
+            // Activity
             string activity = VillagerActivityText.Describe(villager, village, null);
             string progress = VillagerActivityText.DescribeProgress(villager, village);
-            ui.DrawString(activity, x + pad, detailY, layout.S(UiTheme.FontSmall), UiTheme.Subtitle, alpha);
+            ui.DrawString(activity, x + pad, detailY,
+                layout.S(UiTheme.FontSmall), UiTheme.Subtitle, alpha);
             detailY += layout.S(18f);
+
+            // Progress (conditional)
             if (!string.IsNullOrEmpty(progress))
             {
-                ui.DrawString(progress, x + pad, detailY, layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha);
+                ui.DrawString(progress, x + pad, detailY,
+                    layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha);
                 detailY += layout.S(18f);
             }
 
+            // Trait
             detailY += layout.S(4f);
-            ui.DrawString($"Trait: {villager.Persona.Trait}", x + pad, detailY, layout.S(UiTheme.FontSmall),
-                UiTheme.Accent, alpha);
+            ui.DrawString($"Trait: {villager.Persona.Trait}", x + pad, detailY,
+                layout.S(UiTheme.FontSmall), UiTheme.Accent, alpha);
             detailY += layout.S(22f);
 
+            // Skills
             ui.DrawString(
-                $"Skills — Mining {villager.Skills.Mining.Level} · Wood {villager.Skills.Woodcutting.Level} · Farm {villager.Skills.Farming.Level}",
+                $"Skills — Mining {villager.Skills.Mining.Level} · " +
+                $"Wood {villager.Skills.Woodcutting.Level} · " +
+                $"Farm {villager.Skills.Farming.Level}",
                 x + pad, detailY, layout.S(UiTheme.FontSmall), UiTheme.Meta, alpha);
             detailY += layout.S(28f);
-            ui.DrawProgressBar(x + pad, detailY, w - pad * 2f, layout.S(12f), villager.Happiness, "Morale", 1f, alpha);
+
+            // Morale bar
+            ui.DrawProgressBar(x + pad, detailY, w - pad * 2f,
+                layout.S(12f), villager.Happiness, "Morale", 1f, alpha);
             detailY += layout.S(52f);
 
+            // detailY should now equal talkButtonY (verified by shared calculator)
+            // ---- Talk button ----
             bool talkEnabled = context.PlayWithAi;
             string talkHint = talkEnabled
                 ? $"Talk to {villager.Name}"
                 : "Enable Play with AI in settings to chat";
-            VillagePanelChrome.DrawButton(ui, x + pad, detailY, layout.S(96f), layout.S(ButtonHeight), "Talk", context.HoveredButton == 50,
-                UiButtonStyle.Secondary, layout, alpha, !talkEnabled);
-            ui.DrawString(talkHint, x + pad + layout.S(106f), detailY + layout.S(8f), layout.S(UiTheme.FontSmall),
-                UiTheme.Hint, alpha);
+            VillagePanelChrome.DrawButton(ui, x + pad, detailY, layout.S(96f), layout.S(ButtonHeight),
+                "Talk", context.HoveredButton == 50, UiButtonStyle.Secondary, layout, alpha, !talkEnabled);
+            ui.DrawString(
+                TrimToWidth(ui, talkHint, layout.S(UiTheme.FontSmall), w - pad * 2f - layout.S(112f)),
+                x + pad + layout.S(106f), detailY + layout.S(8f),
+                layout.S(UiTheme.FontSmall), UiTheme.Hint, alpha);
             detailY += layout.S(48f);
 
-            if (!string.IsNullOrEmpty(context.AssignFeedback))
+            // Feedback line (conditional)
+            if (hasFeedback)
             {
-                Color feedbackColor = context.AssignSuccess ? UiTheme.Success : UiTheme.Danger;
-                ui.DrawString(context.AssignFeedback, x + pad, detailY, layout.S(UiTheme.FontSmall), feedbackColor, alpha);
+                Color fc = context.AssignSuccess ? UiTheme.Success : UiTheme.Danger;
+                ui.DrawString(context.AssignFeedback!, x + pad, detailY,
+                    layout.S(UiTheme.FontSmall), fc, alpha);
                 detailY += layout.S(22f);
             }
 
-            ui.DrawString("Assign job", x + pad, detailY, layout.S(UiTheme.FontSection), UiTheme.Section, alpha, semiBold: true);
+            // ---- "Assign job" header ----
+            ui.DrawString("Assign job", x + pad, detailY,
+                layout.S(UiTheme.FontSection), UiTheme.Section, alpha, semiBold: true);
             detailY += layout.S(24f);
 
-            float jobW = layout.S(96f);
+            // ---- Job buttons (3 rows × 2 cols) ----
+            float jobW = layout.S(240f);
             float jobH = layout.S(ButtonHeight);
             float jobGap = layout.S(10f);
+
             for (int i = 0; i < AssignableJobs.Length; i++)
             {
-                int row = i / 3;
-                int col = i % 3;
-                float jobX = x + pad + col * (jobW + jobGap);
-                float jobY = detailY + row * (jobH + jobGap);
-                VillagePanelChrome.DrawButton(ui, jobX, jobY, jobW, jobH, AssignableJobs[i].Label, context.HoveredButton == 40 + i,
-                    UiButtonStyle.Ghost, layout, alpha);
+                int row = i / 2;
+                int col = i % 2;
+                float bx = x + pad + col * (jobW + jobGap);
+                float by = detailY + row * (jobH + jobGap);
+
+                // Highlight the villager's current job assignment
+                bool isCurrentJob = villager.CurrentJob == AssignableJobs[i].Job;
+                bool isHovered = context.HoveredButton == 40 + i;
+                UiButtonStyle style = isCurrentJob ? UiButtonStyle.Primary : UiButtonStyle.Ghost;
+
+                VillagePanelChrome.DrawButton(ui, bx, by, jobW, jobH,
+                    AssignableJobs[i].Label, isHovered, style, layout, alpha);
             }
         }
 
-        private static int CountDisplayedCitizens(VillageEntity village, VillagerManager villagers)
-        {
-            return VillageSettlementHealth.CountLiveCitizens(village, villagers);
-        }
+        // ---------------------------------------------------------------
+        // Helpers
+        // ---------------------------------------------------------------
 
-        private static bool HasDisplayedCitizens(VillageEntity village, VillagerManager villagers)
+        private static string TrimToWidth(UiRenderer ui, string text, float fontSize, float maxWidth)
         {
-            foreach (var _ in EnumerateCitizens(village, villagers))
+            if (ui.MeasureString(text, fontSize) <= maxWidth)
+                return text;
+            const string ellipsis = "...";
+            for (int len = text.Length - 1; len > 0; len--)
             {
-                return true;
+                string c = text[..len].TrimEnd() + ellipsis;
+                if (ui.MeasureString(c, fontSize) <= maxWidth)
+                    return c;
             }
-
-            return false;
+            return ellipsis;
         }
 
-        private static System.Collections.Generic.IEnumerable<Villager> EnumerateCitizens(VillageEntity village, VillagerManager villagers)
+        private static System.Collections.Generic.IEnumerable<Villager> EnumerateCitizens(
+            VillageEntity village, VillagerManager villagers)
         {
-            foreach (var villager in villagers.All)
-            {
-                if (villager.VillageId == village.Id)
-                {
-                    yield return villager;
-                }
-            }
+            foreach (var v in villagers.All)
+                if (v.VillageId == village.Id)
+                    yield return v;
         }
     }
 }

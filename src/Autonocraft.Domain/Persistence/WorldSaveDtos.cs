@@ -189,6 +189,7 @@ namespace Autonocraft.Domain.Persistence
         public int? StockBlock { get; set; }
         public int TargetCount { get; set; }
         public string? BlueprintId { get; set; }
+        public int BuildCountTarget { get; set; } = 1;
         public bool BuildQueued { get; set; }
     }
 

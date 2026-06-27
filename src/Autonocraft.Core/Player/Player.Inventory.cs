@@ -16,6 +16,12 @@ namespace Autonocraft.Core
 
         public bool IsHoldingTool() => GetSelectedStack().IsTool();
 
+        public bool IsHoldingMeleeWeapon()
+        {
+            var stack = GetSelectedStack();
+            return stack.IsTool() && ToolRegistry.TryGet(stack.ToolId, out var def) && def.ToolType == ToolType.Sword;
+        }
+
         public bool CanPlaceFromSelected()
         {
             var stack = GetSelectedStack();

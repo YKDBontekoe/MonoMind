@@ -601,5 +601,5 @@ See `openrouter_key.example.txt` for OpenRouter key file layout.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/003-revamp-main-menu/plan.md
+at specs/005-villager-onboarding/plan.md
 <!-- SPECKIT END -->

@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,6 +25,15 @@ internal abstract class AgentActionBase : IAgentAction
 
     protected static AgentActionResponseDto Fail(string message) =>
         new(false, message);
+
+    protected static bool TryParseFloat(string? value, out float result) =>
+        float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out result);
+
+    protected static bool TryParseInt(string? value, out int result) =>
+        int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out result);
+
+    protected static string FormatFloat(float value) =>
+        value.ToString(CultureInfo.InvariantCulture);
 }
 
 internal sealed class KeyDownAction : AgentActionBase
@@ -102,17 +112,18 @@ internal sealed class SetLookAction : AgentActionBase
     {
         string? yawStr = request.QueryString["yaw"];
         string? pitchStr = request.QueryString["pitch"];
-        if (float.TryParse(yawStr, out float yaw) && float.TryParse(pitchStr, out float pitch))
+        if (TryParseFloat(yawStr, out float yaw) && TryParseFloat(pitchStr, out float pitch))
         {
+            float appliedPitch = Math.Clamp(pitch, -89f, 89f);
             bridge.EnqueueAction(() =>
             {
                 var p = bridge.Host.Session.Player;
                 p.Yaw = yaw;
-                p.Pitch = Math.Clamp(pitch, -89f, 89f);
+                p.Pitch = appliedPitch;
                 bridge.SyncCameraFromPlayer();
             }, runImmediatelyInTests: false);
 
-            return Ok($"Look direction set to yaw={yaw}, pitch={pitch}");
+            return Ok($"Look direction set to yaw={FormatFloat(yaw)}, pitch={FormatFloat(appliedPitch)}");
         }
 
         return Fail("Invalid or missing 'yaw' or 'pitch' parameters");
@@ -127,7 +138,7 @@ internal sealed class LookAction : AgentActionBase
     {
         string? dxStr = request.QueryString["dx"];
         string? dyStr = request.QueryString["dy"];
-        if (float.TryParse(dxStr, out float dx) && float.TryParse(dyStr, out float dy))
+        if (TryParseFloat(dxStr, out float dx) && TryParseFloat(dyStr, out float dy))
         {
             bridge.EnqueueAction(() =>
             {
@@ -137,7 +148,7 @@ internal sealed class LookAction : AgentActionBase
                 bridge.SyncCameraFromPlayer();
             }, runImmediatelyInTests: false);
 
-            return Ok($"Rotated yaw by {dx}, pitch by {-dy}");
+            return Ok($"Rotated yaw by {FormatFloat(dx)}, pitch by {FormatFloat(-dy)}");
         }
 
         return Fail("Invalid or missing 'dx' or 'dy' parameters");
@@ -153,9 +164,9 @@ internal sealed class TeleportAction : AgentActionBase
         string? xStr = request.QueryString["x"];
         string? yStr = request.QueryString["y"];
         string? zStr = request.QueryString["z"];
-        if (float.TryParse(xStr, out float tx) &&
-            float.TryParse(yStr, out float ty) &&
-            float.TryParse(zStr, out float tz))
+        if (TryParseFloat(xStr, out float tx) &&
+            TryParseFloat(yStr, out float ty) &&
+            TryParseFloat(zStr, out float tz))
         {
             bridge.EnqueueAction(() =>
             {
@@ -166,7 +177,7 @@ internal sealed class TeleportAction : AgentActionBase
                 bridge.SyncCameraFromPlayer();
             }, runImmediatelyInTests: false);
 
-            return Ok($"Teleported player to ({tx}, {ty}, {tz})");
+            return Ok($"Teleported player to ({FormatFloat(tx)}, {FormatFloat(ty)}, {FormatFloat(tz)})");
         }
 
         return Fail("Invalid or missing 'x', 'y', or 'z' parameters");
@@ -207,7 +218,7 @@ internal sealed class SelectSlotAction : AgentActionBase
     public override AgentActionResponseDto Execute(IGameAgentBridge bridge, HttpListenerRequest request)
     {
         string? slotStr = request.QueryString["slot"];
-        if (int.TryParse(slotStr, out int slot) && slot is >= 0 and < 9)
+        if (TryParseInt(slotStr, out int slot) && slot is >= 0 and < 9)
         {
             bridge.EnqueueAction(() =>
             {
@@ -241,8 +252,14 @@ internal sealed class SetTimeAction : AgentActionBase
         string? timeStr = request.QueryString["value"];
         if (float.TryParse(timeStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float timeVal))
         {
-            bridge.EnqueueAction(() => bridge.SetTimeOfDay(timeVal), runImmediatelyInTests: false);
-            return Ok($"Time set to {timeVal}");
+            float normalizedTime = timeVal - MathF.Floor(timeVal);
+            if (normalizedTime < 0f)
+            {
+                normalizedTime += 1f;
+            }
+
+            bridge.EnqueueAction(() => bridge.SetTimeOfDay(normalizedTime), runImmediatelyInTests: false);
+            return Ok($"Time set to {FormatFloat(normalizedTime)}");
         }
 
         return Fail("Invalid or missing 'value' parameter (0-1)");
@@ -258,14 +275,15 @@ internal sealed class SetTimeScaleAction : AgentActionBase
         string? scaleStr = request.QueryString["value"];
         if (float.TryParse(scaleStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float scaleVal))
         {
+            float appliedScale = Math.Max(0f, scaleVal);
             bridge.EnqueueAction(() =>
             {
-                bridge.Host.TimeScale = Math.Max(0f, scaleVal);
+                bridge.Host.TimeScale = appliedScale;
                 bridge.Host.TimePaused = scaleVal <= 0f;
                 bridge.SyncTimeFromHost();
             }, runImmediatelyInTests: false);
 
-            return Ok($"Time scale set to {scaleVal}");
+            return Ok($"Time scale set to {FormatFloat(appliedScale)}");
         }
 
         return Fail("Invalid or missing 'value' parameter");
@@ -334,10 +352,19 @@ internal sealed class DevConsoleAction : AgentActionBase
                 message = "OK";
             }
 
-            return Ok(message);
+            return IsDevCommandFailure(message) ? Fail(message) : Ok(message);
         }
 
         return Fail("Dev command timed out");
+    }
+
+    private static bool IsDevCommandFailure(string message)
+    {
+        return message.StartsWith("Usage:", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("Unknown ", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("Invalid ", StringComparison.OrdinalIgnoreCase)
+            || message.StartsWith("Failed", StringComparison.OrdinalIgnoreCase)
+            || message.Contains(" is not available", StringComparison.OrdinalIgnoreCase);
     }
 }
 
@@ -362,7 +389,15 @@ internal sealed class RecruitVillagerAction : AgentActionBase
         }
 
         var recruitResult = recruitTcs.Task.Result;
-        return recruitResult.Success ? Ok(recruitResult.PlayerMessage) : Fail(recruitResult.PlayerMessage);
+        if (recruitResult.Success)
+        {
+            return Ok(recruitResult.PlayerMessage);
+        }
+
+        string message = string.IsNullOrEmpty(recruitResult.Remediation)
+            ? recruitResult.PlayerMessage
+            : $"{recruitResult.PlayerMessage} {recruitResult.Remediation}";
+        return Fail(message);
     }
 }
 
@@ -372,15 +407,21 @@ internal sealed class AssignJobAction : AgentActionBase
 
     public override AgentActionResponseDto Execute(IGameAgentBridge bridge, HttpListenerRequest request)
     {
-        if (!int.TryParse(request.QueryString["villager_id"], out int vid) ||
+        if (!TryParseInt(request.QueryString["villager_id"], out int vid) ||
             !Enum.TryParse<JobType>(request.QueryString["job"], true, out var jobType))
         {
             return Fail("Need villager_id and job params");
         }
 
-        float? tgx = float.TryParse(request.QueryString["target_x"], out float tfx) ? tfx : null;
-        float? tgy = float.TryParse(request.QueryString["target_y"], out float tfy) ? tfy : null;
-        float? tgz = float.TryParse(request.QueryString["target_z"], out float tfz) ? tfz : null;
+        float? tgx = TryParseFloat(request.QueryString["target_x"], out float tfx) ? tfx : null;
+        float? tgy = TryParseFloat(request.QueryString["target_y"], out float tfy) ? tfy : null;
+        float? tgz = TryParseFloat(request.QueryString["target_z"], out float tfz) ? tfz : null;
+        int? buildingSiteId = TryParseInt(request.QueryString["building_site_id"], out int parsedBuildingSiteId)
+            ? parsedBuildingSiteId
+            : null;
+        int? buildingId = TryParseInt(request.QueryString["building_id"], out int parsedBuildingId)
+            ? parsedBuildingId
+            : null;
         System.Numerics.Vector3? target = tgx.HasValue && tgy.HasValue && tgz.HasValue
             ? new System.Numerics.Vector3(tgx.Value, tgy.Value, tgz.Value)
             : null;
@@ -399,7 +440,7 @@ internal sealed class AssignJobAction : AgentActionBase
                 return;
             }
 
-            assignTcs.SetResult(session.Villages.TryAssignJob(village, villager, jobType, target));
+            assignTcs.SetResult(session.Villages.TryAssignJob(village, villager, jobType, target, buildingSiteId, buildingId));
         }, runImmediatelyInTests: false);
 
         if (!assignTcs.Task.Wait(AgentActionTimeouts.QueuedActionWaitMs))
@@ -428,13 +469,13 @@ internal sealed class QueueBuildAction : AgentActionBase
     {
         string? blueprintId = request.QueryString["blueprint_id"];
         if (string.IsNullOrWhiteSpace(blueprintId) ||
-            !int.TryParse(request.QueryString["anchor_x"], out int anchorX) ||
-            !int.TryParse(request.QueryString["anchor_z"], out int anchorZ))
+            !TryParseInt(request.QueryString["anchor_x"], out int anchorX) ||
+            !TryParseInt(request.QueryString["anchor_z"], out int anchorZ))
         {
             return Fail("Need blueprint_id, anchor_x, and anchor_z params");
         }
 
-        int? anchorY = int.TryParse(request.QueryString["anchor_y"], out int parsedAnchorY)
+        int? anchorY = TryParseInt(request.QueryString["anchor_y"], out int parsedAnchorY)
             ? parsedAnchorY
             : null;
         var queueTcs = new TaskCompletionSource<bool>();
@@ -566,23 +607,3 @@ internal sealed class LoadStructureGalleryAction : AgentActionBase
             : Fail("Failed to queue structure gallery load");
     }
 }
-
-internal sealed class SummonSettlersAction : AgentActionBase
-{
-    public override string Command => "summon_settlers";
-
-    public override AgentActionResponseDto Execute(IGameAgentBridge bridge, HttpListenerRequest request)
-    {
-        var repairTcs = new TaskCompletionSource<bool>();
-        bridge.EnqueueAction(() =>
-        {
-            var session = bridge.Host.Session;
-            var village = session.Villages.GetActiveVillage(session.Player.Position);
-            repairTcs.SetResult(village != null && session.Villages.RepairVillageCitizens(village, session.Grid));
-        }, runImmediatelyInTests: false);
-
-        bool success = repairTcs.Task.Wait(AgentActionTimeouts.QueuedActionWaitMs) && repairTcs.Task.Result;
-        return success ? Ok("Settlers summoned") : Fail("Summon failed (stand near Town Heart)");
-    }
-}
-

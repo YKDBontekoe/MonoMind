@@ -16,7 +16,7 @@ namespace Autonocraft.Village.Jobs
         {
             if (!TryResolveBreakTarget(villager, world, context, out var target))
             {
-                if (context.CreativeMode)
+                if (context.CreativeMode && context.IsTestMode)
                 {
                     TickCreativeFallback(villager, deltaTime);
                     return;
@@ -38,7 +38,7 @@ namespace Autonocraft.Village.Jobs
 
             if (villager.AiPhase == VillagerAiPhase.PathTo)
             {
-                if (!context.CreativeMode && !IsWithinGatherReach(villager, target))
+                if (!(context.CreativeMode && context.IsTestMode) && !IsWithinGatherReach(villager, target))
                 {
                     if (VillagerMovementHelper.TryMoveToward(villager, deltaTime, world, target))
                     {
@@ -56,7 +56,7 @@ namespace Autonocraft.Village.Jobs
                 int bx = (int)MathF.Floor(target.X);
                 int by = (int)MathF.Floor(target.Y);
                 int bz = (int)MathF.Floor(target.Z);
-                if (!context.CreativeMode && !IsWithinGatherReach(villager, target))
+                if (!(context.CreativeMode && context.IsTestMode) && !IsWithinGatherReach(villager, target))
                 {
                     villager.SetAiPhase(VillagerAiPhase.PathTo);
                     return;
@@ -194,7 +194,9 @@ namespace Autonocraft.Village.Jobs
                 int by = (int)MathF.Floor(villager.JobTarget.Value.Y);
                 int bz = (int)MathF.Floor(villager.JobTarget.Value.Z);
                 var block = world.GetBlock(bx, by, bz);
-                if (block != BlockType.Air && IsTargetBlock(block))
+                if (block != BlockType.Air &&
+                    IsTargetBlock(block) &&
+                    (context.Village == null || !context.Village.IsProtectedStructureBlock(bx, by, bz, block)))
                 {
                     target = villager.JobTarget.Value;
                     return true;
@@ -213,11 +215,12 @@ namespace Autonocraft.Village.Jobs
                     _ => VillagerRole.Peasant
                 };
 
-                if (context.Village.WorkQueue.TryGetNextForRole(queueRole, world, out int x, out int y, out int z)
-                    || (queueRole == VillagerRole.Peasant && context.Village.WorkQueue.TryGetNextAny(world, out x, out y, out z)))
+                if (context.Village.WorkQueue.TryGetNextForRole(queueRole, world, context.Village, out int x, out int y, out int z)
+                    || (queueRole == VillagerRole.Peasant && context.Village.WorkQueue.TryGetNextAny(world, context.Village, out x, out y, out z)))
                 {
                     var queuedBlock = world.GetBlock(x, y, z);
-                    if (IsTargetBlock(queuedBlock))
+                    if (IsTargetBlock(queuedBlock) &&
+                        !context.Village.IsProtectedStructureBlock(x, y, z, queuedBlock))
                     {
                         target = new Vector3(x + 0.5f, y, z + 0.5f);
                         villager.SetJobTarget(target);

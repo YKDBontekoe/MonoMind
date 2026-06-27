@@ -325,6 +325,7 @@ namespace Autonocraft.Core
 
             _camera = new Camera();
             _session = new GameSession(DefaultSeed);
+            _session.Villages.IsTestMode = _runTests;
             _blueprints = new BlueprintPlacementSystem(
                 _session,
                 _camera,
@@ -604,6 +605,7 @@ namespace Autonocraft.Core
             {
                 _timeOfDay += deltaTime * _timeScale;
                 _timeOfDay -= MathF.Floor(_timeOfDay);
+                _hostContext.TimeOfDay = _timeOfDay;
             }
 
             _waterAnimTime += deltaTime;

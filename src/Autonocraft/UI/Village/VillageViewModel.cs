@@ -16,6 +16,10 @@ namespace Autonocraft.UI.Village
         public string NextAction { get; init; } = string.Empty;
         public SettlementActionKind NextActionKind { get; init; }
         public SettlementTab? SuggestedTab { get; init; }
+        public string StarterStep { get; init; } = string.Empty;
+        public bool IsBlocked { get; init; }
+        public string BlockedReason { get; init; } = string.Empty;
+        public string Remediation { get; init; } = string.Empty;
         public int Population { get; init; }
         public int PopulationCap { get; init; }
         public float FoodStock { get; init; }
@@ -66,7 +70,9 @@ namespace Autonocraft.UI.Village
             }
 
             int livePopulation = VillageSettlementHealth.CountLiveCitizens(village, villagers);
+            int effectiveRecruitmentCap = village.EffectiveRecruitmentCap;
             var guidance = SettlementGuidance.Compute(village, villagers, playerPos, playerCreative);
+            var onboardingState = SettlementGuidance.ComputeOnboardingState(village, villagers, playerCreative, playerPos);
             string? hudContextNote = guidePlayer != null
                 ? EarlyGameGuide.GetTownBoardHudContextNote(guidePlayer, village, villagers)
                 : null;
@@ -74,10 +80,14 @@ namespace Autonocraft.UI.Village
             return new VillageViewModel
             {
                 VillageName = village.Name,
-                StatusLine = $"{village.Tier} · Pop {livePopulation}/{village.PopulationCap} · Food {village.FoodStock:0.#}",
+                StatusLine = $"{village.Tier} · Pop {livePopulation}/{effectiveRecruitmentCap} · Food {village.FoodStock:0.#}",
                 NextAction = guidance.Detail,
                 NextActionKind = guidance.NextActionKind,
                 SuggestedTab = guidance.SuggestedTab,
+                StarterStep = onboardingState.StarterStep,
+                IsBlocked = onboardingState.IsBlocked,
+                BlockedReason = onboardingState.BlockedReason,
+                Remediation = onboardingState.Remediation,
                 Population = livePopulation,
                 PopulationCap = village.PopulationCap,
                 FoodStock = village.FoodStock,
@@ -92,10 +102,10 @@ namespace Autonocraft.UI.Village
                 FoodRiskLevel = guidance.FoodRisk,
                 ActiveWorkSummary = BuildActiveWorkSummary(village, villagers),
                 RecruitHint = livePopulation == 0
-                    ? "First settler arrives when you found or claim"
+                    ? "Starter villagers restore automatically when the board opens"
                     : village.CanRecruit(villagers, playerCreative)
                         ? $"Recruit costs {VillageEntity.RecruitFoodCost} oak planks"
-                        : livePopulation >= village.PopulationCap
+                        : livePopulation >= effectiveRecruitmentCap
                             ? "Build a Peasant House to raise housing cap"
                             : $"Need {VillageEntity.RecruitFoodCost} oak planks in village storage",
                 RecruitPreview = BuildRecruitPreview(village, villagers, playerCreative, livePopulation),
@@ -169,17 +179,18 @@ namespace Autonocraft.UI.Village
         {
             if (livePopulation == 0)
             {
-                return "Summon settlers first — recruit adds extra workers after your first citizen.";
+                return "Starter villagers should appear automatically — close and reopen the Town Board if this remains empty.";
             }
 
             int planks = village.Storage.CountBlock(VillageEntity.RationBlock);
-            string housing = $"{livePopulation}/{village.PopulationCap} housing";
+            int effectiveRecruitmentCap = village.EffectiveRecruitmentCap;
+            string housing = $"{livePopulation}/{effectiveRecruitmentCap} housing";
             if (playerCreative)
             {
                 return $"Housing: {housing} · Cost: free in creative";
             }
 
-            if (livePopulation >= village.PopulationCap)
+            if (livePopulation >= effectiveRecruitmentCap)
             {
                 return $"Housing full ({housing}) — queue Peasant House on Build tab";
             }

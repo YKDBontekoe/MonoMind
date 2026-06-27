@@ -64,19 +64,43 @@ public static partial class VillageTests
             throw new Exception("Close button center must be inside close hit box.");
         }
 
+        // Verify the shared Talk-button / Job-grid calculator produces Y values inside
+        // the visible content area (not clipped into the footer).
         float contentY = panelY + layout.S(contentTop);
-        float listW = layout.S(300f);
+        float contentBottom = panelY + panelH - layout.S(footerHeight);
+        float listW = layout.S(PeoplePanel.ListWidth);
         float detailX = left + listW + layout.S(14f);
         float pad = layout.S(16f);
-        float talkY = contentY + pad + layout.S(152f);
+
+        // Create a minimal villager/village pair so the calculator can run.
+        var testVillage = new Autonocraft.Village.Village("Layout Test", 0, 64, 0);
+        var testVillager = new Autonocraft.Entities.Villager(1, System.Numerics.Vector3.Zero, 42, "Tester");
+
+        PeoplePanel.GetDetailButtonYs(
+            layout, panelY, testVillager, testVillage,
+            hasFeedback: false,
+            out float talkButtonY, out float jobGridY);
+
+        if (talkButtonY < contentY || talkButtonY >= contentBottom)
+        {
+            throw new Exception($"Talk button Y ({talkButtonY:F0}) must be inside content area [{contentY:F0}, {contentBottom:F0}).");
+        }
+
+        float jobGridBottom = jobGridY + 3f * layout.S(buttonHeight) + 2f * layout.S(10f);
+        if (jobGridBottom > contentBottom + layout.S(4f))   // 4 px tolerance for rounding
+        {
+            throw new Exception($"Job grid bottom ({jobGridBottom:F0}) clips past content bottom ({contentBottom:F0}).");
+        }
+
+        // Verify the hit rect for the Talk button is self-consistent.
         var talkRect = new Microsoft.Xna.Framework.Rectangle(
             (int)(detailX + pad),
-            (int)talkY,
+            (int)talkButtonY,
             (int)layout.S(96f),
             (int)layout.S(buttonHeight));
         if (!talkRect.Contains(talkRect.Center.X, talkRect.Center.Y))
         {
-            throw new Exception("Talk button center must be inside talk hit box.");
+            throw new Exception("Talk button hit rect must contain its own center.");
         }
 
         float overviewCtaY = contentY + layout.S(44f);
@@ -250,6 +274,101 @@ public static partial class VillageTests
         if (GatherBlockClassifier.GetCategory(BlockType.OakLog) != GatherCategory.Lumber)
         {
             throw new Exception("Logs should still be valid lumber targets.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunGatherJobsIgnoreVillageStructures()
+    {
+        Console.Write("Running Gather Jobs Ignore Village Structures Test... ");
+        var villagers = new VillagerManager();
+        var villages = new VillageManager(villagers);
+        var world = new VoxelWorld(9190);
+        int ax = 48;
+        int az = 48;
+        world.UpdateChunksAround(null, new Vector3(ax + 0.5f, 64f, az + 0.5f), 2);
+        TryFoundTestVillage(villages, world, "Protected Gather", ax, az, out var village);
+        if (village == null)
+        {
+            throw new Exception("Village missing.");
+        }
+
+        if (!PlayerStructureRegistry.TryGet("lumber_camp", out var lumberCampBlueprint))
+        {
+            throw new Exception("lumber_camp blueprint missing.");
+        }
+
+        int campX = village.AnchorX + 8;
+        int campZ = village.AnchorZ;
+        int campY = StructureFingerprint.FindSurfaceAnchorY(world, campX, campZ);
+        StampTemplate(world, campX, campY, campZ, lumberCampBlueprint.Template);
+        village.RegisterClaimedBuilding(lumberCampBlueprint, campX, campY, campZ);
+
+        int naturalLogX = campX + 6;
+        int naturalLogZ = campZ;
+        int naturalLogY = world.GetHighestSolidY(naturalLogX, naturalLogZ) + 1;
+        world.SetBlock(naturalLogX, naturalLogY, naturalLogZ, BlockType.OakLog);
+
+        var lumberCamp = village.GetNearestBuilding(BuildingKind.LumberCamp, village.Center);
+        var lumberTarget = JobTargetScanner.FindNearbyLumberTarget(world, village, lumberCamp, village.Center);
+        if (!lumberTarget.HasValue ||
+            (int)MathF.Floor(lumberTarget.Value.X) != naturalLogX ||
+            (int)MathF.Floor(lumberTarget.Value.Y) != naturalLogY ||
+            (int)MathF.Floor(lumberTarget.Value.Z) != naturalLogZ)
+        {
+            throw new Exception("Lumber target selection should ignore village structure logs and pick the natural tree.");
+        }
+
+        village.WorkQueue.Enqueue(campX - 1, campY + 1, campZ - 1);
+        village.WorkQueue.Enqueue(naturalLogX, naturalLogY, naturalLogZ);
+        if (!village.WorkQueue.TryGetNextForRole(VillagerRole.Lumberjack, world, village, out int queuedLogX, out int queuedLogY, out int queuedLogZ) ||
+            queuedLogX != naturalLogX ||
+            queuedLogY != naturalLogY ||
+            queuedLogZ != naturalLogZ)
+        {
+            throw new Exception("Queued lumber work should skip protected village structure logs.");
+        }
+
+        if (!PlayerStructureRegistry.TryGet("quarry", out var quarryBlueprint))
+        {
+            throw new Exception("quarry blueprint missing.");
+        }
+
+        int quarryX = village.AnchorX;
+        int quarryZ = village.AnchorZ + 8;
+        int quarryY = StructureFingerprint.FindSurfaceAnchorY(world, quarryX, quarryZ);
+        StampTemplate(world, quarryX, quarryY, quarryZ, quarryBlueprint.Template);
+        village.RegisterClaimedBuilding(quarryBlueprint, quarryX, quarryY, quarryZ);
+
+        int naturalStoneX = quarryX + 6;
+        int naturalStoneZ = quarryZ;
+        int naturalStoneY = world.GetHighestSolidY(naturalStoneX, naturalStoneZ) + 1;
+        world.SetBlock(naturalStoneX, naturalStoneY, naturalStoneZ, BlockType.Stone);
+
+        var quarry = village.GetNearestBuilding(BuildingKind.Quarry, village.Center);
+        var mineTarget = quarry == null ? null : JobTargetScanner.FindNearbyMineTarget(world, village, quarry);
+        if (!mineTarget.HasValue)
+        {
+            throw new Exception("Expected a mine target near the quarry.");
+        }
+
+        int mineX = (int)MathF.Floor(mineTarget.Value.X);
+        int mineY = (int)MathF.Floor(mineTarget.Value.Y);
+        int mineZ = (int)MathF.Floor(mineTarget.Value.Z);
+        if (village.IsProtectedStructureBlock(mineX, mineY, mineZ, world.GetBlock(mineX, mineY, mineZ)))
+        {
+            throw new Exception("Mine target selection should ignore village structure stone.");
+        }
+
+        village.WorkQueue.Enqueue(quarryX, quarryY, quarryZ);
+        village.WorkQueue.Enqueue(naturalStoneX, naturalStoneY, naturalStoneZ);
+        if (!village.WorkQueue.TryGetNextForRole(VillagerRole.Miner, world, village, out int queuedStoneX, out int queuedStoneY, out int queuedStoneZ) ||
+            queuedStoneX != naturalStoneX ||
+            queuedStoneY != naturalStoneY ||
+            queuedStoneZ != naturalStoneZ)
+        {
+            throw new Exception("Queued mining work should skip protected village structure blocks.");
         }
 
         Console.WriteLine("PASSED");
@@ -634,7 +753,9 @@ public static partial class VillageTests
         var v = villagers.Spawn(village.Id, village.Center + new Vector3(1f, 1f, 0f), 3);
         village.RegisterVillager(v.Id);
         v.AssignJob(JobType.Idle, null, null);
-        village.FoodStock = 1f;
+        village.PopulationCap = 4;
+        village.FoodStock = 0f;
+        village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, VillageEntity.RecruitFoodCost));
         if (PlayerStructureRegistry.TryGet("farm_plot", out var farmBlueprint))
         {
             village.QueueBuild(farmBlueprint, village.AnchorX + 4, village.AnchorY, village.AnchorZ);
@@ -659,6 +780,63 @@ public static partial class VillageTests
         if (string.IsNullOrWhiteSpace(vm.NextAction))
         {
             throw new Exception("Expected next action text.");
+        }
+
+        AssertOnboardingState(vm, "secure food", expectedBlocked: false);
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunVillagerOnboardingStateFields()
+    {
+        Console.Write("Running Villager Onboarding State Fields Test... ");
+        var (villagers, villages, _, village) = CreateOnboardingVillage("Onboarding");
+
+        var unestablished = Autonocraft.UI.Village.VillageViewModel.Build(village, villages, villagers, false, village.Center);
+        AssertOnboardingState(unestablished, "found", expectedBlocked: true);
+
+        var establishedVillagers = new VillagerManager();
+        var establishedVillages = new VillageManager(establishedVillagers);
+        var world = new VoxelWorld(7071);
+        establishedVillages.InitializeStarterSettlement(world, GameConstants.DefaultSpawnX, GameConstants.DefaultSpawnZ);
+        var establishedVillage = establishedVillages.GetPrimaryVillage()
+            ?? throw new Exception("Starter settlement missing.");
+        while (establishedVillage.VillagerIds.Count > 0)
+        {
+            establishedVillage.UnregisterVillager(establishedVillage.VillagerIds[0]);
+        }
+
+        establishedVillagers.LoadVillagers(Array.Empty<VillagerSaveData>());
+        var emptyEstablished = Autonocraft.UI.Village.VillageViewModel.Build(
+            establishedVillage,
+            establishedVillages,
+            establishedVillagers,
+            false,
+            establishedVillage.Center);
+        AssertOnboardingState(emptyEstablished, "repair", expectedBlocked: true);
+        if (emptyEstablished.NextActionKind != SettlementActionKind.RepairRoster)
+        {
+            throw new Exception($"Expected repair-roster next action, got {emptyEstablished.NextActionKind}.");
+        }
+
+        SpawnOnboardingVillager(villagers, village, 20);
+        village.PopulationCap = 1;
+        var capped = Autonocraft.UI.Village.VillageViewModel.Build(village, villages, villagers, false, village.Center);
+        AssertOnboardingState(capped, "housing", expectedBlocked: true);
+
+        village.PopulationCap = 4;
+        var missingMaterials = Autonocraft.UI.Village.VillageViewModel.Build(village, villages, villagers, false, village.Center);
+        AssertOnboardingState(missingMaterials, "planks", expectedBlocked: true);
+        if (!missingMaterials.RecruitPreview.Contains("Need more planks", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new Exception($"Expected recruit preview to explain missing planks, got: {missingMaterials.RecruitPreview}");
+        }
+
+        village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, VillageEntity.RecruitFoodCost));
+        var ready = Autonocraft.UI.Village.VillageViewModel.Build(village, villages, villagers, false, village.Center);
+        if (ready.IsBlocked)
+        {
+            throw new Exception($"Expected ready onboarding state, got block: {ready.BlockedReason}");
         }
 
         Console.WriteLine("PASSED");
@@ -1249,20 +1427,47 @@ public static partial class VillageTests
             throw new Exception($"Expected board open to relink starter citizens, got {livePopulation}.");
         }
 
-        var summonField = typeof(VillageScreen).GetField(
-            "_summonLinksNearby",
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-        if (summonField?.GetValue(screen) is true)
-        {
-            throw new Exception("Board should not show Link nearby settlers after starter citizens are relinked.");
-        }
-
         var viewModelField = typeof(VillageScreen).GetField(
             "_viewModel",
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
         if (viewModelField?.GetValue(screen) is not VillageViewModel vm || vm.Population < 2)
         {
             throw new Exception("Expected village screen view model to expose relinked starter citizens.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunStarterVillageAutoRestoresZeroPopulation()
+    {
+        Console.Write("Running Starter Village Auto-Restores Zero Population Test... ");
+        var villagers = new VillagerManager();
+        var villages = new VillageManager(villagers);
+        var world = new VoxelWorld(6363);
+        villages.InitializeStarterSettlement(world, GameConstants.DefaultSpawnX, GameConstants.DefaultSpawnZ);
+        var village = villages.GetPrimaryVillage() ?? throw new Exception("Starter village missing.");
+
+        while (village.VillagerIds.Count > 0)
+        {
+            village.UnregisterVillager(village.VillagerIds[0]);
+        }
+
+        villagers.LoadVillagers(Array.Empty<VillagerSaveData>());
+        if (VillageSettlementHealth.GetLivePopulation(village, villagers) != 0)
+        {
+            throw new Exception("Expected zero linked citizens before summon.");
+        }
+
+        var result = villages.EnsureStarterCitizens(village, world);
+        if (!result.Success)
+        {
+            throw new Exception($"Expected starter village auto-restore to succeed, got {result.PlayerMessage} {result.Remediation}");
+        }
+
+        int livePopulation = VillageSettlementHealth.GetLivePopulation(village, villagers);
+        if (livePopulation < 2)
+        {
+            throw new Exception($"Expected starter village auto-restore to link at least 2 citizens, got {livePopulation}.");
         }
 
         Console.WriteLine("PASSED");
@@ -1289,6 +1494,87 @@ public static partial class VillageTests
             {
                 throw new Exception("Starter villager was not assigned to the first village.");
             }
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunVillageAutomationRetasksIdleWorkers()
+    {
+        Console.Write("Running Village Automation Retasks Idle Workers Test... ");
+        var villagers = new VillagerManager();
+        var villages = new VillageManager(villagers);
+        var world = new VoxelWorld(9393);
+        int ax = 40;
+        int az = 40;
+        world.UpdateChunksAround(null, new Vector3(ax + 0.5f, 64f, az + 0.5f), 2);
+        TryFoundTestVillage(villages, world, "Automation", ax, az, out var village);
+        if (village == null)
+        {
+            throw new Exception("Village missing.");
+        }
+
+        EnsureFlatVillagePad(world, village, 12);
+        var farm = AddCompletedBuilding(village, "farm_plot", BuildingKind.FarmPlot, 611, village.AnchorX, village.AnchorY, village.AnchorZ + 8);
+        PlaceFarmBlocks(world, farm);
+        world.SetBlock(farm.AnchorX + 1, farm.AnchorY, farm.AnchorZ, BlockType.Wheat);
+
+        if (!PlayerStructureRegistry.TryGet("peasant_house", out var houseBlueprint))
+        {
+            throw new Exception("peasant_house blueprint missing.");
+        }
+
+        int houseX = village.AnchorX + 8;
+        int houseZ = village.AnchorZ;
+        ClearBlueprintArea(world, "peasant_house", houseX, village.AnchorY, houseZ);
+        village.QueueBuild(houseBlueprint, houseX, village.AnchorY, houseZ);
+
+        var lumberjack = villagers.Spawn(village.Id, village.Center + new Vector3(0f, 1f, 0f), 9011);
+        lumberjack.Role = VillagerRole.Lumberjack;
+        lumberjack.AssignJob(JobType.Idle, null, null);
+        village.RegisterVillager(lumberjack.Id);
+
+        var miner = villagers.Spawn(village.Id, village.Center + new Vector3(1f, 1f, 0f), 9012);
+        miner.Role = VillagerRole.Miner;
+        miner.AssignJob(JobType.Idle, null, null);
+        village.RegisterVillager(miner.Id);
+
+        var smith = villagers.Spawn(village.Id, village.Center + new Vector3(-1f, 1f, 0f), 9013);
+        smith.Role = VillagerRole.Smith;
+        smith.AssignJob(JobType.Idle, null, null);
+        village.RegisterVillager(smith.Id);
+
+        village.FoodStock = 0f;
+        villages.AutoAssignIdleWorkers(village, world);
+
+        int farming = 0;
+        int building = 0;
+        foreach (var citizen in villagers.All)
+        {
+            if (citizen.VillageId != village.Id)
+            {
+                continue;
+            }
+
+            if (citizen.CurrentJob == JobType.Farm)
+            {
+                farming++;
+            }
+
+            if (citizen.CurrentJob == JobType.Build)
+            {
+                building++;
+            }
+        }
+
+        if (farming < 1)
+        {
+            throw new Exception("Automation should retask at least one idle villager into farming during a food crisis.");
+        }
+
+        if (building < 1)
+        {
+            throw new Exception("Automation should retask at least one idle villager into building when a site is queued.");
         }
 
         Console.WriteLine("PASSED");

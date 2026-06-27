@@ -45,6 +45,14 @@ namespace Autonocraft.Entities
         public bool HaulIsDelivering { get; private set; }
         public Vector3? MarkedResource { get; set; }
         public int? HomeBuildingId { get; set; }
+        public JobType PreSleepJob { get; set; } = JobType.Idle;
+        public Vector3? PreSleepJobTarget { get; set; }
+        public int? PreSleepBuildingSiteId { get; set; }
+        public int? PreSleepBuildingId { get; set; }
+        public int? PreSleepHaulSourceChestId { get; set; }
+        public int? PreSleepHaulSourceVillagerId { get; set; }
+        public bool PreSleepHaulIsDelivering { get; set; }
+        public Vector3? PreSleepMarkedResource { get; set; }
 
         public Inventory Inventory { get; } = new Inventory(8);
         public ItemStack EquippedTool { get; private set; }
@@ -80,7 +88,7 @@ namespace Autonocraft.Entities
             }
 
             VillageId = villageId;
-            _rng = new Random(seed ^ Id);
+            _rng = new Random(seed ^ (Id * 397));
             Name = name ?? GenerateName(_rng);
             Position = position;
             Velocity = Vector3.Zero;
@@ -140,6 +148,27 @@ namespace Autonocraft.Entities
 
         public void AssignJob(JobType job, Vector3? target, int? buildingSiteId, int? assignedBuildingId = null)
         {
+            if (job == JobType.Sleep)
+            {
+                // Remember the previous job and state so we can restore it after sleeping
+                if (CurrentJob != JobType.Sleep && CurrentJob != JobType.Idle)
+                {
+                    PreSleepJob = CurrentJob;
+                    PreSleepJobTarget = JobTarget;
+                    PreSleepBuildingSiteId = AssignedBuildingSiteId;
+                    PreSleepBuildingId = AssignedBuildingId;
+                    PreSleepHaulSourceChestId = HaulSourceChestId;
+                    PreSleepHaulSourceVillagerId = HaulSourceVillagerId;
+                    PreSleepHaulIsDelivering = HaulIsDelivering;
+                    PreSleepMarkedResource = MarkedResource;
+                }
+            }
+            else if (job != JobType.Idle)
+            {
+                // When actively assigned a real job, clear the pre-sleep reminder
+                ClearPreSleepState();
+            }
+
             CurrentJob = job;
             JobTarget = target;
             AssignedBuildingSiteId = buildingSiteId;
@@ -156,6 +185,8 @@ namespace Autonocraft.Entities
 
         public void AssignHaulJob(Vector3? pickupTarget, int? sourceChestId, int? sourceVillagerId)
         {
+            ClearPreSleepState();
+
             CurrentJob = JobType.Haul;
             JobTarget = pickupTarget;
             AssignedBuildingSiteId = null;
@@ -167,6 +198,45 @@ namespace Autonocraft.Entities
             BreakProgress = 0f;
             _path.Clear();
             _pathIndex = 0;
+        }
+
+        public void WakeFromSleep()
+        {
+            if (PreSleepJob != JobType.Idle && PreSleepJob != JobType.Sleep)
+            {
+                CurrentJob = PreSleepJob;
+                JobTarget = PreSleepJobTarget;
+                AssignedBuildingSiteId = PreSleepBuildingSiteId;
+                AssignedBuildingId = PreSleepBuildingId;
+                HaulSourceChestId = PreSleepHaulSourceChestId;
+                HaulSourceVillagerId = PreSleepHaulSourceVillagerId;
+                HaulIsDelivering = PreSleepHaulIsDelivering;
+                MarkedResource = PreSleepMarkedResource;
+
+                AiPhase = CurrentJob == JobType.Idle ? VillagerAiPhase.Idle : VillagerAiPhase.PathTo;
+                WorkTimer = 0f;
+                BreakProgress = 0f;
+                _path.Clear();
+                _pathIndex = 0;
+            }
+            else
+            {
+                AssignJob(JobType.Idle, null, null);
+            }
+
+            ClearPreSleepState();
+        }
+
+        private void ClearPreSleepState()
+        {
+            PreSleepJob = JobType.Idle;
+            PreSleepJobTarget = null;
+            PreSleepBuildingSiteId = null;
+            PreSleepBuildingId = null;
+            PreSleepHaulSourceChestId = null;
+            PreSleepHaulSourceVillagerId = null;
+            PreSleepHaulIsDelivering = false;
+            PreSleepMarkedResource = null;
         }
 
         public void SetPath(IReadOnlyList<Vector3> waypoints)
@@ -253,8 +323,17 @@ namespace Autonocraft.Entities
 
         private static string GenerateName(Random rng)
         {
-            string[] first = { "Aldric", "Bryn", "Cedric", "Dara", "Eldon", "Faye", "Greta", "Hale", "Iris", "Joren" };
-            return first[rng.Next(first.Length)];
+            string[] firsts = {
+                "Aldric", "Bryn", "Cedric", "Dara", "Eldon", "Faye", "Greta", "Hale", "Iris", "Joren",
+                "Kael", "Lyra", "Merrick", "Nia", "Orion", "Pippa", "Quinn", "Rowan", "Silas", "Talia",
+                "Ulric", "Vesper", "Wren", "Xander", "Yara", "Zephyr", "Aria", "Bram", "Cora", "Dane"
+            };
+            string[] lasts = {
+                "Tanner", "Miller", "Smith", "Fletcher", "Cooper", "Weaver", "Carter", "Thatcher", "Baker", "Mason",
+                "Wright", "Fisher", "Hunter", "Glover", "Potter", "Dyer", "Archer", "Brewer", "Chandler", "Cook",
+                "Farmer", "Gardener", "Herder", "Miner", "Shepherd", "Slater", "Tailor", "Tucker", "Turner", "Ward"
+            };
+            return $"{firsts[rng.Next(firsts.Length)]} {lasts[rng.Next(lasts.Length)]}";
         }
     }
 
@@ -295,6 +374,7 @@ namespace Autonocraft.Entities
     {
         public Village.Village? Village { get; init; }
         public bool CreativeMode { get; init; }
+        public bool IsTestMode { get; init; }
         public Vector3 VillageCenter { get; init; }
         public float VillageRadius { get; init; } = 32f;
         public Vector3 StoragePosition { get; init; }

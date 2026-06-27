@@ -121,20 +121,22 @@ namespace Autonocraft.Engine
                     ? new Color(0.35f, 0.92f, 0.45f, 0.52f)
                     : new Color(0.95f, 0.28f, 0.28f, 0.45f);
 
-            if (!preview.IsQueuedConstruction)
+            foreach (var block in preview.Blueprint.Template.Blocks)
             {
-                foreach (var block in preview.Blueprint.Template.Blocks)
+                if (block.Type == BlockType.Air)
                 {
-                    if (block.Type == BlockType.Air)
-                    {
-                        continue;
-                    }
-
-                    int wx = preview.AnchorX + block.Dx;
-                    int wy = preview.AnchorY + block.Dy;
-                    int wz = preview.AnchorZ + block.Dz;
-                    DrawGhostBlock(new Vector3(wx, wy, wz), block.Type, tint);
+                    continue;
                 }
+
+                int wx = preview.AnchorX + block.Dx;
+                int wy = preview.AnchorY + block.Dy;
+                int wz = preview.AnchorZ + block.Dz;
+
+                // For queued construction, skip drawing blocks that have already been placed in the world
+                // by the builders, so the hologram isn't z-fighting with the real blocks.
+                // However, BlockOverlayRenderer doesn't easily have access to VoxelWorld here.
+                // We'll just draw the ghost with a low alpha. The tint already handles the queued state.
+                DrawGhostBlock(new Vector3(wx, wy, wz), block.Type, tint);
             }
 
             BlueprintPlacementHelper.GetWorldBounds(

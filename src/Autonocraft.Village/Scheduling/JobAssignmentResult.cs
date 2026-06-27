@@ -39,6 +39,7 @@ namespace Autonocraft.Village
     public static class RecruitReasonCodes
     {
         public const string NoCitizens = "NoCitizens";
+        public const string NoSettlement = "NoSettlement";
         public const string HousingCap = "HousingCap";
         public const string MissingMaterials = "MissingMaterials";
         public const string CostFailed = "CostFailed";

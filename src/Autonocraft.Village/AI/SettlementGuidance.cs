@@ -1,6 +1,7 @@
 using System.Numerics;
 using Autonocraft.Domain.Village;
 using Autonocraft.Entities;
+using Autonocraft.Items;
 using VillageEntity = Autonocraft.Village.Village;
 
 namespace Autonocraft.Village
@@ -19,7 +20,7 @@ namespace Autonocraft.Village
         AddressFood,
         QueueHousing,
         Recruit,
-        SummonSettlers
+        RepairRoster
     }
 
     public enum SettlementTab
@@ -54,6 +55,66 @@ namespace Autonocraft.Village
             FoodRisk = foodRisk;
         }
 
+        public static SettlementOnboardingState ComputeOnboardingState(
+            VillageEntity village,
+            VillagerManager villagers,
+            bool creative = false,
+            Vector3? playerPos = null)
+        {
+            VillageSettlementHealth.SyncPopulationRegistry(village, villagers);
+            int livePopulation = VillageSettlementHealth.GetLivePopulation(village, villagers);
+            var guidance = Compute(village, villagers, playerPos, creative);
+
+            if (livePopulation == 0)
+            {
+                if (!VillageSettlementHealth.HasEstablishedSettlement(village))
+                {
+                    return new SettlementOnboardingState(
+                        "Found settlement",
+                        true,
+                        "No Town Heart has been established.",
+                        "Place or claim a Town Heart to welcome your first settlers.");
+                }
+
+                return new SettlementOnboardingState(
+                    "Repair village roster",
+                    true,
+                    "The village has no linked villagers.",
+                    "Close and reopen the Town Board to restore the starter villagers automatically.");
+            }
+
+            int effectiveRecruitmentCap = village.EffectiveRecruitmentCap;
+            if (livePopulation >= effectiveRecruitmentCap)
+            {
+                return new SettlementOnboardingState(
+                    "Build housing",
+                    true,
+                    "Housing is full.",
+                    "Queue a Peasant House on the Build tab, then recruit again.");
+            }
+
+            if (!creative && village.Storage.CountBlock(VillageEntity.RationBlock) < VillageEntity.RecruitFoodCost)
+            {
+                return new SettlementOnboardingState(
+                    "Stock planks",
+                    true,
+                    $"Need {VillageEntity.RecruitFoodCost} oak planks in village storage.",
+                    "Assign Lumber or deposit planks into village storage.");
+            }
+
+            string starterStep = guidance.NextActionKind switch
+            {
+                SettlementActionKind.AssignJobs => "Assign jobs",
+                SettlementActionKind.AddressFood => "Secure food",
+                SettlementActionKind.QueueHousing => "Build housing",
+                SettlementActionKind.Recruit => "Recruit worker",
+                SettlementActionKind.RepairRoster => "Repair roster",
+                _ => "Manage settlement"
+            };
+
+            return new SettlementOnboardingState(starterStep, false, string.Empty, string.Empty);
+        }
+
         public static SettlementGuidance Compute(
             VillageEntity village,
             VillagerManager villagers,
@@ -62,26 +123,19 @@ namespace Autonocraft.Village
         {
             VillageSettlementHealth.SyncPopulationRegistry(village, villagers);
             int livePopulation = VillageSettlementHealth.GetLivePopulation(village, villagers);
+            int effectiveRecruitmentCap = village.EffectiveRecruitmentCap;
             var foodRisk = GetFoodRisk(village, livePopulation);
 
             if (livePopulation == 0)
             {
                 if (VillageSettlementHealth.HasEstablishedSettlement(village))
                 {
-                    bool nearHeart = playerPos.HasValue &&
-                        VillageSettlementHealth.IsPlayerNearTownHeart(village, playerPos.Value);
-                    string headline = nearHeart
-                        ? "Summon settlers at Town Heart"
-                        : "Walk to Town Heart to summon settlers";
-                    string detail = nearHeart
-                        ? "Settlers missing — click SUMMON SETTLERS, then open People tab"
-                        : $"Settlers missing — walk to Town Heart ({village.AnchorX}, {village.AnchorZ})";
                     return new SettlementGuidance(
-                        headline,
-                        detail,
+                        "Village roster needs repair",
+                        "Reopen the Town Board to restore the starter villagers",
                         100,
-                        SettlementTab.People,
-                        SettlementActionKind.SummonSettlers,
+                        SettlementTab.Overview,
+                        SettlementActionKind.RepairRoster,
                         foodRisk);
                 }
 
@@ -142,7 +196,7 @@ namespace Autonocraft.Village
                 }
             }
 
-            if (livePopulation < village.PopulationCap && village.CanRecruit(villagers, creative))
+            if (livePopulation < effectiveRecruitmentCap && village.CanRecruit(villagers, creative))
             {
                 return new SettlementGuidance(
                     "Recruit another worker",
@@ -153,7 +207,7 @@ namespace Autonocraft.Village
                     foodRisk);
             }
 
-            if (livePopulation >= village.PopulationCap)
+            if (livePopulation >= effectiveRecruitmentCap)
             {
                 return new SettlementGuidance(
                     "At housing cap — queue housing",
@@ -205,6 +259,22 @@ namespace Autonocraft.Village
             }
 
             return idle;
+        }
+    }
+
+    public readonly struct SettlementOnboardingState
+    {
+        public string StarterStep { get; }
+        public bool IsBlocked { get; }
+        public string BlockedReason { get; }
+        public string Remediation { get; }
+
+        public SettlementOnboardingState(string starterStep, bool isBlocked, string blockedReason, string remediation)
+        {
+            StarterStep = starterStep;
+            IsBlocked = isBlocked;
+            BlockedReason = blockedReason;
+            Remediation = remediation;
         }
     }
 }

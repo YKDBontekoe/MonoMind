@@ -170,7 +170,7 @@ namespace Autonocraft.UI.VillagePanels
 
                     float remW = layout.S(72f);
                     float remH = layout.S(26f);
-                    VillagePanelChrome.DrawButton(ui, rightLeft + rightW - remW, rowY - layout.S(2f), remW, remH, "Remove", context.HoveredButton == 100 + goal.Id,
+                    VillagePanelChrome.DrawButton(ui, rightLeft + rightW - remW, rowY - layout.S(2f), remW, remH, "Remove", context.HoveredButton == 3000 + goal.Id,
                         UiButtonStyle.Danger, layout, alpha);
 
                     if (!goal.Completed && goal.Kind == VillageGoalKind.Stock && goal.StockBlock.HasValue && goal.TargetCount > 0)

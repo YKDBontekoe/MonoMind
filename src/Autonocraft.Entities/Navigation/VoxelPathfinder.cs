@@ -75,6 +75,25 @@ namespace Autonocraft.Entities
                     for (int step = -MaxStepDown; step <= MaxStepUp; step++)
                     {
                         int ny = current.y + step;
+
+                        // Headroom check when stepping up
+                        if (step > 0 && world.GetBlock(current.x, current.y + 2, current.z).IsCollidable())
+                        {
+                            continue;
+                        }
+
+                        // Diagonal corner-cutting check
+                        if (i >= 4)
+                        {
+                            if (world.GetBlock(current.x, ny, nz).IsCollidable() ||
+                                world.GetBlock(nx, ny, current.z).IsCollidable() ||
+                                world.GetBlock(current.x, ny + 1, nz).IsCollidable() ||
+                                world.GetBlock(nx, ny + 1, current.z).IsCollidable())
+                            {
+                                continue;
+                            }
+                        }
+
                         if (!IsWalkable(world, nx, ny, nz))
                         {
                             continue;

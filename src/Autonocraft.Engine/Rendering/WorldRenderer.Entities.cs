@@ -166,7 +166,7 @@ namespace Autonocraft.Engine
                 var roleColor = VillagerVisuals.GetRoleColor(villager.Role);
                 _worldEffect.TextureEnabled = false;
                 float walkPhase = VillagerVisuals.GetWalkPhase(villager, animTime);
-                VillagerVisuals.DrawModelExtras(villagerWorld, villager, layout, walkPhase, animTime, DrawColoredBox);
+                VillagerVisuals.DrawModelExtras(villagerWorld, villager, layout, walkPhase, animTime, DrawColoredBox, DrawLocalTransformBox);
                 _worldEffect.TextureEnabled = true;
 
                 DrawTexturedBox(villagerWorld, layout.BodyHalfW, layout.BodyHalfH, layout.BodyHalfD, 0f, layout.BodyCenterY, 0f, bodyUV, bodyUV);

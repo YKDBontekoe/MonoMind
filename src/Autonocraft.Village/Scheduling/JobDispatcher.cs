@@ -44,7 +44,7 @@ namespace Autonocraft.Village
             {
                 case JobType.Build:
                     villager.Role = VillagerRole.Builder;
-                    buildingSiteId ??= village.GetNearestPendingSite(villager.Position)?.Id;
+                    buildingSiteId ??= villager.AssignedBuildingSiteId ?? village.GetLatestPendingSite()?.Id;
                     if (!buildingSiteId.HasValue)
                     {
                         return JobAssignmentResult.Failed(
@@ -80,7 +80,7 @@ namespace Autonocraft.Village
                         }
 
                         assignedBuildingId = quarry.Id;
-                        target = _villagers.World != null ? JobTargetScanner.FindNearbyMineTarget(_villagers.World, quarry) : null;
+                        target = _villagers.World != null ? JobTargetScanner.FindNearbyMineTarget(_villagers.World, village, quarry) : null;
                     }
                     else if (quarry != null)
                     {
@@ -160,7 +160,7 @@ namespace Autonocraft.Village
                     }
 
                     target ??= _villagers.World != null && masonQuarry != null
-                        ? JobTargetScanner.FindNearbyMineTarget(_villagers.World, masonQuarry)
+                        ? JobTargetScanner.FindNearbyMineTarget(_villagers.World, village, masonQuarry)
                         : null;
                     break;
                 case JobType.Cook:
@@ -294,6 +294,11 @@ namespace Autonocraft.Village
                     continue;
                 }
 
+                if (TryAssignAutomationPriorityJob(village, world, villager))
+                {
+                    continue;
+                }
+
                 var site = village.GetNearestPendingSite(villager.Position);
                 if (site != null)
                 {
@@ -381,7 +386,7 @@ namespace Autonocraft.Village
                     var quarry = village.GetNearestBuilding(BuildingKind.Quarry, villager.Position);
                     if (quarry != null)
                     {
-                        var mineTarget = JobTargetScanner.FindNearbyMineTarget(world, quarry);
+                        var mineTarget = JobTargetScanner.FindNearbyMineTarget(world, village, quarry);
                         if (mineTarget.HasValue &&
                             TryAssignJob(village, villager, JobType.Mine, mineTarget, buildingId: quarry.Id).Success)
                         {
@@ -521,6 +526,40 @@ namespace Autonocraft.Village
             int resolvedY = anchorY >= 0
                 ? anchorY
                 : StructureFingerprint.FindSurfaceAnchorY(world, anchorX, anchorZ);
+
+            BlueprintPlacementHelper.GetWorldBounds(blueprint, anchorX, resolvedY, anchorZ,
+                out int minX, out int minY, out int minZ, out int maxX, out int maxY, out int maxZ);
+
+            foreach (var building in village.Buildings)
+            {
+                if (!PlayerStructureRegistry.TryGet(building.BlueprintId, out var existingBlueprint))
+                {
+                    continue;
+                }
+
+                BlueprintPlacementHelper.GetWorldBounds(existingBlueprint, building.AnchorX, building.AnchorY, building.AnchorZ,
+                    out int existingMinX, out int existingMinY, out int existingMinZ, out int existingMaxX, out int existingMaxY, out int existingMaxZ);
+                if (BoundsIntersect(minX, minY, minZ, maxX, maxY, maxZ, existingMinX, existingMinY, existingMinZ, existingMaxX, existingMaxY, existingMaxZ))
+                {
+                    return false;
+                }
+            }
+
+            foreach (var site in village.BuildingSites)
+            {
+                if (!PlayerStructureRegistry.TryGet(site.BlueprintId, out var existingBlueprint))
+                {
+                    continue;
+                }
+
+                BlueprintPlacementHelper.GetWorldBounds(existingBlueprint, site.AnchorX, site.AnchorY, site.AnchorZ,
+                    out int existingMinX, out int existingMinY, out int existingMinZ, out int existingMaxX, out int existingMaxY, out int existingMaxZ);
+                if (BoundsIntersect(minX, minY, minZ, maxX, maxY, maxZ, existingMinX, existingMinY, existingMinZ, existingMaxX, existingMaxY, existingMaxZ))
+                {
+                    return false;
+                }
+            }
+
             foreach (var block in blueprint.Template.Blocks)
             {
                 int wx = anchorX + block.Dx;
@@ -541,6 +580,91 @@ namespace Autonocraft.Village
             return true;
         }
 
+        private static bool BoundsIntersect(
+            int minX,
+            int minY,
+            int minZ,
+            int maxX,
+            int maxY,
+            int maxZ,
+            int otherMinX,
+            int otherMinY,
+            int otherMinZ,
+            int otherMaxX,
+            int otherMaxY,
+            int otherMaxZ)
+        {
+            return minX <= otherMaxX && maxX >= otherMinX &&
+                   minY <= otherMaxY && maxY >= otherMinY &&
+                   minZ <= otherMaxZ && maxZ >= otherMinZ;
+        }
+
+        private bool TryAssignAutomationPriorityJob(Village village, VoxelWorld world, Villager villager)
+        {
+            int livePopulation = VillageSettlementHealth.GetLivePopulation(village, _villagers);
+            var foodRisk = SettlementGuidance.GetFoodRisk(village, livePopulation);
+            int desiredBuilders = GetDesiredBuilderCount(village, foodRisk, livePopulation);
+            int desiredFarmers = GetDesiredFarmerCount(village, foodRisk, livePopulation);
+            var prioritySite = GetPriorityPendingSite(village, foodRisk);
+
+            if (prioritySite != null && CountWorkersOnJob(village, JobType.Build) < desiredBuilders)
+            {
+                if (TryAssignJob(village, villager, JobType.Build, null, prioritySite.Id).Success)
+                {
+                    return true;
+                }
+            }
+
+            if (foodRisk != FoodRiskLevel.Ok &&
+                village.HasBuilding(BuildingKind.FarmPlot) &&
+                CountWorkersOnJob(village, JobType.Farm) < desiredFarmers)
+            {
+                var plot = village.GetPreferredFarmPlot(villager.Position, _villagers.All);
+                if (plot != null)
+                {
+                    var farmTarget = JobTargetScanner.FindNearbyFarmTarget(world, village, villager.Position, plot);
+                    if (farmTarget.HasValue &&
+                        TryAssignJob(village, villager, JobType.Farm, farmTarget, buildingId: plot.Id).Success)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            if (village.HasBuilding(BuildingKind.Workshop) &&
+                VillageWorkshopCrafting.NeedsSmithWork(village.Storage, CreativeMode) &&
+                CountWorkersOnJob(village, JobType.Craft) == 0 &&
+                TryAssignJob(village, villager, JobType.Craft).Success)
+            {
+                return true;
+            }
+
+            if (_haulCoordinator.TryAssignHaulWork(village, villager))
+            {
+                villager.Role = VillagerRole.Hauler;
+                return true;
+            }
+
+            var highestDemandBlock = village.Economy.GetHighestDemandBlock();
+            if (highestDemandBlock.HasValue &&
+                TryAssignStockGoalWorker(village, world, villager, highestDemandBlock.Value))
+            {
+                return true;
+            }
+
+            if (desiredBuilders > 0 &&
+                CountWorkersOnJob(village, JobType.Build) < desiredBuilders)
+            {
+                var site = village.GetNearestPendingSite(villager.Position);
+                if (site != null && TryAssignJob(village, villager, JobType.Build, null, site.Id).Success)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private bool TryAssignFromWorkQueue(Village village, VoxelWorld world, Villager villager)
         {
             if (village.WorkQueue.Count == 0)
@@ -549,14 +673,14 @@ namespace Autonocraft.Village
             }
 
             if (villager.Role is VillagerRole.Lumberjack or VillagerRole.Peasant
-                && village.WorkQueue.TryGetNextForRole(VillagerRole.Lumberjack, world, out int x, out int y, out int z))
+                && village.WorkQueue.TryGetNextForRole(VillagerRole.Lumberjack, world, village, out int x, out int y, out int z))
             {
                 TryAssignJob(village, villager, JobType.Lumber, new Vector3(x + 0.5f, y, z + 0.5f));
                 return true;
             }
 
             if (villager.Role is VillagerRole.Miner or VillagerRole.Peasant
-                && village.WorkQueue.TryGetNextForRole(VillagerRole.Miner, world, out x, out y, out z))
+                && village.WorkQueue.TryGetNextForRole(VillagerRole.Miner, world, village, out x, out y, out z))
             {
                 TryAssignJob(village, villager, JobType.Mine, new Vector3(x + 0.5f, y, z + 0.5f));
                 return true;
@@ -616,5 +740,87 @@ namespace Autonocraft.Village
 
         private static bool CanAcceptBlueprintBlock(BlockType current) =>
             current == BlockType.Air || BlueprintPlacementHelper.IsNaturalTerrainBlock(current);
+
+        private int CountWorkersOnJob(Village village, JobType job)
+        {
+            int count = 0;
+            foreach (var citizen in VillageSettlementHealth.EnumerateLiveCitizens(village, _villagers))
+            {
+                if (citizen.CurrentJob == job)
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        private static BuildingSite? GetPriorityPendingSite(Village village, FoodRiskLevel foodRisk)
+        {
+            BuildingSite? fallback = null;
+            foreach (var site in village.BuildingSites)
+            {
+                if (site.IsComplete)
+                {
+                    continue;
+                }
+
+                if (foodRisk != FoodRiskLevel.Ok &&
+                    string.Equals(site.BlueprintId, "farm_plot", StringComparison.OrdinalIgnoreCase))
+                {
+                    return site;
+                }
+
+                fallback ??= site;
+            }
+
+            return fallback;
+        }
+
+        private static int GetDesiredBuilderCount(Village village, FoodRiskLevel foodRisk, int livePopulation)
+        {
+            int pendingSites = 0;
+            foreach (var site in village.BuildingSites)
+            {
+                if (!site.IsComplete)
+                {
+                    pendingSites++;
+                }
+            }
+
+            if (pendingSites == 0)
+            {
+                return 0;
+            }
+
+            int maxBuilders = livePopulation switch
+            {
+                >= 5 => 2,
+                >= 2 when pendingSites > 1 => 2,
+                _ => 1
+            };
+            int desired = Math.Min(pendingSites, maxBuilders);
+            if (foodRisk == FoodRiskLevel.Critical)
+            {
+                desired = Math.Max(desired, 1);
+            }
+
+            return desired;
+        }
+
+        private static int GetDesiredFarmerCount(Village village, FoodRiskLevel foodRisk, int livePopulation)
+        {
+            if (!village.HasBuilding(BuildingKind.FarmPlot) || livePopulation <= 0)
+            {
+                return 0;
+            }
+
+            return foodRisk switch
+            {
+                FoodRiskLevel.Critical => Math.Min(2, Math.Max(1, livePopulation / 2)),
+                FoodRiskLevel.Low => 1,
+                _ => livePopulation >= 5 ? 1 : 0
+            };
+        }
     }
 }

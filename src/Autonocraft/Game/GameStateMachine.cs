@@ -74,10 +74,12 @@ namespace Autonocraft.Core
 
         private void PrepareNewWorldSettlement()
         {
+            _session.ResetOpeningGuideForNewWorld();
             _session.Villages.InitializeStarterSettlement(_session.Grid, _worldSpawnX, _worldSpawnZ);
             _session.PlacePlayerOnSurface(_worldSpawnX, _worldSpawnZ);
+            AimPlayerAtStarterLandmark();
             SyncCameraFromPlayer();
-            _session.VillageHudHint = "V — Town board · PEOPLE tab assigns jobs";
+            _session.VillageHudHint = "Follow the plank path to the Town Heart";
             _session.Crafting.ShowCraftingHint = false;
         }
 
@@ -87,9 +89,12 @@ namespace Autonocraft.Core
             CloseAllGameplayOverlays();
 
             bool fromSave = _loadingFromSave;
+            bool startedNewWorld = _needsStarterSettlement;
             if (_isStructureGalleryWorld)
             {
                 PlacePlayerOnSurface();
+                _session.Player.CreativeMode = true;
+                _session.Player.Velocity = Vector3.Zero;
                 _session.VillageHudHint = "Structure gallery — fly around to inspect every world-gen structure";
                 _session.Crafting.ShowCraftingHint = false;
             }
@@ -107,7 +112,7 @@ namespace Autonocraft.Core
                 _session.Villages.RepairAllVillages(_session.Grid);
             }
 
-            if (!_isStructureGalleryWorld && !fromSave)
+            if (!_isStructureGalleryWorld && !fromSave && !startedNewWorld)
             {
                 _session.VillageHudHint = "V — Town board · Recruit villagers and queue buildings";
                 _session.Crafting.ShowCraftingHint = false;
@@ -130,7 +135,7 @@ namespace Autonocraft.Core
             if (!fromSave && !_isStructureGalleryWorld)
             {
                 _session.HudToast.Show(
-                    "Founder's Hamlet is ready. Press V → PEOPLE tab to assign jobs to your 2 settlers.",
+                    EarlyGameGuide.StarterSettlementToast,
                     durationSeconds: 8f);
             }
 
@@ -151,6 +156,24 @@ namespace Autonocraft.Core
             _session.PlacePlayerOnSurface(_worldSpawnX, _worldSpawnZ);
             SyncCameraFromPlayer();
             Console.WriteLine($"[Spawn] Placed player on surface at ({_session.Player.Position.X:F1}, {_session.Player.Position.Y:F1}, {_session.Player.Position.Z:F1})");
+        }
+
+        private void AimPlayerAtStarterLandmark()
+        {
+            var village = _session.Villages.GetPrimaryVillage();
+            if (village == null)
+            {
+                return;
+            }
+
+            var delta = new Vector3(village.AnchorX + 0.5f, _session.Player.Position.Y, village.AnchorZ + 0.5f) - _session.Player.Position;
+            if (delta.LengthSquared() <= 0.001f)
+            {
+                return;
+            }
+
+            _session.Player.Yaw = MathF.Atan2(delta.Z, delta.X) * (180f / MathF.PI);
+            _session.Player.Pitch = -6f;
         }
 
         private void OpenNewWorldSetup(MenuLayer backTarget)
@@ -592,7 +615,7 @@ namespace Autonocraft.Core
             var swVillages = System.Diagnostics.Stopwatch.StartNew();
             if (!inSpawnWarmup || warmup >= 0.6f)
             {
-                _session.UpdateVillages(deltaTime, _timeOfDay);
+                _session.UpdateVillages(deltaTime, _timeOfDay, _timeScale);
                 if (!_isStructureGalleryWorld)
                 {
                     _session.UpdateSurvival(deltaTime, _timeOfDay, inSpawnWarmup);

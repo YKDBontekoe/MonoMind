@@ -180,6 +180,13 @@ public static class AgentHttpServer
             case "s": key = Key.S; return true;
             case "a": key = Key.A; return true;
             case "d": key = Key.D; return true;
+            case "r": key = Key.R; return true;
+            case "v": key = Key.V; return true;
+            case "c": key = Key.C; return true;
+            case "esc":
+            case "escape": key = Key.Escape; return true;
+            case "enter":
+            case "return": key = Key.Enter; return true;
             case "space": key = Key.Space; return true;
             case "shift":
             case "left-shift":

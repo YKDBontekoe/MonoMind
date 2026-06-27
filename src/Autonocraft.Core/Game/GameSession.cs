@@ -59,6 +59,7 @@ namespace Autonocraft.Core
         public Ai.VillageAiOrchestrator VillageAi { get; private set; }
         public VillageEvents VillageEvents { get; } = new();
         public EarlyGameGuide EarlyGameGuide => _earlyGameGuide;
+        public string CurrentToastMessage => _hudToast.CurrentMessage;
 
         public GameSession(int seed, WorldGenParams? parameters = null)
         {
@@ -145,6 +146,16 @@ namespace Autonocraft.Core
         {
             _craftingSystem = new CraftingSystem();
             WireNotifications();
+        }
+
+        public void ResetOpeningGuideForNewWorld() => _earlyGameGuide.ResetForNewWorld();
+
+        public void DismissOpeningGuidance() => _earlyGameGuide.DismissOpeningGoal(_hudToast.Clear);
+
+        public OpeningObjective GetOpeningObjective()
+        {
+            var village = Villages.GetActiveVillage(Player.Position);
+            return _earlyGameGuide.GetOpeningObjective(Player, village, Villagers);
         }
 
         public void ReplaceWorld(int seed, WorldGenParams? parameters, Action<VoxelWorld>? onDispose = null)
@@ -421,7 +432,7 @@ namespace Autonocraft.Core
                 Player,
                 camera.Position,
                 camera.Front,
-                leftHeld && !Combat.BlocksMiningThisFrame,
+                leftHeld && !Combat.BlocksMiningThisFrame && !Player.IsHoldingMeleeWeapon(),
                 rightPressed,
                 shiftRightPressed,
                 Crafting,
@@ -543,10 +554,10 @@ namespace Autonocraft.Core
                 msg => _hudToast.Show(msg));
         }
 
-        public void UpdateVillages(float deltaTime, float timeOfDay)
+        public void UpdateVillages(float deltaTime, float timeOfDay, float timeScale = DayNightCycle.DefaultTimeScale)
         {
             Villages.CreativeMode = Player.CreativeMode;
-            Villages.Update(deltaTime, Grid, timeOfDay, Animals);
+            Villages.Update(deltaTime, Grid, timeOfDay, Animals, timeScale);
             Villages.RepairNearbySettlements(Grid, Player.Position, deltaTime);
         }
 

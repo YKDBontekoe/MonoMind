@@ -65,6 +65,19 @@ public static partial class VillageTests
                 throw new Exception("/state did not expose village favor, growth, and agent work-order cost.");
             }
 
+            if (!stateVillage.TryGetProperty("nextActionKind", out _))
+            {
+                throw new Exception("/state did not expose village nextActionKind.");
+            }
+
+            var stateVillagers = state.RootElement.GetProperty("villagers");
+            if (stateVillagers.GetArrayLength() == 0 ||
+                !stateVillagers[0].TryGetProperty("activity", out _) ||
+                !stateVillagers[0].TryGetProperty("needsAttention", out _))
+            {
+                throw new Exception("/state did not expose villager activity and attention fields.");
+            }
+
             PostAction(http, "open_village");
             if (!bridge.VillageUiOpen)
             {
@@ -79,6 +92,13 @@ public static partial class VillageTests
 
             var lumberjack = FirstCitizen(villagers, village);
             lumberjack.AssignJob(JobType.Idle, null, null);
+            using var blockedAssign = PostActionExpectFailure(http, "assign_job", ("villager_id", lumberjack.Id.ToString()), ("job", "Mine"));
+            string blockedAssignMessage = blockedAssign.RootElement.GetProperty("message").GetString() ?? "";
+            if (!blockedAssignMessage.Contains("quarry", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new Exception($"Expected blocked assign to mention quarry, got: {blockedAssignMessage}");
+            }
+
             PostAction(http, "assign_job", ("villager_id", lumberjack.Id.ToString()), ("job", "Lumber"));
             StepUntil(bridge, 120, () =>
             {
@@ -111,14 +131,22 @@ public static partial class VillageTests
                 throw new Exception("set_creative did not update player through bridge queue.");
             }
 
-            int houseX = village.AnchorX + 7;
-            int houseY = village.AnchorY;
-            int houseZ = village.AnchorZ;
+            EnsureFlatVillagePad(world, village, 28);
+
+            var (houseX, houseY, houseZ) = FindValidBlueprintAnchor(villages, world, village, "peasant_house", startRadius: 8, maxRadius: 20);
+
             ClearBlueprintArea(world, "peasant_house", houseX, houseY, houseZ);
             PostAction(
                 http,
                 "queue_build",
                 ("blueprint_id", "peasant_house"),
+                ("anchor_x", houseX.ToString()),
+                ("anchor_y", houseY.ToString()),
+                ("anchor_z", houseZ.ToString()));
+            using var overlappingBuild = PostActionExpectFailure(
+                http,
+                "queue_build",
+                ("blueprint_id", "storage_crate"),
                 ("anchor_x", houseX.ToString()),
                 ("anchor_y", houseY.ToString()),
                 ("anchor_z", houseZ.ToString()));
@@ -128,9 +156,23 @@ public static partial class VillageTests
                 throw new Exception("/village/debug did not expose queued building site.");
             }
 
-            var site = village.GetNearestPendingSite(village.Center) ?? throw new Exception("No pending house site after API queue_build.");
-            var builder = FirstIdleOrAnyCitizen(villagers, village);
-            PostAction(http, "assign_job", ("villager_id", builder.Id.ToString()), ("job", "Build"));
+            var site = village.BuildingSites.FirstOrDefault(pending =>
+                !pending.IsComplete &&
+                pending.BlueprintId == "peasant_house" &&
+                pending.AnchorX == houseX &&
+                pending.AnchorY == houseY &&
+                pending.AnchorZ == houseZ)
+                ?? throw new Exception("No pending house site after API queue_build.");
+            var builder = villagers.Spawn(village.Id, new Vector3(houseX + 4.5f, houseY + 1f, houseZ + 4.5f), 8100);
+            builder.Role = VillagerRole.Builder;
+            builder.IsGrounded = true;
+            village.RegisterVillager(builder.Id);
+            PostAction(
+                http,
+                "assign_job",
+                ("villager_id", builder.Id.ToString()),
+                ("job", "Build"),
+                ("building_site_id", site.Id.ToString()));
             StepUntil(bridge, 600, () =>
             {
                 builder.Position = new Vector3(houseX + 4.5f, houseY + 1f, houseZ + 4.5f);
@@ -140,17 +182,50 @@ public static partial class VillageTests
                     builder.WorkTimer = 10f;
                 }
 
-                return village.HasCompletedBuilding("peasant_house");
+                return village.HasCompletedBuilding("peasant_house") || site.IsComplete;
             });
+
+            if (site.IsComplete && !village.HasCompletedBuilding("peasant_house"))
+            {
+                StepUntil(bridge, 20, () => village.HasCompletedBuilding("peasant_house"));
+            }
 
             if (!village.HasCompletedBuilding("peasant_house"))
             {
-                throw new Exception("API queued and assigned house did not complete.");
+                int completedHouses = village.CountCompletedBuildings("peasant_house");
+                int pendingHouseSites = village.CountPendingSites("peasant_house");
+                string pendingBlocks = string.Join(
+                    "; ",
+                    site.PendingBlocks
+                        .Take(4)
+                        .Select(block =>
+                        {
+                            int wx = site.AnchorX + block.Dx;
+                            int wy = site.AnchorY + block.Dy;
+                            int wz = site.AnchorZ + block.Dz;
+                            return $"({wx},{wy},{wz}) target={block.Type} current={world.GetBlock(wx, wy, wz)}";
+                        }));
+                throw new Exception(
+                    "API queued and assigned house did not complete. "
+                    + $"BuilderJob={builder.CurrentJob}, BuilderPhase={builder.AiPhase}, "
+                    + $"AssignedSiteId={builder.AssignedBuildingSiteId}, SiteRemaining={site.RemainingCount}, "
+                    + $"SiteComplete={site.IsComplete}, CompletedHouses={completedHouses}, "
+                    + $"PendingHouseSites={pendingHouseSites}, "
+                    + $"PlayerCreative={session.Player.CreativeMode}, VillageCreative={session.Villages.CreativeMode}, "
+                    + $"VillageTestMode={session.Villages.IsTestMode}, PendingBlocks={pendingBlocks}.");
+            }
+
+            foreach (var pendingSite in village.BuildingSites)
+            {
+                if (!pendingSite.IsComplete && pendingSite.BlueprintId == "peasant_house")
+                {
+                    throw new Exception("Completed house left a stale pending building site behind.");
+                }
             }
 
             var farm = AddCompletedBuilding(village, "farm_plot", BuildingKind.FarmPlot, 501, village.AnchorX, village.AnchorY, village.AnchorZ + 8);
             PlaceFarmBlocks(world, farm);
-            world.SetBlock(farm.AnchorX, farm.AnchorY, farm.AnchorZ, BlockType.Wheat);
+            world.SetBlock(farm.AnchorX + 1, farm.AnchorY, farm.AnchorZ, BlockType.Wheat);
             var farmer = villagers.Spawn(village.Id, new Vector3(farm.AnchorX + 1.5f, farm.AnchorY + 1f, farm.AnchorZ + 1.5f), 8101);
             farmer.Role = VillagerRole.Farmer;
             farmer.IsGrounded = true;
@@ -172,14 +247,19 @@ public static partial class VillageTests
             miner.Role = VillagerRole.Miner;
             miner.IsGrounded = true;
             village.RegisterVillager(miner.Id);
+            var mineTarget = new Vector3(mineX + 0.5f, mineY, mineZ + 0.5f);
             PostAction(
                 http,
                 "assign_job",
                 ("villager_id", miner.Id.ToString()),
                 ("job", "Mine"),
-                ("target_x", (mineX + 0.5f).ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                ("target_x", mineTarget.X.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 ("target_y", mineY.ToString()),
-                ("target_z", (mineZ + 0.5f).ToString(System.Globalization.CultureInfo.InvariantCulture)));
+                ("target_z", mineTarget.Z.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            miner.MarkedResource = mineTarget;
+            miner.Position = mineTarget + new Vector3(1f, 1f, 0f);
+            miner.IsGrounded = true;
+            miner.SetAiPhase(VillagerAiPhase.Working);
             StepUntil(bridge, 100, () => world.GetBlock(mineX, mineY, mineZ) == BlockType.Air);
             if (CountInventoryBlock(miner.Inventory, BlockType.Stone) == 0)
             {
@@ -287,6 +367,37 @@ public static partial class VillageTests
         return doc;
     }
 
+    private static JsonDocument PostActionExpectFailure(HttpClient http, string command, params (string key, string value)[] parameters)
+    {
+        var doc = PostActionRaw(http, command, parameters);
+        if (doc.RootElement.GetProperty("success").GetBoolean())
+        {
+            doc.Dispose();
+            throw new Exception($"POST /action?cmd={command} unexpectedly succeeded.");
+        }
+
+        return doc;
+    }
+
+    private static JsonDocument PostActionRaw(HttpClient http, string command, params (string key, string value)[] parameters)
+    {
+        var query = new List<string> { "cmd=" + Uri.EscapeDataString(command) };
+        foreach (var (key, value) in parameters)
+        {
+            query.Add(Uri.EscapeDataString(key) + "=" + Uri.EscapeDataString(value));
+        }
+
+        string path = "/action?" + string.Join("&", query);
+        var response = http.PostAsync(path, new ByteArrayContent(Array.Empty<byte>())).GetAwaiter().GetResult();
+        string body = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            throw new Exception($"POST {path} returned empty response: {(int)response.StatusCode}");
+        }
+
+        return JsonDocument.Parse(body);
+    }
+
     private static void StepUntil(TestAgentBridge bridge, int maxSteps, Func<bool> condition)
     {
         for (int i = 0; i < maxSteps; i++)
@@ -297,6 +408,11 @@ public static partial class VillageTests
             }
 
             bridge.Step(0.2f);
+
+            if (condition())
+            {
+                return;
+            }
         }
     }
 
@@ -355,6 +471,8 @@ public static partial class VillageTests
 
         public TestAgentBridge(GameSession session)
         {
+            session.Villages.IsTestMode = true;
+            session.Villages.CreativeMode = true;
             Host = new GameHostContext(session, renderDistance: 2, settings: new GameSettings())
             {
                 TimeOfDay = DayNightCycle.Noon,

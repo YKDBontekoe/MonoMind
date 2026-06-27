@@ -21,7 +21,7 @@ namespace Autonocraft.UI
         private static readonly string[] LoadingTips =
         {
             "Shift + right-click crafting sigils to activate stations.",
-            "Press V to open the town board and manage your village.",
+            "Follow the plank path from spawn to the Town Heart.",
             "Use the 2×2 inventory grid to craft planks and basic tools.",
             "Cooked food restores more hunger than raw meat.",
             "Villagers can gather, build, and haul for your settlement.",
