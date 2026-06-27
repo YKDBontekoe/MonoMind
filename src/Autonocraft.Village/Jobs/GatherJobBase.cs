@@ -220,7 +220,7 @@ namespace Autonocraft.Village.Jobs
                 {
                     var queuedBlock = world.GetBlock(x, y, z);
                     if (IsTargetBlock(queuedBlock) &&
-                        (context.Village == null || !context.Village.IsProtectedStructureBlock(x, y, z, queuedBlock)))
+                        !context.Village.IsProtectedStructureBlock(x, y, z, queuedBlock))
                     {
                         target = new Vector3(x + 0.5f, y, z + 0.5f);
                         villager.SetJobTarget(target);

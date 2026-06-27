@@ -102,7 +102,6 @@ namespace Autonocraft.Entities
         };
 
         private readonly List<Animal> _animals = new List<Animal>();
-        private readonly List<Animal> _rangeScratch = new();
         private readonly HashSet<(int cx, int cz)> _populatedChunks = new HashSet<(int cx, int cz)>();
         private readonly int _worldSeed;
         private int _nextSpawnSeed = 5000;

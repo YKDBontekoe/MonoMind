@@ -79,10 +79,15 @@ namespace Autonocraft.Ai
                 {
                     return _cachedLlamaAvailable;
                 }
+            }
 
+            bool isAvailable = CanConnect(uri);
+
+            lock (LlamaAvailabilityGate)
+            {
                 _cachedLlamaBaseUrl = config.BaseUrl;
                 _cachedLlamaCheckedUtc = DateTime.UtcNow;
-                _cachedLlamaAvailable = CanConnect(uri);
+                _cachedLlamaAvailable = isAvailable;
                 return _cachedLlamaAvailable;
             }
         }
@@ -93,8 +98,9 @@ namespace Autonocraft.Ai
             try
             {
                 using var client = new System.Net.Sockets.TcpClient();
-                var task = client.ConnectAsync(uri.Host, port);
-                return task.Wait(TimeSpan.FromMilliseconds(100)) && client.Connected;
+                using var timeout = new System.Threading.CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+                client.ConnectAsync(uri.Host, port, timeout.Token).GetAwaiter().GetResult();
+                return client.Connected;
             }
             catch
             {

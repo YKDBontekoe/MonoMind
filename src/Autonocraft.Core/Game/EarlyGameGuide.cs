@@ -115,7 +115,7 @@ namespace Autonocraft.Core
                     {
                         showToast(settlementReady ? StarterSettlementToast : OpeningGoalToast);
                         _openingGoalShown = true;
-                        _reminderTimer = settlementReady ? 18f : 18f;
+                        _reminderTimer = 18f;
                     }
                     else if (!_openingGoalDismissed && _reminderTimer <= 0f)
                     {

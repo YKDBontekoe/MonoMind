@@ -232,7 +232,7 @@ namespace Autonocraft.Village
             blocks.Add(new StructureBlock(-4, 0, 0, BlockType.Gravel));
             blocks.Add(new StructureBlock(4, 0, 0, BlockType.Gravel));
 
-            return new StructureTemplate { FootprintRadius = 3, Blocks = blocks.ToArray() };
+            return new StructureTemplate { FootprintRadius = 4, Blocks = blocks.ToArray() };
         }
 
         private static StructureTemplate BuildPeasantHouse()
@@ -322,7 +322,7 @@ namespace Autonocraft.Village
                 }
             }
 
-            return new StructureTemplate { FootprintRadius = 2, Blocks = blocks.ToArray() };
+            return new StructureTemplate { FootprintRadius = 3, Blocks = blocks.ToArray() };
         }
 
         private static StructureTemplate BuildLumberCamp()
@@ -361,7 +361,7 @@ namespace Autonocraft.Village
                 }
             }
 
-            return new StructureTemplate { FootprintRadius = 3, Blocks = blocks.ToArray() };
+            return new StructureTemplate { FootprintRadius = 4, Blocks = blocks.ToArray() };
         }
 
         private static StructureTemplate BuildWorkshop()
@@ -392,9 +392,9 @@ namespace Autonocraft.Village
             blocks.Add(new StructureBlock(1, 1, -1, BlockType.StationForge));
             blocks.Add(new StructureBlock(-1, 1, 1, BlockType.StationCrucible));
             blocks.Add(new StructureBlock(1, 1, 1, BlockType.Chest));
-            blocks.Add(new StructureBlock(2, 1, -2, BlockType.Cobblestone));
-            blocks.Add(new StructureBlock(2, 2, -2, BlockType.Cobblestone));
-            return new StructureTemplate { FootprintRadius = 2, Blocks = blocks.ToArray() };
+            blocks.Add(new StructureBlock(2, 1, 0, BlockType.Cobblestone));
+            blocks.Add(new StructureBlock(2, 2, 0, BlockType.Cobblestone));
+            return new StructureTemplate { FootprintRadius = 3, Blocks = blocks.ToArray() };
         }
 
         private static StructureTemplate BuildFarmPlot()
@@ -498,7 +498,7 @@ namespace Autonocraft.Village
                 }
             }
 
-            return new StructureTemplate { FootprintRadius = 2, Blocks = blocks.ToArray() };
+            return new StructureTemplate { FootprintRadius = 3, Blocks = blocks.ToArray() };
         }
 
         private static StructureTemplate BuildWell()
@@ -530,11 +530,11 @@ namespace Autonocraft.Village
             {
                 for (int dz = -1; dz <= 1; dz++)
                 {
-                    blocks.Add(new StructureBlock(dx, 4, dz, BlockType.OakPlank));
+                    blocks.Add(new StructureBlock(dx, 5, dz, BlockType.OakPlank));
                 }
             }
 
-            return new StructureTemplate { FootprintRadius = 2, Blocks = blocks.ToArray() };
+            return new StructureTemplate { FootprintRadius = 3, Blocks = blocks.ToArray() };
         }
 
         private static StructureTemplate BuildMarket()
@@ -565,7 +565,7 @@ namespace Autonocraft.Village
                 blocks.Add(new StructureBlock(dx, 2, -1, canopy));
             }
 
-            return new StructureTemplate { FootprintRadius = 2, Blocks = blocks.ToArray() };
+            return new StructureTemplate { FootprintRadius = 3, Blocks = blocks.ToArray() };
         }
     }
 }

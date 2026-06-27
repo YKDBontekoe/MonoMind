@@ -258,7 +258,7 @@ internal sealed class SetTimeAction : AgentActionBase
                 normalizedTime += 1f;
             }
 
-            bridge.EnqueueAction(() => bridge.SetTimeOfDay(timeVal), runImmediatelyInTests: false);
+            bridge.EnqueueAction(() => bridge.SetTimeOfDay(normalizedTime), runImmediatelyInTests: false);
             return Ok($"Time set to {FormatFloat(normalizedTime)}");
         }
 

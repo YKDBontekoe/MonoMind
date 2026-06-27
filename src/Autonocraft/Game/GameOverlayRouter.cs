@@ -155,10 +155,11 @@ namespace Autonocraft.Core
 
                 if (IsKeyPressed(kbState, Key.R) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.R))
                 {
-                    var activeVillage = _session.Villages.GetActiveVillage(_session.Player.Position);
-                    if (activeVillage != null)
+                    var village = _screens.VillageScreen.CurrentVillage
+                        ?? _session.Villages.GetActiveVillage(_session.Player.Position);
+                    if (village != null)
                     {
-                        var recruitResult = _session.Villages.TryRecruit(activeVillage, _session.Grid);
+                        var recruitResult = _session.Villages.TryRecruit(village, _session.Grid);
                         _screens.VillageScreen.SetRecruitFeedback(recruitResult);
                     }
 

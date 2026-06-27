@@ -171,9 +171,11 @@ public static class InteractionTests
         for (int y = targetY + 1; y <= targetY + 3; y++)
         {
             world.SetBlock(16, y, 16, BlockType.Air);
+            world.SetBlock(16, y, 17, BlockType.Air);
             world.SetBlock(16, y, 18, BlockType.Air);
             world.SetBlock(16, y, 19, BlockType.Air);
             world.SetBlock(16, y, 20, BlockType.Air);
+            world.SetBlock(16, y, 21, BlockType.Air);
         }
 
         player.CreativeMode = false;

@@ -110,7 +110,7 @@ namespace Autonocraft.UI.VillagePanels
                 anyRow = true;
                 int vid = villager.Id;
                 bool isSelected = vid == context.SelectedVillagerId;
-                bool hovered = context.HoveredButton == 1000 + vid;
+                bool hovered = context.HoveredButton == VillageScreen.VillagerRowButtonBase + vid;
                 bool needsAttn = VillagerActivityText.NeedsAttention(villager, village);
 
                 if (rowY + rowH >= y + layout.S(28f) && rowY <= y + h - layout.S(6f))
@@ -284,7 +284,7 @@ namespace Autonocraft.UI.VillagePanels
 
             // ---- Job buttons (3 rows × 2 cols) ----
             float jobW = layout.S(240f);
-            float jobH = layout.S(VillageScreen.ButtonHeight);
+            float jobH = layout.S(ButtonHeight);
             float jobGap = layout.S(10f);
 
             for (int i = 0; i < AssignableJobs.Length; i++)

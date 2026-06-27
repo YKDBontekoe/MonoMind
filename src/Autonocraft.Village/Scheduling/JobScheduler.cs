@@ -288,16 +288,16 @@ namespace Autonocraft.Village
 
         private bool TryApplyBuildGoal(Village village, VoxelWorld world, IJobAssignment assignment, VillageGoal goal)
         {
-            if (goal.BuildQueued || string.IsNullOrEmpty(goal.BlueprintId))
+            if (string.IsNullOrEmpty(goal.BlueprintId))
             {
                 return false;
             }
 
             int completedCount = village.CountCompletedBuildings(goal.BlueprintId);
             int pendingCount = village.CountPendingSites(goal.BlueprintId);
+            goal.BuildQueued = pendingCount > 0;
             if (completedCount + pendingCount >= Math.Max(1, goal.BuildCountTarget))
             {
-                goal.BuildQueued = true;
                 return false;
             }
 
@@ -325,9 +325,6 @@ namespace Autonocraft.Village
                 }
             }
 
-            // If we fail all 64 placement attempts, the terrain is unviable.
-            // Mark the goal as completed so we don't attempt this 60 times a second.
-            goal.Completed = true;
             return false;
         }
 

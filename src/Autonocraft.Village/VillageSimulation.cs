@@ -203,8 +203,11 @@ namespace Autonocraft.Village
             {
                 if (!contract.AlreadyActive && contract.CanAfford && contract.FavorCost == 0)
                 {
-                    contract.Apply?.Invoke(village);
-                    _events?.ShowToast?.Invoke($"Steward completed contract: {contract.Label}");
+                    if (contract.Apply != null)
+                    {
+                        contract.Apply(village);
+                        _events?.ShowToast?.Invoke($"Steward completed contract: {contract.Label}");
+                    }
                 }
             }
 
@@ -213,9 +216,9 @@ namespace Autonocraft.Village
             {
                 if (!contract.AlreadyActive && contract.CanAfford && contract.FavorCost > 0)
                 {
-                    if (village.TrySpendFavor(contract.FavorCost))
+                    if (contract.Apply != null && village.TrySpendFavor(contract.FavorCost))
                     {
-                        contract.Apply?.Invoke(village);
+                        contract.Apply(village);
                         _events?.ShowToast?.Invoke($"Steward commissioned: {contract.Label}");
                         break;
                     }

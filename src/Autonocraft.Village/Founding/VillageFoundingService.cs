@@ -447,17 +447,17 @@ namespace Autonocraft.Village
             world.SetBlock(markerX, markerY + 1, markerZ, BlockType.OakLog);
             world.SetBlock(markerX, markerY + 2, markerZ, BlockType.Lantern);
 
-            for (int x = heartX - 4; x <= heartX + 4; x++)
+            for (int x = heartX - 5; x <= heartX + 5; x++)
             {
-                PlacePathTile(world, x, heartZ - 4, BlockType.OakPlank);
+                PlacePathTile(world, x, heartZ - 5, BlockType.OakPlank);
             }
 
-            for (int z = heartZ - 4; z <= heartZ + 6; z++)
+            for (int z = heartZ - 5; z <= heartZ + 4; z++)
             {
-                PlacePathTile(world, heartX, z, BlockType.OakPlank);
+                PlacePathTile(world, heartX + 5, z, BlockType.OakPlank);
             }
 
-            for (int x = heartX; x <= heartX + 8; x++)
+            for (int x = heartX + 5; x <= heartX + 8; x++)
             {
                 PlacePathTile(world, x, heartZ + 4, BlockType.OakPlank);
             }

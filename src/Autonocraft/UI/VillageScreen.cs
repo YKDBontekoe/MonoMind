@@ -27,6 +27,7 @@ namespace Autonocraft.UI
         private const float TabWidth = 132f;
         private const float TabHeight = 30f;
         private const int HitPadding = 6;
+        internal const int VillagerRowButtonBase = 10000;
 
         private static readonly (string Label, JobType Job)[] AssignableJobs =
         {
@@ -394,7 +395,12 @@ namespace Autonocraft.UI
             HitTestTabs(layout, mouse);
 
             float footerY = panelY + layout.S(PanelHeight) - layout.S(FooterHeight);
-            HitRect(left, footerY, buttonW, buttonH, 10, mouse);
+            int displayedCitizens = CountDisplayedCitizens();
+            bool starterOverview = _selectedTab == 0 && displayedCitizens == 0 && _viewModel != null;
+            if (!starterOverview)
+            {
+                HitRect(left, footerY, buttonW, buttonH, 10, mouse);
+            }
 
             float closeX = panelX + layout.S(PanelWidth) - layout.S(20f) - buttonW;
             float closeY = panelY + layout.S(PanelHeight) - layout.S(30f);
@@ -408,8 +414,6 @@ namespace Autonocraft.UI
 
             if (_selectedTab == 0)
             {
-                int displayedCitizens = CountDisplayedCitizens();
-                bool starterOverview = displayedCitizens == 0 && _viewModel != null;
                 if (_viewModel?.SuggestedTab != null && _viewModel.NextActionKind != SettlementActionKind.None &&
                     !starterOverview &&
                     OverviewPanel.TryGetNextActionCtaY(_viewModel, layout.Ui, panelY, layout.S(ContentTop), out float ctaY))

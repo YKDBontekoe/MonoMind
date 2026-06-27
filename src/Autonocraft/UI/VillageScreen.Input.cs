@@ -61,7 +61,7 @@ namespace Autonocraft.UI
             float rowH = layout.S(42f);
             foreach (var villager in EnumerateCitizens())
             {
-                HitRect(layout.Left + layout.S(8f), rowY, listW - layout.S(16f), rowH, 1000 + villager.Id, mouse);
+                HitRect(layout.Left + layout.S(8f), rowY, listW - layout.S(16f), rowH, VillagerRowButtonBase + villager.Id, mouse);
                 rowY += rowH + layout.S(4f);
             }
 
@@ -197,9 +197,9 @@ namespace Autonocraft.UI
             // People Tab Logic
             if (_selectedTab == 2)
             {
-                if (_hoveredButton >= 1000 && _hoveredButton < 2000)
+                if (_hoveredButton >= VillagerRowButtonBase)
                 {
-                    _selectedVillagerId = _hoveredButton - 1000;
+                    _selectedVillagerId = _hoveredButton - VillagerRowButtonBase;
                     return;
                 }
 
