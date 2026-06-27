@@ -131,9 +131,9 @@ public static partial class VillageTests
                 throw new Exception("set_creative did not update player through bridge queue.");
             }
 
-            EnsureFlatVillagePad(world, village, 20);
+            EnsureFlatVillagePad(world, village, 28);
 
-            var (houseX, houseY, houseZ) = FindValidBlueprintAnchor(villages, world, village, "peasant_house", startRadius: 8, maxRadius: 28);
+            var (houseX, houseY, houseZ) = FindValidBlueprintAnchor(villages, world, village, "peasant_house", startRadius: 8, maxRadius: 20);
 
             ClearBlueprintArea(world, "peasant_house", houseX, houseY, houseZ);
             PostAction(
