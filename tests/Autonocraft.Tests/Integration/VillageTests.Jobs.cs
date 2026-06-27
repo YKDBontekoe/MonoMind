@@ -25,6 +25,34 @@ namespace Autonocraft.Tests.Integration;
 
 public static partial class VillageTests
 {
+    private readonly record struct TestLayoutPoint(float X, float Z);
+
+    private static readonly TestLayoutPoint[] TestResidentialPoints =
+    {
+        new(0.15f, -1.0f),
+        new(0.8f, -0.8f),
+        new(1.05f, -0.15f),
+        new(0.95f, 0.55f),
+        new(0.35f, 1.0f),
+        new(-0.35f, 1.05f),
+        new(-0.95f, 0.65f),
+        new(-1.1f, 0.0f),
+        new(-0.85f, -0.7f),
+        new(-0.25f, -1.05f)
+    };
+
+    private static readonly TestLayoutPoint[] TestIndustryPoints =
+    {
+        new(0.2f, -1.0f),
+        new(1.0f, -0.45f),
+        new(1.1f, 0.35f),
+        new(0.45f, 1.05f),
+        new(-0.35f, 1.1f),
+        new(-1.05f, 0.45f),
+        new(-1.15f, -0.25f),
+        new(-0.55f, -1.0f)
+    };
+
     private static (int x, int y, int z) FindValidBlueprintAnchor(
         VillageManager villages,
         VoxelWorld world,
@@ -36,6 +64,18 @@ public static partial class VillageTests
         if (!PlayerStructureRegistry.TryGet(blueprintId, out var blueprint))
         {
             throw new Exception($"{blueprintId} blueprint missing.");
+        }
+
+        foreach (var candidate in EnumeratePreferredAnchors(village, blueprint))
+        {
+            int candidateY = candidate.preferVillageAnchorY
+                ? village.AnchorY
+                : StructureFingerprint.FindSurfaceAnchorY(world, candidate.x, candidate.z);
+            ClearBlueprintArea(world, blueprintId, candidate.x, candidateY, candidate.z);
+            if (villages.CanPlaceBlueprint(world, village, blueprint, candidate.x, candidate.z, village.Storage, candidateY))
+            {
+                return (candidate.x, candidateY, candidate.z);
+            }
         }
 
         for (int radius = startRadius; radius <= maxRadius; radius += 2)
@@ -64,6 +104,30 @@ public static partial class VillageTests
         }
 
         throw new Exception($"Could not find valid {blueprintId} anchor.");
+    }
+
+    private static System.Collections.Generic.IEnumerable<(int x, int z, bool preferVillageAnchorY)> EnumeratePreferredAnchors(
+        VillageEntity village,
+        BuildingBlueprint blueprint)
+    {
+        int spacing = Math.Max(6, blueprint.Template.FootprintRadius * 2 + 4);
+        var (points, rings) = blueprint.Kind switch
+        {
+            BuildingKind.House => (TestResidentialPoints, new[] { spacing + 3, spacing + 7, spacing + 11 }),
+            BuildingKind.FarmPlot => (TestIndustryPoints, new[] { spacing + 7, spacing + 11, spacing + 15 }),
+            _ => (Array.Empty<TestLayoutPoint>(), Array.Empty<int>())
+        };
+
+        foreach (int ring in rings)
+        {
+            foreach (var point in points)
+            {
+                yield return (
+                    village.AnchorX + (int)MathF.Round(point.X * ring),
+                    village.AnchorZ + (int)MathF.Round(point.Z * ring),
+                    ring <= spacing + 6);
+            }
+        }
     }
 
     public static void RunVillageOrganicGrowthQueuesExpansion()
