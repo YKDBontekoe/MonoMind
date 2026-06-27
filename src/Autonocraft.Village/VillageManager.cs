@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Autonocraft.Domain.Core;
 using Autonocraft.Domain.Village;
 using Autonocraft.Entities;
 using Autonocraft.Items;
@@ -43,6 +44,14 @@ namespace Autonocraft.Village
                 _simulation.CreativeMode = value;
             }
         }
+
+        public bool IsTestMode
+        {
+            get => _simulation.IsTestMode;
+            set => _simulation.IsTestMode = value;
+        }
+
+        public VillagerManager Villagers => _villagers;
 
         public IReadOnlyList<Village> Villages => _villages;
         public IReadOnlyCollection<long> ClaimedAnchors => throw new NotSupportedException("Use ExportClaimedAnchors");
@@ -253,6 +262,48 @@ namespace Autonocraft.Village
             return false;
         }
 
+        public RecruitResult EnsureStarterCitizens(Village village, VoxelWorld world)
+        {
+            SyncCitizensForVillage(village);
+            int livePopulation = VillageSettlementHealth.GetLivePopulation(village, _villagers);
+            if (livePopulation > 0)
+            {
+                return RecruitResult.Succeeded(livePopulation == 1 ? "Settler" : "Settlers");
+            }
+
+            if (!VillageSettlementHealth.HasEstablishedSettlement(village))
+            {
+                return RecruitResult.Failed(
+                    RecruitReasonCodes.NoSettlement,
+                    "No Town Heart is ready yet.",
+                    "Place or finish the Town Heart before managing this village.");
+            }
+
+            VillageSettlementHealth.EnsureVillageChunksLoaded(world, village);
+            _founding.SpawnStarterCitizens(village, world, _dispatcher);
+            SyncCitizensForVillage(village);
+            livePopulation = VillageSettlementHealth.GetLivePopulation(village, _villagers);
+            if (livePopulation > 0)
+            {
+                ShowToast?.Invoke($"{livePopulation} villager(s) ready in {village.Name}. Open People to assign jobs.");
+                return RecruitResult.Succeeded(livePopulation == 1 ? "Villager" : "Villagers");
+            }
+
+            int stranded = VillageSettlementHealth.CountStrandedCitizens(village, _villagers);
+            if (stranded > 0)
+            {
+                return RecruitResult.Failed(
+                    RecruitReasonCodes.NoCitizens,
+                    $"{stranded} villager(s) are nearby but not linked yet.",
+                    "Close and reopen the Town Board to relink them.");
+            }
+
+            return RecruitResult.Failed(
+                RecruitReasonCodes.NoCitizens,
+                "No starter villagers could be restored.",
+                "Make sure the village area is loaded, then reopen the Town Board.");
+        }
+
         public void RepairNearbySettlements(VoxelWorld world, Vector3 playerPos, float deltaTime)
         {
             _repairScanCooldown -= deltaTime;
@@ -456,7 +507,7 @@ namespace Autonocraft.Village
 
             if (!village.CanRecruit(CreativeMode))
             {
-                if (village.Population >= village.PopulationCap)
+                if (village.Population >= village.EffectiveRecruitmentCap)
                 {
                     return RecruitResult.Failed(
                         RecruitReasonCodes.HousingCap,
@@ -502,10 +553,10 @@ namespace Autonocraft.Village
         public void AutoAssignIdleWorkers(Village village, VoxelWorld world) =>
             _dispatcher.AutoAssignIdleWorkers(village, world);
 
-        public void Update(float deltaTime, VoxelWorld world, float timeOfDay, AnimalManager animalManager)
+        public void Update(float deltaTime, VoxelWorld world, float timeOfDay, AnimalManager animalManager, float timeScale = DayNightCycle.DefaultTimeScale)
         {
             _villagers.Update(deltaTime, world, _villages);
-            _simulation.Update(_villages, _finalizedSites, deltaTime, world, timeOfDay, animalManager);
+            _simulation.Update(_villages, _finalizedSites, deltaTime, world, timeOfDay, animalManager, timeScale);
         }
 
         public void SetVillageEvents(VillageEvents events)

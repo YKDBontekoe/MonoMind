@@ -123,6 +123,7 @@ namespace Autonocraft.Village
                         StockBlock = goalEntry.StockBlock.HasValue ? (BlockType)goalEntry.StockBlock.Value : null,
                         TargetCount = goalEntry.TargetCount,
                         BlueprintId = goalEntry.BlueprintId,
+                        BuildCountTarget = goalEntry.BuildCountTarget,
                         BuildQueued = goalEntry.BuildQueued
                     });
                 }
@@ -186,6 +187,7 @@ namespace Autonocraft.Village
                         StockBlock = goal.StockBlock.HasValue ? (int)goal.StockBlock.Value : null,
                         TargetCount = goal.TargetCount,
                         BlueprintId = goal.BlueprintId,
+                        BuildCountTarget = goal.BuildCountTarget,
                         BuildQueued = goal.BuildQueued
                     });
                 }

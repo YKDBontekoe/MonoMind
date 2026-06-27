@@ -32,7 +32,7 @@ namespace Autonocraft.Village.Jobs
             var targetPos = GetBuildStandPosition(villager, site, nextBlock);
             if (villager.AiPhase == VillagerAiPhase.PathTo)
             {
-                if (context.CreativeMode)
+                if (context.CreativeMode && context.IsTestMode)
                 {
                     villager.SetAiPhase(VillagerAiPhase.Working);
                 }

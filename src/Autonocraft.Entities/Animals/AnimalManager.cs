@@ -276,17 +276,19 @@ namespace Autonocraft.Entities
         public List<Animal> GetAnimalsInRange(Vector3 center, float radius)
         {
             float radiusSq = radius * radius;
-            _rangeScratch.Clear();
-
+            // Return a new list snapshot each call — _rangeScratch was shared and caused
+            // "Collection was modified" crashes when render thread iterated while update thread
+            // was spawning/despawning animals.
+            var result = new List<Animal>();
             foreach (var animal in _animals)
             {
                 if (Vector3.DistanceSquared(animal.Position, center) <= radiusSq)
                 {
-                    _rangeScratch.Add(animal);
+                    result.Add(animal);
                 }
             }
 
-            return _rangeScratch;
+            return result;
         }
 
         public (Animal? animal, float distance) RaycastTarget(Vector3 origin, Vector3 direction, float maxDistance)

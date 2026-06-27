@@ -99,8 +99,9 @@ namespace Autonocraft.Village
             int wx = AnchorX + next.Dx;
             int wy = AnchorY + next.Dy;
             int wz = AnchorZ + next.Dz;
+            BlockType current = world.GetBlock(wx, wy, wz);
 
-            if (world.GetBlock(wx, wy, wz) == next.Type)
+            if (current == next.Type)
             {
                 _pending.RemoveAt(0);
                 IsComplete = _pending.Count == 0;
@@ -115,12 +116,9 @@ namespace Autonocraft.Village
                 return true;
             }
 
-            if (!creative && !storage.TryConsumeBlock(next.Type, 1))
-            {
-                return false;
-            }
-
-            if (!BlockPlacement.TryPlaceBlock(
+            bool placed = CanReplaceForConstruction(current, next.Type)
+                ? TryReplaceForConstruction(world, wx, wy, wz, next.Type, entityWidth, entityHeight, builderPos, checkBuilderCollision)
+                : BlockPlacement.TryPlaceBlock(
                     world,
                     wx,
                     wy,
@@ -129,18 +127,56 @@ namespace Autonocraft.Village
                     checkBuilderCollision ? entityWidth : 0f,
                     checkBuilderCollision ? entityHeight : 0f,
                     builderPos,
-                    checkEntityCollision: checkBuilderCollision))
-            {
-                if (!creative)
-                {
-                    storage.AddItem(Items.ItemStack.CreateBlock(next.Type, 1));
-                }
+                    checkEntityCollision: checkBuilderCollision);
 
+            if (!placed)
+            {
                 return false;
             }
 
             _pending.RemoveAt(0);
             IsComplete = _pending.Count == 0;
+            return true;
+        }
+
+        private static bool TryReplaceForConstruction(
+            VoxelWorld world,
+            int x,
+            int y,
+            int z,
+            BlockType target,
+            float entityWidth,
+            float entityHeight,
+            Vector3 builderPos,
+            bool checkBuilderCollision)
+        {
+            if (checkBuilderCollision &&
+                entityWidth > 0f &&
+                entityHeight > 0f &&
+                BlockPlacement.EntityIntersectsBlock(entityWidth, entityHeight, builderPos, x, y, z))
+            {
+                return false;
+            }
+
+            world.SetBlock(x, y, z, target);
+            return true;
+        }
+
+        private static bool CanReplaceForConstruction(BlockType current, BlockType target)
+        {
+            if (target == BlockType.Air)
+            {
+                return current != BlockType.Air;
+            }
+
+            if (current == BlockType.Air)
+            {
+                return false;
+            }
+
+            // Construction templates can intentionally overwrite earlier placed
+            // blocks at the same coordinate, such as a decorative chimney
+            // replacing a wall plank in a later template entry.
             return true;
         }
 

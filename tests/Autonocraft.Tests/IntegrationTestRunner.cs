@@ -154,6 +154,7 @@ public static class IntegrationTestRunner
 
             GameCase(nameof(InteractionTests), nameof(InteractionTests.RunMiningAndPlacing), context => InteractionTests.RunMiningAndPlacing(context.Game, context.Player, context.World)),
             GameCase(nameof(InteractionTests), nameof(InteractionTests.RunClickPriority), context => InteractionTests.RunClickPriority(context.Game, context.Player, context.World)),
+            GameCase(nameof(InteractionTests), nameof(InteractionTests.RunSwordMissDoesNotMineBlock), context => InteractionTests.RunSwordMissDoesNotMineBlock(context.Game, context.Player, context.World)),
             GameCase(nameof(InteractionTests), nameof(InteractionTests.RunLeafDecay), context => InteractionTests.RunLeafDecay(context.Game, context.Player, context.World)),
             GameCase(nameof(InteractionTests), nameof(InteractionTests.RunSaplingGrowth), context => InteractionTests.RunSaplingGrowth(context.Game, context.Player, context.World)),
 

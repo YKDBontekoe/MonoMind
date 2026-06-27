@@ -77,9 +77,10 @@ namespace Autonocraft.Core
             if (_screens.DeathScreen!.IsOpen)
             {
                 EnsureUiPointerMode();
+                bool simulatedRespawn = IsKeyPressed(kbState, Key.Enter);
                 _screens.DeathScreen.Update(GraphicsDevice.Viewport, kbState, mouseState, _input.PrevKeyboard, _input.PrevMouse, deltaTime);
 
-                if (_screens.DeathScreen.RespawnRequested)
+                if (_screens.DeathScreen.RespawnRequested || simulatedRespawn)
                 {
                     CombatSystem.RespawnPlayer(_session.Grid, _session.Player, _worldSpawnX, _worldSpawnZ);
                     _deathCauseText = null;
@@ -97,7 +98,15 @@ namespace Autonocraft.Core
             if (_screens.PauseMenu!.IsOpen)
             {
                 EnsureUiPointerMode();
-                _screens.PauseMenu.Update(GraphicsDevice.Viewport, kbState, mouseState, _input.PrevKeyboard, _input.PrevMouse, deltaTime);
+                bool simulatedEscape = IsKeyPressed(kbState, Key.Escape) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape);
+                _screens.PauseMenu.Update(
+                    GraphicsDevice.Viewport,
+                    kbState,
+                    mouseState,
+                    _input.PrevKeyboard,
+                    _input.PrevMouse,
+                    deltaTime,
+                    simulatedEscape);
 
                 if (_screens.PauseMenu.ResumeRequested)
                 {
@@ -137,10 +146,22 @@ namespace Autonocraft.Core
             if (_screens.VillageScreen!.IsOpen)
             {
                 EnsureUiPointerMode();
-                if ((kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape))
-                    || (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.V) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.V)))
+                if ((IsKeyPressed(kbState, Key.Escape) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape))
+                    || (IsKeyPressed(kbState, Key.V) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.V)))
                 {
                     CloseVillageUi();
+                    return true;
+                }
+
+                if (IsKeyPressed(kbState, Key.R) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.R))
+                {
+                    var activeVillage = _session.Villages.GetActiveVillage(_session.Player.Position);
+                    if (activeVillage != null)
+                    {
+                        var recruitResult = _session.Villages.TryRecruit(activeVillage, _session.Grid);
+                        _screens.VillageScreen.SetRecruitFeedback(recruitResult);
+                    }
+
                     return true;
                 }
 
@@ -227,46 +248,14 @@ namespace Autonocraft.Core
                 return;
             }
 
-            var village = _session.Villages.GetActiveVillage(_session.Player.Position);
+            var village = _screens.VillageScreen!.CurrentVillage
+                ?? _session.Villages.GetActiveVillage(_session.Player.Position);
             if (village == null)
             {
                 return;
             }
 
-            if (_screens.VillageScreen!.SummonSettlersRequested)
-            {
-                int before = VillageSettlementHealth.GetLivePopulation(village, _session.Villagers);
-                if (!_session.Villages.RepairVillageCitizens(village, _session.Grid))
-                {
-                    _session.Villages.SyncCitizensForVillage(village);
-                    int after = VillageSettlementHealth.GetLivePopulation(village, _session.Villagers);
-                    int stranded = VillageSettlementHealth.CountStrandedCitizens(village, _session.Villagers);
-                    if (after == 0 && stranded > 0)
-                    {
-                        _screens.VillageScreen.SetRecruitFeedback(
-                            RecruitResult.Failed(
-                                RecruitReasonCodes.NoCitizens,
-                                $"{stranded} settler(s) are nearby but not linked yet.",
-                                "Walk closer to the Town Heart, then click Link nearby settlers again."));
-                    }
-                    else if (after == 0)
-                    {
-                        _screens.VillageScreen.SetRecruitFeedback(
-                            RecruitResult.Failed(
-                                RecruitReasonCodes.NoCitizens,
-                                "No settlers could be summoned.",
-                                "Stand on the Town Heart block inside your settlement and try again."));
-                    }
-                }
-                else if (VillageSettlementHealth.GetLivePopulation(village, _session.Villagers) > before)
-                {
-                    _screens.VillageScreen.SetRecruitFeedback(
-                        RecruitResult.Succeeded("Settlers linked"));
-                }
-
-                _screens.VillageScreen.RefreshAfterVillageAction();
-            }
-            else if (_screens.VillageScreen.RecruitRequested)
+            if (_screens.VillageScreen.RecruitRequested)
             {
                 var recruitResult = _session.Villages.TryRecruit(village, _session.Grid);
                 _screens.VillageScreen.SetRecruitFeedback(recruitResult);
@@ -538,22 +527,18 @@ namespace Autonocraft.Core
                 return;
             }
 
-            if (_session.Villages.RepairVillageCitizens(village, _session.Grid))
-            {
-                village.ReconcileVillagerRegistry(_session.Villagers.All);
-            }
-
+            _session.Villages.EnsureStarterCitizens(village, _session.Grid);
             _session.Villages.SyncCitizensForVillage(village);
 
             string? openingNote = null;
             int citizens = VillageSettlementHealth.GetLivePopulation(village, _session.Villagers);
             if (citizens == 0)
             {
-                openingNote = "Settlers are being summoned to your Town Heart. Check the PEOPLE tab in a moment.";
+                openingNote = "Village roster is empty. Close and reopen the Town Board to repair this save.";
             }
             else if (citizens < 2 && village.Name.Contains("Founder", StringComparison.OrdinalIgnoreCase))
             {
-                openingNote = $"{citizens} settler(s) on site — open PEOPLE tab to assign LUMBER or BUILD.";
+                openingNote = $"{citizens} villager(s) on site — open PEOPLE to assign LUMBER or BUILD.";
             }
 
             _input.MouseLockedBeforeVillageUi = _input.IsMouseLocked;

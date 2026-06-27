@@ -17,15 +17,23 @@ Thumbs.db
 *.tmp
 *.swp
 .vscode/
+*.log
+.env*
 
 # Local API keys (template is openrouter_key.example.txt)
 openrouter_key.txt
 
 # Test / generated artifacts
 screenshot_test.png
+test_output/
+test_output_*.png
 
 # Python
 __pycache__/
 *.py[cod]
 .venv/
 venv/
+
+# Local scratch scripts
+play_game.py
+tests/mega_city_bot.py

@@ -61,7 +61,14 @@ namespace Autonocraft.Village.Jobs
             int range = Math.Clamp((int)MathF.Ceiling(Vector3.Distance(villager.Position, target)) + 4, 12, 48);
             if (!VoxelPathfinder.TryFindPath(world, villager.Position, target, range, out var waypoints) || waypoints.Count == 0)
             {
-                return false;
+                // Fallback: Try pathing to a closer block
+                var dir = Vector3.Normalize(villager.Position - target);
+                var fallbackTarget = target + dir * 2f;
+                
+                if (!VoxelPathfinder.TryFindPath(world, villager.Position, fallbackTarget, range, out waypoints) || waypoints.Count == 0)
+                {
+                    return false;
+                }
             }
 
             if (waypoints.Count > 1)
@@ -101,13 +108,15 @@ namespace Autonocraft.Village.Jobs
                 new Vector3(villager.Position.X, 0f, villager.Position.Z));
             villager.LastMovePosition = villager.Position;
 
-            if (movedSq > 0.0025f || villager.Velocity.LengthSquared() <= 0.01f)
+            if (movedSq > 0.0025f || villager.WanderDirection.LengthSquared() <= 0.01f)
             {
                 villager.StuckTimer = 0f;
                 return;
             }
 
-            villager.StuckTimer += deltaTime;
+            // Clamp deltaTime so a single lag spike (e.g. 2s frame) doesn't instantly trigger stuck
+            float clampedDt = MathF.Min(deltaTime, 0.1f);
+            villager.StuckTimer += clampedDt;
             if (villager.StuckTimer < 0.55f)
             {
                 return;

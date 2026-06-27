@@ -27,6 +27,10 @@ namespace Autonocraft.Core
                 InputDebugTrace.LogException("Draw", ex);
                 Console.WriteLine($"[Game] Draw fault: {ex}");
             }
+            finally
+            {
+                FlushPendingScreenshot();
+            }
         }
 
         private void DrawFrame(GameTime gameTime)

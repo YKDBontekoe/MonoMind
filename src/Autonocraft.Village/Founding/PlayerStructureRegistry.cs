@@ -44,7 +44,7 @@ namespace Autonocraft.Village
                         new BlockCost(BlockType.OakPlank, 8),
                         new BlockCost(BlockType.Cobblestone, 4)
                     },
-                    HousingProvided = 2,
+                    HousingProvided = 4,
                     PopulationCapBonus = 2,
                     StorageSlots = 9
                 },
@@ -156,104 +156,212 @@ namespace Autonocraft.Village
             };
         }
 
+        private static void AddPost(List<StructureBlock> blocks, int x, int z, int height, BlockType post = BlockType.OakLog, bool lantern = false)
+        {
+            for (int y = 1; y <= height; y++)
+            {
+                blocks.Add(new StructureBlock(x, y, z, post));
+            }
+
+            if (lantern)
+            {
+                blocks.Add(new StructureBlock(x, height + 1, z, BlockType.Lantern));
+            }
+        }
+
+        private static void AddBorder(List<StructureBlock> blocks, int radius, BlockType blockType, int y = 0)
+        {
+            for (int dx = -radius; dx <= radius; dx++)
+            {
+                for (int dz = -radius; dz <= radius; dz++)
+                {
+                    if (System.Math.Abs(dx) != radius && System.Math.Abs(dz) != radius)
+                    {
+                        continue;
+                    }
+
+                    blocks.Add(new StructureBlock(dx, y, dz, blockType));
+                }
+            }
+        }
+
         private static StructureTemplate BuildTownHeart()
         {
             var blocks = new List<StructureBlock>();
-            for (int dx = -2; dx <= 2; dx++)
+            for (int dx = -3; dx <= 3; dx++)
             {
-                for (int dz = -2; dz <= 2; dz++)
+                for (int dz = -3; dz <= 3; dz++)
                 {
-                    blocks.Add(new StructureBlock(dx, 0, dz, BlockType.OakPlank));
+                    bool edge = Math.Abs(dx) == 3 || Math.Abs(dz) == 3;
+                    bool cross = dx == 0 || dz == 0;
+                    blocks.Add(new StructureBlock(dx, 0, dz, edge ? BlockType.Cobblestone : cross ? BlockType.Gravel : BlockType.OakPlank));
                 }
             }
 
-            blocks.Add(new StructureBlock(0, 1, 0, BlockType.OakLog));
-            return new StructureTemplate { FootprintRadius = 2, Blocks = blocks.ToArray() };
+            AddPost(blocks, -3, -3, 2);
+            AddPost(blocks, 3, -3, 2);
+            AddPost(blocks, -3, 3, 2);
+            AddPost(blocks, 3, 3, 2);
+
+            for (int x = -2; x <= 2; x++)
+            {
+                blocks.Add(new StructureBlock(x, 3, -3, BlockType.OakPlank));
+                blocks.Add(new StructureBlock(x, 3, 3, BlockType.OakPlank));
+            }
+
+            for (int z = -2; z <= 2; z++)
+            {
+                blocks.Add(new StructureBlock(-3, 3, z, BlockType.OakPlank));
+                blocks.Add(new StructureBlock(3, 3, z, BlockType.OakPlank));
+            }
+
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                for (int dz = -1; dz <= 1; dz++)
+                {
+                    blocks.Add(new StructureBlock(dx, 4, dz, BlockType.OakPlank));
+                }
+            }
+
+            blocks.Add(new StructureBlock(0, 3, 0, BlockType.OakLog));
+            blocks.Add(new StructureBlock(0, 2, 0, BlockType.Lantern));
+            blocks.Add(new StructureBlock(-1, 1, 2, BlockType.StationBench));
+            blocks.Add(new StructureBlock(1, 1, 2, BlockType.Chest));
+            blocks.Add(new StructureBlock(0, 0, -4, BlockType.Gravel));
+            blocks.Add(new StructureBlock(0, 0, 4, BlockType.Gravel));
+            blocks.Add(new StructureBlock(-4, 0, 0, BlockType.Gravel));
+            blocks.Add(new StructureBlock(4, 0, 0, BlockType.Gravel));
+
+            return new StructureTemplate { FootprintRadius = 3, Blocks = blocks.ToArray() };
         }
 
         private static StructureTemplate BuildPeasantHouse()
         {
             var blocks = new List<StructureBlock>();
-            // Floor
             for (int dx = -2; dx <= 2; dx++)
             {
                 for (int dz = -2; dz <= 2; dz++)
                 {
-                    blocks.Add(new StructureBlock(dx, 0, dz, BlockType.Cobblestone));
+                    blocks.Add(new StructureBlock(dx, 0, dz, Math.Abs(dx) == 2 || Math.Abs(dz) == 2 ? BlockType.Cobblestone : BlockType.OakPlank));
                 }
             }
 
-            // Walls
+            blocks.Add(new StructureBlock(-1, 0, -3, BlockType.Gravel));
+            blocks.Add(new StructureBlock(0, 0, -3, BlockType.Gravel));
+            blocks.Add(new StructureBlock(1, 0, -3, BlockType.Gravel));
+            blocks.Add(new StructureBlock(-1, 1, -3, BlockType.OakLog));
+            blocks.Add(new StructureBlock(1, 1, -3, BlockType.OakLog));
+            AddPost(blocks, -3, -3, 2, lantern: true);
+            AddPost(blocks, 3, -3, 2, lantern: true);
+            AddPost(blocks, -3, 3, 2);
+            AddPost(blocks, 3, 3, 2);
+
             for (int y = 1; y <= 3; y++)
             {
                 for (int dx = -2; dx <= 2; dx++)
                 {
-                    // Front and back walls
-                    BlockType f_type = BlockType.OakPlank;
-                    BlockType b_type = BlockType.OakPlank;
-
-                    // Door in the front
-                    if (y <= 2 && dx == 0) f_type = BlockType.Air;
-                    // Windows in front and back
-                    if (y == 2 && (dx == -1 || dx == 1))
-                    {
-                        f_type = BlockType.Glass;
-                        b_type = BlockType.Glass;
-                    }
-
-                    blocks.Add(new StructureBlock(dx, y, -2, f_type));
-                    blocks.Add(new StructureBlock(dx, y, 2, b_type));
+                    BlockType front = dx == 0 && y <= 2 ? BlockType.Air : y == 2 && (dx == -1 || dx == 1) ? BlockType.Glass : BlockType.OakPlank;
+                    BlockType back = y == 2 && (dx == -1 || dx == 1) ? BlockType.Glass : BlockType.OakPlank;
+                    blocks.Add(new StructureBlock(dx, y, -2, front));
+                    blocks.Add(new StructureBlock(dx, y, 2, back));
                 }
 
                 for (int dz = -1; dz <= 1; dz++)
                 {
-                    // Side walls
-                    BlockType s_type = BlockType.OakPlank;
-                    if (y == 2 && dz == 0) s_type = BlockType.Glass;
-
-                    blocks.Add(new StructureBlock(-2, y, dz, s_type));
-                    blocks.Add(new StructureBlock(2, y, dz, s_type));
+                    BlockType leftSide = y == 2 && dz == 0 ? BlockType.Glass : BlockType.OakPlank;
+                    BlockType rightSide = dz == -1 && y >= 1
+                        ? BlockType.Cobblestone
+                        : y == 2 && dz == 0
+                            ? BlockType.Glass
+                            : BlockType.OakPlank;
+                    blocks.Add(new StructureBlock(-2, y, dz, leftSide));
+                    blocks.Add(new StructureBlock(2, y, dz, rightSide));
                 }
             }
 
-            // Roof
             for (int dx = -2; dx <= 2; dx++)
             {
                 for (int dz = -2; dz <= 2; dz++)
                 {
-                    blocks.Add(new StructureBlock(dx, 4, dz, BlockType.OakLog));
+                    int roofY = 4 + Math.Abs(dx) / 2;
+                    blocks.Add(new StructureBlock(dx, roofY, dz, Math.Abs(dx) == 2 ? BlockType.OakPlank : BlockType.OakLog));
+                    if (Math.Abs(dx) <= 1)
+                    {
+                        blocks.Add(new StructureBlock(dx, roofY + 1, dz, BlockType.OakPlank));
+                    }
+                }
+            }
+
+            blocks.Add(new StructureBlock(-1, 1, 1, BlockType.Chest));
+            return new StructureTemplate { FootprintRadius = 3, Blocks = blocks.ToArray() };
+        }
+
+        private static StructureTemplate BuildStorageCrate()
+        {
+            var blocks = new List<StructureBlock>();
+            for (int dx = -2; dx <= 2; dx++)
+            {
+                for (int dz = -2; dz <= 2; dz++)
+                {
+                    blocks.Add(new StructureBlock(dx, 0, dz, Math.Abs(dx) == 2 || Math.Abs(dz) == 2 ? BlockType.Gravel : BlockType.Cobblestone));
+                }
+            }
+
+            AddPost(blocks, -2, -2, 2, lantern: true);
+            AddPost(blocks, 2, -2, 2, lantern: true);
+            AddPost(blocks, -2, 2, 2);
+            AddPost(blocks, 2, 2, 2);
+            blocks.Add(new StructureBlock(0, 0, -3, BlockType.Gravel));
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                blocks.Add(new StructureBlock(dx, 1, -1, BlockType.Chest));
+                blocks.Add(new StructureBlock(dx, 1, 1, BlockType.OakLog));
+                for (int dz = -1; dz <= 1; dz++)
+                {
+                    blocks.Add(new StructureBlock(dx, 3, dz, BlockType.OakPlank));
                 }
             }
 
             return new StructureTemplate { FootprintRadius = 2, Blocks = blocks.ToArray() };
         }
 
-        private static StructureTemplate BuildStorageCrate()
-        {
-            var blocks = new List<StructureBlock>();
-            for (int dx = -1; dx <= 1; dx++)
-            {
-                for (int dz = -1; dz <= 1; dz++)
-                {
-                    blocks.Add(new StructureBlock(dx, 0, dz, BlockType.OakPlank));
-                }
-            }
-
-            blocks.Add(new StructureBlock(0, 1, 0, BlockType.OakLog));
-            return new StructureTemplate { FootprintRadius = 1, Blocks = blocks.ToArray() };
-        }
-
         private static StructureTemplate BuildLumberCamp()
         {
             var blocks = new List<StructureBlock>();
-            for (int dx = -1; dx <= 1; dx++)
+            for (int dx = -3; dx <= 3; dx++)
             {
-                blocks.Add(new StructureBlock(dx, 0, 0, BlockType.OakPlank));
-                blocks.Add(new StructureBlock(dx, 1, 0, BlockType.OakLog));
+                for (int dz = -3; dz <= 3; dz++)
+                {
+                    blocks.Add(new StructureBlock(dx, 0, dz, Math.Abs(dx) == 3 || Math.Abs(dz) == 3 ? BlockType.Gravel : BlockType.Dirt));
+                }
             }
 
-            blocks.Add(new StructureBlock(0, 0, 1, BlockType.OakLog));
-            return new StructureTemplate { FootprintRadius = 1, Blocks = blocks.ToArray() };
+            AddPost(blocks, -3, -3, 2, lantern: true);
+            AddPost(blocks, 3, -3, 2, lantern: true);
+            blocks.Add(new StructureBlock(0, 0, -4, BlockType.Gravel));
+            blocks.Add(new StructureBlock(0, 1, 1, BlockType.OakLog));
+            for (int dx = -2; dx <= 1; dx++)
+            {
+                blocks.Add(new StructureBlock(dx, 1, -1, BlockType.OakLog));
+                blocks.Add(new StructureBlock(dx, 2, -1, BlockType.OakLog));
+            }
+
+            blocks.Add(new StructureBlock(2, 1, 1, BlockType.OakLog));
+            blocks.Add(new StructureBlock(2, 2, 1, BlockType.OakLog));
+            blocks.Add(new StructureBlock(0, 1, 2, BlockType.Chest));
+            blocks.Add(new StructureBlock(-2, 1, 2, BlockType.OakLog));
+            blocks.Add(new StructureBlock(-2, 2, 2, BlockType.OakLog));
+            blocks.Add(new StructureBlock(1, 1, 2, BlockType.OakLog));
+            blocks.Add(new StructureBlock(1, 2, 2, BlockType.OakLog));
+            for (int dx = -2; dx <= 1; dx++)
+            {
+                for (int dz = 1; dz <= 2; dz++)
+                {
+                    blocks.Add(new StructureBlock(dx, 3, dz, BlockType.OakPlank));
+                }
+            }
+
+            return new StructureTemplate { FootprintRadius = 3, Blocks = blocks.ToArray() };
         }
 
         private static StructureTemplate BuildWorkshop()
@@ -263,11 +371,29 @@ namespace Autonocraft.Village
             {
                 for (int dz = -2; dz <= 2; dz++)
                 {
-                    blocks.Add(new StructureBlock(dx, 0, dz, BlockType.Cobblestone));
+                    blocks.Add(new StructureBlock(dx, 0, dz, Math.Abs(dx) == 2 || Math.Abs(dz) == 2 ? BlockType.Cobblestone : BlockType.Gravel));
                 }
             }
 
-            blocks.Add(new StructureBlock(0, 1, 0, BlockType.StationBench));
+            AddPost(blocks, -2, -2, 3, lantern: true);
+            AddPost(blocks, 2, -2, 3, lantern: true);
+            AddPost(blocks, -2, 2, 3);
+            AddPost(blocks, 2, 2, 3);
+            blocks.Add(new StructureBlock(0, 0, -3, BlockType.Gravel));
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                for (int dz = -1; dz <= 1; dz++)
+                {
+                    blocks.Add(new StructureBlock(dx, 4, dz, BlockType.OakPlank));
+                }
+            }
+
+            blocks.Add(new StructureBlock(-1, 1, -1, BlockType.StationBench));
+            blocks.Add(new StructureBlock(1, 1, -1, BlockType.StationForge));
+            blocks.Add(new StructureBlock(-1, 1, 1, BlockType.StationCrucible));
+            blocks.Add(new StructureBlock(1, 1, 1, BlockType.Chest));
+            blocks.Add(new StructureBlock(2, 1, -2, BlockType.Cobblestone));
+            blocks.Add(new StructureBlock(2, 2, -2, BlockType.Cobblestone));
             return new StructureTemplate { FootprintRadius = 2, Blocks = blocks.ToArray() };
         }
 
@@ -278,67 +404,168 @@ namespace Autonocraft.Village
             {
                 for (int dz = -2; dz <= 2; dz++)
                 {
-                    blocks.Add(new StructureBlock(dx, 0, dz, BlockType.Dirt));
+                    bool isEdge = Math.Abs(dx) == 2 || Math.Abs(dz) == 2;
+                    bool isCenter = dx == 0 && dz == 0;
+
+                    if (isEdge)
+                    {
+                        blocks.Add(new StructureBlock(dx, 0, dz, BlockType.OakLog));
+                    }
+                    else if (isCenter)
+                    {
+                        blocks.Add(new StructureBlock(dx, 0, dz, BlockType.Water));
+                    }
+                    else
+                    {
+                        blocks.Add(new StructureBlock(dx, 0, dz, BlockType.Dirt));
+                    }
                 }
             }
 
-            return new StructureTemplate { FootprintRadius = 2, Blocks = blocks.ToArray() };
+            blocks.Add(new StructureBlock(-3, 0, 0, BlockType.Gravel));
+            blocks.Add(new StructureBlock(3, 0, 0, BlockType.Gravel));
+            blocks.Add(new StructureBlock(0, 0, -3, BlockType.Gravel));
+            blocks.Add(new StructureBlock(0, 0, 3, BlockType.Gravel));
+            AddPost(blocks, -2, -2, 2, lantern: true);
+            AddPost(blocks, 2, -2, 2, lantern: true);
+            blocks.Add(new StructureBlock(-2, 1, 0, BlockType.OakLog));
+            blocks.Add(new StructureBlock(2, 1, 0, BlockType.OakLog));
+
+            return new StructureTemplate { FootprintRadius = 3, Blocks = blocks.ToArray() };
         }
 
         private static StructureTemplate BuildQuarry()
+        {
+            var blocks = new List<StructureBlock>();
+            for (int dx = -3; dx <= 3; dx++)
+            {
+                for (int dz = -3; dz <= 3; dz++)
+                {
+                    bool edge = Math.Abs(dx) == 3 || Math.Abs(dz) == 3;
+                    blocks.Add(new StructureBlock(dx, 0, dz, edge ? BlockType.Cobblestone : BlockType.Air));
+                    
+                    if (edge && (Math.Abs(dx) != 3 || Math.Abs(dz) != 3))
+                    {
+                        blocks.Add(new StructureBlock(dx, 1, dz, BlockType.Cobblestone));
+                    }
+                }
+            }
+
+            blocks.Add(new StructureBlock(0, 0, 1, BlockType.Rope));
+            blocks.Add(new StructureBlock(0, -1, 1, BlockType.Rope));
+            blocks.Add(new StructureBlock(0, -2, 1, BlockType.Rope));
+            AddPost(blocks, -3, -3, 2, lantern: true);
+            AddPost(blocks, 3, -3, 2, lantern: true);
+
+            blocks.Add(new StructureBlock(-1, 1, 0, BlockType.OakLog));
+            blocks.Add(new StructureBlock(-1, 2, 0, BlockType.OakLog));
+            blocks.Add(new StructureBlock(-1, 3, 0, BlockType.OakLog));
+            blocks.Add(new StructureBlock(0, 3, 0, BlockType.OakLog));
+            blocks.Add(new StructureBlock(0, 2, 0, BlockType.Rope));
+            blocks.Add(new StructureBlock(2, 1, -1, BlockType.Chest));
+            
+            return new StructureTemplate { FootprintRadius = 3, Blocks = blocks.ToArray() };
+        }
+
+        private static StructureTemplate BuildKitchen()
         {
             var blocks = new List<StructureBlock>();
             for (int dx = -2; dx <= 2; dx++)
             {
                 for (int dz = -2; dz <= 2; dz++)
                 {
-                    bool edge = Math.Abs(dx) == 2 || Math.Abs(dz) == 2;
-                    blocks.Add(new StructureBlock(dx, 0, dz, edge ? BlockType.Cobblestone : BlockType.Air));
+                    blocks.Add(new StructureBlock(dx, 0, dz, Math.Abs(dx) == 2 || Math.Abs(dz) == 2 ? BlockType.Gravel : BlockType.Cobblestone));
                 }
             }
 
-            blocks.Add(new StructureBlock(0, 1, 0, BlockType.OakLog));
-            return new StructureTemplate { FootprintRadius = 2, Blocks = blocks.ToArray() };
-        }
-
-        private static StructureTemplate BuildKitchen()
-        {
-            var blocks = new List<StructureBlock>();
+            AddPost(blocks, -2, -2, 2, lantern: true);
+            AddPost(blocks, 2, -2, 2, lantern: true);
+            AddPost(blocks, -2, 2, 2);
+            AddPost(blocks, 2, 2, 2);
+            blocks.Add(new StructureBlock(0, 0, -3, BlockType.Gravel));
+            blocks.Add(new StructureBlock(0, 1, 1, BlockType.StationSmoker));
+            blocks.Add(new StructureBlock(-1, 1, 0, BlockType.OakPlank));
+            blocks.Add(new StructureBlock(1, 1, 0, BlockType.OakPlank));
+            blocks.Add(new StructureBlock(0, 1, -1, BlockType.Chest));
+            blocks.Add(new StructureBlock(2, 1, 1, BlockType.Cobblestone));
+            blocks.Add(new StructureBlock(2, 2, 1, BlockType.Cobblestone));
+            blocks.Add(new StructureBlock(2, 3, 1, BlockType.Cobblestone));
             for (int dx = -1; dx <= 1; dx++)
             {
                 for (int dz = -1; dz <= 1; dz++)
                 {
-                    blocks.Add(new StructureBlock(dx, 0, dz, BlockType.OakPlank));
+                    blocks.Add(new StructureBlock(dx, 3, dz, BlockType.OakPlank));
                 }
             }
 
-            blocks.Add(new StructureBlock(0, 1, 0, BlockType.StationBench));
-            return new StructureTemplate { FootprintRadius = 1, Blocks = blocks.ToArray() };
+            return new StructureTemplate { FootprintRadius = 2, Blocks = blocks.ToArray() };
         }
 
         private static StructureTemplate BuildWell()
         {
-            return new StructureTemplate
+            var blocks = new List<StructureBlock>();
+            for (int dx = -2; dx <= 2; dx++)
             {
-                FootprintRadius = 1,
-                Blocks = new[]
+                for (int dz = -2; dz <= 2; dz++)
                 {
-                    new StructureBlock(0, 0, 0, BlockType.Cobblestone),
-                    new StructureBlock(0, 1, 0, BlockType.Cobblestone)
+                    bool ring = Math.Abs(dx) == 2 || Math.Abs(dz) == 2;
+                    if (ring)
+                    {
+                        blocks.Add(new StructureBlock(dx, 0, dz, BlockType.Gravel));
+                        continue;
+                    }
+
+                    bool basinEdge = Math.Abs(dx) == 1 || Math.Abs(dz) == 1;
+                    blocks.Add(new StructureBlock(dx, 0, dz, basinEdge ? BlockType.Cobblestone : BlockType.Water));
                 }
-            };
+            }
+
+            AddPost(blocks, -1, -1, 3);
+            AddPost(blocks, 1, -1, 3);
+            AddPost(blocks, -1, 1, 3, lantern: true);
+            AddPost(blocks, 1, 1, 3, lantern: true);
+            blocks.Add(new StructureBlock(0, 0, -3, BlockType.Gravel));
+            blocks.Add(new StructureBlock(0, 0, 3, BlockType.Gravel));
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                for (int dz = -1; dz <= 1; dz++)
+                {
+                    blocks.Add(new StructureBlock(dx, 4, dz, BlockType.OakPlank));
+                }
+            }
+
+            return new StructureTemplate { FootprintRadius = 2, Blocks = blocks.ToArray() };
         }
 
         private static StructureTemplate BuildMarket()
         {
             var blocks = new List<StructureBlock>();
-            for (int dx = -1; dx <= 1; dx++)
+            for (int dx = -2; dx <= 2; dx++)
             {
-                blocks.Add(new StructureBlock(dx, 0, 0, BlockType.OakPlank));
+                for (int dz = -2; dz <= 2; dz++)
+                {
+                    blocks.Add(new StructureBlock(dx, 0, dz, Math.Abs(dx) == 2 || Math.Abs(dz) == 2 ? BlockType.Gravel : BlockType.Cobblestone));
+                }
             }
 
+            AddPost(blocks, -2, -2, 2, lantern: true);
+            AddPost(blocks, 2, -2, 2, lantern: true);
+            AddPost(blocks, -2, 2, 2, lantern: true);
+            AddPost(blocks, 2, 2, 2, lantern: true);
+            blocks.Add(new StructureBlock(0, 0, -3, BlockType.Gravel));
+            blocks.Add(new StructureBlock(-1, 1, 0, BlockType.OakPlank));
             blocks.Add(new StructureBlock(0, 1, 0, BlockType.OakPlank));
-            return new StructureTemplate { FootprintRadius = 1, Blocks = blocks.ToArray() };
+            blocks.Add(new StructureBlock(1, 1, 0, BlockType.OakPlank));
+            blocks.Add(new StructureBlock(0, 1, 1, BlockType.Chest));
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                BlockType canopy = dx == 0 ? BlockType.RedStainedGlass : BlockType.OakPlank;
+                blocks.Add(new StructureBlock(dx, 3, 1, canopy));
+                blocks.Add(new StructureBlock(dx, 3, 0, canopy));
+                blocks.Add(new StructureBlock(dx, 2, -1, canopy));
+            }
+
+            return new StructureTemplate { FootprintRadius = 2, Blocks = blocks.ToArray() };
         }
     }
 }

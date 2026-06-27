@@ -82,6 +82,7 @@ namespace Autonocraft.Village
             AnchorZ = anchorZ;
             Storage = new VillageStorage(storageSlots);
             PopulationCap = 2;
+            Favor = 12; // Start with 12 Favor so the Steward can buy the first building commissions!
         }
 
         public static void ResetIdCounter(int nextId) => _nextId = Math.Max(1, nextId);
@@ -100,7 +101,7 @@ namespace Autonocraft.Village
                 return false;
             }
 
-            if (Population >= PopulationCap)
+            if (Population >= EffectiveRecruitmentCap)
             {
                 return false;
             }
@@ -118,6 +119,10 @@ namespace Autonocraft.Village
 
             return CanRecruit(creative);
         }
+
+        public int EffectiveRecruitmentCap => HousingCapacity > 0
+            ? Math.Min(PopulationCap, HousingCapacity)
+            : PopulationCap;
 
         public bool TryRecruitCost(bool creative = false)
         {
@@ -192,6 +197,17 @@ namespace Autonocraft.Village
             return site;
         }
 
+        public bool RemoveBuildingSite(int siteId)
+        {
+            if (!_sitesById.Remove(siteId, out var site))
+            {
+                return false;
+            }
+
+            _buildingSites.Remove(site);
+            return true;
+        }
+
         public void RestoreBuilding(BuildingSaveData entry)
         {
             var building = new VillageBuilding
@@ -237,6 +253,28 @@ namespace Autonocraft.Village
             return nearest;
         }
 
+        public BuildingSite? GetLatestPendingSite(string? blueprintId = null)
+        {
+            for (int i = _buildingSites.Count - 1; i >= 0; i--)
+            {
+                var site = _buildingSites[i];
+                if (site.IsComplete)
+                {
+                    continue;
+                }
+
+                if (!string.IsNullOrEmpty(blueprintId) &&
+                    !string.Equals(site.BlueprintId, blueprintId, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                return site;
+            }
+
+            return null;
+        }
+
         public int CountBuildings(BuildingKind kind)
         {
             int count = 0;
@@ -267,6 +305,52 @@ namespace Autonocraft.Village
             return false;
         }
 
+        public int CountCompletedBuildings(string blueprintId)
+        {
+            int count = 0;
+            foreach (var building in _buildings)
+            {
+                if (building.IsComplete &&
+                    string.Equals(building.BlueprintId, blueprintId, StringComparison.OrdinalIgnoreCase))
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        public int CountPendingSites(string blueprintId)
+        {
+            int count = 0;
+            foreach (var site in _buildingSites)
+            {
+                if (string.Equals(site.BlueprintId, blueprintId, StringComparison.OrdinalIgnoreCase))
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        public bool HasCompletedBuildingAt(string blueprintId, int anchorX, int anchorY, int anchorZ)
+        {
+            foreach (var building in _buildings)
+            {
+                if (building.IsComplete &&
+                    string.Equals(building.BlueprintId, blueprintId, StringComparison.OrdinalIgnoreCase) &&
+                    building.AnchorX == anchorX &&
+                    building.AnchorY == anchorY &&
+                    building.AnchorZ == anchorZ)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public bool HasPendingOrCompleteBuilding(string blueprintId)
         {
             if (HasCompletedBuilding(blueprintId))
@@ -277,6 +361,32 @@ namespace Autonocraft.Village
             foreach (var site in _buildingSites)
             {
                 if (string.Equals(site.BlueprintId, blueprintId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public bool IsProtectedStructureBlock(int x, int y, int z, BlockType blockType)
+        {
+            if (blockType == BlockType.Air)
+            {
+                return false;
+            }
+
+            foreach (var building in _buildings)
+            {
+                if (MatchesProtectedBlueprintBlock(building.BlueprintId, building.AnchorX, building.AnchorY, building.AnchorZ, x, y, z, blockType))
+                {
+                    return true;
+                }
+            }
+
+            foreach (var site in _buildingSites)
+            {
+                if (MatchesProtectedBlueprintBlock(site.BlueprintId, site.AnchorX, site.AnchorY, site.AnchorZ, x, y, z, blockType))
                 {
                     return true;
                 }
@@ -360,6 +470,44 @@ namespace Autonocraft.Village
 
         public Vector3 GetBuildingWorkPosition(VillageBuilding building)
             => BuildingEffects.GetWorkPosition(building);
+
+        private static bool MatchesProtectedBlueprintBlock(
+            string blueprintId,
+            int anchorX,
+            int anchorY,
+            int anchorZ,
+            int x,
+            int y,
+            int z,
+            BlockType blockType)
+        {
+            if (!PlayerStructureRegistry.TryGet(blueprintId, out var blueprint))
+            {
+                return false;
+            }
+
+            foreach (var block in blueprint.Template.Blocks)
+            {
+                if (block.Type == BlockType.Air)
+                {
+                    continue;
+                }
+
+                if (block.Type != blockType)
+                {
+                    continue;
+                }
+
+                if (anchorX + block.Dx == x &&
+                    anchorY + block.Dy == y &&
+                    anchorZ + block.Dz == z)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         public void CompleteBuilding(BuildingBlueprint blueprint, BuildingSite site)
         {
@@ -579,7 +727,7 @@ namespace Autonocraft.Village
             }
 
             float surplus = MathF.Max(0f, FoodStock - comfortFood);
-            float progress = 0.18f + MathF.Min(0.22f, surplus / 18f);
+            float progress = 0.35f + MathF.Min(0.35f, surplus / 10f);
             if (HasBuilding(BuildingKind.House))
             {
                 progress += 0.08f;
@@ -613,19 +761,34 @@ namespace Autonocraft.Village
 
         private void AwardMarketFavor()
         {
-            if (!HasBuilding(BuildingKind.Market) || Population <= 0)
+            if (Population <= 0)
             {
                 return;
             }
 
-            int foodSurplus = Math.Max(0, (int)MathF.Floor(FoodStock - Population));
-            int dailyFavor = Math.Clamp(1 + foodSurplus / 4, 1, 4);
-            if (Happiness >= 0.85f)
+            int dailyFavor = 0;
+            if (HasBuilding(BuildingKind.Market))
             {
-                dailyFavor++;
+                int foodSurplus = Math.Max(0, (int)MathF.Floor(FoodStock - Population));
+                dailyFavor = Math.Clamp(1 + foodSurplus / 4, 1, 4);
+                if (Happiness >= 0.85f)
+                {
+                    dailyFavor++;
+                }
+            }
+            else
+            {
+                // Baseline gratitude: citizens generate 1 favor per day if they are fed and happy
+                if (Happiness >= 0.72f)
+                {
+                    dailyFavor = 1;
+                }
             }
 
-            AddFavor(dailyFavor);
+            if (dailyFavor > 0)
+            {
+                AddFavor(dailyFavor);
+            }
         }
 
         public float GetWorkSpeedMultiplier()

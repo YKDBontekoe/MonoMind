@@ -40,6 +40,10 @@ namespace Autonocraft.Core
                 Key.ControlLeft => Microsoft.Xna.Framework.Input.Keys.LeftControl,
                 Key.Q => Microsoft.Xna.Framework.Input.Keys.Q,
                 Key.G => Microsoft.Xna.Framework.Input.Keys.G,
+                Key.R => Microsoft.Xna.Framework.Input.Keys.R,
+                Key.V => Microsoft.Xna.Framework.Input.Keys.V,
+                Key.C => Microsoft.Xna.Framework.Input.Keys.C,
+                Key.Enter => Microsoft.Xna.Framework.Input.Keys.Enter,
                 Key.Escape => Microsoft.Xna.Framework.Input.Keys.Escape,
                 Key.Number1 => Microsoft.Xna.Framework.Input.Keys.D1,
                 Key.Number2 => Microsoft.Xna.Framework.Input.Keys.D2,
@@ -135,7 +139,7 @@ namespace Autonocraft.Core
                 return true;
             }
 
-            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.V) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.V) && _session.Player.IsAlive)
+            if (IsKeyPressed(kbState, Key.V) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.V) && _session.Player.IsAlive)
             {
                 if (_screens.VillageScreen!.IsOpen)
                 {
@@ -149,7 +153,7 @@ namespace Autonocraft.Core
                 return true;
             }
 
-            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.C) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.C) && _session.Player.IsAlive)
+            if (IsKeyPressed(kbState, Key.C) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.C) && _session.Player.IsAlive)
             {
                 OpenVillageChatUi();
                 return true;
@@ -163,7 +167,7 @@ namespace Autonocraft.Core
                 return true;
             }
 
-            if (kbState.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && _session.Player.IsAlive)
+            if (IsKeyPressed(kbState, Key.Escape) && !_input.PrevKeyboard.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Escape) && _session.Player.IsAlive)
             {
                 if (_blueprints.TryCancelOnEscape())
                 {
@@ -397,7 +401,11 @@ namespace Autonocraft.Core
                 handledClick = true;
             }
 
-            bool allowMining = leftHeld && !handledClick && !shiftHeld && !_session.Combat.BlocksMiningThisFrame;
+            bool allowMining = leftHeld
+                && !handledClick
+                && !shiftHeld
+                && !_session.Combat.BlocksMiningThisFrame
+                && !_session.Player.IsHoldingMeleeWeapon();
 
             _session.Combat.Update(
                 deltaTime,
@@ -510,7 +518,16 @@ namespace Autonocraft.Core
                 SyncCameraFromPlayer();
                 if (button == MouseButton.Left)
                 {
-                    if (!_session.Combat.TryInstantAttack(_session.Grid, _session.Player, _session.Animals, _session.BlockInteraction, _session.Particles, _session.InteractionAnimator, _camera.Position, _camera.Front))
+                    bool attacked = _session.Combat.TryInstantAttack(
+                        _session.Grid,
+                        _session.Player,
+                        _session.Animals,
+                        _session.BlockInteraction,
+                        _session.Particles,
+                        _session.InteractionAnimator,
+                        _camera.Position,
+                        _camera.Front);
+                    if (!attacked && !_session.Player.IsHoldingMeleeWeapon())
                     {
                         _session.BlockInteraction.InstantMine(_session.Grid, _session.Player, _camera.Position, _camera.Front, _session.Particles, _runTests ? null : GraphicsDevice);
                     }

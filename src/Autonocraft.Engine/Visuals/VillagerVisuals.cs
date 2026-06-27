@@ -88,12 +88,13 @@ namespace Autonocraft.Engine
             VillagerBodyLayout layout,
             float walkPhase,
             float animTime,
-            Action<Matrix, float, float, float, float, float, float, Color> drawColored)
+            Action<Matrix, float, float, float, float, float, float, Color> drawColored,
+            Action<Matrix, float, float, float, Matrix, Color> drawRotated)
         {
             float w = Villager.Width;
             float h = Villager.Height;
             float bodyBottomY = layout.BodyBottomYComputed;
-            float legSwing = MathF.Sin(walkPhase * 10f) * 0.03f;
+            float legSwing = MathF.Sin(walkPhase * 10f) * 0.7f; // Changed to rotation angle in radians
             float action = GetActionMotion(villager);
             float idlePulse = MathF.Sin(animTime * 1.85f + villager.Id * 0.31f) * 0.015f;
             float bodyLean = villager.WanderDirection.LengthSquared() > 0.0001f ? villager.WanderDirection.Z * 0.02f : 0f;
@@ -113,38 +114,56 @@ namespace Autonocraft.Engine
             float bootHalfH = MathF.Min(legHalfH * 0.28f, h * 0.025f);
             float legSpread = w * 0.13f;
 
-            DrawVillagerLeg(world, -legSpread, legHalfW, legHalfH, legCenterY + bodyBob * 0.4f, bootHalfH, legSwing, pantsColor, bootColor, drawColored);
-            DrawVillagerLeg(world, legSpread, legHalfW, legHalfH, legCenterY + bodyBob * 0.4f, bootHalfH, -legSwing, pantsColor, bootColor, drawColored);
+            DrawVillagerLeg(world, -legSpread, legHalfW, legHalfH, legCenterY + bodyBob * 0.4f, bootHalfH, legSwing, pantsColor, bootColor, drawRotated);
+            DrawVillagerLeg(world, legSpread, legHalfW, legHalfH, legCenterY + bodyBob * 0.4f, bootHalfH, -legSwing, pantsColor, bootColor, drawRotated);
 
             float armH = layout.BodyHalfH * 1.55f;
             float armW = w * 0.065f;
             float armY = bodyCenterY - layout.BodyHalfH * 0.05f;
             float armSpread = w * 0.34f;
-            float armSwing = -legSwing * 0.85f + idlePulse * 0.25f;
+            float armSwing = -legSwing * 0.85f + idlePulse * 5f; // Rotation angle
             float leftArmY = armY;
             float rightArmY = armY;
-            float leftArmZ = armSwing;
-            float rightArmZ = -armSwing;
+            float leftArmPitch = armSwing;
+            float rightArmPitch = -armSwing;
             if (action > 0f)
             {
-                rightArmY += MathF.Abs(action) * h * 0.08f;
-                rightArmZ += action * w * 0.48f;
-                leftArmZ -= action * w * 0.22f;
+                rightArmPitch += action * 1.8f;
+                leftArmPitch -= action * 0.5f;
             }
 
             if (villager.AiPhase == VillagerAiPhase.Sleeping)
             {
                 leftArmY += h * 0.03f;
                 rightArmY += h * 0.03f;
-                leftArmZ *= 0.2f;
-                rightArmZ *= 0.2f;
+                leftArmPitch = MathHelper.ToRadians(-90f);
+                rightArmPitch = MathHelper.ToRadians(-90f);
             }
 
             var sleeveColor = GetRoleColor(villager.Role) * 0.75f;
-            drawColored(world, armW, armH * 0.5f, armW, -armSpread, leftArmY, leftArmZ, sleeveColor);
-            drawColored(world, armW, armH * 0.5f, armW, armSpread, rightArmY, rightArmZ, sleeveColor);
-            drawColored(world, armW * 0.65f, armH * 0.20f, armW * 0.55f, -armSpread, leftArmY - armH * 0.38f, leftArmZ, skinColor);
-            drawColored(world, armW * 0.65f, armH * 0.20f, armW * 0.55f, armSpread, rightArmY - armH * 0.38f, rightArmZ, skinColor);
+            
+            // Arms rotate around their top shoulder (Y = armH * 0.4f relative to arm center)
+            // Left arm
+            var leftArmTransform = Matrix.CreateTranslation(0f, -armH * 0.4f, 0f)
+                                 * Matrix.CreateRotationX(leftArmPitch)
+                                 * Matrix.CreateTranslation(-armSpread, leftArmY + armH * 0.4f, 0f);
+            
+            var rightArmTransform = Matrix.CreateTranslation(0f, -armH * 0.4f, 0f)
+                                  * Matrix.CreateRotationX(rightArmPitch)
+                                  * Matrix.CreateTranslation(armSpread, rightArmY + armH * 0.4f, 0f);
+
+            var leftSkinTransform = Matrix.CreateTranslation(0f, -armH * 0.4f, 0f)
+                                 * Matrix.CreateRotationX(leftArmPitch)
+                                 * Matrix.CreateTranslation(-armSpread, leftArmY - armH * 0.38f + armH * 0.4f, 0f);
+
+            var rightSkinTransform = Matrix.CreateTranslation(0f, -armH * 0.4f, 0f)
+                                  * Matrix.CreateRotationX(rightArmPitch)
+                                  * Matrix.CreateTranslation(armSpread, rightArmY - armH * 0.38f + armH * 0.4f, 0f);
+            
+            drawRotated(world, armW, armH * 0.5f, armW, leftArmTransform, sleeveColor);
+            drawRotated(world, armW, armH * 0.5f, armW, rightArmTransform, sleeveColor);
+            drawRotated(world, armW * 0.65f, armH * 0.20f, armW * 0.55f, leftSkinTransform, skinColor);
+            drawRotated(world, armW * 0.65f, armH * 0.20f, armW * 0.55f, rightSkinTransform, skinColor);
 
             float shoulderPadH = h * 0.035f;
             drawColored(world, armW * 1.4f, shoulderPadH, armW * 1.2f, -armSpread, bodyCenterY + layout.BodyHalfH - shoulderPadH, 0f, sleeveColor);
@@ -164,7 +183,7 @@ namespace Autonocraft.Engine
             drawColored(world, layout.HeadSize * 0.22f, layout.HeadSize * 0.035f, layout.HeadSize * 0.035f, 0f, headCenterY - layout.HeadSize * 0.30f, headForward + layout.HeadSize * 0.89f, new Color(95, 45, 35));
             drawColored(world, layout.BodyHalfW * 0.62f, layout.BodyHalfH * 0.13f, layout.BodyHalfD * 1.08f, 0f, bodyCenterY + layout.BodyHalfH * 0.35f, headForward * 0.10f, GetJobIndicatorColor(villager.CurrentJob));
 
-            DrawRoleProps(world, villager, layout, rightArmY, rightArmZ, action, drawColored);
+            DrawRoleProps(world, villager, layout, rightArmY, rightArmPitch, action, drawColored, drawRotated);
             DrawWorkEffect(world, villager, layout, action, drawColored);
         }
 
@@ -220,15 +239,27 @@ namespace Autonocraft.Engine
             float legHalfH,
             float legCenterY,
             float bootHalfH,
-            float swing,
+            float pitchSwing,
             Color pantsColor,
             Color bootColor,
-            Action<Matrix, float, float, float, float, float, float, Color> drawColored)
+            Action<Matrix, float, float, float, Matrix, Color> drawRotated)
         {
             float upperHalfH = legHalfH - bootHalfH;
             float upperCenterY = bootHalfH + upperHalfH;
-            drawColored(world, legHalfW, upperHalfH, legHalfW, x, upperCenterY + swing, 0f, pantsColor);
-            drawColored(world, legHalfW * 1.05f, bootHalfH, legHalfW * 1.15f, x, bootHalfH + swing, 0f, bootColor);
+
+            // Pivot around the hip (top of the leg)
+            float pivotY = legCenterY + legHalfH;
+
+            var upperTransform = Matrix.CreateTranslation(0f, upperCenterY - pivotY, 0f)
+                               * Matrix.CreateRotationX(pitchSwing)
+                               * Matrix.CreateTranslation(x, pivotY, 0f);
+
+            var bootTransform = Matrix.CreateTranslation(0f, bootHalfH - pivotY, 0f)
+                              * Matrix.CreateRotationX(pitchSwing)
+                              * Matrix.CreateTranslation(x, pivotY, 0f);
+
+            drawRotated(world, legHalfW, upperHalfH, legHalfW, upperTransform, pantsColor);
+            drawRotated(world, legHalfW * 1.05f, bootHalfH, legHalfW * 1.15f, bootTransform, bootColor);
         }
 
         private static void DrawRoleProps(
@@ -236,17 +267,27 @@ namespace Autonocraft.Engine
             Villager villager,
             VillagerBodyLayout layout,
             float armY,
-            float armSwing,
+            float armPitch,
             float action,
-            Action<Matrix, float, float, float, float, float, float, Color> drawColored)
+            Action<Matrix, float, float, float, float, float, float, Color> drawColored,
+            Action<Matrix, float, float, float, Matrix, Color> drawRotated)
         {
             float w = Villager.Width;
+            float h = Villager.Height;
             float workPulse = MathF.Abs(action) * 0.03f;
+            
+            var toolTransform = Matrix.CreateTranslation(0f, -h * 0.15f, 0f)
+                              * Matrix.CreateRotationX(armPitch)
+                              * Matrix.CreateTranslation(w * 0.34f, armY + h * 0.15f, 0f);
+
             switch (villager.Role)
             {
                 case VillagerRole.Lumberjack:
-                    drawColored(world, 0.05f, 0.05f, 0.15f, w * 0.34f, armY + workPulse, w * 0.44f + armSwing, new Color(0.55f, 0.35f, 0.18f, 0.95f));
-                    drawColored(world, 0.04f, 0.04f, 0.05f, w * 0.34f, armY + 0.06f + workPulse, w * 0.52f + armSwing, new Color(0.72f, 0.72f, 0.76f, 0.95f));
+                    drawRotated(world, 0.05f, 0.05f, 0.15f, toolTransform, new Color(0.55f, 0.35f, 0.18f, 0.95f));
+                    var axeHeadTransform = Matrix.CreateTranslation(0f, -h * 0.15f + 0.06f, w * 0.08f)
+                                         * Matrix.CreateRotationX(armPitch)
+                                         * Matrix.CreateTranslation(w * 0.34f, armY + h * 0.15f, 0f);
+                    drawRotated(world, 0.04f, 0.04f, 0.05f, axeHeadTransform, new Color(0.72f, 0.72f, 0.76f, 0.95f));
                     break;
                 case VillagerRole.Builder:
                     drawColored(world, w * 0.44f, 0.05f, w * 0.44f, 0f, layout.HeadCenterY + layout.HeadSize * 0.65f + workPulse, layout.HeadForward, new Color(0.95f, 0.55f, 0.15f, 0.95f));
@@ -254,11 +295,11 @@ namespace Autonocraft.Engine
                     break;
                 case VillagerRole.Farmer:
                     drawColored(world, w * 0.50f, 0.03f, w * 0.50f, 0f, layout.HeadCenterY + layout.HeadSize * 0.72f + workPulse, layout.HeadForward, new Color(0.92f, 0.82f, 0.35f, 0.95f));
-                    drawColored(world, w * 0.06f, 0.10f, w * 0.06f, w * 0.30f, layout.BodyCenterY + workPulse, layout.HeadForward * 0.9f, new Color(0.55f, 0.38f, 0.18f, 0.95f));
+                    drawRotated(world, w * 0.06f, 0.10f, w * 0.06f, toolTransform, new Color(0.55f, 0.38f, 0.18f, 0.95f));
                     break;
                 case VillagerRole.Miner:
                     drawColored(world, w * 0.44f, 0.05f, w * 0.44f, 0f, layout.HeadCenterY + layout.HeadSize * 0.62f + workPulse, layout.HeadForward, new Color(0.95f, 0.75f, 0.15f, 0.95f));
-                    drawColored(world, 0.05f, 0.05f, 0.12f, w * 0.32f, layout.BodyCenterY + workPulse, layout.HeadForward * 0.95f, new Color(0.50f, 0.50f, 0.55f, 0.95f));
+                    drawRotated(world, 0.05f, 0.05f, 0.12f, toolTransform, new Color(0.50f, 0.50f, 0.55f, 0.95f));
                     break;
                 case VillagerRole.Smith:
                     drawColored(world, w * 0.40f, layout.BodyHalfH * 0.42f, w * 0.08f, 0f, layout.BodyCenterY - layout.BodyHalfH * 0.12f + workPulse, layout.HeadForward * 0.9f, new Color(0.35f, 0.35f, 0.38f, 0.90f));

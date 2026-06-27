@@ -80,6 +80,37 @@ namespace Autonocraft.Village
             return false;
         }
 
+        public bool TryGetNextForRole(VillagerRole role, VoxelWorld world, Village village, out int x, out int y, out int z)
+        {
+            for (int i = 0; i < _pending.Count; i++)
+            {
+                var block = _pending[i];
+                var blockType = world.GetBlock(block.X, block.Y, block.Z);
+                if (blockType == BlockType.Air || !blockType.IsCollidable())
+                {
+                    continue;
+                }
+
+                if (village.IsProtectedStructureBlock(block.X, block.Y, block.Z, blockType))
+                {
+                    continue;
+                }
+
+                if (!GatherBlockClassifier.CanGather(role, blockType))
+                {
+                    continue;
+                }
+
+                x = block.X;
+                y = block.Y;
+                z = block.Z;
+                return true;
+            }
+
+            x = y = z = 0;
+            return false;
+        }
+
         public bool TryGetNextAny(VoxelWorld world, out int x, out int y, out int z)
         {
             for (int i = 0; i < _pending.Count; i++)
@@ -87,6 +118,32 @@ namespace Autonocraft.Village
                 var block = _pending[i];
                 var blockType = world.GetBlock(block.X, block.Y, block.Z);
                 if (blockType == BlockType.Air || !GatherBlockClassifier.IsGatherable(blockType))
+                {
+                    continue;
+                }
+
+                x = block.X;
+                y = block.Y;
+                z = block.Z;
+                return true;
+            }
+
+            x = y = z = 0;
+            return false;
+        }
+
+        public bool TryGetNextAny(VoxelWorld world, Village village, out int x, out int y, out int z)
+        {
+            for (int i = 0; i < _pending.Count; i++)
+            {
+                var block = _pending[i];
+                var blockType = world.GetBlock(block.X, block.Y, block.Z);
+                if (blockType == BlockType.Air || !GatherBlockClassifier.IsGatherable(blockType))
+                {
+                    continue;
+                }
+
+                if (village.IsProtectedStructureBlock(block.X, block.Y, block.Z, blockType))
                 {
                     continue;
                 }
@@ -121,6 +178,21 @@ namespace Autonocraft.Village
                 var block = _pending[i];
                 var blockType = world.GetBlock(block.X, block.Y, block.Z);
                 if (blockType == BlockType.Air || !GatherBlockClassifier.IsGatherable(blockType))
+                {
+                    _pending.RemoveAt(i);
+                }
+            }
+        }
+
+        public void SyncWithWorld(VoxelWorld world, Village village)
+        {
+            for (int i = _pending.Count - 1; i >= 0; i--)
+            {
+                var block = _pending[i];
+                var blockType = world.GetBlock(block.X, block.Y, block.Z);
+                if (blockType == BlockType.Air ||
+                    !GatherBlockClassifier.IsGatherable(blockType) ||
+                    village.IsProtectedStructureBlock(block.X, block.Y, block.Z, blockType))
                 {
                     _pending.RemoveAt(i);
                 }

@@ -149,7 +149,7 @@ namespace Autonocraft.UI
                 float remW = layout.S(72f);
                 float remH = layout.S(26f);
                 float remX = rightLeft + rightW - remW;
-                HitRect(remX, rowY - layout.S(2f), remW, remH, 100 + goal.Id, mouse);
+                HitRect(remX, rowY - layout.S(2f), remW, remH, 3000 + goal.Id, mouse);
 
                 if (!goal.Completed && goal.Kind == VillageGoalKind.Stock && goal.StockBlock.HasValue && goal.TargetCount > 0)
                 {

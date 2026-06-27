@@ -88,7 +88,14 @@ namespace Autonocraft.UI
             _sliderDragging = false;
         }
 
-        public void Update(Viewport viewport, KeyboardState kb, MouseState mouse, KeyboardState prevKb, MouseState prevMouse, float deltaTime)
+        public void Update(
+            Viewport viewport,
+            KeyboardState kb,
+            MouseState mouse,
+            KeyboardState prevKb,
+            MouseState prevMouse,
+            float deltaTime,
+            bool simulatedEscapePressed = false)
         {
             ResumeRequested = false;
             SaveNowRequested = false;
@@ -113,20 +120,26 @@ namespace Autonocraft.UI
 
             if (_panelMode == PanelMode.Settings)
             {
-                UpdateSettingsPanel(viewport, kb, mouse, prevKb, prevMouse);
+                UpdateSettingsPanel(viewport, kb, mouse, prevKb, prevMouse, simulatedEscapePressed);
                 return;
             }
 
             if (_panelMode == PanelMode.Controls)
             {
-                UpdateControlsPanel(viewport, kb, mouse, prevKb, prevMouse);
+                UpdateControlsPanel(viewport, kb, mouse, prevKb, prevMouse, simulatedEscapePressed);
                 return;
             }
 
-            UpdateMainPanel(viewport, kb, mouse, prevKb, prevMouse);
+            UpdateMainPanel(viewport, kb, mouse, prevKb, prevMouse, simulatedEscapePressed);
         }
 
-        private void UpdateMainPanel(Viewport viewport, KeyboardState kb, MouseState mouse, KeyboardState prevKb, MouseState prevMouse)
+        private void UpdateMainPanel(
+            Viewport viewport,
+            KeyboardState kb,
+            MouseState mouse,
+            KeyboardState prevKb,
+            MouseState prevMouse,
+            bool simulatedEscapePressed)
         {
             var layout = new UiLayout(viewport);
             float buttonW = layout.S(ButtonWidth);
@@ -166,13 +179,19 @@ namespace Autonocraft.UI
                 else if (_hoveredButton == 5) QuitRequested = true;
             }
 
-            if (kb.IsKeyDown(Keys.Escape) && !prevKb.IsKeyDown(Keys.Escape))
+            if (EscapePressed(kb, prevKb, simulatedEscapePressed))
             {
                 ResumeRequested = true;
             }
         }
 
-        private void UpdateSettingsPanel(Viewport viewport, KeyboardState kb, MouseState mouse, KeyboardState prevKb, MouseState prevMouse)
+        private void UpdateSettingsPanel(
+            Viewport viewport,
+            KeyboardState kb,
+            MouseState mouse,
+            KeyboardState prevKb,
+            MouseState prevMouse,
+            bool simulatedEscapePressed)
         {
             var layout = new UiLayout(viewport);
             float buttonW = layout.S(ButtonWidth);
@@ -243,7 +262,7 @@ namespace Autonocraft.UI
                 _panelMode = PanelMode.Main;
             }
 
-            if (kb.IsKeyDown(Keys.Escape) && !prevKb.IsKeyDown(Keys.Escape))
+            if (EscapePressed(kb, prevKb, simulatedEscapePressed))
             {
                 _panelMode = PanelMode.Main;
             }
@@ -375,7 +394,13 @@ namespace Autonocraft.UI
             _ui.DrawCenteredText("Esc to go back", layout.Height - layout.S(28f) + offsetY, layout.S(UiTheme.FontSmall), UiTheme.Hint, 0.85f * panelAlpha);
         }
 
-        private void UpdateControlsPanel(Viewport viewport, KeyboardState kb, MouseState mouse, KeyboardState prevKb, MouseState prevMouse)
+        private void UpdateControlsPanel(
+            Viewport viewport,
+            KeyboardState kb,
+            MouseState mouse,
+            KeyboardState prevKb,
+            MouseState prevMouse,
+            bool simulatedEscapePressed)
         {
             var layout = new UiLayout(viewport);
             float buttonW = layout.S(ButtonWidth);
@@ -392,10 +417,15 @@ namespace Autonocraft.UI
                 _panelMode = PanelMode.Main;
             }
 
-            if (kb.IsKeyDown(Keys.Escape) && !prevKb.IsKeyDown(Keys.Escape))
+            if (EscapePressed(kb, prevKb, simulatedEscapePressed))
             {
                 _panelMode = PanelMode.Main;
             }
+        }
+
+        private static bool EscapePressed(KeyboardState kb, KeyboardState prevKb, bool simulatedEscapePressed)
+        {
+            return simulatedEscapePressed || (kb.IsKeyDown(Keys.Escape) && !prevKb.IsKeyDown(Keys.Escape));
         }
 
         private void DrawControlsPanel(UiLayout layout, float cx, float buttonW, float buttonH, float alpha, float offsetY)

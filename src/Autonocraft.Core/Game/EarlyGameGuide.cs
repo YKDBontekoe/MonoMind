@@ -7,11 +7,83 @@ using Autonocraft.Village;
 
 namespace Autonocraft.Core
 {
+    public readonly record struct OpeningObjective(
+        string Headline,
+        string Detail,
+        bool Active,
+        bool Dismissible);
+
     public sealed class EarlyGameGuide
     {
+        public const string OpeningGoalHeadline = "First goal: gather wood";
+        public const string OpeningGoalDetail = "Punch nearby trees for logs, then craft planks and sticks before nightfall.";
+        public const string OpeningGoalToast = "First goal: gather wood. Punch nearby trees for logs, then craft planks and sticks.";
+        public const string OpeningGoalCompleteToast = "First logs gathered. Craft planks and sticks, then make a wood axe or sword.";
+        public const string StarterSettlementToast = "Founder's Hamlet is ready. Open the Town Board, assign settlers, then gather wood nearby.";
+
         private float _reminderTimer;
         private bool _firstNightToastShown;
         private bool _firstDeliveryToastShown;
+        private bool _openingGoalShown;
+        private bool _openingGoalDismissed;
+
+        public bool OpeningGoalDismissed => _openingGoalDismissed;
+
+        public void ResetForNewWorld()
+        {
+            _reminderTimer = 0f;
+            _firstNightToastShown = false;
+            _firstDeliveryToastShown = false;
+            _openingGoalShown = false;
+            _openingGoalDismissed = false;
+        }
+
+        public void DismissOpeningGoal(Action clearToast)
+        {
+            _openingGoalDismissed = true;
+            clearToast();
+        }
+
+        public OpeningObjective GetOpeningObjective(Player player, Village.Village? village, VillagerManager villagers)
+        {
+            if (player.CreativeMode || village == null || player.Stats.HasCompletedEarlyGuide || _openingGoalDismissed)
+            {
+                return default;
+            }
+
+            int stage = player.Stats.EarlyGuideStage;
+            bool settlementReady = VillageSettlementHealth.GetLivePopulation(village, villagers) > 0;
+            var settlementGuidance = settlementReady
+                ? SettlementGuidance.Compute(village, villagers, player.Position)
+                : default;
+            return stage switch
+            {
+                <= 0 => settlementReady
+                    ? new OpeningObjective(
+                        settlementGuidance.Headline,
+                        settlementGuidance.Detail,
+                        Active: true,
+                        Dismissible: true)
+                    : new OpeningObjective(OpeningGoalHeadline, OpeningGoalDetail, Active: true, Dismissible: true),
+                1 => new OpeningObjective(
+                    "Next goal: craft a tool",
+                    "Use your logs to make planks, sticks, then a wood axe or sword.",
+                    Active: true,
+                    Dismissible: true),
+                2 => new OpeningObjective(
+                    "Next goal: assign settlers",
+                    "Press V at the Town Heart and assign Lumber or Build so the village helps you.",
+                    Active: true,
+                    Dismissible: true),
+                _ => settlementReady
+                    ? new OpeningObjective(
+                        settlementGuidance.Headline,
+                        "Use the town board when you need the next settlement step.",
+                        Active: true,
+                        Dismissible: true)
+                    : new OpeningObjective(OpeningGoalHeadline, OpeningGoalDetail, Active: true, Dismissible: true)
+            };
+        }
 
         public void Update(
             float deltaTime,
@@ -28,7 +100,8 @@ namespace Autonocraft.Core
             }
 
             int stage = player.Stats.EarlyGuideStage;
-            if (stage >= 5)
+            bool settlementReady = VillageSettlementHealth.GetLivePopulation(village, villagers) > 0;
+            if (player.Stats.HasCompletedEarlyGuide)
             {
                 return;
             }
@@ -38,15 +111,25 @@ namespace Autonocraft.Core
             switch (stage)
             {
                 case 0:
-                    if (_reminderTimer <= 0f)
+                    if (!_openingGoalShown && !_openingGoalDismissed)
                     {
-                        showToast("Survival start: punch trees for logs, then craft planks and sticks before nightfall.");
-                        _reminderTimer = 10f;
+                        showToast(settlementReady ? StarterSettlementToast : OpeningGoalToast);
+                        _openingGoalShown = true;
+                        _reminderTimer = settlementReady ? 18f : 18f;
+                    }
+                    else if (!_openingGoalDismissed && _reminderTimer <= 0f)
+                    {
+                        showToast(settlementReady
+                            ? "Use the Town Board to assign settlers, then gather nearby wood for the village."
+                            : "Wood gets you started: logs become planks, sticks, and your first tools.");
+                        _reminderTimer = 20f;
                     }
 
                     if (HasHarvestedWood(player))
                     {
                         player.Stats.EarlyGuideStage = 1;
+                        _openingGoalDismissed = false;
+                        showToast(OpeningGoalCompleteToast);
                         _reminderTimer = 0f;
                     }
                     break;
@@ -138,13 +221,19 @@ namespace Autonocraft.Core
         {
             if (village == null)
             {
-                return "Found or claim a settlement to begin.";
+                return "Find the Town Heart or place one to begin";
             }
 
             int stage = player.Stats.EarlyGuideStage;
+            bool settlementReady = VillageSettlementHealth.GetLivePopulation(village, villagers) > 0;
+            if (settlementReady)
+            {
+                return SettlementGuidance.Compute(village, villagers, player.Position).Headline;
+            }
+
             if (stage <= 0)
             {
-                return "Punch trees for logs; craft planks, sticks, then tools";
+                return "First goal: gather logs from nearby trees";
             }
 
             if (player.Hunger < SurvivalConstants.MaxHunger * 0.5f)
@@ -170,9 +259,14 @@ namespace Autonocraft.Core
         /// </summary>
         public static string? GetTownBoardHudContextNote(Player player, Village.Village village, VillagerManager villagers)
         {
-            if (player.CreativeMode || player.Stats.EarlyGuideStage >= 5)
+            if (player.CreativeMode || player.Stats.HasCompletedEarlyGuide)
             {
                 return null;
+            }
+
+            if (player.Stats.EarlyGuideStage == 2)
+            {
+                return "HUD tip: Press V — assign settlers to Lumber or Build";
             }
 
             string hudHint = GetGuidanceHint(player, village, villagers);

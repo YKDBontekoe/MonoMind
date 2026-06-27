@@ -16,17 +16,17 @@ namespace Autonocraft.Village
             if (lumberCamp != null)
             {
                 int radius = BuildingEffects.GetGatherScanRadius(BuildingKind.LumberCamp);
-                var target = ScanForLumber(world, lumberCamp.AnchorX, lumberCamp.AnchorZ, radius);
+                var target = ScanForLumber(world, village, lumberCamp.AnchorX, lumberCamp.AnchorZ, radius);
                 if (target.HasValue)
                 {
                     return target;
                 }
             }
 
-            return ScanForLumber(world, village.AnchorX, village.AnchorZ, BuildingEffects.BaseGatherScanRadius);
+            return ScanForLumber(world, village, village.AnchorX, village.AnchorZ, BuildingEffects.BaseGatherScanRadius);
         }
 
-        public static Vector3? FindNearbyMineTarget(VoxelWorld world, VillageBuilding quarry)
+        public static Vector3? FindNearbyMineTarget(VoxelWorld world, Village village, VillageBuilding quarry)
         {
             int centerX = quarry.AnchorX;
             int centerZ = quarry.AnchorZ;
@@ -51,6 +51,11 @@ namespace Autonocraft.Village
                         for (int y = topY; y >= minY; y--)
                         {
                             var block = world.GetBlock(x, y, z);
+                            if (village.IsProtectedStructureBlock(x, y, z, block))
+                            {
+                                continue;
+                            }
+
                             if (block is BlockType.Stone or BlockType.Cobblestone or BlockType.CoalOre
                                 or BlockType.IronOre or BlockType.GoldOre or BlockType.Gravel or BlockType.MossStone)
                             {
@@ -119,7 +124,7 @@ namespace Autonocraft.Village
                 var quarry = village.GetNearestBuilding(BuildingKind.Quarry, village.Center);
                 if (quarry != null)
                 {
-                    return FindNearbyMineTarget(world, quarry);
+                    return FindNearbyMineTarget(world, village, quarry);
                 }
             }
             else if (category == GatherCategory.Lumber)
@@ -131,7 +136,7 @@ namespace Autonocraft.Village
             return null;
         }
 
-        private static Vector3? ScanForLumber(VoxelWorld world, int centerX, int centerZ, int radius)
+        private static Vector3? ScanForLumber(VoxelWorld world, Village village, int centerX, int centerZ, int radius)
         {
             for (int r = 1; r <= radius; r++)
             {
@@ -150,6 +155,11 @@ namespace Autonocraft.Village
                         for (int y = Math.Max(1, topY - 8); y <= topY; y++)
                         {
                             var block = world.GetBlock(x, y, z);
+                            if (village.IsProtectedStructureBlock(x, y, z, block))
+                            {
+                                continue;
+                            }
+
                             if (IsLumberLog(block))
                             {
                                 return new Vector3(x + 0.5f, y, z + 0.5f);

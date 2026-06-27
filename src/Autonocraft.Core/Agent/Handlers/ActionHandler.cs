@@ -58,7 +58,6 @@ internal static class ActionHandler
             new OpenVillageAction(),
             new CloseVillageAction(),
             new CloseVillageUiAliasAction(),
-            new SummonSettlersAction(),
             new LoadStructureGalleryAction(),
             new ScreenshotAction()
         };

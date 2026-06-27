@@ -1,4 +1,5 @@
 using System;
+using Autonocraft.Domain.Core;
 using Autonocraft.Domain.Village;
 using Autonocraft.Domain.World;
 using Autonocraft.World;
@@ -9,7 +10,7 @@ namespace Autonocraft.Village
     {
         public const float BaseGrowthInterval = 45f;
 
-        public static void Advance(VoxelWorld world, Village village, float deltaTime, float timeOfDay)
+        public static void Advance(VoxelWorld world, Village village, float deltaTime, float timeOfDay, float timeScale = DayNightCycle.DefaultTimeScale)
         {
             if (!village.HasBuilding(BuildingKind.FarmPlot))
             {
@@ -58,7 +59,8 @@ namespace Autonocraft.Village
                 interval /= 1.15f;
             }
 
-            village.FarmGrowthAccumulator += deltaTime;
+            float speedFactor = MathF.Max(1f, timeScale / DayNightCycle.DefaultTimeScale);
+            village.FarmGrowthAccumulator += deltaTime * speedFactor;
             while (village.FarmGrowthAccumulator >= interval)
             {
                 village.FarmGrowthAccumulator -= interval;

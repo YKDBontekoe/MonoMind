@@ -60,7 +60,11 @@ internal static class VillageChatHandler
         }
         catch (Exception ex)
         {
-            AgentHttpHelpers.SendJsonResponse(response, HttpStatusCode.InternalServerError, new { error = ex.Message });
+            string errorMessage = ex.InnerException?.Message ?? ex.Message;
+            HttpStatusCode status = errorMessage.Contains("Connection refused", StringComparison.OrdinalIgnoreCase)
+                ? HttpStatusCode.ServiceUnavailable
+                : HttpStatusCode.InternalServerError;
+            AgentHttpHelpers.SendJsonResponse(response, status, new { error = errorMessage });
         }
     }
 

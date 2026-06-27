@@ -11,6 +11,9 @@ namespace Autonocraft.Engine
         private float _timer;
         private float _duration;
 
+        public string CurrentMessage => _timer > 0f ? _message : string.Empty;
+        public bool IsVisible => _timer > 0f && !string.IsNullOrEmpty(_message);
+
         public void Show(string message, Color? color = null, float durationSeconds = 3f)
         {
             if (string.IsNullOrWhiteSpace(message))
@@ -22,6 +25,12 @@ namespace Autonocraft.Engine
             _color = color ?? UiTheme.HudTextPrimary;
             _duration = Math.Max(0.5f, durationSeconds);
             _timer = _duration;
+        }
+
+        public void Clear()
+        {
+            _timer = 0f;
+            _message = string.Empty;
         }
 
         public void Update(float deltaTime)
@@ -47,6 +56,13 @@ namespace Autonocraft.Engine
             float textW = PixelFont.MeasureString(_message, textSize);
             float padX = layout.S(18f);
             float padY = layout.S(8f);
+            float maxPanelW = Math.Max(layout.S(180f), layout.Width - layout.Padding * 2f);
+            if (textW + padX * 2f > maxPanelW)
+            {
+                textSize *= (maxPanelW - padX * 2f) / Math.Max(1f, textW);
+                textW = PixelFont.MeasureString(_message, textSize);
+            }
+
             float panelW = textW + padX * 2f;
             float panelH = layout.S(28f);
             float panelX = layout.CenterX - panelW / 2f;

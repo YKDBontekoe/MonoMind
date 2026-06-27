@@ -106,6 +106,11 @@ public static partial class VillageTests
             throw new Exception("Starter storage not seeded.");
         }
 
+        if (village.Storage.CountBlock(BlockType.Dirt) < 16)
+        {
+            throw new Exception("Starter settlement is missing dirt for the queued farm plot.");
+        }
+
         int foodInStorage = 0;
         for (int i = 0; i < village.Storage.SlotCount; i++)
         {
@@ -147,6 +152,21 @@ public static partial class VillageTests
             throw new Exception("Expected pre-queued farm plot at starter settlement.");
         }
 
+        bool farmStarted = false;
+        for (int tick = 0; tick < 240 && !farmStarted; tick++)
+        {
+            session.Villages.Update(0.05f, world, 0.3f, session.Animals);
+            var activeFarmSite = village.BuildingSites.FirstOrDefault(site => site.BlueprintId == "farm_plot");
+            farmStarted = activeFarmSite == null
+                ? village.HasCompletedBuilding("farm_plot")
+                : activeFarmSite.CompletionRatio > 0f;
+        }
+
+        if (!farmStarted)
+        {
+            throw new Exception("Expected starter farm plot to make build progress shortly after workers begin.");
+        }
+
         if (!PlayerStructureRegistry.TryGet("town_heart", out var heart))
         {
             throw new Exception("Town heart blueprint missing.");
@@ -165,6 +185,43 @@ public static partial class VillageTests
         if (!hasHeartBlock)
         {
             throw new Exception("Town Heart blocks not placed.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
+    public static void RunVillagerOnboardingReopenKeepsLatestState()
+    {
+        Console.Write("Running Villager Onboarding Reopen Keeps Latest State Test... ");
+        var (villagers, villages, world, village) = CreateOnboardingVillage("Reopen", 6465);
+        var villager = SpawnOnboardingVillager(villagers, village, 64);
+        village.PopulationCap = 3;
+
+        var screen = new Autonocraft.UI.VillageScreen(null!, villagers);
+        screen.Open(village, villages, world, village.Center, null, playerCreative: false, playWithAi: true);
+        var vm = ReadVillageScreenViewModel(screen);
+        AssertOnboardingState(vm, "planks", expectedBlocked: true);
+
+        village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, VillageEntity.RecruitFoodCost));
+        villager.AssignJob(JobType.Lumber, new Vector3(village.AnchorX + 5.5f, village.AnchorY, village.AnchorZ + 5.5f), null);
+        screen.RefreshAfterVillageAction();
+        vm = ReadVillageScreenViewModel(screen);
+        if (vm.IsBlocked)
+        {
+            throw new Exception($"Expected refreshed board to clear material blocker, got: {vm.BlockedReason}");
+        }
+
+        screen.Close();
+        screen.Open(village, villages, world, village.Center, null, playerCreative: false, playWithAi: true);
+        vm = ReadVillageScreenViewModel(screen);
+        if (vm.Population != 1 || vm.Villagers.Count != 1)
+        {
+            throw new Exception($"Expected reopened board to keep exactly one linked villager, got pop={vm.Population}, rows={vm.Villagers.Count}.");
+        }
+
+        if (vm.IsBlocked)
+        {
+            throw new Exception("Reopened board should retain the cleared recruit blocker.");
         }
 
         Console.WriteLine("PASSED");

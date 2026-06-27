@@ -53,6 +53,7 @@ namespace Autonocraft.Core
             get => _earlyGuideStage > 0 ? _earlyGuideStage : VillageTutorialStage;
             set => _earlyGuideStage = value;
         }
+        public bool HasCompletedEarlyGuide => EarlyGuideStage >= 5;
 
         private int _earlyGuideStage;
 

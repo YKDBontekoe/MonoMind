@@ -25,6 +25,112 @@ namespace Autonocraft.Tests.Integration;
 
 public static partial class VillageTests
 {
+    private static (int x, int y, int z) FindValidBlueprintAnchor(
+        VillageManager villages,
+        VoxelWorld world,
+        VillageEntity village,
+        string blueprintId,
+        int startRadius = 6,
+        int maxRadius = 28)
+    {
+        if (!PlayerStructureRegistry.TryGet(blueprintId, out var blueprint))
+        {
+            throw new Exception($"{blueprintId} blueprint missing.");
+        }
+
+        for (int radius = startRadius; radius <= maxRadius; radius += 2)
+        {
+            for (int dx = -radius; dx <= radius; dx++)
+            {
+                for (int dz = -radius; dz <= radius; dz++)
+                {
+                    if (Math.Max(Math.Abs(dx), Math.Abs(dz)) > radius)
+                    {
+                        continue;
+                    }
+
+                    int candidateX = village.AnchorX + dx;
+                    int candidateZ = village.AnchorZ + dz;
+                    int candidateY = StructureFingerprint.FindSurfaceAnchorY(world, candidateX, candidateZ);
+                    ClearBlueprintArea(world, blueprintId, candidateX, candidateY, candidateZ);
+                    if (!villages.CanPlaceBlueprint(world, village, blueprint, candidateX, candidateZ, village.Storage, candidateY))
+                    {
+                        continue;
+                    }
+
+                    return (candidateX, candidateY, candidateZ);
+                }
+            }
+        }
+
+        throw new Exception($"Could not find valid {blueprintId} anchor.");
+    }
+
+    public static void RunVillageOrganicGrowthQueuesExpansion()
+    {
+        Console.Write("Running Village Organic Growth Queues Expansion Test... ");
+        var villagers = new VillagerManager();
+        var villages = new VillageManager(villagers)
+        {
+            CreativeMode = true
+        };
+        var world = new VoxelWorld(8181);
+        int ax = 48;
+        int az = 48;
+        world.UpdateChunksAround(null, new Vector3(ax + 0.5f, 64f, az + 0.5f), 3);
+
+        if (!TryFoundTestVillage(villages, world, "Growth Test", ax, az, out var village) || village == null)
+        {
+            throw new Exception("Failed to found growth test village.");
+        }
+
+        EnsureFlatVillagePad(world, village, radius: 28);
+        village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 256));
+        village.Storage.AddItem(ItemStack.CreateBlock(BlockType.Stone, 256));
+        village.Storage.AddItem(ItemStack.CreateBlock(BlockType.Cobblestone, 128));
+        village.Storage.AddItem(ItemStack.CreateBlock(BlockType.Dirt, 128));
+
+        village.RegisterClaimedBuilding(PlayerStructureRegistry.Get("peasant_house"), village.AnchorX + 10, village.AnchorY, village.AnchorZ - 10);
+
+        for (int i = 0; i < 4; i++)
+        {
+            var villager = villagers.Spawn(village.Id, village.Center + new Vector3(i, 0f, i), 400 + i);
+            villager.IsGrounded = true;
+            village.RegisterVillager(villager.Id);
+        }
+
+        var animals = new AnimalManager(8181);
+        for (int tick = 0; tick < 20; tick++)
+        {
+            villages.Update(0.1f, world, DayNightCycle.Noon, animals);
+        }
+
+        int pendingHouses = village.CountPendingSites("peasant_house");
+        var houseGoal = village.Scheduler.Goals.FirstOrDefault(goal =>
+            !goal.Completed &&
+            goal.Kind == VillageGoalKind.Build &&
+            goal.BlueprintId == "peasant_house");
+        if (pendingHouses == 0 && houseGoal == null)
+        {
+            throw new Exception("Expected organic growth to request another peasant house even after the first house exists.");
+        }
+
+        if (houseGoal != null && houseGoal.BuildCountTarget <= 1)
+        {
+            throw new Exception("Expected repeatable housing growth to target more than the first peasant house.");
+        }
+
+        var newestHouse = village.BuildingSites.LastOrDefault(site => site.BlueprintId == "peasant_house");
+        if (newestHouse != null &&
+            newestHouse.AnchorX == village.AnchorX + 3 &&
+            newestHouse.AnchorZ == village.AnchorZ + 3)
+        {
+            throw new Exception("Organic growth reused the old fixed (+3,+3) placement instead of the new settlement layout.");
+        }
+
+        Console.WriteLine("PASSED");
+    }
+
     public static void RunFarmFoodProduction()
     {
         Console.Write("Running Farm Food Production Test... ");
@@ -96,7 +202,7 @@ public static partial class VillageTests
             }
         }
 
-        world.SetBlock(ax, ay, az, BlockType.Wheat);
+        world.SetBlock(ax + 1, ay, az, BlockType.Wheat);
 
         var farmer = villagers.Spawn(village.Id, village.Center, 11);
         farmer.Role = VillagerRole.Farmer;
@@ -104,7 +210,7 @@ public static partial class VillageTests
         farmer.SetAiPhase(VillagerAiPhase.Working);
         village.RegisterVillager(farmer.Id);
 
-        if (!villages.TryAssignJob(village, farmer, JobType.Farm, FarmCropHelper.GetBlockCenter(ax, ay, az), buildingId: 1).Success)
+        if (!villages.TryAssignJob(village, farmer, JobType.Farm, FarmCropHelper.GetBlockCenter(ax + 1, ay, az), buildingId: 1).Success)
         {
             throw new Exception("Failed to assign farmer to farm plot.");
         }
@@ -229,9 +335,8 @@ public static partial class VillageTests
         village.Storage.AddItem(ItemStack.CreateBlock(BlockType.Dirt, 32));
         village.Storage.AddItem(ItemStack.CreateBlock(BlockType.OakPlank, 8));
         session.Villages.TryRecruit(village, world);
-        int plotX = ax + 6;
-        int plotZ = az + 6;
-        if (!session.Villages.TryQueueBlueprint(world, village, "farm_plot", plotX, plotZ, village.Storage, village.AnchorY))
+        var (plotX, plotY, plotZ) = FindValidBlueprintAnchor(session.Villages, world, village, "farm_plot");
+        if (!session.Villages.TryQueueBlueprint(world, village, "farm_plot", plotX, plotZ, village.Storage, plotY))
         {
             throw new Exception("Failed to queue farm_plot for save test.");
         }
@@ -409,9 +514,8 @@ public static partial class VillageTests
             throw new Exception("Could not found village.");
         }
 
-        int plotX = ax + 6;
-        int plotZ = az + 6;
-        if (!villages.TryQueueBlueprint(world, village, "farm_plot", plotX, plotZ, village.Storage))
+        var (plotX, plotY, plotZ) = FindValidBlueprintAnchor(villages, world, village, "farm_plot");
+        if (!villages.TryQueueBlueprint(world, village, "farm_plot", plotX, plotZ, village.Storage, plotY))
         {
             throw new Exception("Failed to queue farm plot.");
         }

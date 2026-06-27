@@ -41,7 +41,7 @@ namespace Autonocraft.UI
         private static readonly string[] TabLabels = { "Overview", "Build", "People", "Goals" };
 
         private readonly UiRenderer _ui;
-        private readonly VillagerManager _villagers;
+        private VillagerManager _villagers;
         private VillageEntity? _village;
         private VillageManager? _villageManager;
         private VoxelWorld? _world;
@@ -76,14 +76,12 @@ namespace Autonocraft.UI
         };
 
         private int _strandedCitizenCount;
-        private bool _summonLinksNearby;
         private int _actionFeedbackFrames;
         private readonly FoundingPanel _foundingPanel = new();
 
         public bool IsOpen { get; private set; }
         public bool IsFoundingMode => _isFoundingMode;
         public bool RecruitRequested { get; private set; }
-        public bool SummonSettlersRequested { get; private set; }
         public bool ClaimRequested { get; private set; }
         public bool PlaceTownHeartRequested { get; private set; }
         public bool CloseRequested { get; private set; }
@@ -98,6 +96,7 @@ namespace Autonocraft.UI
         public bool AssignSuccess { get; private set; }
         public string? RecruitFeedback { get; private set; }
         public bool RecruitSuccess { get; private set; }
+        public VillageEntity? CurrentVillage => _village;
 
         public void SetAssignFeedback(JobAssignmentResult result)
         {
@@ -159,6 +158,7 @@ namespace Autonocraft.UI
         {
             _village = null;
             _villageManager = villageManager;
+            _villagers = villageManager.Villagers;
             _world = world;
             _playerPos = playerPos;
             _playerPayer = playerPayer;
@@ -192,6 +192,7 @@ namespace Autonocraft.UI
         {
             _village = village;
             _villageManager = villageManager;
+            _villagers = villageManager.Villagers;
             _world = world;
             _playerPos = playerPos;
             _playerPayer = playerPayer;
@@ -207,6 +208,12 @@ namespace Autonocraft.UI
             _editingNameBuffer = "";
             _selectedTab = 0;
             _selectedVillagerId = -1;
+            if (VillageSettlementHealth.GetLivePopulation(village, _villagers) == 0 &&
+                VillageSettlementHealth.HasEstablishedSettlement(village))
+            {
+                villageManager.EnsureStarterCitizens(village, world);
+            }
+
             RefreshVillageState();
             foreach (var villager in _villagers.All)
             {
@@ -336,15 +343,7 @@ namespace Autonocraft.UI
             if (kb.IsKeyDown(Keys.R) && !prevKb.IsKeyDown(Keys.R))
             {
                 RefreshVillageState();
-                if (CountDisplayedCitizens() > 0)
-                {
-                    RecruitRequested = true;
-                }
-                else
-                {
-                    SummonSettlersRequested = true;
-                }
-
+                RecruitRequested = true;
                 return;
             }
 
@@ -409,20 +408,29 @@ namespace Autonocraft.UI
 
             if (_selectedTab == 0)
             {
+                int displayedCitizens = CountDisplayedCitizens();
+                bool starterOverview = displayedCitizens == 0 && _viewModel != null;
                 if (_viewModel?.SuggestedTab != null && _viewModel.NextActionKind != SettlementActionKind.None &&
+                    !starterOverview &&
                     OverviewPanel.TryGetNextActionCtaY(_viewModel, layout.Ui, panelY, layout.S(ContentTop), out float ctaY))
                 {
-                    HitRect(left, ctaY, layout.S(140f), layout.S(28f), 15, mouse);
+                    float panelWidth = layout.S(PanelWidth);
+                    float colW = (panelWidth - layout.S(40f) - layout.S(20f)) / 2f;
+                    float rightColX = left + colW + layout.S(20f);
+                    HitRect(rightColX, ctaY, layout.S(140f), layout.S(28f), 15, mouse);
                 }
 
-                if (_canClaimNearby)
+                if (!starterOverview && _canClaimNearby)
                 {
                     HitRect(left + buttonW + layout.S(10f), footerY, buttonW, buttonH, 12, mouse);
                 }
 
-                HitRect(left + (buttonW + layout.S(10f)) * (_canClaimNearby ? 2f : 1f), footerY, buttonW, buttonH, 13, mouse);
-                float rationX = left + (buttonW + layout.S(10f)) * (_canClaimNearby ? 3f : 2f);
-                HitRect(rationX, footerY, buttonW, buttonH, 16, mouse);
+                if (!starterOverview)
+                {
+                    HitRect(left + (buttonW + layout.S(10f)) * (_canClaimNearby ? 2f : 1f), footerY, buttonW, buttonH, 13, mouse);
+                    float rationX = left + (buttonW + layout.S(10f)) * (_canClaimNearby ? 3f : 2f);
+                    HitRect(rationX, footerY, buttonW, buttonH, 16, mouse);
+                }
             }
 
             if (_selectedTab == 1)
@@ -531,13 +539,17 @@ namespace Autonocraft.UI
             float footerY = panelY + panelH - layout.S(FooterHeight);
             string recruitLabel = GetRecruitButtonLabel();
             int displayedCitizens = CountDisplayedCitizens();
+            bool starterOverview = _selectedTab == 0 && displayedCitizens == 0 && _viewModel != null;
             bool canRecruit = displayedCitizens > 0
                 ? _village.CanRecruit(_villagers, _playerCreative)
                 : true;
-            DrawStyledButton(left, footerY, buttonW, buttonH, recruitLabel, _hoveredButton == 10,
-                UiButtonStyle.Primary, layout.Ui, alpha, !canRecruit);
+            if (!starterOverview)
+            {
+                DrawStyledButton(left, footerY, buttonW, buttonH, recruitLabel, _hoveredButton == 10,
+                    UiButtonStyle.Primary, layout.Ui, alpha, !canRecruit);
+            }
 
-            if (_selectedTab == 0)
+            if (_selectedTab == 0 && !starterOverview)
             {
                 if (_canClaimNearby)
                 {
@@ -567,13 +579,7 @@ namespace Autonocraft.UI
             if (_hoveredButton == 10)
             {
                 footerHint = _viewModel?.RecruitPreview
-                    ?? (CountDisplayedCitizens() > 0
-                        ? "Recruit — bring a new peasant to the village (costs 4 oak planks)"
-                        : _summonLinksNearby
-                            ? $"Link nearby settlers — attach {_strandedCitizenCount} villager(s) already in your world"
-                            : CanSummonSettlers()
-                                ? "Summon settlers — spawn starter citizens at the Town Heart"
-                                : "Click to check the Town Heart and show what blocks summoning");
+                    ?? "Recruit — bring a new peasant to the village (costs 4 oak planks)";
             }
             else if (_hoveredButton == 12)
             {

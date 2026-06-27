@@ -26,7 +26,7 @@ namespace Autonocraft.Village.Jobs
             villager.SetJobTarget(workCell);
             if (villager.AiPhase == VillagerAiPhase.PathTo)
             {
-                if (!context.CreativeMode &&
+                if (!(context.CreativeMode && context.IsTestMode) &&
                     (VillagerMovementHelper.TryMoveAlongPath(villager, deltaTime, world) ||
                      VillagerMovementHelper.TryMoveToward(villager, deltaTime, world, approach)))
                 {

@@ -54,37 +54,49 @@ namespace Autonocraft.UI
 
         private void HitPeopleTab(ScreenLayout layout, MouseState mouse, float buttonH)
         {
-            float y = layout.PanelY + layout.S(ContentTop);
-            float listW = layout.S(300f);
-            float rowY = y + layout.S(32f) - _peopleScroll;
-            float rowH = layout.S(42f);
+            // Villager list rows
+            float y     = layout.PanelY + layout.S(ContentTop);
+            float listW = layout.S(VillagePanels.PeoplePanel.ListWidth);
+            float rowY  = y + layout.S(32f) - _peopleScroll;
+            float rowH  = layout.S(42f);
             foreach (var villager in EnumerateCitizens())
             {
-                HitRect(layout.Left + layout.S(8f), rowY, listW - layout.S(16f), rowH, 30 + villager.Id, mouse);
+                HitRect(layout.Left + layout.S(8f), rowY, listW - layout.S(16f), rowH, 1000 + villager.Id, mouse);
                 rowY += rowH + layout.S(4f);
             }
 
-            if (_selectedVillagerId >= 0)
+            // Detail pane buttons (only when a villager is selected)
+            if (_selectedVillagerId >= 0 && _villagers.TryGet(_selectedVillagerId, out var selected))
             {
                 float detailX = layout.Left + listW + layout.S(14f);
-                float pad = layout.S(16f);
-                float detailY = y + pad + layout.S(28f) + layout.S(22f) + layout.S(18f) + layout.S(26f) + layout.S(28f) + layout.S(52f);
-                HitRect(detailX + pad, detailY, layout.S(96f), layout.S(ButtonHeight), 50, mouse);
+                float pad     = layout.S(16f);
 
-                float jobY = detailY + layout.S(48f) + layout.S(24f);
-                if (!string.IsNullOrEmpty(AssignFeedback))
-                {
-                    jobY += layout.S(22f);
-                }
+                // Use the shared calculator — same computation as PeoplePanel.Draw
+                VillagePanels.PeoplePanel.GetDetailButtonYs(
+                    layout.Ui,
+                    layout.PanelY,
+                    selected,
+                    _village!,
+                    hasFeedback: !string.IsNullOrEmpty(AssignFeedback),
+                    out float talkButtonY,
+                    out float jobGridY);
 
-                float jobW = layout.S(96f);
-                float jobH = layout.S(ButtonHeight);
+                // Talk button
+                HitRect(detailX + pad, talkButtonY, layout.S(96f), layout.S(ButtonHeight), 50, mouse);
+
+                // Job assignment grid
+                float jobW   = layout.S(240f);
+                float jobH   = layout.S(ButtonHeight);
                 float jobGap = layout.S(10f);
                 for (int i = 0; i < AssignableJobs.Length; i++)
                 {
-                    int row = i / 3;
-                    int col = i % 3;
-                    HitRect(detailX + pad + col * (jobW + jobGap), jobY + row * (jobH + jobGap), jobW, jobH, 40 + i, mouse);
+                    int row = i / 2;
+                    int col = i % 2;
+                    HitRect(
+                        detailX + pad + col * (jobW + jobGap),
+                        jobGridY  + row * (jobH + jobGap),
+                        jobW, jobH,
+                        40 + i, mouse);
                 }
             }
         }
@@ -111,20 +123,7 @@ namespace Autonocraft.UI
             if (_hoveredButton == 10)
             {
                 RefreshVillageState();
-                int citizens = CountDisplayedCitizens();
-                if (citizens <= 0)
-                {
-                    SummonSettlersRequested = true;
-                }
-                else if (_village!.CanRecruit(_villagers, _playerCreative))
-                {
-                    RecruitRequested = true;
-                }
-                else
-                {
-                    RecruitRequested = true;
-                }
-
+                RecruitRequested = true;
                 return;
             }
 
@@ -159,33 +158,30 @@ namespace Autonocraft.UI
                 return;
             }
 
-            if (_hoveredButton >= 20)
+            // Build-tab blueprint selection — ONLY runs when on the Build tab.
+            // Previously the >= 20 check ran on all tabs, which caused job buttons
+            // (IDs 40-45 == blueprint indices 20-25) to silently trigger blueprint
+            // placement instead of job assignment when 20+ blueprints existed.
+            if (_selectedTab == 1 && _hoveredButton >= 20 && _village != null)
             {
                 int buildIndex = 0;
-                if (_village == null)
-                {
-                    return;
-                }
-
                 var panelContext = new VillagePanelContext
                 {
-                    Ui = _ui,
-                    UiLayout = new UiLayout(new Viewport()),
-                    Village = _village,
-                    ViewModel = _viewModel,
-                    Villagers = _villagers,
+                    Ui           = _ui,
+                    UiLayout     = new UiLayout(new Viewport()),
+                    Village      = _village,
+                    ViewModel    = _viewModel,
+                    Villagers    = _villagers,
                     PlayerPosition = _playerPos,
                     PlayerCreative = _playerCreative,
-                    PlayWithAi = _playWithAi,
-                    PlayerPayer = _playerPayer
+                    PlayWithAi   = _playWithAi,
+                    PlayerPayer  = _playerPayer
                 };
 
                 foreach (var blueprint in BuildPanel.GetOrderedBlueprints(panelContext))
                 {
                     if (blueprint.Id == "town_heart")
-                    {
                         continue;
-                    }
 
                     if (_hoveredButton == 20 + buildIndex)
                     {
@@ -198,71 +194,80 @@ namespace Autonocraft.UI
                 }
             }
 
-            if (_hoveredButton >= 30 && _hoveredButton < 200)
+            // People Tab Logic
+            if (_selectedTab == 2)
             {
-                _selectedVillagerId = _hoveredButton - 30;
-                return;
-            }
-
-            if (_hoveredButton >= 40 && _hoveredButton < 40 + AssignableJobs.Length && _selectedVillagerId >= 0)
-            {
-                RequestedAssignVillagerId = _selectedVillagerId;
-                RequestedAssignJob = AssignableJobs[_hoveredButton - 40].Job;
-                return;
-            }
-
-            if (_hoveredButton == 50 && _selectedVillagerId >= 0 && _playWithAi)
-            {
-                RequestedChatVillagerId = _selectedVillagerId;
-            }
-
-            if (!_playWithAi)
-            {
-                if (_hoveredButton >= 60 && _hoveredButton < 60 + GoalsPanel.GoalBlockTypes.Length)
+                if (_hoveredButton >= 1000 && _hoveredButton < 2000)
                 {
-                    _selectedGoalBlockIndex = _hoveredButton - 60;
+                    _selectedVillagerId = _hoveredButton - 1000;
                     return;
                 }
 
-                if (_hoveredButton >= 70 && _hoveredButton < 70 + GoalsPanel.GoalTargetCounts.Length)
+                if (_hoveredButton >= 40 && _hoveredButton < 40 + AssignableJobs.Length && _selectedVillagerId >= 0)
                 {
-                    _selectedGoalCountIndex = _hoveredButton - 70;
+                    RequestedAssignVillagerId = _selectedVillagerId;
+                    RequestedAssignJob = AssignableJobs[_hoveredButton - 40].Job;
                     return;
                 }
 
-                if (_hoveredButton == 80)
+                if (_hoveredButton == 50 && _selectedVillagerId >= 0 && _playWithAi)
                 {
-                    var block = GoalsPanel.GoalBlockTypes[_selectedGoalBlockIndex];
-                    int count = GoalsPanel.GoalTargetCounts[_selectedGoalCountIndex];
-                    string desc = $"Gather {count} {block}";
-                    _village!.Scheduler.AddStockGoal(block, count, 0, desc);
-                    return;
-                }
-
-                if (_hoveredButton >= 101)
-                {
-                    int goalId = _hoveredButton - 100;
-                    _village!.Scheduler.RemoveGoal(goalId);
+                    RequestedChatVillagerId = _selectedVillagerId;
                     return;
                 }
             }
-            else if (_hoveredButton >= 81 && _hoveredButton <= 83)
+
+            // Goals Tab Logic
+            if (_selectedTab == 3)
             {
-                int index = _hoveredButton - 81;
-                int current = 0;
-                foreach (var contract in VillageAgentContracts.Suggest(_village!, _villagers))
+                if (!_playWithAi)
                 {
-                    if (current == index)
+                    if (_hoveredButton >= 60 && _hoveredButton < 60 + GoalsPanel.GoalBlockTypes.Length)
                     {
-                        bool success = VillageAgentContracts.TryAccept(_village!, _villagers, contract.Id, out string message);
-                        AssignSuccess = success;
-                        AssignFeedback = message;
-                        _actionFeedbackFrames = 180;
-                        RefreshVillageState();
+                        _selectedGoalBlockIndex = _hoveredButton - 60;
                         return;
                     }
 
-                    current++;
+                    if (_hoveredButton >= 70 && _hoveredButton < 70 + GoalsPanel.GoalTargetCounts.Length)
+                    {
+                        _selectedGoalCountIndex = _hoveredButton - 70;
+                        return;
+                    }
+
+                    if (_hoveredButton == 80)
+                    {
+                        var block = GoalsPanel.GoalBlockTypes[_selectedGoalBlockIndex];
+                        int count = GoalsPanel.GoalTargetCounts[_selectedGoalCountIndex];
+                        string desc = $"Gather {count} {block}";
+                        _village!.Scheduler.AddStockGoal(block, count, 0, desc);
+                        return;
+                    }
+
+                    if (_hoveredButton >= 3000)
+                    {
+                        int goalId = _hoveredButton - 3000;
+                        _village!.Scheduler.RemoveGoal(goalId);
+                        return;
+                    }
+                }
+                else if (_hoveredButton >= 81 && _hoveredButton <= 83)
+                {
+                    int index = _hoveredButton - 81;
+                    int current = 0;
+                    foreach (var contract in VillageAgentContracts.Suggest(_village!, _villagers))
+                    {
+                        if (current == index)
+                        {
+                            bool success = VillageAgentContracts.TryAccept(_village!, _villagers, contract.Id, out string message);
+                            AssignSuccess = success;
+                            AssignFeedback = message;
+                            _actionFeedbackFrames = 180;
+                            RefreshVillageState();
+                            return;
+                        }
+
+                        current++;
+                    }
                 }
             }
         }
