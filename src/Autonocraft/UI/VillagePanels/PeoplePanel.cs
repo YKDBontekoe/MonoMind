@@ -12,7 +12,7 @@ namespace Autonocraft.UI.VillagePanels
     /// </summary>
     public sealed class PeoplePanel : IVillagePanel
     {
-        internal const float ListWidth   = 300f;
+        internal const float ListWidth = 300f;
         internal const float ButtonHeight = 34f;
 
         internal static readonly (string Label, JobType Job)[] AssignableJobs =
@@ -82,16 +82,16 @@ namespace Autonocraft.UI.VillagePanels
 
         public void Draw(VillagePanelContext context)
         {
-            var ui      = context.Ui;
-            var layout  = context.UiLayout;
-            float left  = context.ContentLeft;
-            float y     = context.PanelY + layout.S(VillageScreen.ContentTop);
-            float h     = context.ContentHeight;
+            var ui = context.Ui;
+            var layout = context.UiLayout;
+            float left = context.ContentLeft;
+            float y = context.PanelY + layout.S(VillageScreen.ContentTop);
+            float h = context.ContentHeight;
             float alpha = context.Alpha;
             Color accent = context.Accent;
-            var village  = context.Village;
+            var village = context.Village;
 
-            float listW   = layout.S(ListWidth);
+            float listW = layout.S(ListWidth);
             float detailX = left + listW + layout.S(14f);
             float detailW = layout.S(VillageScreen.PanelWidth) - layout.S(40f) - listW - layout.S(14f);
 
@@ -108,10 +108,10 @@ namespace Autonocraft.UI.VillagePanels
             foreach (var villager in EnumerateCitizens(village, context.Villagers))
             {
                 anyRow = true;
-                int   vid         = villager.Id;
-                bool  isSelected  = vid == context.SelectedVillagerId;
-                bool  hovered     = context.HoveredButton == 1000 + vid;
-                bool  needsAttn   = VillagerActivityText.NeedsAttention(villager, village);
+                int vid = villager.Id;
+                bool isSelected = vid == context.SelectedVillagerId;
+                bool hovered = context.HoveredButton == 1000 + vid;
+                bool needsAttn = VillagerActivityText.NeedsAttention(villager, village);
 
                 if (rowY + rowH >= y + layout.S(28f) && rowY <= y + h - layout.S(6f))
                 {
@@ -142,10 +142,10 @@ namespace Autonocraft.UI.VillagePanels
                         isSelected ? UiTheme.Title : UiTheme.StatValue, alpha, semiBold: isSelected);
 
                     // Status line
-                    string activity   = VillagerActivityText.Describe(villager, village, null);
-                    string progress   = VillagerActivityText.DescribeProgress(villager, village);
+                    string activity = VillagerActivityText.Describe(villager, village, null);
+                    string progress = VillagerActivityText.DescribeProgress(villager, village);
                     string statusLine = string.IsNullOrEmpty(progress) ? activity : $"{activity} · {progress}";
-                    Color  statusCol  = needsAttn ? UiTheme.Danger : roleColor;
+                    Color statusCol = needsAttn ? UiTheme.Danger : roleColor;
                     ui.DrawString(
                         TrimToWidth(ui, statusLine, layout.S(UiTheme.FontSmall), listW - layout.S(44f)),
                         left + layout.S(30f), rowY + layout.S(24f),
@@ -191,10 +191,10 @@ namespace Autonocraft.UI.VillagePanels
             Villager villager,
             float alpha)
         {
-            var ui      = context.Ui;
-            var layout  = context.UiLayout;
+            var ui = context.Ui;
+            var layout = context.UiLayout;
             var village = context.Village;
-            float pad   = layout.S(16f);
+            float pad = layout.S(16f);
 
             bool hasFeedback = !string.IsNullOrEmpty(context.AssignFeedback);
 
@@ -256,8 +256,8 @@ namespace Autonocraft.UI.VillagePanels
 
             // detailY should now equal talkButtonY (verified by shared calculator)
             // ---- Talk button ----
-            bool   talkEnabled = context.PlayWithAi;
-            string talkHint    = talkEnabled
+            bool talkEnabled = context.PlayWithAi;
+            string talkHint = talkEnabled
                 ? $"Talk to {villager.Name}"
                 : "Enable Play with AI in settings to chat";
             VillagePanelChrome.DrawButton(ui, x + pad, detailY, layout.S(96f), layout.S(ButtonHeight),
@@ -283,20 +283,20 @@ namespace Autonocraft.UI.VillagePanels
             detailY += layout.S(24f);
 
             // ---- Job buttons (3 rows × 2 cols) ----
-            float jobW   = layout.S(240f);
-            float jobH   = layout.S(VillageScreen.ButtonHeight);
+            float jobW = layout.S(240f);
+            float jobH = layout.S(VillageScreen.ButtonHeight);
             float jobGap = layout.S(10f);
 
             for (int i = 0; i < AssignableJobs.Length; i++)
             {
-                int   row  = i / 2;
-                int   col  = i % 2;
-                float bx   = x + pad + col * (jobW + jobGap);
-                float by   = detailY + row * (jobH + jobGap);
+                int row = i / 2;
+                int col = i % 2;
+                float bx = x + pad + col * (jobW + jobGap);
+                float by = detailY + row * (jobH + jobGap);
 
                 // Highlight the villager's current job assignment
                 bool isCurrentJob = villager.CurrentJob == AssignableJobs[i].Job;
-                bool isHovered    = context.HoveredButton == 40 + i;
+                bool isHovered = context.HoveredButton == 40 + i;
                 UiButtonStyle style = isCurrentJob ? UiButtonStyle.Primary : UiButtonStyle.Ghost;
 
                 VillagePanelChrome.DrawButton(ui, bx, by, jobW, jobH,

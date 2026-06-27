@@ -85,9 +85,9 @@ namespace Autonocraft.Entities
                         // Diagonal corner-cutting check
                         if (i >= 4)
                         {
-                            if (world.GetBlock(current.x, ny, nz).IsCollidable() || 
+                            if (world.GetBlock(current.x, ny, nz).IsCollidable() ||
                                 world.GetBlock(nx, ny, current.z).IsCollidable() ||
-                                world.GetBlock(current.x, ny + 1, nz).IsCollidable() || 
+                                world.GetBlock(current.x, ny + 1, nz).IsCollidable() ||
                                 world.GetBlock(nx, ny + 1, current.z).IsCollidable())
                             {
                                 continue;

@@ -197,7 +197,7 @@ namespace Autonocraft.Village
         private void AutoDelegate(Village village)
         {
             var contracts = VillageAgentContracts.Suggest(village, _villagers);
-            
+
             // First, automatically accept all profitable Trade contracts (cost 0)
             foreach (var contract in contracts)
             {

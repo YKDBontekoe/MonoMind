@@ -55,10 +55,10 @@ namespace Autonocraft.UI
         private void HitPeopleTab(ScreenLayout layout, MouseState mouse, float buttonH)
         {
             // Villager list rows
-            float y     = layout.PanelY + layout.S(ContentTop);
+            float y = layout.PanelY + layout.S(ContentTop);
             float listW = layout.S(VillagePanels.PeoplePanel.ListWidth);
-            float rowY  = y + layout.S(32f) - _peopleScroll;
-            float rowH  = layout.S(42f);
+            float rowY = y + layout.S(32f) - _peopleScroll;
+            float rowH = layout.S(42f);
             foreach (var villager in EnumerateCitizens())
             {
                 HitRect(layout.Left + layout.S(8f), rowY, listW - layout.S(16f), rowH, 1000 + villager.Id, mouse);
@@ -69,7 +69,7 @@ namespace Autonocraft.UI
             if (_selectedVillagerId >= 0 && _villagers.TryGet(_selectedVillagerId, out var selected))
             {
                 float detailX = layout.Left + listW + layout.S(14f);
-                float pad     = layout.S(16f);
+                float pad = layout.S(16f);
 
                 // Use the shared calculator — same computation as PeoplePanel.Draw
                 VillagePanels.PeoplePanel.GetDetailButtonYs(
@@ -85,8 +85,8 @@ namespace Autonocraft.UI
                 HitRect(detailX + pad, talkButtonY, layout.S(96f), layout.S(ButtonHeight), 50, mouse);
 
                 // Job assignment grid
-                float jobW   = layout.S(240f);
-                float jobH   = layout.S(ButtonHeight);
+                float jobW = layout.S(240f);
+                float jobH = layout.S(ButtonHeight);
                 float jobGap = layout.S(10f);
                 for (int i = 0; i < AssignableJobs.Length; i++)
                 {
@@ -94,7 +94,7 @@ namespace Autonocraft.UI
                     int col = i % 2;
                     HitRect(
                         detailX + pad + col * (jobW + jobGap),
-                        jobGridY  + row * (jobH + jobGap),
+                        jobGridY + row * (jobH + jobGap),
                         jobW, jobH,
                         40 + i, mouse);
                 }
@@ -167,15 +167,15 @@ namespace Autonocraft.UI
                 int buildIndex = 0;
                 var panelContext = new VillagePanelContext
                 {
-                    Ui           = _ui,
-                    UiLayout     = new UiLayout(new Viewport()),
-                    Village      = _village,
-                    ViewModel    = _viewModel,
-                    Villagers    = _villagers,
+                    Ui = _ui,
+                    UiLayout = new UiLayout(new Viewport()),
+                    Village = _village,
+                    ViewModel = _viewModel,
+                    Villagers = _villagers,
                     PlayerPosition = _playerPos,
                     PlayerCreative = _playerCreative,
-                    PlayWithAi   = _playWithAi,
-                    PlayerPayer  = _playerPayer
+                    PlayWithAi = _playWithAi,
+                    PlayerPayer = _playerPayer
                 };
 
                 foreach (var blueprint in BuildPanel.GetOrderedBlueprints(panelContext))

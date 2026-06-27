@@ -105,7 +105,8 @@ namespace Autonocraft.Village
                         "Steward exports 64 Oak Logs to neighboring towns for 10 Favor.",
                         0,
                         false,
-                        v => {
+                        v =>
+                        {
                             if (v.Storage.TryConsumeBlock(BlockType.OakLog, 64))
                             {
                                 v.AddFavor(10);
@@ -119,21 +120,23 @@ namespace Autonocraft.Village
                         "Steward exports 64 Stone to neighboring towns for 10 Favor.",
                         0,
                         false,
-                        v => {
+                        v =>
+                        {
                             if (v.Storage.TryConsumeBlock(BlockType.Stone, 64))
                             {
                                 v.AddFavor(10);
                             }
                         });
                 }
-                
+
                 if (village.Storage.CountBlock(BlockType.OakPlank) >= 128)
                 {
                     Add(contracts, village, "trade_planks", "Trade surplus planks",
                         "Steward exports 64 Oak Planks to neighboring towns for 15 Favor.",
                         0,
                         false,
-                        v => {
+                        v =>
+                        {
                             if (v.Storage.TryConsumeBlock(BlockType.OakPlank, 64))
                             {
                                 v.AddFavor(15);

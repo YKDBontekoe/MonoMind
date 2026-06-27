@@ -443,7 +443,7 @@ namespace Autonocraft.Village
                 {
                     bool edge = Math.Abs(dx) == 3 || Math.Abs(dz) == 3;
                     blocks.Add(new StructureBlock(dx, 0, dz, edge ? BlockType.Cobblestone : BlockType.Air));
-                    
+
                     if (edge && (Math.Abs(dx) != 3 || Math.Abs(dz) != 3))
                     {
                         blocks.Add(new StructureBlock(dx, 1, dz, BlockType.Cobblestone));
@@ -463,7 +463,7 @@ namespace Autonocraft.Village
             blocks.Add(new StructureBlock(0, 3, 0, BlockType.OakLog));
             blocks.Add(new StructureBlock(0, 2, 0, BlockType.Rope));
             blocks.Add(new StructureBlock(2, 1, -1, BlockType.Chest));
-            
+
             return new StructureTemplate { FootprintRadius = 3, Blocks = blocks.ToArray() };
         }
 

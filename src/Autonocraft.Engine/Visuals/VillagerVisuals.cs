@@ -141,13 +141,13 @@ namespace Autonocraft.Engine
             }
 
             var sleeveColor = GetRoleColor(villager.Role) * 0.75f;
-            
+
             // Arms rotate around their top shoulder (Y = armH * 0.4f relative to arm center)
             // Left arm
             var leftArmTransform = Matrix.CreateTranslation(0f, -armH * 0.4f, 0f)
                                  * Matrix.CreateRotationX(leftArmPitch)
                                  * Matrix.CreateTranslation(-armSpread, leftArmY + armH * 0.4f, 0f);
-            
+
             var rightArmTransform = Matrix.CreateTranslation(0f, -armH * 0.4f, 0f)
                                   * Matrix.CreateRotationX(rightArmPitch)
                                   * Matrix.CreateTranslation(armSpread, rightArmY + armH * 0.4f, 0f);
@@ -159,7 +159,7 @@ namespace Autonocraft.Engine
             var rightSkinTransform = Matrix.CreateTranslation(0f, -armH * 0.4f, 0f)
                                   * Matrix.CreateRotationX(rightArmPitch)
                                   * Matrix.CreateTranslation(armSpread, rightArmY - armH * 0.38f + armH * 0.4f, 0f);
-            
+
             drawRotated(world, armW, armH * 0.5f, armW, leftArmTransform, sleeveColor);
             drawRotated(world, armW, armH * 0.5f, armW, rightArmTransform, sleeveColor);
             drawRotated(world, armW * 0.65f, armH * 0.20f, armW * 0.55f, leftSkinTransform, skinColor);
@@ -275,7 +275,7 @@ namespace Autonocraft.Engine
             float w = Villager.Width;
             float h = Villager.Height;
             float workPulse = MathF.Abs(action) * 0.03f;
-            
+
             var toolTransform = Matrix.CreateTranslation(0f, -h * 0.15f, 0f)
                               * Matrix.CreateRotationX(armPitch)
                               * Matrix.CreateTranslation(w * 0.34f, armY + h * 0.15f, 0f);

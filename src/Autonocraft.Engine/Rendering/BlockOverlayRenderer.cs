@@ -131,7 +131,7 @@ namespace Autonocraft.Engine
                 int wx = preview.AnchorX + block.Dx;
                 int wy = preview.AnchorY + block.Dy;
                 int wz = preview.AnchorZ + block.Dz;
-                
+
                 // For queued construction, skip drawing blocks that have already been placed in the world
                 // by the builders, so the hologram isn't z-fighting with the real blocks.
                 // However, BlockOverlayRenderer doesn't easily have access to VoxelWorld here.

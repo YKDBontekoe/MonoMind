@@ -64,7 +64,7 @@ namespace Autonocraft.Village.Jobs
                 // Fallback: Try pathing to a closer block
                 var dir = Vector3.Normalize(villager.Position - target);
                 var fallbackTarget = target + dir * 2f;
-                
+
                 if (!VoxelPathfinder.TryFindPath(world, villager.Position, fallbackTarget, range, out waypoints) || waypoints.Count == 0)
                 {
                     return false;

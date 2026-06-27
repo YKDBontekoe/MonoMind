@@ -135,7 +135,7 @@ namespace Autonocraft.UI.VillagePanels
             // Row 0
             DrawStatCard(ui, layout, left, leftY, cardW, cardH, "Population", $"{citizens}/{village.PopulationCap}",
                 (float)citizens / Math.Max(1, village.PopulationCap), new Color(0.45f, 0.78f, 0.55f), alpha, accent);
-            
+
             DrawStatCard(ui, layout, left + cardW + cardGap, leftY, cardW, cardH, "Food", $"{village.FoodStock:F0}",
                 Math.Clamp(village.FoodStock / Math.Max(1f, Math.Max(1, citizens) * 2f), 0f, 1f),
                 new Color(0.92f, 0.72f, 0.28f), alpha, accent);
