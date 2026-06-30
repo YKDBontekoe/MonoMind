@@ -7,6 +7,15 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 Releases are created automatically when changes land on `main` (after CI passes).
 
+## [0.2.16] - 2026-06-30
+
+### Other
+- Fix villager onboarding and recruitment interactions
+- Use layout anchors in blueprint tests
+- Stabilize Windows agent bridge test
+- Fix CI formatting
+- Add villager onboarding and early-game polish
+
 ## [0.2.15] - 2026-06-23
 
 ### Other
