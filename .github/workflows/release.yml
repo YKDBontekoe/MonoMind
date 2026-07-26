@@ -51,7 +51,7 @@ jobs:
             shard_number: 4
             shard_count: 4
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
