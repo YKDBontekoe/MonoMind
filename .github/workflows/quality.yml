@@ -21,7 +21,7 @@ jobs:
     name: dotnet format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -35,7 +35,7 @@ jobs:
     name: Atlas validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -49,7 +49,7 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -99,7 +99,7 @@ jobs:
             shard_number: 4
             shard_count: 4
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5

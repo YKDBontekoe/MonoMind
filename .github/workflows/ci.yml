@@ -32,7 +32,7 @@ jobs:
     name: ${{ format('Build ({0})', matrix.platform) }}
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -130,7 +130,7 @@ jobs:
     name: ${{ format('Unit tests ({0}, shard {1}/{2})', matrix.platform, matrix.shard_number, matrix.shard_count) }}
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -230,7 +230,7 @@ jobs:
     name: ${{ format('Integration tests ({0}, shard {1}/{2})', matrix.platform, matrix.shard_number, matrix.shard_count) }}
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
